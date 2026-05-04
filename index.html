@@ -16,7 +16,7 @@
     <link rel="icon" type="image/png" href="static/logos.png">
     
     <!-- ✅ CACHE BUSTING - VERSION PARAMETER -->
-    <link rel="stylesheet" href="static/style.css?v=0.0.2">
+    <link rel="stylesheet" href="static/style.css?v=0.0.3">
     
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#000000" />
@@ -265,6 +265,14 @@
                             </div>
                             <div class="model-option-check">✓</div>
                         </div>
+
+                        <div class="model-option" data-model="Gemma4" data-name="Gemma4" onclick="selectModel('gemma4', 'Gemma4')">
+                            <div class="model-option-info">
+                                <div class="model-option-name">Gemma4</div>
+                                <div class="model-option-desc">Fast & capable · Powered by Gemma 4</div>
+                            </div>
+                            <div class="model-option-check">✓</div>
+                        </div>
                     </div>
                 </div>
 
@@ -341,17 +349,17 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
     
     <!-- ✅ CACHE BUSTING - VERSION PARAMETER -->
-    <script src="static/firebase-config.js?v=0.0.2"></script>
-    <script src="static/logic.js?v=0.0.2"></script>
-    <script src="static/feedback.js?v=0.0.2"></script>
-    <script src="static/file-upload.js?v=0.0.2"></script>
+    <script src="static/firebase-config.js?v=0.0.3"></script>
+    <script src="static/logic.js?v=0.0.3"></script>
+    <script src="static/feedback.js?v=0.0.3"></script>
+    <script src="static/file-upload.js?v=0.0.3"></script>
 
     <script>
         console.log('🚀 Catura AI v27.0.5 loaded');
         
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js?v=0.0.2')
+                navigator.serviceWorker.register('/service-worker.js?v=0.0.3')
                     .then(() => console.log('✅ Catura AI PWA Ready - v27.0.5'))
                     .catch((err) => console.log('❌ SW Error:', err));
             });
