@@ -2038,7 +2038,7 @@ function handleFileSelect(event) {
 // ============================
 // 🤖 MODEL SELECTOR
 // ============================
-let selectedModel = 'dagr'; // Default model — options: dagr, apep, sambhav
+let selectedModel = 'dagr'; // Default model — options: dagr, apep, sambhav, Gemma4
 
 window.toggleModelSelector = function (e) {
     e.stopPropagation();
