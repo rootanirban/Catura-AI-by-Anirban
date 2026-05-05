@@ -6,16 +6,18 @@
     <meta name="description" content="Catura AI is a free AI chatbot assistant like ChatGPT and Claude.">
     <meta name="robots" content="index, follow">
     <meta name="google-site-verification" content="qiQ1Xx00fMsEhl6f4cmRXiJg-16rT3M_sg4kDAt5y1Q" />
-
+    
+    <!-- ✅ CACHE BUSTING - NEVER CACHE HTML -->
     <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="pragma" content="no-cache">
     <meta http-equiv="expires" content="0">
-
+    
     <title>Catura AI</title>
     <link rel="icon" type="image/png" href="static/logos.png">
-
-    <link rel="stylesheet" href="static/style.css?v=0.0.6">
-
+    
+    <!-- ✅ CACHE BUSTING - VERSION PARAMETER -->
+    <link rel="stylesheet" href="static/style.css?v=0.0.7">
+    
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#000000" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -28,7 +30,7 @@
     <!-- Mobile overlay backdrop -->
     <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
 
-    <!-- MOBILE TOP HEADER -->
+    <!-- MOBILE TOP HEADER (only shows on mobile) -->
     <div class="mobile-header" id="mobileHeader">
         <button class="mobile-hamburger" onclick="toggleSidebar()" title="Open Menu" aria-label="Open menu">
             <span></span>
@@ -155,6 +157,7 @@
         <div id="chatbox"></div>
 
         <div class="input-area center" id="inputArea">
+            <!-- ATTACHED FILES PREVIEW -->
             <div class="attached-files-preview" id="attachedFilesPreview" style="display: none;">
                 <div class="attached-files-list" id="attachedFilesList"></div>
             </div>
@@ -221,6 +224,7 @@
                     </div>
                 </div>
 
+                <!-- 🌐 WEB SEARCH CHIP — shown when web search is enabled -->
                 <button id="webSearchChip" class="web-search-chip" onclick="toggleWebSearch()" title="Web search ON — click to disable" style="display:none;">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="10"></circle>
@@ -243,52 +247,39 @@
                         <div class="model-option active" data-model="dagr" data-name="Dagr" onclick="selectModel('dagr', 'Dagr')">
                             <div class="model-option-info">
                                 <div class="model-option-name">Dagr</div>
-                                <div class="model-option-desc">Powered by Gemini 2.5 · Your everyday companion</div>
+                                <div class="model-option-desc">Your intelligent everyday companion</div>
                             </div>
                             <div class="model-option-check">✓</div>
                         </div>
                         <div class="model-option" data-model="apep" data-name="Apep" onclick="selectModel('apep', 'Apep')">
                             <div class="model-option-info">
                                 <div class="model-option-name">Apep</div>
-                                <div class="model-option-desc">Expert at coding & technical problems</div>
+                                 <div class="model-option-desc">Expert at coding & technical problems</div>
                             </div>
                             <div class="model-option-check">✓</div>
                         </div>
                         <div class="model-option" data-model="sambhav" data-name="Sambhav" onclick="selectModel('sambhav', 'Sambhav')">
                             <div class="model-option-info">
                                 <div class="model-option-name">Sambhav</div>
-                                <div class="model-option-desc">Fast & capable · Powered by GPT-OSS</div>
+                                <div class="model-option-desc">Powered by Gemini · Deep reasoning & analysis</div>
                             </div>
                             <div class="model-option-check">✓</div>
                         </div>
-                        <div class="model-option" data-model="gemma" data-name="Gemma" onclick="selectModel('gemma', 'Gemma')">
+
+                        <div class="model-option" data-model="Gemma" data-name="Gemma" onclick="selectModel('gemma', 'Gemma')">
                             <div class="model-option-info">
                                 <div class="model-option-name">Gemma</div>
                                 <div class="model-option-desc">Fast & capable · Powered by Google</div>
                             </div>
                             <div class="model-option-check">✓</div>
                         </div>
+
                         <div class="model-option" data-model="ra" data-name="Ra" onclick="selectModel('ra', 'Ra')">
                             <div class="model-option-info">
                                 <div class="model-option-name">Ra</div>
                                 <div class="model-option-desc">Fast & capable · Powered by Gemma 4</div>
                             </div>
                             <div class="model-option-check">✓</div>
-                        </div>
-
-                        <div class="model-dropdown-divider"></div>
-                        <div class="model-option more-models-trigger" onclick="openMoreModels(event)">
-                            <div class="model-option-info">
-                                <div class="model-option-name" style="display:flex;align-items:center;gap:6px;">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <circle cx="12" cy="12" r="1"></circle>
-                                        <circle cx="19" cy="12" r="1"></circle>
-                                        <circle cx="5" cy="12" r="1"></circle>
-                                    </svg>
-                                    More models
-                                </div>
-                                <div class="model-option-desc">Browse all available AIs</div>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -305,31 +296,12 @@
         <input type="file" id="fileInput" multiple accept="image/*,.pdf,.txt,.doc,.docx,.csv,.jpg,.jpeg,.png,.gif,.webp" style="display:none" onchange="handleFileSelect(event)">
     </div>
 
-    <!-- MORE MODELS MODAL -->
-    <div id="moreModelsModal" class="mm-overlay" onclick="closeMoreModels(event)">
-        <div class="mm-box" onclick="event.stopPropagation()">
-            <div class="mm-header">
-                <div>
-                    <h2 class="mm-title">All Models</h2>
-                    <p class="mm-subtitle">Choose the AI that fits your task</p>
-                </div>
-                <button class="mm-close" onclick="closeMoreModels()" aria-label="Close">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                </button>
-            </div>
-            <div class="mm-grid" id="mmGrid"></div>
-        </div>
-    </div>
-
     <!-- FEEDBACK MODAL -->
     <div id="feedbackModal" class="feedback-modal">
         <div class="feedback-modal-overlay" onclick="closeFeedbackModal()"></div>
         <div class="feedback-modal-content">
             <button class="feedback-close-btn" onclick="closeFeedbackModal()">✕</button>
-
+            
             <div class="feedback-modal-header">
                 <h2 id="feedbackModalTitle">Send Feedback</h2>
             </div>
@@ -337,17 +309,34 @@
             <form id="feedbackForm" class="feedback-form">
                 <div class="form-group">
                     <label for="feedbackName">Name</label>
-                    <input type="text" id="feedbackName" placeholder="Your name" required autocomplete="name">
+                    <input 
+                        type="text" 
+                        id="feedbackName" 
+                        placeholder="Your name" 
+                        required
+                        autocomplete="name"
+                    >
                 </div>
 
                 <div class="form-group">
                     <label for="feedbackEmail">Email</label>
-                    <input type="email" id="feedbackEmail" placeholder="your@email.com" required autocomplete="email">
+                    <input 
+                        type="email" 
+                        id="feedbackEmail" 
+                        placeholder="your@email.com" 
+                        required
+                        autocomplete="email"
+                    >
                 </div>
 
                 <div class="form-group">
                     <label for="feedbackText">Message</label>
-                    <textarea id="feedbackText" placeholder="Tell us your thoughts..." rows="5" required></textarea>
+                    <textarea 
+                        id="feedbackText" 
+                        placeholder="Tell us your thoughts..." 
+                        rows="5"
+                        required
+                    ></textarea>
                 </div>
 
                 <button type="submit" class="feedback-submit-btn" id="feedbackSubmitBtn">
@@ -366,19 +355,20 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
-
-    <script src="static/firebase-config.js?v=0.0.6"></script>
-    <script src="static/logic.js?v=0.0.6"></script>
-    <script src="static/feedback.js?v=0.0.6"></script>
-    <script src="static/file-upload.js?v=0.0.6"></script>
+    
+    <!-- ✅ CACHE BUSTING - VERSION PARAMETER -->
+    <script src="static/firebase-config.js?v=0.0.7"></script>
+    <script src="static/logic.js?v=0.0.7"></script>
+    <script src="static/feedback.js?v=0.0.7"></script>
+    <script src="static/file-upload.js?v=0.0.7"></script>
 
     <script>
-        console.log('🚀 Catura AI v27.0.6 loaded');
-
+        console.log('🚀 Catura AI v27.0.5 loaded');
+        
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js?v=0.0.6')
-                    .then(() => console.log('✅ Catura AI PWA Ready - v27.0.6'))
+                navigator.serviceWorker.register('/service-worker.js?v=0.0.7')
+                    .then(() => console.log('✅ Catura AI PWA Ready - v27.0.5'))
                     .catch((err) => console.log('❌ SW Error:', err));
             });
         }
