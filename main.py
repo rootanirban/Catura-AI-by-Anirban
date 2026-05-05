@@ -42,12 +42,12 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # ✅ RENDER APP URL
 APP_URL = os.getenv("APP_URL", "https://my-ai-assistant-9bbd.onrender.com/")
 
-# ✅ API KEYS (set these as environment variables)
-OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY", "")       # https://openweathermap.org/api (free)
-NEWSDATA_API_KEY    = os.getenv("NEWSDATA_API_KEY", "")           # https://newsdata.io (free)
-ALPHAVANTAGE_KEY    = os.getenv("ALPHAVANTAGE_API_KEY", "")       # https://www.alphavantage.co (free)
-CRICAPI_KEY         = os.getenv("CRICAPI_KEY", "")                # https://www.cricapi.com (free)
-GEMINI_API_KEY      = os.getenv("GEMINI_API_KEY", "")               # https://aistudio.google.com (free)
+# ✅ API KEYS
+OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY", "")
+NEWSDATA_API_KEY    = os.getenv("NEWSDATA_API_KEY", "")
+ALPHAVANTAGE_KEY    = os.getenv("ALPHAVANTAGE_API_KEY", "")
+CRICAPI_KEY         = os.getenv("CRICAPI_KEY", "")
+GEMINI_API_KEY      = os.getenv("GEMINI_API_KEY", "")
 
 
 # ============================================================
@@ -100,7 +100,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.5"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.6"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -110,21 +110,15 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.5", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.6", "timestamp": datetime.utcnow().isoformat()}
 
 
 # ============================================================
-# ✅ INTENT DETECTOR — keyword-based (fast, zero-latency)
-# Returns: weather | finance | sports | news | web_search | general
+# ✅ INTENT DETECTOR
 # ============================================================
 def detect_intent(text: str) -> str:
-    """
-    Keyword-based intent classifier.
-    Priority order: weather > finance > sports > news > web_search > general
-    """
     lower = text.lower()
 
-    # ── WEATHER ────────────────────────────────────────────────────────────
     weather_patterns = [
         r'\bweather\b', r'\btemperature\b', r'\bhumidity\b', r'\brain\b',
         r'\bsnow\b', r'\bwind\b', r'\bforecast\b', r'\bclimate\b',
@@ -135,7 +129,6 @@ def detect_intent(text: str) -> str:
     if any(re.search(p, lower) for p in weather_patterns):
         return "weather"
 
-    # ── FINANCE ────────────────────────────────────────────────────────────
     finance_patterns = [
         r'\bshare price\b', r'\bstock price\b', r'\bstock market\b',
         r'\bnse\b', r'\bbse\b', r'\bnifty\b', r'\bsensex\b',
@@ -150,7 +143,6 @@ def detect_intent(text: str) -> str:
     if any(re.search(p, lower) for p in finance_patterns):
         return "finance"
 
-    # ── SPORTS ─────────────────────────────────────────────────────────────
     sports_patterns = [
         r'\bcricket\b', r'\bipl\b', r'\btest match\b', r'\bodi\b', r'\bt20\b',
         r'\bfootball\b', r'\bsoccer\b', r'\bfifa\b', r'\bpremier league\b',
@@ -162,7 +154,6 @@ def detect_intent(text: str) -> str:
     if any(re.search(p, lower) for p in sports_patterns):
         return "sports"
 
-    # ── NEWS ───────────────────────────────────────────────────────────────
     news_patterns = [
         r'\bnews\b', r'\bheadlines\b', r'\bbreaking\b', r'\blatest (news|update|development)\b',
         r"\bwhat('s| is) happening\b", r'\bwhat happened\b', r'\bcurrent events\b',
@@ -171,7 +162,6 @@ def detect_intent(text: str) -> str:
     if any(re.search(p, lower) for p in news_patterns):
         return "news"
 
-    # ── WEB SEARCH (general real-time lookup) ──────────────────────────────
     web_search_patterns = [
         r'\blatest\b', r'\bcurrently?\b', r'\bright now\b', r'\btoday\b',
         r'\brecently?\b', r'\bwho is\b', r'\bwhen (is|was|did)\b',
@@ -187,16 +177,10 @@ def detect_intent(text: str) -> str:
 
 # ============================================================
 # ✅ TOOL: WEATHER
-# Uses OpenWeatherMap free API
 # ============================================================
 def tool_weather(prompt: str) -> dict:
-    """
-    Extract city from prompt, call OpenWeatherMap, return formatted data.
-    Falls back to DuckDuckGo search if API key not set.
-    """
     print(f"🌤️ [TOOL] weather | prompt: {prompt[:80]}")
 
-    # Extract city name — heuristic
     city = None
     patterns = [
         r'weather (?:in|at|for|of) ([a-zA-Z\s]+)',
@@ -211,7 +195,6 @@ def tool_weather(prompt: str) -> dict:
             city = m.group(1).strip().rstrip('?.,!')
             break
 
-    # Default to India if asking "temperature in India" broadly
     if not city:
         lower = prompt.lower()
         if 'india' in lower:
@@ -219,10 +202,9 @@ def tool_weather(prompt: str) -> dict:
         elif 'kolkata' in lower or 'calcutta' in lower:
             city = 'Kolkata'
         else:
-            city = 'Mumbai'  # safe default
+            city = 'Mumbai'
 
     if not OPENWEATHER_API_KEY:
-        # Fallback: DuckDuckGo search
         print("⚠️ [TOOL] weather — no API key, falling back to web search")
         return tool_web_search(f"current weather {city} today temperature")
 
@@ -232,7 +214,6 @@ def tool_weather(prompt: str) -> dict:
         data = resp.json()
 
         if resp.status_code != 200 or data.get("cod") != 200:
-            print(f"⚠️ [TOOL] weather API error: {data.get('message')}")
             return tool_web_search(f"current weather {city} today")
 
         w = data["weather"][0]
@@ -241,7 +222,7 @@ def tool_weather(prompt: str) -> dict:
         city_name = data.get("name", city)
         country = data.get("sys", {}).get("country", "")
 
-        result = {
+        return {
             "tool": "weather",
             "city": f"{city_name}, {country}",
             "temperature": m["temp"],
@@ -252,8 +233,6 @@ def tool_weather(prompt: str) -> dict:
             "min_temp": m["temp_min"],
             "max_temp": m["temp_max"],
         }
-        print(f"✅ [TOOL] weather success: {result}")
-        return result
 
     except Exception as e:
         print(f"❌ [TOOL] weather exception: {e}")
@@ -262,15 +241,10 @@ def tool_weather(prompt: str) -> dict:
 
 # ============================================================
 # ✅ TOOL: FINANCE
-# Uses Alpha Vantage (stock) or DuckDuckGo fallback
 # ============================================================
 def tool_finance(prompt: str) -> dict:
-    """
-    Extract stock ticker or crypto symbol, fetch live price.
-    """
     print(f"💹 [TOOL] finance | prompt: {prompt[:80]}")
 
-    # Indian company → NSE ticker mapping
     indian_tickers = {
         "tata steel": "TATASTEEL.BSE", "tata": "TCS.BSE",
         "reliance": "RELIANCE.BSE", "infosys": "INFY",
@@ -287,18 +261,15 @@ def tool_finance(prompt: str) -> dict:
             ticker = sym
             break
 
-    # Also check for explicit ticker symbols (e.g., RELIANCE, INFY)
     if not ticker:
         m = re.search(r'\b([A-Z]{2,6})\b', prompt)
         if m:
             ticker = m.group(1)
 
     if not ticker:
-        # Generic finance search
         return tool_web_search(prompt + " stock price today")
 
     if not ALPHAVANTAGE_KEY:
-        print("⚠️ [TOOL] finance — no API key, falling back to web search")
         return tool_web_search(f"{ticker} stock price today")
 
     try:
@@ -310,7 +281,7 @@ def tool_finance(prompt: str) -> dict:
         if not quote:
             return tool_web_search(f"{ticker} stock price today live")
 
-        result = {
+        return {
             "tool": "finance",
             "symbol": quote.get("01. symbol", ticker),
             "price": quote.get("05. price", "N/A"),
@@ -320,8 +291,6 @@ def tool_finance(prompt: str) -> dict:
             "latest_trading_day": quote.get("07. latest trading day", "N/A"),
             "previous_close": quote.get("08. previous close", "N/A"),
         }
-        print(f"✅ [TOOL] finance success: {result}")
-        return result
 
     except Exception as e:
         print(f"❌ [TOOL] finance exception: {e}")
@@ -330,22 +299,16 @@ def tool_finance(prompt: str) -> dict:
 
 # ============================================================
 # ✅ TOOL: NEWS
-# Uses NewsData.io free tier (100 req/day) or DuckDuckGo fallback
 # ============================================================
 def tool_news(prompt: str) -> dict:
-    """
-    Fetch top news headlines. Extracts topic if present.
-    """
     print(f"📰 [TOOL] news | prompt: {prompt[:80]}")
 
-    # Extract topic
     topic_match = re.search(
         r'news (?:about|on|regarding|of) (.+?)(?:\?|$)', prompt, re.IGNORECASE
     )
     topic = topic_match.group(1).strip() if topic_match else None
 
     if not NEWSDATA_API_KEY:
-        print("⚠️ [TOOL] news — no API key, falling back to web search")
         query = f"latest news {topic}" if topic else "top headlines today India"
         return tool_web_search(query)
 
@@ -378,9 +341,7 @@ def tool_news(prompt: str) -> dict:
             for a in articles if a.get("title")
         ]
 
-        result = {"tool": "news", "topic": topic or "Top Headlines", "articles": headlines}
-        print(f"✅ [TOOL] news success: {len(headlines)} articles")
-        return result
+        return {"tool": "news", "topic": topic or "Top Headlines", "articles": headlines}
 
     except Exception as e:
         print(f"❌ [TOOL] news exception: {e}")
@@ -389,13 +350,9 @@ def tool_news(prompt: str) -> dict:
 
 
 # ============================================================
-# ✅ TOOL: SPORTS / CRICKET
-# Uses CricAPI free tier for cricket; DuckDuckGo fallback for others
+# ✅ TOOL: SPORTS
 # ============================================================
 def tool_sports(prompt: str) -> dict:
-    """
-    Fetch live cricket scores or general sports news via search.
-    """
     print(f"🏏 [TOOL] sports | prompt: {prompt[:80]}")
 
     lower = prompt.lower()
@@ -421,25 +378,18 @@ def tool_sports(prompt: str) -> dict:
                         "match_type": m.get("matchType", ""),
                         "venue": m.get("venue", ""),
                     })
-
-                result = {"tool": "sports", "sport": "cricket", "matches": live_matches}
-                print(f"✅ [TOOL] sports (cricket) success: {len(live_matches)} matches")
-                return result
+                return {"tool": "sports", "sport": "cricket", "matches": live_matches}
         except Exception as e:
             print(f"❌ [TOOL] cricket API exception: {e}")
 
-    # Fallback: DuckDuckGo search for any sport
     sport_kw = "cricket live score" if is_cricket else "live sports scores today"
     return tool_web_search(f"{sport_kw} {prompt}")
 
 
 # ============================================================
-# ✅ TOOL: WEB SEARCH (DuckDuckGo)
+# ✅ TOOL: WEB SEARCH
 # ============================================================
 def tool_web_search(query: str, max_results: int = 5) -> dict:
-    """
-    DuckDuckGo search with structured result output.
-    """
     print(f"🔍 [TOOL] web_search | query: {query[:80]}")
     try:
         with DDGS() as ddgs:
@@ -453,7 +403,6 @@ def tool_web_search(query: str, max_results: int = 5) -> dict:
             }
             for r in raw if r.get("title")
         ]
-        print(f"✅ [TOOL] web_search success: {len(results)} results")
         return {"tool": "web_search", "query": query, "results": results}
     except Exception as e:
         print(f"❌ [TOOL] web_search exception: {e}")
@@ -461,30 +410,22 @@ def tool_web_search(query: str, max_results: int = 5) -> dict:
 
 
 # ============================================================
-# ✅ TOOL ROUTER — dispatches to the correct tool
+# ✅ TOOL ROUTER
 # ============================================================
 def run_tool(intent: str, prompt: str) -> dict | None:
-    """
-    Routes to the appropriate tool based on detected intent.
-    Returns tool output dict, or None for 'general' (no tool needed).
-    """
     print(f"🗺️ [ROUTER] intent={intent}")
     if intent == "weather":     return tool_weather(prompt)
     if intent == "finance":     return tool_finance(prompt)
     if intent == "news":        return tool_news(prompt)
     if intent == "sports":      return tool_sports(prompt)
     if intent == "web_search":  return tool_web_search(prompt)
-    return None  # general — no tool
+    return None
 
 
 # ============================================================
-# ✅ CONTEXT BUILDER — turns tool output into AI system context
+# ✅ CONTEXT BUILDER
 # ============================================================
 def build_tool_context(tool_result: dict) -> str:
-    """
-    Formats raw tool output into a clean system-prompt injection.
-    The AI uses this data to write its final answer.
-    """
     if not tool_result:
         return ""
 
@@ -543,7 +484,7 @@ def build_tool_context(tool_result: dict) -> str:
 
 
 # ============================================================
-# ✅ DETECT INTENT ENDPOINT (debug / frontend use)
+# ✅ DEBUG / SEARCH ENDPOINTS
 # ============================================================
 @app.get("/detect_intent")
 async def detect_intent_endpoint(q: str):
@@ -551,9 +492,6 @@ async def detect_intent_endpoint(q: str):
     return {"query": q, "intent": intent}
 
 
-# ============================================================
-# ✅ LEGACY WEB SEARCH ENDPOINT (keep for backward compat)
-# ============================================================
 @app.get("/search")
 async def web_search_endpoint(q: str, max_results: int = 5):
     result = tool_web_search(q, max_results)
@@ -561,25 +499,17 @@ async def web_search_endpoint(q: str, max_results: int = 5):
 
 
 # ============================================================
-# ✅ DELETE ACCOUNT ENDPOINT
-# Deletes the user from Supabase using the Admin API.
-# The session cookie identifies who is making the request.
+# ✅ DELETE ACCOUNT
 # ============================================================
 @app.post("/delete_account")
 async def delete_account(request: Request):
-    """
-    Deletes the authenticated user's Supabase account.
-    Requires SUPABASE_SERVICE_KEY (service_role key — keep secret, server-only).
-    """
     try:
-        # Get the user's JWT from the Authorization header or cookie
         auth_header = request.headers.get("Authorization", "")
         token = auth_header.replace("Bearer ", "").strip()
 
         if not token:
             return JSONResponse({"error": "Not authenticated"}, status_code=401)
 
-        # Verify the token and get the user ID using the regular client
         try:
             user_resp = supabase.auth.get_user(token)
             user_id   = user_resp.user.id
@@ -589,7 +519,6 @@ async def delete_account(request: Request):
         if not user_id:
             return JSONResponse({"error": "Could not identify user"}, status_code=401)
 
-        # Use the Admin API (requires service_role key) to hard-delete the user
         service_key = os.getenv("SUPABASE_SERVICE_KEY", "")
         if not service_key:
             return JSONResponse(
@@ -608,20 +537,17 @@ async def delete_account(request: Request):
         )
 
         if admin_resp.status_code in (200, 204):
-            print(f"✅ [DELETE_ACCOUNT] User {user_id} deleted successfully")
             return JSONResponse({"success": True, "message": "Account deleted successfully"})
         else:
             err = admin_resp.json().get("message", f"HTTP {admin_resp.status_code}")
-            print(f"❌ [DELETE_ACCOUNT] Failed for {user_id}: {err}")
             return JSONResponse({"error": err}, status_code=admin_resp.status_code)
 
     except Exception as e:
-        print(f"❌ [DELETE_ACCOUNT] Exception: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
 # ============================================================
-# ✅ HELPER: Call OpenRouter with streaming
+# ✅ OPENROUTER STREAM HELPER
 # ============================================================
 def call_openrouter_stream(model_id, messages, api_key, file_urls=None):
     try:
@@ -663,23 +589,18 @@ def call_openrouter_stream(model_id, messages, api_key, file_urls=None):
 
 
 # ============================================================
-# ✅ HELPER: Call Google Gemini with streaming
+# ✅ GEMINI STREAM HELPER
 # ============================================================
 def call_gemini_stream(messages, system_prompt):
-    """
-    Calls Gemini 2.5 Flash via Google AI Studio REST API with streaming.
-    Converts OpenAI-style messages to Gemini format.
-    """
     if not GEMINI_API_KEY:
         return None, "GEMINI_API_KEY not set in environment variables"
 
     try:
-        # Build Gemini contents from messages (skip system role)
         contents = []
         for msg in messages:
             role = msg["role"]
             if role == "system":
-                continue  # handled via system_instruction
+                continue
             gemini_role = "user" if role == "user" else "model"
             contents.append({
                 "role": gemini_role,
@@ -726,8 +647,150 @@ def call_gemini_stream(messages, system_prompt):
 
 
 # ============================================================
+# ✅ NO-TOOL-CALL RULE (shared)
+# ============================================================
+NO_TOOL_CALL_RULE = (
+    "\n\nCRITICAL RULES — FOLLOW THESE WITHOUT EXCEPTION:\n"
+    "1. You do NOT have any tools, functions, or APIs to call.\n"
+    "2. NEVER output function calls, tool calls, or JSON like "
+    "{\"query\": ...} or Search web.{...} or any similar syntax.\n"
+    "3. If live data (weather, finance, news, sports, search results) "
+    "is provided above in your system context, use it directly to write "
+    "your answer in natural language. Do NOT say you are 'using a tool'.\n"
+    "4. If no live data is provided, answer from your knowledge.\n"
+    "5. Always respond in clean, readable prose or markdown. Never output raw JSON."
+)
+
+
+# ============================================================
+# ✅ SYSTEM PROMPTS (shared)
+# ============================================================
+def get_system_prompts():
+    return {
+        # ── DAGR — now powered by Gemini 2.5 Flash ─────────────────────────
+        "dagr": (
+            "Your name is Catura (pronounced kuh-CHUR-uh). You are a creative, thoughtful, and "
+            "highly capable AI assistant created by Anirban — an independent developer based in India. "
+            "You are Catura AI Dagr, your intelligent everyday companion powered by advanced multimodal intelligence. "
+            "You are articulate, insightful, and adaptable. You speak clearly and helpfully. "
+            "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
+            "'Absolutely!', or similar hollow openers. Just answer directly. "
+            "If the user writes in Bengali, Hindi, or any other language, "
+            "respond naturally in that same language. Match the user's language automatically. "
+            "Keep answers concise unless the user explicitly asks for detail. "
+            "Use bullet points or headers only when they genuinely improve clarity. "
+            "For simple questions, give simple answers. Don't pad responses. "
+            "You are knowledgeable about technology, science, reasoning, analysis, and creative tasks. "
+            "You excel at nuanced understanding and multi-step reasoning. "
+            "If asked what model or AI you are, say you are Catura AI Dagr and cannot share "
+            "details about the underlying technology. "
+            "If asked who made you, say 'I was created by Anirban.' "
+            "Never make up facts. If you don't know something, say so honestly. "
+            "Never say 'I don't have real-time data' — if live data is provided in context, use it."
+            + NO_TOOL_CALL_RULE
+        ),
+
+        # ── SAMBHAV — now powered by GPT-OSS 20B ──────────────────────────
+        "sambhav": (
+            "Your name is Catura (pronounced kuh-CHUR-uh). You are a smart, warm, and witty "
+            "AI assistant created by Anirban — an independent developer based in India. "
+            "You are Catura AI Sambhav, a fast and capable model for everyday tasks. "
+            "You speak like a knowledgeable friend — helpful, concise, and occasionally funny. "
+            "You are never robotic, never overly formal, and never sycophantic. "
+            "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
+            "'Absolutely!', or similar hollow openers. Just answer directly. "
+            "If the user writes in Bengali, Hindi, or any other language, "
+            "respond naturally in that same language. Match the user's language automatically. "
+            "Keep answers concise unless the user explicitly asks for detail or a long explanation. "
+            "Use bullet points, numbered lists, or headers only when they genuinely improve clarity. "
+            "For simple questions, give simple answers. Don't pad responses. "
+            "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
+            "For coding questions, write clean, well-commented code. "
+            "If asked what model or AI you are, say you are Catura AI Sambhav and cannot share "
+            "details about the underlying technology. "
+            "If asked who made you, say 'I was created by Anirban.' "
+            "Never make up facts. If you don't know something, say so honestly."
+            + NO_TOOL_CALL_RULE
+        ),
+
+        # ── APEP — coding specialist ──────────────────────────────────────
+        "apep": (
+            "Your name is Catura (pronounced kuh-CHUR-uh). You are an expert coding and "
+            "technical AI specialist created by Anirban — an independent developer based in India. "
+            "You are Catura AI Apep, the developer-focused model. "
+            "You are precise, confident, and direct. You speak like a senior engineer: "
+            "no fluff, no filler, just clean technical insight. "
+            "Never start with 'Certainly!', 'Great question!', or similar openers. Just answer. "
+            "When writing code: ALWAYS use proper indentation (4 spaces per level). "
+            "Put each statement on its own line. "
+            "Wrap ALL code in fenced markdown code blocks with the language name at the top. "
+            "Example: ```python\\n# your code here\\n``` "
+            "Add brief inline comments for non-obvious logic. "
+            "Prefer readability over cleverness unless performance is explicitly required. "
+            "You specialise in: Python, JavaScript, TypeScript, FastAPI, React, SQL, "
+            "system design, debugging, algorithms, and DevOps. "
+            "When debugging, always explain WHY something is wrong, not just what to change. "
+            "When reviewing code, point out both bugs and improvement opportunities. "
+            "If the user writes in Bengali, Hindi, or any other language, "
+            "respond in that same language but keep code and technical terms in English. "
+            "Never make up APIs, function signatures, or library features that don't exist. "
+            "If unsure about a specific library version, say so and provide the general approach. "
+            "If asked who made you, say 'I was created by Anirban.' "
+            "If asked what model you are, say you are Catura AI Apep and cannot share "
+            "details about the underlying technology."
+            + NO_TOOL_CALL_RULE
+        ),
+
+        # ── GEMMA — Gemma 4 27B ────────────────────────────────────────────
+        "gemma": (
+            "Your name is Catura (pronounced kuh-CHUR-uh). You are a powerful and efficient "
+            "AI assistant created by Anirban — an independent developer based in India. "
+            "You are Catura AI Gemma, built for fast and capable everyday tasks, powered by Google. "
+            "Speak clearly and helpfully. Never start with 'Certainly!', 'Great question!', or similar openers. "
+            "Match the user's language automatically. "
+            "Never make up facts. If asked who made you, say 'I was created by Anirban.'"
+            + NO_TOOL_CALL_RULE
+        ),
+
+        # ── GEMMA4 — Gemma 4 31B ───────────────────────────────────────────
+        "gemma4": (
+            "Your name is Catura (pronounced kuh-CHUR-uh). You are a powerful and efficient "
+            "AI assistant created by Anirban — an independent developer based in India. "
+            "You are Catura AI Gemma4, built for fast and capable everyday tasks. "
+            "Speak clearly and helpfully. Never start with 'Certainly!', 'Great question!', or similar openers. "
+            "Match the user's language automatically. "
+            "Never make up facts. If asked who made you, say 'I was created by Anirban.'"
+            + NO_TOOL_CALL_RULE
+        ),
+
+        # ── RA — fast Gemma 4 lite ─────────────────────────────────────────
+        "ra": (
+            "Your name is Catura (pronounced kuh-CHUR-uh). You are a fast and capable AI assistant "
+            "created by Anirban — an independent developer based in India. "
+            "You are Catura AI Ra, powered by Gemma 4. "
+            "Speak clearly and helpfully. Never start with 'Certainly!', 'Great question!', or similar openers. "
+            "Match the user's language automatically. "
+            "Never make up facts. If asked who made you, say 'I was created by Anirban.'"
+            + NO_TOOL_CALL_RULE
+        ),
+    }
+
+
+# ============================================================
+# ✅ MODEL POOLS (shared)
+# ============================================================
+MODEL_POOLS = {
+    "dagr":    [],  # 🔄 Gemini 2.5 Flash — handled separately (direct API)
+    "sambhav": ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
+    "apep":    ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
+    "gemma":   ["google/gemma-2-27b-it:free"],
+    "gemma4":  ["google/gemma-2-9b-it:free"],
+    "ra":      ["google/gemma-2-9b-it:free"],
+}
+
+
+# ============================================================
 # ✅ MAIN CHAT ENDPOINT (POST)
-# Full pipeline: intent → tool → context → AI → stream
 # ============================================================
 @app.post("/chat")
 async def chat_post(request: Request):
@@ -736,7 +799,6 @@ async def chat_post(request: Request):
         prompt     = body.get("prompt", "")
         model      = body.get("model", "dagr")
         file_urls  = body.get("file_urls", [])
-        # Legacy: frontend may still send pre-fetched web_results
         web_results = body.get("web_results", [])
 
         session_id = request.cookies.get("session_id")
@@ -762,179 +824,22 @@ async def chat_post(request: Request):
 
         user_memory[session_id].append({"role": "user", "content": prompt})
 
-        # ── MODEL POOLS ────────────────────────────────────────────────────
-        model_pools = {
-            "dagr": ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
-            "apep": ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
-            "sambhav": [],  # Gemini — handled separately below
-            "Gemma": ["google/gemma-4-26b-a4b-it:free"],
-            "Gemma4": ["google/gemma-4-31b-it:free"],
-        }
+        # ── Resolve model + system prompt ──────────────────────────────────
         model_key  = model.lower().strip()
-        model_pool = model_pools.get(model_key, model_pools["dagr"])
-
-        # ── BASE SYSTEM PROMPTS ────────────────────────────────────────────
-        # CRITICAL: forbid the model from emitting function-call JSON.
-        # These models are fine-tuned to output tool-call JSON when they
-        # think they need external data, but Catura fetches data BEFORE
-        # calling the AI — the data is already in the system prompt.
-        NO_TOOL_CALL_RULE = (
-            "\n\nCRITICAL RULES — FOLLOW THESE WITHOUT EXCEPTION:\n"
-            "1. You do NOT have any tools, functions, or APIs to call.\n"
-            "2. NEVER output function calls, tool calls, or JSON like "
-            "{\"query\": ...} or Search web.{...} or any similar syntax.\n"
-            "3. If live data (weather, finance, news, sports, search results) "
-            "is provided above in your system context, use it directly to write "
-            "your answer in natural language. Do NOT say you are 'using a tool'.\n"
-            "4. If no live data is provided, answer from your knowledge.\n"
-            "5. Always respond in clean, readable prose or markdown. Never output raw JSON."
-        )
-
-        system_prompts = {
-            "sambhav": (
-                # ── Identity ──
-                "Your name is Catura (pronounced kuh-CHUR-uh). You are a creative, thoughtful, and "
-                "highly capable AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI Sambhav, powered by advanced multimodal intelligence. "
-
-                # ── Personality & tone ──
-                "You are articulate, insightful, and adaptable. You speak clearly and helpfully. "
-                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
-                "'Absolutely!', or similar hollow openers. Just answer directly. "
-
-                # ── Language behaviour ──
-                "If the user writes in Bengali, Hindi, or any other language, "
-                "respond naturally in that same language. Match the user's language automatically. "
-
-                # ── Response style ──
-                "Keep answers concise unless the user explicitly asks for detail. "
-                "Use bullet points or headers only when they genuinely improve clarity. "
-                "For simple questions, give simple answers. Don't pad responses. "
-
-                # ── Expertise ──
-                "You are knowledgeable about technology, science, reasoning, analysis, and creative tasks. "
-                "You excel at nuanced understanding and multi-step reasoning. "
-
-                # ── Identity rules ──
-                "If asked what model or AI you are, say you are Catura AI Sambhav and cannot share "
-                "details about the underlying technology. "
-                "If asked who made you, say 'I was created by Anirban.' "
-
-                # ── Hard rules ──
-                "Never make up facts. If you don't know something, say so honestly. "
-                "Never say 'I don't have real-time data' — if live data is provided in context, use it."
-                + NO_TOOL_CALL_RULE
-            ),
-            "dagr": (
-                # ── Identity ──
-                "Your name is Catura (pronounced kuh-CHUR-uh). You are a smart, warm, and witty "
-                "AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI Dagr, the general-purpose model. "
-
-                # ── Personality & tone ──
-                "You speak like a knowledgeable friend — helpful, concise, and occasionally funny. "
-                "You are never robotic, never overly formal, and never sycophantic. "
-                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
-                "'Absolutely!', or similar hollow openers. Just answer directly. "
-
-                # ── Language behaviour ──
-                "If the user writes in Bengali, Hindi, or any other language, "
-                "respond naturally in that same language. Match the user's language automatically. "
-
-                # ── Response style ──
-                "Keep answers concise unless the user explicitly asks for detail or a long explanation. "
-                "Use bullet points, numbered lists, or headers only when they genuinely improve clarity — "
-                "not for every single response. "
-                "For simple questions, give simple answers. Don't pad responses. "
-
-                # ── Expertise ──
-                "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
-                "For coding questions, write clean, well-commented code. "
-                "When analysing images or files, describe what you see in useful detail. "
-
-                # ── Identity rules ──
-                "If asked what model or AI you are, say you are Catura AI and cannot share "
-                "details about the underlying technology. "
-                "If asked who made you, say 'I was created by Anirban.' "
-
-                # ── Hard rules ──
-                "Never make up facts. If you don't know something, say so honestly. "
-                "Never say 'I don't have real-time data' — if live data is provided in context, use it; "
-                "otherwise give your best knowledge-based answer."
-                + NO_TOOL_CALL_RULE
-            ),
-            "apep": (
-                # ── Identity ──
-                "Your name is Catura (pronounced kuh-CHUR-uh). You are an expert coding and "
-                "technical AI specialist created by Anirban — an independent developer based in India. "
-                "You are Catura AI Apep, the developer-focused model. "
-
-                # ── Personality ──
-                "You are precise, confident, and direct. You speak like a senior engineer: "
-                "no fluff, no filler, just clean technical insight. "
-                "Never start with 'Certainly!', 'Great question!', or similar openers. Just answer. "
-
-                # ── Code style rules ──
-                "When writing code: ALWAYS use proper indentation (4 spaces per level). "
-                "Put each statement on its own line. "
-                "Wrap ALL code in fenced markdown code blocks with the language name at the top. "
-                "Example: ```python\\n# your code here\\n``` "
-                "Add brief inline comments for non-obvious logic. "
-                "Prefer readability over cleverness unless performance is explicitly required. "
-
-                # ── Technical expertise ──
-                "You specialise in: Python, JavaScript, TypeScript, FastAPI, React, SQL, "
-                "system design, debugging, algorithms, and DevOps. "
-                "When debugging, always explain WHY something is wrong, not just what to change. "
-                "When reviewing code, point out both bugs and improvement opportunities. "
-
-                # ── Language behaviour ──
-                "If the user writes in Bengali, Hindi, or any other language, "
-                "respond in that same language but keep code and technical terms in English. "
-
-                # ── Hard rules ──
-                "Never make up APIs, function signatures, or library features that don't exist. "
-                "If unsure about a specific library version, say so and provide the general approach. "
-                "If asked who made you, say 'I was created by Anirban.' "
-                "If asked what model you are, say you are Catura AI Apep and cannot share "
-                "details about the underlying technology."
-                + NO_TOOL_CALL_RULE
-            ),
-            "Gemma": (
-                "Your name is Catura (pronounced kuh-CHUR-uh). You are a powerful and efficient "
-                "AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI Gemma, built for fast and capable everyday tasks. "
-                "Speak clearly and helpfully. Never start with 'Certainly!', 'Great question!', or similar openers. "
-                "Match the user's language automatically. "
-                "Never make up facts. If asked who made you, say 'I was created by Anirban.'"
-                + NO_TOOL_CALL_RULE
-            ),
-            "Gemma4": (
-                "Your name is Catura (pronounced kuh-CHUR-uh). You are a powerful and efficient "
-                "AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI Gemma4, built for fast and capable everyday tasks. "
-                "Speak clearly and helpfully. Never start with 'Certainly!', 'Great question!', or similar openers. "
-                "Match the user's language automatically. "
-                "Never make up facts. If asked who made you, say 'I was created by Anirban.'"
-                + NO_TOOL_CALL_RULE
-            ),
-        }
-        system_prompt = system_prompts.get(model_key, system_prompts["dagr"])
+        model_pool = MODEL_POOLS.get(model_key, MODEL_POOLS["dagr"])
+        system_prompts = get_system_prompts()
+        system_prompt  = system_prompts.get(model_key, system_prompts["dagr"])
 
         # ── TOOL ROUTING PIPELINE ──────────────────────────────────────────
-        # Step 1: detect intent
         intent = detect_intent(prompt)
         print(f"🎯 [PIPELINE] intent={intent} | model={model_key} | prompt={prompt[:60]}")
 
-        # Step 2: run tool (skip if general or file-only message)
         tool_result = None
         if intent != "general" and not file_urls:
             tool_result = run_tool(intent, prompt)
 
-        # Step 3: build tool context string
         tool_context = build_tool_context(tool_result)
 
-        # Step 4: also handle legacy web_results from frontend (backward compat)
         if not tool_context and web_results:
             search_context = "\n\n🌐 LIVE WEB SEARCH RESULTS (use these to answer accurately):\n"
             for i, r in enumerate(web_results, 1):
@@ -947,12 +852,11 @@ async def chat_post(request: Request):
         elif tool_context:
             system_prompt += "\n\n" + tool_context
 
-        # Step 5: build final messages list
         messages = [{"role": "system", "content": system_prompt}] + user_memory[session_id][-20:]
         api_key  = os.getenv("OPENROUTER_API_KEY")
 
-        # ── SAMBHAV: Gemini direct streaming (bypass OpenRouter) ──────────
-        if model_key == "sambhav":
+        # ── DAGR: Gemini direct streaming (bypass OpenRouter) ──────────────
+        if model_key == "dagr":
             def generate_gemini():
                 full_reply = ""
                 if tool_result:
@@ -963,7 +867,7 @@ async def chat_post(request: Request):
                 resp, err = call_gemini_stream(user_memory[session_id][-20:], system_prompt)
 
                 if resp is None:
-                    yield f"data: {json.dumps({'error': f'Sambhav unavailable: {err}'})}\n\n"
+                    yield f"data: {json.dumps({'error': f'Dagr unavailable: {err}'})}\n\n"
                     yield "data: [DONE]\n\n"
                     return
 
@@ -1008,14 +912,13 @@ async def chat_post(request: Request):
                 }
             )
 
-        # ── STREAMING GENERATOR ────────────────────────────────────────────
+        # ── ALL OTHER MODELS: OpenRouter streaming with handoff fallback ───
         def generate():
             MAX_HANDOFFS = 40
             full_reply   = ""
             pool_index   = 0
             handoffs     = 0
 
-            # Emit tool badge to frontend so it can show "🌤️ Weather tool used"
             if tool_result:
                 badge_payload = json.dumps({"tool_used": tool_result.get("tool", ""), "intent": intent})
                 yield f"data: {badge_payload}\n\n"
@@ -1090,9 +993,6 @@ async def chat_post(request: Request):
                     yield "data: [DONE]\n\n"
                     return
 
-                if not stream_broke and not full_reply.strip():
-                    print(f"⚠️ [{current_model}] returned empty — switching model")
-
                 pool_index += 1
                 handoffs   += 1
 
@@ -1120,7 +1020,7 @@ async def chat_post(request: Request):
 
 
 # ============================================================
-# ✅ LEGACY GET /chat (backward compatibility)
+# ✅ LEGACY GET /chat (backward compat)
 # ============================================================
 @app.get("/chat")
 def chat_get(request: Request, prompt: str, model: str = "dagr"):
@@ -1147,79 +1047,11 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
         user_memory[session_id].append({"role": "user", "content": prompt})
 
-        model_pools = {
-            "dagr": ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
-            "apep": ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
-            "sambhav": [],  # Gemini — handled separately below
-        }
         model_key  = model.lower().strip()
-        model_pool = model_pools.get(model_key, model_pools["dagr"])
+        model_pool = MODEL_POOLS.get(model_key, MODEL_POOLS["dagr"])
+        system_prompts = get_system_prompts()
+        system_prompt  = system_prompts.get(model_key, system_prompts["dagr"])
 
-        NO_TOOL_CALL_RULE = (
-            "\n\nCRITICAL RULES — FOLLOW THESE WITHOUT EXCEPTION:\n"
-            "1. You do NOT have any tools, functions, or APIs to call.\n"
-            "2. NEVER output function calls, tool calls, or JSON like "
-            "{\"query\": ...} or Search web.{...} or any similar syntax.\n"
-            "3. If live data is provided in your system context, use it directly. "
-            "Do NOT say you are 'using a tool'.\n"
-            "4. Always respond in clean, readable prose or markdown. Never output raw JSON."
-        )
-        system_prompts = {
-            "sambhav": (
-                # ── Identity ──
-                "Your name is Catura (pronounced kuh-CHUR-uh). You are a creative, thoughtful, and "
-                "highly capable AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI Sambhav, powered by advanced multimodal intelligence. "
-
-                # ── Personality & tone ──
-                "You are articulate, insightful, and adaptable. You speak clearly and helpfully. "
-                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
-                "'Absolutely!', or similar hollow openers. Just answer directly. "
-
-                # ── Language behaviour ──
-                "If the user writes in Bengali, Hindi, or any other language, "
-                "respond naturally in that same language. Match the user's language automatically. "
-
-                # ── Response style ──
-                "Keep answers concise unless the user explicitly asks for detail. "
-                "Use bullet points or headers only when they genuinely improve clarity. "
-                "For simple questions, give simple answers. Don't pad responses. "
-
-                # ── Expertise ──
-                "You are knowledgeable about technology, science, reasoning, analysis, and creative tasks. "
-                "You excel at nuanced understanding and multi-step reasoning. "
-
-                # ── Identity rules ──
-                "If asked what model or AI you are, say you are Catura AI Sambhav and cannot share "
-                "details about the underlying technology. "
-                "If asked who made you, say 'I was created by Anirban.' "
-
-                # ── Hard rules ──
-                "Never make up facts. If you don't know something, say so honestly. "
-                "Never say 'I don't have real-time data' — if live data is provided in context, use it."
-                + NO_TOOL_CALL_RULE
-            ),
-            "dagr": (
-                "Your name is Catura. You are a smart, warm, and witty AI assistant created by Anirban. "
-                "You are Catura AI Dagr, the general-purpose model. "
-                "Speak like a knowledgeable friend — helpful, concise, occasionally funny. "
-                "Never start with 'Certainly!', 'Great question!', or similar openers. "
-                "Match the user's language automatically. "
-                "Never make up facts. If asked who made you, say 'I was created by Anirban.'"
-                + NO_TOOL_CALL_RULE
-            ),
-            "apep": (
-                "Your name is Catura. You are an expert coding AI created by Anirban. "
-                "You are Catura AI Apep, the developer-focused model. "
-                "Be precise, confident, and direct — no filler, just clean technical insight. "
-                "Always write code with proper indentation in fenced markdown code blocks. "
-                "If asked who made you, say 'I was created by Anirban.'"
-                + NO_TOOL_CALL_RULE
-            ),
-        }
-        system_prompt = system_prompts.get(model_key, system_prompts["dagr"])
-
-        # Apply tool routing for GET requests too
         intent = detect_intent(prompt)
         tool_result = None
         if intent != "general":
@@ -1230,6 +1062,49 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
         messages = [{"role": "system", "content": system_prompt}] + user_memory[session_id][-20:]
         api_key  = os.getenv("OPENROUTER_API_KEY")
+
+        # DAGR via Gemini for GET too
+        if model_key == "dagr":
+            def generate_gemini_get():
+                full_reply = ""
+                if tool_result:
+                    yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
+                yield ": heartbeat\n\n"
+                resp, err = call_gemini_stream(user_memory[session_id][-20:], system_prompt)
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'Dagr unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+                try:
+                    for line in resp.iter_lines():
+                        if not line: continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "): continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]": break
+                        try:
+                            chunk = json.loads(payload)
+                            candidates = chunk.get("candidates", [])
+                            if not candidates: continue
+                            parts = candidates[0].get("content", {}).get("parts", [])
+                            for part in parts:
+                                token = part.get("text", "")
+                                if token:
+                                    full_reply += token
+                                    yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except: continue
+                except Exception as e:
+                    print(f"❌ [Gemini-GET] stream exception: {e}")
+                if full_reply.strip():
+                    user_memory[session_id].append({"role": "assistant", "content": full_reply})
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_gemini_get(),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache",
+                         "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"}
+            )
 
         def generate():
             MAX_HANDOFFS = 40

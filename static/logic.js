@@ -2315,3 +2315,60 @@ window.executeDeleteAccount = async function () {
         if (btn) { btn.disabled = false; btn.textContent = 'Delete my account'; }
     }
 };
+
+
+// ============================================================
+// 🧩 MORE MODELS MODAL
+// ============================================================
+const ALL_MODELS = [
+    { id: 'dagr',    name: 'Dagr',    tag: 'Default',  desc: 'Powered by Gemini 2.5 Flash · Your intelligent everyday companion' },
+    { id: 'apep',    name: 'Apep',    tag: 'Coding',   desc: 'Expert at coding & technical problems · GPT-OSS 120B' },
+    { id: 'sambhav', name: 'Sambhav', tag: 'Fast',     desc: 'Fast & capable · Powered by GPT-OSS 20B' },
+    { id: 'gemma',   name: 'Gemma',   tag: 'Google',   desc: 'Fast & capable · Powered by Gemma' },
+    { id: 'ra',      name: 'Ra',      tag: 'Lite',     desc: 'Fast & capable · Powered by Gemma 4' },
+];
+
+window.openMoreModels = function (e) {
+    if (e) e.stopPropagation();
+    closeAllModelMenus();
+
+    const grid = document.getElementById('mmGrid');
+    if (!grid) return;
+
+    grid.innerHTML = ALL_MODELS.map(m => `
+        <button class="mm-card ${selectedModel === m.id ? 'active' : ''}" data-mid="${m.id}" data-mname="${m.name}">
+            <div class="mm-card-top">
+                <span class="mm-card-name">${m.name}</span>
+                <span class="mm-card-check">✓</span>
+            </div>
+            <span class="mm-card-tag">${m.tag}</span>
+            <p class="mm-card-desc">${m.desc}</p>
+        </button>
+    `).join('');
+
+    grid.querySelectorAll('.mm-card').forEach(card => {
+        card.onclick = () => {
+            selectModel(card.dataset.mid, card.dataset.mname);
+            document.querySelectorAll('.model-option').forEach(o => o.classList.remove('active'));
+            const dropOpt = document.querySelector(`.model-option[data-model="${card.dataset.mid}"]`);
+            if (dropOpt) dropOpt.classList.add('active');
+            closeMoreModels();
+        };
+    });
+
+    const modal = document.getElementById('moreModelsModal');
+    modal.classList.add('open');
+};
+
+window.closeMoreModels = function (e) {
+    if (e && e.target && e.target.id !== 'moreModelsModal' && e.type === 'click') return;
+    const modal = document.getElementById('moreModelsModal');
+    if (modal) modal.classList.remove('open');
+};
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('moreModelsModal');
+        if (modal && modal.classList.contains('open')) closeMoreModels();
+    }
+});
