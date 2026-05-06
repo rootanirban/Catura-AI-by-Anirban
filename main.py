@@ -100,7 +100,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.12"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.13"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -110,7 +110,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.12", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.13", "timestamp": datetime.utcnow().isoformat()}
 
 
 # ============================================================
@@ -764,9 +764,9 @@ async def chat_post(request: Request):
 
         # ── MODEL POOLS ────────────────────────────────────────────────────
         model_pools = {
-            "dagr": [],  # Gemini — handled separately below
+            "dagr": ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
             "apep": ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
-            "sambhav": ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
+            "sambhav": [],  # Gemini — handled separately below
             "Gemma": ["google/gemma-4-26b-a4b-it:free"],
             "Gemma4": ["google/gemma-4-31b-it:free"],
         }
@@ -952,7 +952,7 @@ async def chat_post(request: Request):
         api_key  = os.getenv("OPENROUTER_API_KEY")
 
         # ── SAMBHAV: Gemini direct streaming (bypass OpenRouter) ──────────
-        if model_key == "dagr":
+        if model_key == "sambhav":
             def generate_gemini():
                 full_reply = ""
                 if tool_result:
@@ -961,7 +961,7 @@ async def chat_post(request: Request):
 
                 yield ": heartbeat\n\n"
                 resp, err = call_gemini_stream(user_memory[session_id][-20:], system_prompt)
-                # ... rest of dagr/gemini logic
+
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'Sambhav unavailable: {err}'})}\n\n"
                     yield "data: [DONE]\n\n"
@@ -1148,9 +1148,9 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
         user_memory[session_id].append({"role": "user", "content": prompt})
 
         model_pools = {
-            "dagr": [],  # Gemini — handled separately below
+            "dagr": ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
             "apep": ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
-            "sambhav": ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
+            "sambhav": [],  # Gemini — handled separately below
         }
         model_key  = model.lower().strip()
         model_pool = model_pools.get(model_key, model_pools["dagr"])
