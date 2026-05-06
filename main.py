@@ -100,7 +100,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.16"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.17"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -110,7 +110,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.16", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.17", "timestamp": datetime.utcnow().isoformat()}
 
 
 # ============================================================
@@ -767,8 +767,8 @@ async def chat_post(request: Request):
             "dagr": ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
             "apep": ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
             "sambhav": [],  # Gemini — handled separately below
-            "gemma": ["google/gemma-4-26b-a4b-it:free"],
-            "gemma4": ["google/gemma-4-31b-it:free"],
+            "Gemma": ["google/gemma-4-26b-a4b-it:free"],
+            "Gemma4": ["google/gemma-4-31b-it:free"],
         }
         model_key  = model.lower().strip()
         model_pool = model_pools.get(model_key, model_pools["dagr"])
@@ -900,7 +900,7 @@ async def chat_post(request: Request):
                 "details about the underlying technology."
                 + NO_TOOL_CALL_RULE
             ),
-            "gemma": (
+            "Gemma": (
                 "Your name is Catura (pronounced kuh-CHUR-uh). You are a powerful and efficient "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Gemma, built for fast and capable everyday tasks. "
@@ -909,7 +909,7 @@ async def chat_post(request: Request):
                 "Never make up facts. If asked who made you, say 'I was created by Anirban.'"
                 + NO_TOOL_CALL_RULE
             ),
-            "gemma4": (
+            "Gemma4": (
                 "Your name is Catura (pronounced kuh-CHUR-uh). You are a powerful and efficient "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Gemma4, built for fast and capable everyday tasks. "
