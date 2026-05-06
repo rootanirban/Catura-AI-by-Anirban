@@ -2083,26 +2083,20 @@ window.selectModel = function (modelId, modelName) {
 function closeAllModelMenus() {
     const dropdown = document.getElementById('modelDropdown');
     const btn = document.getElementById('modelSelectorBtn');
+    const panel = document.getElementById('moreModelsPanel');
     if (dropdown) dropdown.classList.remove('open');
     if (btn) btn.classList.remove('open');
-    // Also collapse more models panel when closing the main dropdown
-    const panel = document.getElementById('moreModelsPanel');
-    const chevron = document.getElementById('moreModelsChevron');
     if (panel) panel.classList.remove('open');
-    if (chevron) chevron.classList.remove('open');
 }
 
 window.toggleMoreModels = function (e) {
     e.stopPropagation();
     const panel = document.getElementById('moreModelsPanel');
-    const chevron = document.getElementById('moreModelsChevron');
     if (!panel) return;
-    const isOpen = panel.classList.contains('open');
-    panel.classList.toggle('open', !isOpen);
-    if (chevron) chevron.classList.toggle('open', !isOpen);
+    panel.classList.toggle('open');
 };
 
-// Close dropdown when clicking outside
+// Close all model menus when clicking outside
 document.addEventListener('click', function (e) {
     const wrap = document.getElementById('modelSelectorWrap');
     if (wrap && !wrap.contains(e.target)) {

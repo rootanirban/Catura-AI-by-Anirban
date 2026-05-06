@@ -2166,45 +2166,61 @@ html { scroll-behavior: smooth; }
     justify-content: space-between;
     padding: 10px 14px;
     cursor: pointer;
-    color: #aaa;
-    font-size: 12px;
+    color: #ccc;
+    font-size: 13.5px;
     font-weight: 500;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
     transition: color 0.15s, background 0.15s;
     user-select: none;
+    border-radius: 0 0 10px 10px;
 }
 .model-more-row:hover {
     background: #1e1e1e;
     color: #fff;
 }
-.model-more-chevron {
-    transition: transform 0.2s ease;
+.model-more-row svg {
     flex-shrink: 0;
+    color: #888;
+    transition: color 0.15s;
 }
-.model-more-chevron.open {
-    transform: rotate(90deg);
+.model-more-row:hover svg {
+    color: #fff;
 }
 
-/* Sub-panel for extra models — collapsed by default */
-.model-more-panel {
-    max-height: 0;
+/* Floating side panel — appears to the RIGHT of the main dropdown */
+.model-side-panel {
+    display: none;
+    position: absolute;
+    bottom: 0;
+    left: calc(100% + 6px); /* sits just to the right */
+    width: 220px;
+    background: #1a1a1a;
+    border: 1px solid #2e2e2e;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    z-index: 1001;
     overflow: hidden;
-    transition: max-height 0.25s ease;
+    animation: modelPanelIn 0.15s ease;
 }
-.model-more-panel.open {
-    max-height: 600px;
+.model-side-panel.open {
+    display: block;
+}
+
+@keyframes modelPanelIn {
+    from { opacity: 0; transform: translateX(-6px); }
+    to   { opacity: 1; transform: translateX(0); }
 }
 
 [data-theme="light"] .model-more-row {
-    color: #999;
+    color: #555;
 }
 [data-theme="light"] .model-more-row:hover {
     background: #e8e8e8;
     color: #111;
 }
-[data-theme="light"] .model-dropdown-divider {
-    background: #d0d0d0;
+[data-theme="light"] .model-side-panel {
+    background: #f5f5f5;
+    border-color: #d0d0d0;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
 }
 
 /* Light theme adjustments */
