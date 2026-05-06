@@ -104,7 +104,7 @@ html { scroll-behavior: smooth; }
 .rail-logout:hover { background: #1f1515; color: #e06c6c; }
 
 /* ============================
-   SIDEBAR - FIXED FOR DROPDOWN VISIBILITY
+   SIDEBAR
 ============================ */
 .sidebar {
     width: 0;
@@ -256,11 +256,10 @@ html { scroll-behavior: smooth; }
 
 .desktop-toggle { display: none !important; }
 .mobile-toggle { display: none; }
-
 .sidebar-overlay { display: none; }
 
 /* ============================
-   APP - SHIFTS WITH SIDEBAR
+   APP
 ============================ */
 .app {
     flex: 1;
@@ -275,7 +274,6 @@ html { scroll-behavior: smooth; }
                 width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Greeting state: center the greeting + input together */
 .app.greeting-mode {
     justify-content: flex-start;
     align-items: center;
@@ -297,15 +295,10 @@ html { scroll-behavior: smooth; }
     margin: 24px auto 0 auto;
 }
 
-/* ============================
-   HEADER - HIDDEN FOR CLEAN LOOK
-============================ */
-.header {
-    display: none;
-}
+.header { display: none; }
 
 /* ============================
-   CHATBOX - FIXED FOR NATURAL FLOW WITH TOP SPACING
+   CHATBOX
 ============================ */
 #chatbox {
     flex: 1;
@@ -389,23 +382,13 @@ html { scroll-behavior: smooth; }
 }
 
 @keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(-10px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ============================
-   MARKDOWN RENDERING — v2
-   Complete, polished styles for all
-   elements the AI can generate.
+   MARKDOWN RENDERING
 ============================ */
-
-/* Headings */
 .message.bot h1,
 .message.bot h2,
 .message.bot h3 {
@@ -431,12 +414,10 @@ html { scroll-behavior: smooth; }
     margin: 16px 0 6px;
     color: #e0e0e0;
 }
-/* First heading — no top margin */
 .message.bot > h1:first-child,
 .message.bot > h2:first-child,
 .message.bot > h3:first-child { margin-top: 4px; }
 
-/* Paragraphs */
 .message.bot p {
     margin: 0 0 14px;
     line-height: 1.85;
@@ -444,13 +425,11 @@ html { scroll-behavior: smooth; }
 }
 .message.bot p:last-child { margin-bottom: 0; }
 
-/* Bold / Italic */
 .message.bot strong { color: #f0f0f0; font-weight: 600; }
 .message.bot em     { color: #c0c0c0; font-style: italic; }
 .message.bot u      { text-decoration: underline; text-underline-offset: 3px; }
 .message.bot s      { color: #888; }
 
-/* Links */
 .message.bot a {
     color: #10a37f;
     text-decoration: none;
@@ -459,7 +438,6 @@ html { scroll-behavior: smooth; }
 }
 .message.bot a:hover { border-bottom-color: #10a37f; }
 
-/* Lists */
 .message.bot ul,
 .message.bot ol {
     margin: 6px 0 14px;
@@ -474,11 +452,9 @@ html { scroll-behavior: smooth; }
 .message.bot ul li::marker { color: #10a37f; font-size: 1.1em; }
 .message.bot ol { list-style-type: decimal; }
 .message.bot ol li::marker { color: #10a37f; font-weight: 700; }
-/* Nested lists */
 .message.bot li > ul,
 .message.bot li > ol { margin: 4px 0 4px 8px; }
 
-/* Blockquote */
 .message.bot blockquote {
     border-left: 3px solid #10a37f;
     margin: 14px 0;
@@ -489,14 +465,12 @@ html { scroll-behavior: smooth; }
     font-style: italic;
 }
 
-/* Horizontal rule */
 .message.bot hr {
     border: none;
     border-top: 1px solid #2a2a2a;
     margin: 20px 0;
 }
 
-/* Inline code */
 .message.bot .inline-code {
     background: #141414;
     border: 1px solid #2c2c2c;
@@ -509,7 +483,6 @@ html { scroll-behavior: smooth; }
     word-break: break-all;
 }
 
-/* ── TABLES ── */
 .message.bot .table-wrap {
     width: 100%;
     overflow-x: auto;
@@ -543,12 +516,10 @@ html { scroll-behavior: smooth; }
     vertical-align: top;
     line-height: 1.6;
 }
-/* Alternate row shading */
 .message.bot tbody tr:nth-child(even) td { background: #111; }
 .message.bot tbody tr:hover td { background: #181818; transition: background 0.15s; }
 .message.bot tbody tr:last-child td { border-bottom: none; }
 
-/* ── STREAMING CURSOR ── */
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
 .stream-cursor {
     display: inline-block;
@@ -560,7 +531,6 @@ html { scroll-behavior: smooth; }
     margin-left: 2px;
     animation: blink 0.9s step-end infinite;
 }
-
 
 /* ============================
    CODE BLOCKS
@@ -659,9 +629,8 @@ html { scroll-behavior: smooth; }
 @keyframes cursorBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
 /* ============================
-   INPUT AREA - CLAUDE-STYLE TWO-ROW LAYOUT
+   INPUT AREA
 ============================ */
-
 .input-area {
     display: flex;
     flex-direction: column;
@@ -679,27 +648,23 @@ html { scroll-behavior: smooth; }
     position: relative;
 }
 
-/* Hover State */
 .input-area:hover {
     border-color: #444;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
 }
 
-/* Focus State */
 .input-area:focus-within {
     border-color: #10a37f66;
     box-shadow: 0 0 0 2px rgba(16, 163, 127, 0.1), 0 4px 20px rgba(16, 163, 127, 0.2);
     background: linear-gradient(135deg, #1c1c1c 0%, #181818 100%);
 }
 
-/* Top row: textarea */
 .input-row-top {
     width: 100%;
     min-height: 24px;
     margin-bottom: 10px;
 }
 
-/* Bottom row */
 .input-row-bottom {
     display: flex;
     align-items: center;
@@ -708,7 +673,6 @@ html { scroll-behavior: smooth; }
 
 .input-bottom-spacer { flex: 1; }
 
-/* Center Position (On Greeting Screen) */
 .input-area.center {
     position: static;
     transform: none;
@@ -717,7 +681,6 @@ html { scroll-behavior: smooth; }
     margin: 24px auto 0 auto;
 }
 
-/* Bottom Position (After Message Sent) */
 .input-area.bottom {
     position: relative;
     bottom: auto;
@@ -732,7 +695,6 @@ html { scroll-behavior: smooth; }
     z-index: 50;
 }
 
-/* Textarea Input */
 #input {
     flex: 1;
     width: 100%;
@@ -757,29 +719,15 @@ html { scroll-behavior: smooth; }
     display: block;
 }
 
-/* Input Placeholder */
 #input::placeholder {
     color: #666;
     font-weight: 400;
 }
 
-/* Input Scrollbar Styling */
-#input::-webkit-scrollbar {
-    width: 6px;
-}
-
-#input::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-#input::-webkit-scrollbar-thumb {
-    background: #444;
-    border-radius: 3px;
-}
-
-#input::-webkit-scrollbar-thumb:hover {
-    background: #555;
-}
+#input::-webkit-scrollbar { width: 6px; }
+#input::-webkit-scrollbar-track { background: transparent; }
+#input::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+#input::-webkit-scrollbar-thumb:hover { background: #555; }
 
 /* ============================
    PLUS BUTTON & DROPDOWN
@@ -916,7 +864,6 @@ html { scroll-behavior: smooth; }
     transform: scale(1);
 }
 
-/* Keep old .input-area button rule for any leftover refs */
 .input-area button.legacy-send {
     width: 36px;
     height: 36px;
@@ -938,7 +885,7 @@ html { scroll-behavior: smooth; }
 }
 
 /* ============================
-   WELCOME SCREEN - OPTIMIZED FOR CLAUDE STYLE
+   WELCOME SCREEN
 ============================ */
 .welcome {
     position: absolute; 
@@ -1120,7 +1067,7 @@ html { scroll-behavior: smooth; }
 }
 
 /* ============================
-   HISTORY 3-DOT MENU - FIXED WITH VISIBILITY
+   HISTORY 3-DOT MENU
 ============================ */
 .history-menu-wrap { 
     position: relative; 
@@ -1483,12 +1430,9 @@ html { scroll-behavior: smooth; }
 .sc-divider   { border: none; border-top: 1px solid #1a1a1a; margin: 28px 0; }
 
 /* ============================
-   MOBILE HEADER (hamburger bar)
-   Only visible on mobile
+   MOBILE HEADER
 ============================ */
-.mobile-header {
-    display: none;
-}
+.mobile-header { display: none; }
 
 @media (max-width: 768px) {
     .mobile-header {
@@ -1526,9 +1470,7 @@ html { scroll-behavior: smooth; }
         flex-shrink: 0;
     }
 
-    .mobile-hamburger:active {
-        background: #1e1e1e;
-    }
+    .mobile-hamburger:active { background: #1e1e1e; }
 
     .mobile-hamburger span {
         display: block;
@@ -1540,17 +1482,9 @@ html { scroll-behavior: smooth; }
         transform-origin: center;
     }
 
-    /* Animate hamburger → X when sidebar open */
-    .mobile-hamburger.is-open span:nth-child(1) {
-        transform: translateY(7px) rotate(45deg);
-    }
-    .mobile-hamburger.is-open span:nth-child(2) {
-        opacity: 0;
-        transform: scaleX(0);
-    }
-    .mobile-hamburger.is-open span:nth-child(3) {
-        transform: translateY(-7px) rotate(-45deg);
-    }
+    .mobile-hamburger.is-open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    .mobile-hamburger.is-open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+    .mobile-hamburger.is-open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 
     .mobile-header-brand {
         display: flex;
@@ -1631,7 +1565,6 @@ html { scroll-behavior: smooth; }
         left: 12px;
     }
 
-    /* Main app — push content below fixed header */
     .app { 
         width: 100%; 
         height: 100dvh;
@@ -1641,16 +1574,13 @@ html { scroll-behavior: smooth; }
     
     .header { display: none; }
 
-    /* Greeting mode: vertically center content below header */
     .app.greeting-mode {
         justify-content: center;
         align-items: center;
         padding-top: 52px;
     }
 
-    .app.greeting-mode #chatbox {
-        padding-top: 0;
-    }
+    .app.greeting-mode #chatbox { padding-top: 0; }
 
     #chatbox { 
         padding: 16px 14px 140px 14px; 
@@ -1660,7 +1590,6 @@ html { scroll-behavior: smooth; }
     .message.user { max-width: 82%; font-size: 13px; }
     .message.bot  { font-size: 14px; padding: 12px 0; }
 
-    /* Input area — fixed at bottom on mobile */
     .input-area {
         gap: 0; 
         padding: 12px 14px 10px 14px; 
@@ -1680,7 +1609,6 @@ html { scroll-behavior: smooth; }
         -webkit-backdrop-filter: blur(16px);
         box-shadow: 0 -1px 0 #1e1e1e, 0 -8px 32px rgba(0,0,0,0.5);
         z-index: 100;
-        /* Safe area for iPhone home bar */
         padding-bottom: max(10px, env(safe-area-inset-bottom));
     }
 
@@ -1710,14 +1638,12 @@ html { scroll-behavior: smooth; }
     .plus-btn  { width: 34px; height: 34px; }
 
     #input {
-        font-size: 16px; /* Prevents iOS zoom */
+        font-size: 16px;
         min-height: 22px;
         max-height: 120px;
     }
 
-    #input::placeholder {
-        font-size: 15px;
-    }
+    #input::placeholder { font-size: 15px; }
 
     .welcome { width: 92%; top: 25%; }
     .welcome h1 { font-size: 22px; }
@@ -1725,7 +1651,6 @@ html { scroll-behavior: smooth; }
     .suggestions { grid-template-columns: 1fr; gap: 10px; }
     .card { font-size: 13px; padding: 12px 14px; }
 
-    /* Greeting: center the welcome text nicely */
     .greeting-wrap, #greetingWrap {
         padding-top: 0;
         padding-bottom: 12px;
@@ -1754,29 +1679,17 @@ html { scroll-behavior: smooth; }
     .settings-nav-item { white-space: nowrap; font-size: 13px; padding: 7px 14px; flex-shrink: 0; }
     .settings-content { overflow-y: visible; padding-right: 0; }
 
-    /* Toast stays above input bar */
     #toastNotif { bottom: 90px; }
 
-    /* Model dropdown on mobile — align properly */
-    .model-dropdown {
-        bottom: 42px;
-        top: auto;
-        right: 0;
-        left: auto;
-        min-width: 220px;
-    }
-
-    /* Plus dropdown on mobile */
     .plus-dropdown {
         bottom: 42px;
         top: auto;
     }
 }
-/* ============================
-   🎨 THEME SYSTEM
-   ============================ */
 
-/* Light theme variables */
+/* ============================
+   THEME SYSTEM
+============================ */
 [data-theme="light"] {
     --bg: #f5f5f5;
     --sidebar-bg: #ebebeb;
@@ -1791,7 +1704,6 @@ html { scroll-behavior: smooth; }
     --rail-bg: #e0e0e0;
 }
 
-/* Apply light theme */
 [data-theme="light"] body { background: #f5f5f5; color: #111; }
 [data-theme="light"] .sidebar { background: #ebebeb; border-color: #d8d8d8; }
 [data-theme="light"] .icon-rail { background: #e0e0e0; border-color: #d0d0d0; }
@@ -1851,8 +1763,8 @@ html { scroll-behavior: smooth; }
 [data-theme="light"] .toastNotif, [data-theme="light"] #toastNotif { background: #fff; color: #111; border-color: #ddd; }
 
 /* ============================
-   🎨 THEME PICKER UI
-   ============================ */
+   THEME PICKER UI
+============================ */
 .sc-row-block {
     flex-direction: column;
     align-items: flex-start;
@@ -1892,7 +1804,6 @@ html { scroll-behavior: smooth; }
 .theme-option:hover { border-color: #555; color: #ccc; }
 .theme-option.active { border-color: #10a37f; color: #10a37f; background: #10a37f0f; }
 
-/* Theme preview cards */
 .theme-preview {
     width: 100%;
     height: 52px;
@@ -1940,8 +1851,8 @@ html { scroll-behavior: smooth; }
 }
 
 /* ============================
-   🔠 FONT SIZE PICKER UI
-   ============================ */
+   FONT SIZE PICKER UI
+============================ */
 .font-picker {
     display: flex;
     gap: 10px;
@@ -1972,9 +1883,6 @@ html { scroll-behavior: smooth; }
 .xlarge-sample     { font-size: 32px; }
 .font-option.active .font-sample { color: #10a37f; }
 
-/* ============================
-   🔠 FONT SIZE ACTUAL EFFECT
-   ============================ */
 [data-fontsize="small"] .message.bot,
 [data-fontsize="small"] .message.user { font-size: 13px !important; }
 [data-fontsize="small"] .message.bot p,
@@ -1990,7 +1898,6 @@ html { scroll-behavior: smooth; }
 [data-fontsize="xlarge"] .message.bot p,
 [data-fontsize="xlarge"] .message.bot li { font-size: 20px !important; line-height: 1.9; }
 
-/* Light theme adjustments for pickers */
 [data-theme="light"] .theme-option { border-color: #ccc; color: #777; }
 [data-theme="light"] .theme-option:hover { border-color: #aaa; color: #333; }
 [data-theme="light"] .theme-option.active { border-color: #10a37f; color: #10a37f; background: #10a37f10; }
@@ -2000,9 +1907,8 @@ html { scroll-behavior: smooth; }
 [data-theme="light"] .font-sample { color: #555; }
 [data-theme="light"] .font-option.active .font-sample { color: #10a37f; }
 
-
 /* ============================
-   MODEL SELECTOR - MINIMAL (RIGHT SIDE, NO BORDER)
+   ✅ MODEL SELECTOR — FIXED
 ============================ */
 .model-selector-wrap {
     position: relative;
@@ -2031,13 +1937,9 @@ html { scroll-behavior: smooth; }
     transform: scale(1.05);
 }
 
-.model-selector-btn:active {
-    transform: scale(0.95);
-}
+.model-selector-btn:active { transform: scale(0.95); }
 
-.model-selector-btn svg {
-    transition: transform 0.2s;
-}
+.model-selector-btn svg { transition: transform 0.2s; }
 
 .model-selector-btn.open svg {
     transform: rotate(180deg);
@@ -2049,7 +1951,7 @@ html { scroll-behavior: smooth; }
     letter-spacing: 0.3px;
 }
 
-/* Model Dropdown — position:fixed so it escapes overflow:hidden on .app */
+/* ✅ CRITICAL FIX: position:fixed with high z-index, never clipped */
 .model-dropdown {
     position: fixed;
     background: #1a1a1a;
@@ -2058,18 +1960,20 @@ html { scroll-behavior: smooth; }
     min-width: 220px;
     padding-top: 6px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
-    z-index: 9000;
+    z-index: 99999 !important;
     opacity: 0;
     visibility: hidden;
     transform: translateY(6px) scale(0.97);
     transition: opacity 0.15s ease, visibility 0.15s ease, transform 0.15s ease;
     overflow: hidden;
+    pointer-events: none;
 }
 
 .model-dropdown.open {
     opacity: 1;
     visibility: visible;
     transform: translateY(0) scale(1);
+    pointer-events: auto;
 }
 
 .model-dropdown-header {
@@ -2147,9 +2051,7 @@ html { scroll-behavior: smooth; }
     flex-shrink: 0;
 }
 
-.model-option.active .model-option-check {
-    opacity: 1;
-}
+.model-option.active .model-option-check { opacity: 1; }
 
 .model-dropdown-divider {
     height: 1px;
@@ -2157,8 +2059,7 @@ html { scroll-behavior: smooth; }
     margin: 0;
 }
 
-
-/* ── More Models row ─────────────────────────────────────────────── */
+/* More models row */
 .model-more-row {
     display: flex;
     align-items: center;
@@ -2178,9 +2079,7 @@ html { scroll-behavior: smooth; }
     color: #e5e5e5;
 }
 
-.model-more-label {
-    flex: 1;
-}
+.model-more-label { flex: 1; }
 
 .model-more-arrow {
     transition: transform 0.2s ease;
@@ -2198,7 +2097,7 @@ html { scroll-behavior: smooth; }
     border-bottom: 1px solid #242424;
 }
 
-/* ── More Models panel ───────────────────────────────────────────── */
+/* More models floating panel */
 .model-more-panel {
     position: fixed;
     background: #1a1a1a;
@@ -2206,7 +2105,7 @@ html { scroll-behavior: smooth; }
     border-radius: 12px;
     width: 230px;
     box-shadow: 0 8px 32px rgba(0,0,0,0.75), 0 2px 8px rgba(0,0,0,0.4);
-    z-index: 99999;
+    z-index: 100000 !important;
     padding: 4px 0;
     opacity: 0;
     visibility: hidden;
@@ -2219,7 +2118,7 @@ html { scroll-behavior: smooth; }
     opacity: 1;
     visibility: visible;
     transform: translateX(0) scale(1);
-    pointer-events: all;
+    pointer-events: auto;
 }
 
 .model-more-panel-title {
@@ -2238,16 +2137,13 @@ html { scroll-behavior: smooth; }
     border-left: 3px solid transparent;
 }
 
-.model-more-panel .model-option:hover {
-    background: #222;
-}
+.model-more-panel .model-option:hover { background: #222; }
 
 .model-more-panel .model-option.active {
     background: #10a37f11;
     border-left: 3px solid #10a37f;
 }
 
-/* Light theme */
 [data-theme="light"] .model-more-row {
     color: #777;
     border-top-color: #e5e5e5;
@@ -2265,76 +2161,91 @@ html { scroll-behavior: smooth; }
     color: #aaa;
     border-bottom-color: #e8e8e8;
 }
-[data-theme="light"] .model-more-panel .model-option:hover {
-    background: #f0f0f0;
-}
+[data-theme="light"] .model-more-panel .model-option:hover { background: #f0f0f0; }
 
-/* Light theme adjustments */
-[data-theme="light"] .model-selector-btn {
-    color: #aaa;
-}
+[data-theme="light"] .model-selector-btn { color: #aaa; }
+[data-theme="light"] .model-selector-btn:hover { color: #10a37f; }
+[data-theme="light"] .model-selector-btn.open svg { color: #10a37f; }
+[data-theme="light"] .model-dropdown { background: #f5f5f5; border-color: #d0d0d0; }
+[data-theme="light"] .model-dropdown-header { background: #e8e8e8; color: #aaa; border-color: #d0d0d0; }
+[data-theme="light"] .model-option { color: #555; }
+[data-theme="light"] .model-option:hover { background: #e8e8e8; color: #111; }
+[data-theme="light"] .model-option.active { background: #10a37f11; color: #10a37f; }
+[data-theme="light"] .model-option-desc { color: #999; }
 
-[data-theme="light"] .model-selector-btn:hover {
-    color: #10a37f;
-}
-
-[data-theme="light"] .model-selector-btn.open svg {
-    color: #10a37f;
-}
-
-[data-theme="light"] .model-dropdown {
-    background: #f5f5f5;
-    border-color: #d0d0d0;
-}
-
-[data-theme="light"] .model-dropdown-header {
-    background: #e8e8e8;
-    color: #aaa;
-    border-color: #d0d0d0;
-}
-
-[data-theme="light"] .model-option {
-    color: #555;
-}
-
-[data-theme="light"] .model-option:hover {
-    background: #e8e8e8;
-    color: #111;
-}
-
-[data-theme="light"] .model-option.active {
-    background: #10a37f11;
-    color: #10a37f;
-}
-
-[data-theme="light"] .model-option-desc {
-    color: #999;
-}
-
-[data-theme="light"] .model-dropdown-footer {
-    background: #e8e8e8;
-    border-color: #d0d0d0;
-}
-
-[data-theme="light"] .model-coming-soon {
-    color: #aaa;
-}
-
-/* Mobile adjustments */
 @media (max-width: 768px) {
     .model-selector-btn {
         font-size: 11px;
         padding: 5px 8px;
     }
-
     .model-dropdown {
         min-width: 200px;
-        right: -30px;
+        z-index: 99999 !important;
+    }
+    .model-more-panel {
+        z-index: 100000 !important;
     }
 }
 
+/* ============================
+   WEB SEARCH CHIP
+============================ */
+.web-search-chip {
+    display: none;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    background: rgba(16, 163, 127, 0.12);
+    border: 1px solid rgba(16, 163, 127, 0.4);
+    border-radius: 20px;
+    color: #10a37f;
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s, border-color 0.2s;
+    flex-shrink: 0;
+}
+.web-search-chip:hover {
+    background: rgba(16, 163, 127, 0.22);
+    border-color: rgba(16, 163, 127, 0.7);
+}
+.web-search-chip svg { flex-shrink: 0; }
 
+/* ============================
+   WEB SEARCH SOURCES
+============================ */
+.search-sources {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+}
+.sources-label {
+    opacity: 0.55;
+    font-size: 0.75rem;
+    margin-right: 2px;
+}
+.source-chip {
+    display: inline-block;
+    padding: 3px 10px;
+    background: var(--surface2, #2a2a2a);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+    color: #10a37f;
+    text-decoration: none;
+    font-size: 0.73rem;
+    max-width: 220px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: opacity 0.15s;
+}
+.source-chip:hover { opacity: 0.75; }
 
+#webSearchToggleBtn.active { color: #10a37f; }
 
 /* ============================
    FEEDBACK MODAL
@@ -2383,14 +2294,8 @@ html { scroll-behavior: smooth; }
 }
 
 @keyframes modalSlideUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
 .feedback-close-btn {
@@ -2412,9 +2317,7 @@ html { scroll-behavior: smooth; }
     color: #e5e5e5;
 }
 
-.feedback-modal-header {
-    margin-bottom: 20px;
-}
+.feedback-modal-header { margin-bottom: 20px; }
 
 .feedback-modal-header h2 {
     margin: 0;
@@ -2459,9 +2362,7 @@ html { scroll-behavior: smooth; }
 }
 
 .form-group input::placeholder,
-.form-group textarea::placeholder {
-    color: #555;
-}
+.form-group textarea::placeholder { color: #555; }
 
 .form-group input:focus,
 .form-group textarea:focus {
@@ -2531,28 +2432,20 @@ html { scroll-behavior: smooth; }
     color: #ff8080;
 }
 
-/* Mobile responsive */
 @media (max-width: 600px) {
     .feedback-modal-content {
         max-width: 95%;
         padding: 20px;
         border-radius: 12px;
     }
-
-    .feedback-modal-header h2 {
-        font-size: 16px;
-    }
-
+    .feedback-modal-header h2 { font-size: 16px; }
     .form-group input,
-    .form-group textarea {
-        font-size: 16px; /* Prevents zoom on iOS */
-    }
+    .form-group textarea { font-size: 16px; }
 }
-/* ============================================================
-   FILE UPLOAD UI — appended to end of style.css
-   ============================================================ */
 
-/* ── Attached files preview bar (above the input textarea) ── */
+/* ============================
+   FILE UPLOAD UI
+============================ */
 .attached-files-preview {
     display: none;
     padding: 8px 14px 6px;
@@ -2595,7 +2488,6 @@ html { scroll-behavior: smooth; }
 }
 .remove-file-btn:hover { color: #ff5555; }
 
-/* ── File chips inside user chat bubble ───────────────────── */
 .msg-files-row {
     display: flex;
     flex-wrap: wrap;
@@ -2640,7 +2532,6 @@ html { scroll-behavior: smooth; }
 }
 .msg-file-dl:hover { background: rgba(16,163,127,0.15); }
 
-/* ── Light theme overrides ────────────────────────────────── */
 [data-theme="light"] .attached-file-item,
 [data-theme="light"] .msg-file--img,
 [data-theme="light"] .msg-file--doc {
@@ -2651,85 +2542,15 @@ html { scroll-behavior: smooth; }
 [data-theme="light"] .msg-file-name { color: #333; }
 [data-theme="light"] .attached-files-preview { border-color: #ddd; }
 
-/* ── Mobile ───────────────────────────────────────────────── */
 @media (max-width: 768px) {
     .msg-file--img { max-width: 180px; }
     .msg-file-img  { width: 170px; }
     .msg-file--doc { max-width: 200px; }
 }
 
-
 /* ============================
-   🌐 WEB SEARCH SOURCES
-   ============================ */
-.search-sources {
-    margin-top: 10px;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.78rem;
-}
-.sources-label {
-    opacity: 0.55;
-    font-size: 0.75rem;
-    margin-right: 2px;
-}
-.source-chip {
-    display: inline-block;
-    padding: 3px 10px;
-    background: var(--surface2, #2a2a2a);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 20px;
-    color: #10a37f;
-    text-decoration: none;
-    font-size: 0.73rem;
-    max-width: 220px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    transition: opacity 0.15s;
-}
-.source-chip:hover { opacity: 0.75; }
-
-/* Web search toggle button active state */
-#webSearchToggleBtn.active {
-    color: #10a37f;
-}
-
-
-/* ============================
-   🌐 WEB SEARCH CHIP
-   ============================ */
-.web-search-chip {
-    display: none; /* shown via JS when enabled */
-    align-items: center;
-    gap: 5px;
-    padding: 4px 10px;
-    background: rgba(16, 163, 127, 0.12);
-    border: 1px solid rgba(16, 163, 127, 0.4);
-    border-radius: 20px;
-    color: #10a37f;
-    font-size: 0.78rem;
-    font-weight: 500;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 0.2s, border-color 0.2s;
-    flex-shrink: 0;
-}
-.web-search-chip:hover {
-    background: rgba(16, 163, 127, 0.22);
-    border-color: rgba(16, 163, 127, 0.7);
-}
-.web-search-chip svg {
-    flex-shrink: 0;
-}
-
-/* ============================================================
-   ✅ PRIVACY MODAL & DELETE ACCOUNT MODAL
-   ============================================================ */
-
-/* Shared overlay */
+   PRIVACY & DELETE MODALS
+============================ */
 .priv-modal-overlay {
     position: fixed;
     inset: 0;
@@ -2745,7 +2566,6 @@ html { scroll-behavior: smooth; }
 }
 .priv-modal-overlay.priv-modal-open { opacity: 1; }
 
-/* Shared modal box */
 .priv-modal-box {
     background: #141414;
     border: 1px solid #222;
@@ -2764,7 +2584,6 @@ html { scroll-behavior: smooth; }
     transform: translateY(0);
 }
 
-/* Privacy modal header */
 .priv-modal-header {
     display: flex;
     align-items: center;
@@ -2797,7 +2616,6 @@ html { scroll-behavior: smooth; }
 }
 .priv-modal-close:hover { background: #222; color: #ccc; }
 
-/* Privacy modal scrollable body */
 .priv-modal-body {
     overflow-y: auto;
     padding: 20px 24px;
@@ -2817,7 +2635,6 @@ html { scroll-behavior: smooth; }
     font-style: italic;
 }
 
-/* Numbered policy items */
 .priv-item {
     display: flex;
     gap: 14px;
@@ -2852,7 +2669,6 @@ html { scroll-behavior: smooth; }
     line-height: 1.6;
 }
 
-/* Contact section */
 .priv-contact {
     margin-top: 24px;
     padding-top: 20px;
@@ -2881,7 +2697,6 @@ html { scroll-behavior: smooth; }
 }
 .priv-link:hover { border-bottom-color: #10a37f; }
 
-/* Privacy modal footer */
 .priv-modal-footer {
     padding: 14px 24px;
     border-top: 1px solid #1e1e1e;
@@ -2901,7 +2716,6 @@ html { scroll-behavior: smooth; }
 }
 .priv-close-btn:hover { background: #252525; border-color: #333; }
 
-/* ── Delete Account Modal ── */
 .del-modal-box {
     max-width: 420px;
     text-align: center;
@@ -2998,7 +2812,6 @@ html { scroll-behavior: smooth; }
 .del-confirm-btn:hover:not(:disabled) { background: #c85c5c; }
 .del-confirm-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
-/* ── Toggle switches (coming soon) ── */
 .toggle-switch {
     position: relative;
     display: inline-block;
@@ -3036,7 +2849,6 @@ html { scroll-behavior: smooth; }
 .toggle-switch.disabled-toggle { opacity: 0.4; cursor: not-allowed; }
 .toggle-switch.disabled-toggle .toggle-slider { cursor: not-allowed; }
 
-/* "Coming soon" inline badge */
 .badge-soon {
     display: inline-block;
     background: rgba(16, 163, 127, 0.12);
@@ -3051,7 +2863,6 @@ html { scroll-behavior: smooth; }
     font-weight: 500;
 }
 
-/* sc-row-icon-wrap used in toggle rows */
 .sc-row-icon-wrap {
     display: flex;
     align-items: center;
@@ -3061,7 +2872,6 @@ html { scroll-behavior: smooth; }
     color: #666;
 }
 
-/* Light theme overrides */
 [data-theme="light"] .priv-modal-box,
 [data-theme="light"] .del-modal-box { background: #fff; border-color: #ddd; }
 [data-theme="light"] .priv-modal-header,

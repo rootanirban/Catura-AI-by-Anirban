@@ -2036,103 +2036,132 @@ function handleFileSelect(event) {
 }
 
 // ============================
-// 🤖 MODEL SELECTOR
+// 🤖 MODEL SELECTOR — FIXED
 // ============================
-let selectedModel = 'dagr'; // Default model — options: dagr, apep, sambhav, Gemma4
+let selectedModel = 'dagr'; // Default model — options: dagr, apep, sambhav, gemma, gemma4
 
 window.toggleModelSelector = function (e) {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
     const dropdown = document.getElementById('modelDropdown');
     const btn = document.getElementById('modelSelectorBtn');
+    if (!dropdown || !btn) return;
 
     const isOpen = dropdown.classList.contains('open');
     closeAllModelMenus();
+    if (isOpen) return;
 
-    if (!isOpen) {
-        const rect = btn.getBoundingClientRect();
+    // ── Off-screen measurement (no flicker) ───────────────────────
+    const prev = {
+        visibility: dropdown.style.visibility,
+        opacity:    dropdown.style.opacity,
+        transform:  dropdown.style.transform,
+        transition: dropdown.style.transition,
+        left:       dropdown.style.left,
+        top:        dropdown.style.top,
+        bottom:     dropdown.style.bottom,
+        pointerEvents: dropdown.style.pointerEvents,
+    };
 
-        // Measure real dropdown height off-screen before showing
-        dropdown.style.visibility = 'hidden';
-        dropdown.style.opacity = '0';
-        dropdown.style.transform = 'none';
-        dropdown.style.display = 'block';
-        const dropH = dropdown.offsetHeight || 180;
-        const dropW = Math.max(dropdown.offsetWidth || 0, 220);
-        dropdown.style.display = '';
-        dropdown.style.visibility = '';
-        dropdown.style.opacity = '';
-        dropdown.style.transform = '';
+    dropdown.style.transition    = 'none';
+    dropdown.style.visibility    = 'hidden';
+    dropdown.style.opacity       = '0';
+    dropdown.style.transform     = 'none';
+    dropdown.style.pointerEvents = 'none';
+    dropdown.style.left          = '-9999px';
+    dropdown.style.top           = '-9999px';
+    dropdown.style.bottom        = 'auto';
+    dropdown.classList.add('open');
 
-        // Place above the button with an 8px gap
-        let top = rect.top - dropH - 8;
-        if (top < 8) top = rect.bottom + 8; // flip below if no room above
-        top = Math.max(8, Math.min(top, window.innerHeight - dropH - 8));
+    const dropH = dropdown.offsetHeight || 200;
+    const dropW = Math.max(dropdown.offsetWidth || 0, 220);
 
-        // Align right edge of dropdown with right edge of button
-        let left = rect.right - dropW;
-        if (left < 8) left = 8;
-        if (left + dropW > window.innerWidth - 8) left = window.innerWidth - dropW - 8;
+    dropdown.classList.remove('open');
+    dropdown.style.transition    = prev.transition;
+    dropdown.style.visibility    = prev.visibility;
+    dropdown.style.opacity       = prev.opacity;
+    dropdown.style.transform     = prev.transform;
+    dropdown.style.pointerEvents = prev.pointerEvents;
 
-        dropdown.style.top    = top + 'px';
-        dropdown.style.left   = left + 'px';
-        dropdown.style.bottom = 'auto';
+    // ── Compute final position ────────────────────────────────────
+    const rect = btn.getBoundingClientRect();
+    const vw   = window.innerWidth;
+    const vh   = window.innerHeight;
+    const gap  = 8;
+    const pad  = 8;
 
-        dropdown.classList.add('open');
-        btn.classList.add('open');
-
-        // Auto-show floating panel if a secondary model is active
-        // Use requestAnimationFrame to ensure dropdown is painted before measuring
-        const moreModels = ['apep', 'gemma', 'gemma4'];
-        if (moreModels.includes(selectedModel)) {
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => { toggleMoreModels(null); });
-            });
+    // Prefer ABOVE the button
+    let top = rect.top - dropH - gap;
+    if (top < pad) {
+        // Try BELOW the button
+        const belowTop = rect.bottom + gap;
+        if (belowTop + dropH > vh - pad) {
+            // Doesn't fit either — pin to whichever side has more room
+            const spaceAbove = rect.top;
+            const spaceBelow = vh - rect.bottom;
+            if (spaceAbove >= spaceBelow) {
+                top = pad;
+            } else {
+                top = Math.max(pad, vh - dropH - pad);
+            }
+        } else {
+            top = belowTop;
         }
+    }
+    top = Math.max(pad, Math.min(top, vh - dropH - pad));
+
+    // Right-align with button
+    let left = rect.right - dropW;
+    if (left + dropW > vw - pad) left = vw - dropW - pad;
+    if (left < pad) left = pad;
+
+    dropdown.style.position = 'fixed';
+    dropdown.style.top      = top + 'px';
+    dropdown.style.left     = left + 'px';
+    dropdown.style.bottom   = 'auto';
+
+    dropdown.classList.add('open');
+    btn.classList.add('open');
+
+    // Auto-show "More models" panel if a secondary model is active
+    const moreModels = ['apep', 'gemma', 'gemma4'];
+    if (moreModels.includes(selectedModel)) {
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => { toggleMoreModels(null); });
+        });
     }
 };
 
 window.selectModel = function (modelId, modelName) {
     selectedModel = modelId.toLowerCase();
-    
-    // Update button text
+
     const modelNameEl = document.getElementById('modelName');
-    if (modelNameEl) {
-        modelNameEl.textContent = modelName;
-    }
-    
-    // Update active state for all model options
-    document.querySelectorAll('.model-option').forEach(opt => {
-        opt.classList.remove('active');
-    });
-    
-    // Find and activate the clicked option
+    if (modelNameEl) modelNameEl.textContent = modelName;
+
+    document.querySelectorAll('.model-option').forEach(opt => opt.classList.remove('active'));
     const activeOption = document.querySelector(`[data-model="${modelId}"]`);
-    if (activeOption) {
-        activeOption.classList.add('active');
-    }
-    
-    // Close dropdown
+    if (activeOption) activeOption.classList.add('active');
+
     closeAllModelMenus();
-    
     showToast(`✓ Switched to ${modelName}`, 1500);
 };
 
 function closeAllModelMenus() {
     const dropdown = document.getElementById('modelDropdown');
-    const btn = document.getElementById('modelSelectorBtn');
+    const btn      = document.getElementById('modelSelectorBtn');
+    const panel    = document.getElementById('moreModelsPanel');
+    const row      = document.getElementById('moreModelsRow');
     if (dropdown) dropdown.classList.remove('open');
-    if (btn) btn.classList.remove('open');
-    const panel = document.getElementById('moreModelsPanel');
-    const row   = document.getElementById('moreModelsRow');
-    if (panel) panel.classList.remove('open');
-    if (row)   row.classList.remove('open');
+    if (btn)      btn.classList.remove('open');
+    if (panel)    panel.classList.remove('open');
+    if (row)      row.classList.remove('open');
 }
 
 window.toggleMoreModels = function (e) {
     if (e) e.stopPropagation();
     const panel = document.getElementById('moreModelsPanel');
     const row   = document.getElementById('moreModelsRow');
-    if (!panel || !row) return;
+    const dropdownEl = document.getElementById('modelDropdown');
+    if (!panel || !row || !dropdownEl) return;
 
     const isOpen = panel.classList.contains('open');
     if (isOpen) {
@@ -2141,42 +2170,72 @@ window.toggleMoreModels = function (e) {
         return;
     }
 
-    const dropdownEl = document.getElementById('modelDropdown');
-    if (!dropdownEl) return;
+    // Off-screen measure the panel
+    const prevLeft = panel.style.left;
+    const prevTop  = panel.style.top;
+    const prevVis  = panel.style.visibility;
+    const prevOp   = panel.style.opacity;
+    const prevTr   = panel.style.transform;
+    const prevTrn  = panel.style.transition;
+    const prevPE   = panel.style.pointerEvents;
 
-    const panelW = 230;
-    const gap    = 8;
+    panel.style.transition    = 'none';
+    panel.style.visibility    = 'hidden';
+    panel.style.opacity       = '0';
+    panel.style.transform     = 'none';
+    panel.style.pointerEvents = 'none';
+    panel.style.left          = '-9999px';
+    panel.style.top           = '-9999px';
+    panel.classList.add('open');
 
-    // Get the live rect of the already-positioned fixed dropdown
+    const panelW = panel.offsetWidth  || 230;
+    const panelH = panel.offsetHeight || 210;
+
+    panel.classList.remove('open');
+    panel.style.transition    = prevTrn;
+    panel.style.visibility    = prevVis;
+    panel.style.opacity       = prevOp;
+    panel.style.transform     = prevTr;
+    panel.style.pointerEvents = prevPE;
+
     const dropRect = dropdownEl.getBoundingClientRect();
+    const vw  = window.innerWidth;
+    const vh  = window.innerHeight;
+    const gap = 8;
+    const pad = 8;
 
-    // Place panel to the RIGHT of the dropdown
+    // Try right of dropdown, else left
     let left = dropRect.right + gap;
-    // If not enough room on the right, flip to the left
-    if (left + panelW > window.innerWidth - 8) {
+    if (left + panelW > vw - pad) {
         left = dropRect.left - panelW - gap;
     }
-    if (left < 8) left = 8;
+    if (left < pad) left = pad;
 
-    // Align the top of the panel with the top of the dropdown
     let top = dropRect.top;
-    // Clamp so panel stays on screen
-    const panelEstH = 210; // ~3 items
-    top = Math.max(8, Math.min(top, window.innerHeight - panelEstH - 8));
+    top = Math.max(pad, Math.min(top, vh - panelH - pad));
 
+    panel.style.position = 'fixed';
     panel.style.left = left + 'px';
-    panel.style.top  = top + 'px';
+    panel.style.top  = top  + 'px';
+
     panel.classList.add('open');
     row.classList.add('open');
 };
 
 // Close dropdown when clicking outside
 document.addEventListener('click', function (e) {
-    const wrap = document.getElementById('modelSelectorWrap');
-    if (wrap && !wrap.contains(e.target)) {
+    const wrap  = document.getElementById('modelSelectorWrap');
+    const panel = document.getElementById('moreModelsPanel');
+    const insideWrap  = wrap  && wrap.contains(e.target);
+    const insidePanel = panel && panel.contains(e.target);
+    if (!insideWrap && !insidePanel) {
         closeAllModelMenus();
     }
 });
+
+// Close on viewport changes (prevents stale positioning)
+window.addEventListener('resize', closeAllModelMenus);
+window.addEventListener('scroll', closeAllModelMenus, true);
 
 // Get currently selected model
 function getSelectedModel() {
