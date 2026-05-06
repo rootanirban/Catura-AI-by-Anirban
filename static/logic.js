@@ -2051,6 +2051,14 @@ window.toggleModelSelector = function (e) {
     if (!isOpen) {
         dropdown.classList.add('open');
         btn.classList.add('open');
+        // Auto-show more panel if a "more model" is currently active
+        const moreModels = ['apep', 'gemma', 'gemma4'];
+        if (moreModels.includes(selectedModel)) {
+            setTimeout(() => {
+                const row = document.getElementById('moreModelsRow');
+                if (row) toggleMoreModels({ stopPropagation: () => {} });
+            }, 50);
+        }
     }
 };
 
@@ -2085,39 +2093,32 @@ function closeAllModelMenus() {
     const btn = document.getElementById('modelSelectorBtn');
     if (dropdown) dropdown.classList.remove('open');
     if (btn) btn.classList.remove('open');
-    // Also close the floating more-panel
     const panel = document.getElementById('moreModelsPanel');
     const row   = document.getElementById('moreModelsRow');
     if (panel) panel.classList.remove('open');
     if (row)   row.classList.remove('open');
 }
 
-// ── Floating "More models" side panel — hover logic ──────────────────
-let _morePanelCloseTimer = null;
-
-window.openMorePanel = function () {
-    cancelCloseMorePanel();
+window.toggleMoreModels = function (e) {
+    if (e) e.stopPropagation();
     const panel = document.getElementById('moreModelsPanel');
     const row   = document.getElementById('moreModelsRow');
-    if (panel) panel.classList.add('open');
-    if (row)   row.classList.add('open');
-};
+    if (!panel || !row) return;
 
-window.cancelCloseMorePanel = function () {
-    if (_morePanelCloseTimer) { clearTimeout(_morePanelCloseTimer); _morePanelCloseTimer = null; }
-};
+    const isOpen = panel.classList.contains('open');
 
-window.scheduleCloseMorePanel = function () {
-    _morePanelCloseTimer = setTimeout(() => {
-        const panel = document.getElementById('moreModelsPanel');
-        const row   = document.getElementById('moreModelsRow');
-        if (panel) panel.classList.remove('open');
-        if (row)   row.classList.remove('open');
-    }, 120);
+    if (!isOpen) {
+        // Position the panel to the LEFT of the main dropdown using getBoundingClientRect
+        const rowRect = row.getBoundingClientRect();
+        panel.style.top  = rowRect.top + 'px';
+        panel.style.left = (rowRect.left - 238) + 'px'; // 230px wide + 8px gap
+        panel.classList.add('open');
+        row.classList.add('open');
+    } else {
+        panel.classList.remove('open');
+        row.classList.remove('open');
+    }
 };
-
-// Keep old toggleMoreModels as no-op for safety
-window.toggleMoreModels = function () {};
 
 // Close dropdown when clicking outside
 document.addEventListener('click', function (e) {
