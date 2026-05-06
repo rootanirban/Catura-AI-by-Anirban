@@ -2049,18 +2049,16 @@ html { scroll-behavior: smooth; }
     letter-spacing: 0.3px;
 }
 
-/* Model Dropdown */
+/* Model Dropdown — position:fixed so it escapes overflow:hidden on .app */
 .model-dropdown {
-    position: absolute;
-    bottom: calc(100% + 10px);
-    right: 0;
+    position: fixed;
     background: #1a1a1a;
     border: 1px solid #2a2a2a;
     border-radius: 12px;
     min-width: 220px;
     padding-top: 6px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
-    z-index: 500;
+    z-index: 9000;
     opacity: 0;
     visibility: hidden;
     transform: translateY(6px) scale(0.97);

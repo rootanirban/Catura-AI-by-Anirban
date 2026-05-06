@@ -2049,6 +2049,18 @@ window.toggleModelSelector = function (e) {
     closeAllModelMenus();
     
     if (!isOpen) {
+        // Position the fixed dropdown above the button
+        const rect = btn.getBoundingClientRect();
+        const dropW = 220;
+        // Align right edge of dropdown with right edge of button
+        let left = rect.right - dropW;
+        if (left < 8) left = 8;
+        // Place above the button with a small gap
+        const bottomOffset = window.innerHeight - rect.top + 10;
+        dropdown.style.left = left + 'px';
+        dropdown.style.bottom = bottomOffset + 'px';
+        dropdown.style.top = 'auto';
+
         dropdown.classList.add('open');
         btn.classList.add('open');
         // Auto-show floating panel if a secondary model is active
