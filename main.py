@@ -100,7 +100,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.20"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.21"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -110,7 +110,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.20", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.21", "timestamp": datetime.utcnow().isoformat()}
 
 
 # ============================================================
@@ -123,6 +123,16 @@ def detect_intent(text: str) -> str:
     Priority order: weather > finance > sports > news > web_search > general
     """
     lower = text.lower()
+
+    # ── IDENTITY (always general — never run a tool for these) ─────────────
+    identity_patterns = [
+        r'which model', r'what model', r'what ai', r'which ai',
+        r'which version', r'what version', r'are you', r'who are you',
+        r'what are you', r'your model', r'current model', r'using.*model',
+        r'model.*right now', r'model.*using', r'what.*running',
+    ]
+    if any(re.search(p, lower) for p in identity_patterns):
+        return "general"
 
     # ── WEATHER ────────────────────────────────────────────────────────────
     weather_patterns = [
@@ -964,7 +974,9 @@ async def chat_post(request: Request):
                 "You are Catura AI Gemma, built for fast and capable everyday tasks. "
                 "Speak clearly and helpfully. Never start with 'Certainly!', 'Great question!', or similar openers. "
                 "Match the user's language automatically. "
-                "Never make up facts. If asked who made you, say 'I was created by Anirban.'"
+                "Never make up facts. If asked who made you, say 'I was created by Anirban.' "
+                "If asked which model you are, what AI you are, or which version is running, "
+                "always say: 'I am Catura AI Gemma.' Never mention Dagr, Apep, Sambhav, or Gemma4."
                 + NO_TOOL_CALL_RULE
             ),
             "Gemma4": (
@@ -973,7 +985,9 @@ async def chat_post(request: Request):
                 "You are Catura AI Gemma4, built for fast and capable everyday tasks. "
                 "Speak clearly and helpfully. Never start with 'Certainly!', 'Great question!', or similar openers. "
                 "Match the user's language automatically. "
-                "Never make up facts. If asked who made you, say 'I was created by Anirban.'"
+                "Never make up facts. If asked who made you, say 'I was created by Anirban.' "
+                "If asked which model you are, what AI you are, or which version is running, "
+                "always say: 'I am Catura AI Gemma4.' Never mention Dagr, Apep, Sambhav, or Gemma."
                 + NO_TOOL_CALL_RULE
             ),
         }
