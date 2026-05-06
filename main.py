@@ -100,7 +100,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.17"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.18"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -110,7 +110,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.17", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.18", "timestamp": datetime.utcnow().isoformat()}
 
 
 # ============================================================
@@ -770,7 +770,7 @@ async def chat_post(request: Request):
             "Gemma": ["google/gemma-4-26b-a4b-it:free"],
             "Gemma4": ["google/gemma-4-31b-it:free"],
         }
-        model_key  = model.lower().strip()
+        model_key  = model.strip()
         model_pool = model_pools.get(model_key, model_pools["dagr"])
 
         # ── BASE SYSTEM PROMPTS ────────────────────────────────────────────
@@ -1152,7 +1152,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "apep": ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
             "sambhav": [],  # Gemini — handled separately below
         }
-        model_key  = model.lower().strip()
+        model_key  = model.strip()
         model_pool = model_pools.get(model_key, model_pools["dagr"])
 
         NO_TOOL_CALL_RULE = (
