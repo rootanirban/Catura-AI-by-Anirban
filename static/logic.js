@@ -2085,7 +2085,22 @@ function closeAllModelMenus() {
     const btn = document.getElementById('modelSelectorBtn');
     if (dropdown) dropdown.classList.remove('open');
     if (btn) btn.classList.remove('open');
+    // Also collapse more models panel when closing the main dropdown
+    const panel = document.getElementById('moreModelsPanel');
+    const chevron = document.getElementById('moreModelsChevron');
+    if (panel) panel.classList.remove('open');
+    if (chevron) chevron.classList.remove('open');
 }
+
+window.toggleMoreModels = function (e) {
+    e.stopPropagation();
+    const panel = document.getElementById('moreModelsPanel');
+    const chevron = document.getElementById('moreModelsChevron');
+    if (!panel) return;
+    const isOpen = panel.classList.contains('open');
+    panel.classList.toggle('open', !isOpen);
+    if (chevron) chevron.classList.toggle('open', !isOpen);
+};
 
 // Close dropdown when clicking outside
 document.addEventListener('click', function (e) {
@@ -2095,9 +2110,22 @@ document.addEventListener('click', function (e) {
     }
 });
 
-// Get currently selected model
+// Get currently selected model — maps frontend IDs to backend model keys
 function getSelectedModel() {
-    return selectedModel;
+    // Map frontend model IDs → backend model_key
+    const modelMap = {
+        'dagr':        'dagr',
+        'apep':        'apep',
+        'sambhav':     'sambhav',
+        'gemma':       'Gemma',
+        'ra':          'Gemma4',
+        'gpt20b':      'gpt20b',
+        'gpt120b':     'gpt120b',
+        'gemma27b':    'gemma27b',
+        'gemma31b':    'gemma31b',
+        'gemini25flash': 'gemini25flash',
+    };
+    return modelMap[selectedModel] || selectedModel;
 }
 
 // ============================================================

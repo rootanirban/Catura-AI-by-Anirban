@@ -2159,6 +2159,54 @@ html { scroll-behavior: smooth; }
     margin: 0;
 }
 
+/* "More models ›" trigger row */
+.model-more-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    cursor: pointer;
+    color: #aaa;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    transition: color 0.15s, background 0.15s;
+    user-select: none;
+}
+.model-more-row:hover {
+    background: #1e1e1e;
+    color: #fff;
+}
+.model-more-chevron {
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+}
+.model-more-chevron.open {
+    transform: rotate(90deg);
+}
+
+/* Sub-panel for extra models — collapsed by default */
+.model-more-panel {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease;
+}
+.model-more-panel.open {
+    max-height: 600px;
+}
+
+[data-theme="light"] .model-more-row {
+    color: #999;
+}
+[data-theme="light"] .model-more-row:hover {
+    background: #e8e8e8;
+    color: #111;
+}
+[data-theme="light"] .model-dropdown-divider {
+    background: #d0d0d0;
+}
+
 /* Light theme adjustments */
 [data-theme="light"] .model-selector-btn {
     color: #aaa;
