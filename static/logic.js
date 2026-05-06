@@ -28,18 +28,18 @@ async function getUser() {
             ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
             : parts[0].slice(0, 2).toUpperCase();
 
-        const avatarEl  = document.getElementById("userAvatar");
-        const nameEl    = document.getElementById("userFullname");
+        const avatarEl   = document.getElementById("userAvatar");
+        const nameEl     = document.getElementById("userFullname");
         const railAvatar = document.getElementById("railAvatar");
 
-        if (avatarEl)   avatarEl.textContent  = initials;
+        if (avatarEl)   avatarEl.textContent   = initials;
         if (nameEl)     nameEl.textContent     = fullName;
         if (railAvatar) railAvatar.textContent = initials;
     }
 }
 
 // ============================
-// ✅ SESSION MANAGEMENT
+// ✅ SESSION
 // ============================
 function generateSessionId() {
     return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -50,11 +50,10 @@ let chatTitle = "New Chat";
 let firstMessage = true;
 
 // ============================
-// ⏰ TIME-BASED GREETING SYSTEM
+// ⏰ TIME-BASED GREETING
 // ============================
 function getTimeOfDay() {
     const hour = new Date().getHours();
-    
     if (hour >= 5 && hour < 12) return "morning";
     if (hour >= 12 && hour < 17) return "afternoon";
     if (hour >= 17 && hour < 21) return "evening";
@@ -64,43 +63,20 @@ function getTimeOfDay() {
 function getGreetingMessage(userName) {
     const timeOfDay = getTimeOfDay();
     const greetings = {
-        morning: [
-            `Good morning, ${userName}`,
-            `Rise and shine, ${userName}!`,
-            `Good morning! Ready to code, ${userName}?`,
-            `☀️ Good morning, ${userName}!`,
-        ],
-        afternoon: [
-            `Good afternoon, ${userName}`,
-            `Hope you're having a great afternoon, ${userName}!`,
-            `Afternoon, ${userName}!`,
-            `🌤️ Good afternoon, ${userName}!`,
-        ],
-        evening: [
-            `Good evening, ${userName}`,
-            `Evening, ${userName}!`,
-            `Good evening! Let's build something, ${userName}`,
-            `🌙 Good evening, ${userName}!`,
-        ],
-        night: [
-            `Good night, ${userName}`,
-            `Night owl coding session, ${userName}?`,
-            `Burning the midnight oil, ${userName}?`,
-            `🌌 Good night, ${userName}!`,
-        ]
+        morning: [`Good morning, ${userName}`, `Rise and shine, ${userName}!`, `☀️ Good morning, ${userName}!`],
+        afternoon: [`Good afternoon, ${userName}`, `Hope you're having a great afternoon, ${userName}!`, `🌤️ Good afternoon, ${userName}!`],
+        evening: [`Good evening, ${userName}`, `Evening, ${userName}!`, `🌙 Good evening, ${userName}!`],
+        night: [`Good night, ${userName}`, `Night owl session, ${userName}?`, `🌌 Good night, ${userName}!`]
     };
-    
-    const greetingList = greetings[timeOfDay];
-    return greetingList[Math.floor(Math.random() * greetingList.length)];
+    const list = greetings[timeOfDay];
+    return list[Math.floor(Math.random() * list.length)];
 }
 
 function displayGreeting() {
     const userNameEl = document.getElementById("userFullname");
     const userName = userNameEl?.textContent || "User";
-    
     const greeting = getGreetingMessage(userName);
-    
-    // Create greeting element
+
     const greetingDiv = document.createElement("div");
     greetingDiv.style.cssText = `
         text-align: center;
@@ -113,14 +89,10 @@ function displayGreeting() {
         animation: fadeIn 0.6s ease-in-out;
     `;
     greetingDiv.innerHTML = `
-        <div style="font-size: 24px; font-weight: 600; color: #10a37f; letter-spacing: -0.02em;">
-            ${greeting}
-        </div>
-        <div style="font-size: 14px; color: #888; margin-top: 8px;">
-            How can I help you today?
-        </div>
+        <div style="font-size: 24px; font-weight: 600; color: #10a37f; letter-spacing: -0.02em;">${greeting}</div>
+        <div style="font-size: 14px; color: #888; margin-top: 8px;">How can I help you today?</div>
     `;
-    
+
     const chatbox = document.getElementById("chatbox");
     const app = document.getElementById("app");
     if (chatbox) {
@@ -131,16 +103,15 @@ function displayGreeting() {
 }
 
 // ============================
-// 🔀 SIDEBAR TOGGLE
+// 🔀 SIDEBAR
 // ============================
 function toggleSidebar() {
     const sidebar = document.getElementById("sidebar");
     const iconRail = document.getElementById("iconRail");
-    const overlay  = document.getElementById("sidebarOverlay");
+    const overlay = document.getElementById("sidebarOverlay");
     const hamburger = document.querySelector(".mobile-hamburger");
 
     const isMobile = window.innerWidth <= 768;
-
     if (isMobile) {
         sidebar.classList.toggle("open");
         overlay.classList.toggle("show");
@@ -158,8 +129,8 @@ function toggleSidebar() {
 }
 
 function closeSidebar() {
-    const sidebar  = document.getElementById("sidebar");
-    const overlay  = document.getElementById("sidebarOverlay");
+    const sidebar = document.getElementById("sidebar");
+    const overlay = document.getElementById("sidebarOverlay");
     const hamburger = document.querySelector(".mobile-hamburger");
     sidebar.classList.remove("open");
     overlay.classList.remove("show");
@@ -167,9 +138,8 @@ function closeSidebar() {
 }
 
 window.openSidebarTo = function (section) {
-    const sidebar  = document.getElementById("sidebar");
+    const sidebar = document.getElementById("sidebar");
     const iconRail = document.getElementById("iconRail");
-
     if (window.innerWidth <= 768) {
         sidebar.classList.add("open");
         document.getElementById("sidebarOverlay").classList.add("show");
@@ -177,13 +147,9 @@ window.openSidebarTo = function (section) {
         sidebar.classList.add("open");
         iconRail.classList.remove("visible");
     }
-
     if (section === 'history') showHistory();
 };
 
-// ============================
-// 💡 SUGGESTIONS
-// ============================
 function useSuggestion(el) {
     const input = document.getElementById("input");
     input.value = el.innerText.trim();
@@ -192,59 +158,40 @@ function useSuggestion(el) {
 }
 
 // ============================
-// �� QUERY COMPLEXITY DETECTOR
+// 🔍 QUERY COMPLEXITY
 // ============================
 function isHeavyQuery(text) {
     const lower = text.toLowerCase().trim();
     if (lower.length > 80) return true;
     const heavyKeywords = [
-        "explain", "write", "create", "build",
-        "code", "script", "program", "function",
-        "debug", "fix", "error", "bug",
-        "step by step", "line by line", "breakdown",
-        "compare", "difference between", " vs ",
-        "how does", "how do i", "how to",
-        "generate", "summarize", "analyze",
-        "essay", "give me", "make a",
-        "implement", "refactor", "optimiz",
+        "explain", "write", "create", "build", "code", "script", "program", "function",
+        "debug", "fix", "error", "bug", "step by step", "compare", "difference between",
+        "how does", "how do i", "how to", "generate", "summarize", "analyze",
+        "essay", "give me", "make a", "implement", "refactor", "optimiz",
         "algorithm", "convert", "translate"
     ];
     return heavyKeywords.some(kw => lower.includes(kw));
 }
 
 // ============================
-// 🩹 REPAIR TRUNCATED RESPONSES
+// 🩹 REPAIR TRUNCATED
 // ============================
-// If the AI was cut off mid-output (token limit or relay handoff),
-// the response may end with an unclosed code fence (```).
-// This closes any dangling fences so the markdown renderer doesn't break.
 function repairTruncated(text) {
     const fenceMatches = (text.match(/```/g) || []).length;
-    // Odd number of ``` means one is unclosed
-    if (fenceMatches % 2 !== 0) {
-        // Close it — append newline + closing fence
-        text = text.trimEnd() + "\n```";
-    }
+    if (fenceMatches % 2 !== 0) text = text.trimEnd() + "\n```";
     return text;
 }
 
 // ============================
-// 🧾 MARKDOWN RENDERER — v2
-// Fixes: tables, <br> literal text, bold bleed-through,
-//        nested inline formatting, proper paragraph flow.
+// 🧾 MARKDOWN RENDERER
 // ============================
 function formatMessage(rawText) {
     if (!rawText) return "";
 
-    // ── STEP 1: Stash fenced code blocks ──────────────────────────────────
-    // Must happen FIRST so no other rule mangles code content.
     const codeBlocks = [];
     let text = rawText.replace(/```([\w+\-#]*)\n?([\s\S]*?)```/g, (_match, lang, code) => {
         const language = lang.trim() || "text";
-        const escapedCode = code
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;");
+        const escapedCode = code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         codeBlocks.push(`<div class="code-block">
             <div class="code-header">
                 <span class="lang-label">${language}</span>
@@ -259,30 +206,23 @@ function formatMessage(rawText) {
         return `\x00CODE${codeBlocks.length - 1}\x00`;
     });
 
-    // ── STEP 2: Escape HTML in non-code sections only ─────────────────────
-    // Split on stashed code placeholders so we don't double-escape them.
     text = text.split(/(\x00CODE\d+\x00)/).map((part, i) => {
-        if (i % 2 === 1) return part; // odd parts are code placeholders
+        if (i % 2 === 1) return part;
         return part
             .replace(/&(?!(amp|lt|gt|quot|#\d+);)/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;");
     }).join("");
 
-    // ── STEP 3: Tables ────────────────────────────────────────────────────
-    // Match a block of pipe-delimited rows (header | separator | body)
     text = text.replace(/((?:[ \t]*\|.+\|\s*\n?)+)/g, (block) => {
         const rawRows = block.trim().split("\n").map(r => r.trim()).filter(Boolean);
         if (rawRows.length < 2) return block;
         const isSep = r => /^\|[\s:|\-]+\|$/.test(r);
         if (!isSep(rawRows[1])) return block;
 
-        const parseRow = r =>
-            r.replace(/^\||\|$/g, "").split("|").map(c => c.trim());
-
-        // Detect alignment from separator row
+        const parseRow = r => r.replace(/^\||\|$/g, "").split("|").map(c => c.trim());
         const sepCells = parseRow(rawRows[1]);
-        const aligns   = sepCells.map(c => {
+        const aligns = sepCells.map(c => {
             if (/^:-+:$/.test(c)) return 'center';
             if (/^-+:$/.test(c))  return 'right';
             return 'left';
@@ -291,42 +231,25 @@ function formatMessage(rawText) {
         const headers = parseRow(rawRows[0]);
         const bodyRows = rawRows.slice(2);
 
-        const thead = `<thead><tr>${
-            headers.map((h, i) =>
-                `<th style="text-align:${aligns[i] || 'left'}">${applyInline(h)}</th>`
-            ).join("")
-        }</tr></thead>`;
-
-        const tbody = `<tbody>${
-            bodyRows.map(r =>
-                `<tr>${parseRow(r).map((c, i) =>
-                    `<td style="text-align:${aligns[i] || 'left'}">${applyInline(c)}</td>`
-                ).join("")}</tr>`
-            ).join("")
-        }</tbody>`;
-
+        const thead = `<thead><tr>${headers.map((h, i) => `<th style="text-align:${aligns[i] || 'left'}">${applyInline(h)}</th>`).join("")}</tr></thead>`;
+        const tbody = `<tbody>${bodyRows.map(r => `<tr>${parseRow(r).map((c, i) => `<td style="text-align:${aligns[i] || 'left'}">${applyInline(c)}</td>`).join("")}</tr>`).join("")}</tbody>`;
         return `<div class="table-wrap"><table>${thead}${tbody}</table></div>`;
     });
 
-    // ── STEP 4: Block-level elements ──────────────────────────────────────
-    // Process line-by-line to handle headings, HR, blockquotes, lists.
     const outputLines = [];
-    const rawLines    = text.split("\n");
+    const rawLines = text.split("\n");
     let i = 0;
 
     while (i < rawLines.length) {
-        const line    = rawLines[i];
+        const line = rawLines[i];
         const trimmed = line.trim();
 
-        // Headings
-        const h3 = trimmed.match(/^### (.+)$/);  if (h3) { outputLines.push(`<h3>${applyInline(h3[1])}</h3>`); i++; continue; }
-        const h2 = trimmed.match(/^## (.+)$/);   if (h2) { outputLines.push(`<h2>${applyInline(h2[1])}</h2>`); i++; continue; }
-        const h1 = trimmed.match(/^# (.+)$/);    if (h1) { outputLines.push(`<h1>${applyInline(h1[1])}</h1>`); i++; continue; }
+        const h3 = trimmed.match(/^### (.+)$/); if (h3) { outputLines.push(`<h3>${applyInline(h3[1])}</h3>`); i++; continue; }
+        const h2 = trimmed.match(/^## (.+)$/);  if (h2) { outputLines.push(`<h2>${applyInline(h2[1])}</h2>`); i++; continue; }
+        const h1 = trimmed.match(/^# (.+)$/);   if (h1) { outputLines.push(`<h1>${applyInline(h1[1])}</h1>`); i++; continue; }
 
-        // Horizontal rule
         if (/^---+$/.test(trimmed)) { outputLines.push("<hr>"); i++; continue; }
 
-        // Blockquote
         if (/^&gt;\s?/.test(trimmed)) {
             const bqLines = [];
             while (i < rawLines.length && /^&gt;\s?/.test(rawLines[i].trim())) {
@@ -337,7 +260,6 @@ function formatMessage(rawText) {
             continue;
         }
 
-        // Unordered list
         if (/^[-*•]\s/.test(trimmed)) {
             const items = [];
             while (i < rawLines.length && /^[-*•]\s/.test(rawLines[i].trim())) {
@@ -348,7 +270,6 @@ function formatMessage(rawText) {
             continue;
         }
 
-        // Ordered list
         if (/^\d+[\.)]\s/.test(trimmed)) {
             const items = [];
             while (i < rawLines.length && /^\d+[\.)]\s/.test(rawLines[i].trim())) {
@@ -359,90 +280,49 @@ function formatMessage(rawText) {
             continue;
         }
 
-        // Code placeholder — pass through as-is
-        if (/^\x00CODE\d+\x00$/.test(trimmed)) {
-            outputLines.push(trimmed);
-            i++;
-            continue;
-        }
+        if (/^\x00CODE\d+\x00$/.test(trimmed)) { outputLines.push(trimmed); i++; continue; }
+        if (!trimmed) { outputLines.push(""); i++; continue; }
+        if (/^<(div class="table-wrap"|table|\/div|\/table|thead|tbody|tr|th|td)/.test(trimmed)) { outputLines.push(line); i++; continue; }
 
-        // Blank line — paragraph break signal
-        if (!trimmed) {
-            outputLines.push(""); // kept as paragraph separator
-            i++;
-            continue;
-        }
-
-        // Table div wrapper — pass through
-        if (/^<(div class="table-wrap"|table|\/div|\/table|thead|tbody|tr|th|td)/.test(trimmed)) {
-            outputLines.push(line);
-            i++;
-            continue;
-        }
-
-        // Plain text line — apply inline formatting
         outputLines.push(applyInline(trimmed));
         i++;
     }
 
-    // ── STEP 5: Group plain text lines into <p> blocks ────────────────────
-    let html     = "";
-    let paraBuf  = [];
-
-    const flushPara = () => {
-        if (paraBuf.length) {
-            html += `<p>${paraBuf.join(" ")}</p>`;
-            paraBuf = [];
-        }
-    };
-
+    let html = "";
+    let paraBuf = [];
+    const flushPara = () => { if (paraBuf.length) { html += `<p>${paraBuf.join(" ")}</p>`; paraBuf = []; } };
     const BLOCK_RE = /^(<(h[123]|ul|ol|blockquote|hr|div|table|thead|tbody|tr|th|td)|<\/|<div|\x00CODE)/;
 
     for (const ln of outputLines) {
         if (!ln) { flushPara(); continue; }
         if (BLOCK_RE.test(ln)) { flushPara(); html += ln; continue; }
-        // inline or plain
         paraBuf.push(ln);
     }
     flushPara();
 
-    // ── STEP 6: Restore code blocks ───────────────────────────────────────
     html = html.replace(/\x00CODE(\d+)\x00/g, (_, idx) => codeBlocks[+idx]);
-
     return html;
 }
 
-// ── Inline formatting helper (bold, italic, inline-code, links) ──────────────
 function applyInline(text) {
     if (!text) return text;
-    // Inline code — protect first so bold/italic don't match inside it
     const inlineCode = [];
     text = text.replace(/`([^`]+)`/g, (_, c) => {
         inlineCode.push(`<span class="inline-code">${c.replace(/</g,"&lt;").replace(/>/g,"&gt;")}</span>`);
         return `\x01IC${inlineCode.length - 1}\x01`;
     });
-
-    // Bold+italic
     text = text.replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>");
-    // Bold
     text = text.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-    // Italic (only single asterisk surrounded by non-space)
     text = text.replace(/(?<!\*)\*(?!\s)(.+?)(?<!\s)\*(?!\*)/g, "<em>$1</em>");
-    // Underline via __text__
     text = text.replace(/__(.+?)__/g, "<u>$1</u>");
-    // Strikethrough
     text = text.replace(/~~(.+?)~~/g, "<s>$1</s>");
-    // Links  [label](url)
-    text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
-        '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-
-    // Restore inline code
+    text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
     text = text.replace(/\x01IC(\d+)\x01/g, (_, i) => inlineCode[+i]);
     return text;
 }
 
 // ============================
-// 📋 COPY CODE
+// 📋 COPY HELPERS
 // ============================
 function copyCode(btn) {
     const code = btn.closest(".code-block").querySelector("code").innerText;
@@ -453,9 +333,6 @@ function copyCode(btn) {
     }).catch(() => showToast("Failed to copy code"));
 }
 
-// ============================
-// 📋 COPY BOT ANSWER
-// ============================
 function copyBotAnswer(btn) {
     const wrapper = btn.closest(".bot-msg-wrapper");
     const rawText = wrapper ? wrapper.dataset.raw : "";
@@ -470,9 +347,6 @@ function copyBotAnswer(btn) {
     }).catch(() => showToast("Failed to copy message"));
 }
 
-// ============================
-// 📋 COPY USER MESSAGE
-// ============================
 function copyUserMessage(btn) {
     const wrapper = btn.closest(".user-msg-wrapper");
     const text = wrapper ? wrapper.querySelector(".message.user").innerText : "";
@@ -503,7 +377,7 @@ function showToast(message, duration = 3000) {
 }
 
 // ============================
-// 🤔 THINKING INDICATOR
+// 🤔 INDICATORS
 // ============================
 function createThinkingIndicator() {
     const div = document.createElement("div");
@@ -523,9 +397,6 @@ function createThinkingIndicator() {
     return div;
 }
 
-// ============================
-// 💬 DOTS INDICATOR
-// ============================
 function createLightIndicator() {
     const div = document.createElement("div");
     div.classList.add("message", "bot", "typing");
@@ -534,20 +405,18 @@ function createLightIndicator() {
 }
 
 // ============================
-// 📦 USER BUBBLE (supports file attachments)
+// 📦 USER BUBBLE
 // ============================
 function createUserBubble(text, files) {
     const wrapper = document.createElement("div");
     wrapper.classList.add("user-msg-wrapper");
 
-    // File attachments (images + docs) shown above text
     if (files && files.length > 0) {
         const filesDiv = document.createElement("div");
         filesDiv.innerHTML = buildFileAttachHTML(files);
         wrapper.appendChild(filesDiv);
     }
 
-    // Text bubble (only if there is text)
     if (text) {
         const bubble = document.createElement("div");
         bubble.classList.add("message", "user");
@@ -589,26 +458,23 @@ function createBotWrapper() {
 }
 
 // ============================
-// ✍️ STREAMER
+// ✍️ STREAMER (FAST 40ms render + INSTANT first token)
 // ============================
 async function streamWords(botMsg, wrapper, reader, decoder, chatbox) {
-    let buffer         = "";
-    let fullReply      = "";
+    let buffer = "";
+    let fullReply = "";
     let done_streaming = false;
-    let renderTimer    = null;
+    let renderTimer = null;
 
-    // Live render: re-render markdown every ~80ms during streaming
-    // so the user sees formatted output as it arrives, not plain text.
     const scheduleRender = () => {
         if (renderTimer) return;
         renderTimer = setTimeout(() => {
             renderTimer = null;
             if (fullReply) {
-                botMsg.innerHTML = formatMessage(repairTruncated(fullReply)) +
-                    '<span class="stream-cursor"></span>';
+                botMsg.innerHTML = formatMessage(repairTruncated(fullReply)) + '<span class="stream-cursor"></span>';
                 chatbox.scrollTop = chatbox.scrollHeight;
             }
-        }, 80);
+        }, 40);
     };
 
     try {
@@ -616,7 +482,6 @@ async function streamWords(botMsg, wrapper, reader, decoder, chatbox) {
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split("\n");
             buffer = lines.pop();
@@ -624,39 +489,31 @@ async function streamWords(botMsg, wrapper, reader, decoder, chatbox) {
             for (const line of lines) {
                 if (!line.startsWith("data: ")) continue;
                 const payload = line.slice(6).trim();
-
-                if (payload === "[DONE]") {
-                    done_streaming = true;
-                    break outer;
-                }
-
+                if (payload === "[DONE]") { done_streaming = true; break outer; }
                 try {
                     const chunk = JSON.parse(payload);
-
                     if (chunk.error) {
-                        if (!fullReply.trim()) {
-                            botMsg.innerHTML = `<p style="color:#e06c6c">⚠️ ${chunk.error}</p>`;
-                        }
+                        if (!fullReply.trim()) botMsg.innerHTML = `<p style="color:#e06c6c">⚠️ ${chunk.error}</p>`;
                         return fullReply || "";
                     }
-
                     if (chunk.status) continue;
-
                     if (chunk.token) {
                         fullReply += chunk.token;
-                        scheduleRender();
+                        // Render the very first token instantly
+                        if (fullReply.length === chunk.token.length) {
+                            botMsg.innerHTML = formatMessage(repairTruncated(fullReply)) + '<span class="stream-cursor"></span>';
+                            chatbox.scrollTop = chatbox.scrollHeight;
+                        } else {
+                            scheduleRender();
+                        }
                     }
                 } catch { continue; }
             }
         }
-    } catch (networkErr) {
-        console.warn("Stream read error (handled):", networkErr);
-    }
+    } catch (e) { console.warn("Stream read error:", e); }
 
-    // Cancel any pending incremental render
     if (renderTimer) { clearTimeout(renderTimer); renderTimer = null; }
 
-    // Final render — full, clean, no cursor
     if (fullReply.trim()) {
         botMsg.innerHTML = formatMessage(repairTruncated(fullReply));
         wrapper.dataset.raw = fullReply;
@@ -665,7 +522,7 @@ async function streamWords(botMsg, wrapper, reader, decoder, chatbox) {
     }
 
     if (!done_streaming) {
-        botMsg.innerHTML = `<p style="color:#e06c6c">⚠️ No response received. The model may be rate-limited — please try again.</p>`;
+        botMsg.innerHTML = `<p style="color:#e06c6c">⚠️ No response received. Please try again.</p>`;
     }
     return "";
 }
@@ -680,27 +537,24 @@ window.newChat = function () {
     currentSessionId = generateSessionId();
     firstMessage = true;
 
-    const chatbox   = document.getElementById("chatbox");
+    const chatbox = document.getElementById("chatbox");
     const inputArea = document.getElementById("inputArea");
-    const app       = document.getElementById("app");
+    const app = document.getElementById("app");
 
-    if (chatbox)   chatbox.innerHTML = "";
+    if (chatbox) chatbox.innerHTML = "";
     if (inputArea) {
         inputArea.classList.remove("bottom");
         inputArea.classList.add("center");
     }
     if (app) app.classList.add("greeting-mode");
-    
+
     displayGreeting();
-    
+
     if (window.innerWidth <= 768) closeSidebar();
     showMainMenu();
     showToast("New chat started", 2000);
 };
 
-// ============================
-// 🚪 LOGOUT
-// ============================
 window.logoutUser = async function () {
     if (confirm("Are you sure you want to logout?")) {
         await supabaseClient.auth.signOut();
@@ -708,47 +562,32 @@ window.logoutUser = async function () {
     }
 };
 
-// ============================
-// 🧭 MAIN MENU
-// ============================
 window.showMainMenu = function () {
     const menu = document.querySelector(".sidebar-menu");
     if (!menu) return;
     menu.innerHTML = `
         <div class="sidebar-item" onclick="newChat()">
-            <svg class="sidebar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-            </svg>
+            <svg class="sidebar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
             New Chat
         </div>
         <div class="sidebar-item" onclick="showHistory()">
-            <svg class="sidebar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <polyline points="12 6 12 12 16 14"></polyline>
-            </svg>
+            <svg class="sidebar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
             Chat History
         </div>
         <div class="sidebar-item" onclick="showSettings()">
-            <svg class="sidebar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="3"></circle>
-                <path d="M12 1v6m0 6v6m10.39-9.39l-4.24 4.24m-8.3 0l-4.24-4.24m12.53 8.53l4.24 4.24m-8.3 0l4.24-4.24"></path>
-            </svg>
+            <svg class="sidebar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 1v6m0 6v6m10.39-9.39l-4.24 4.24m-8.3 0l-4.24-4.24m12.53 8.53l4.24 4.24m-8.3 0l4.24-4.24"></path></svg>
             Settings
         </div>`;
 };
 
 // ============================
-// ⚙️ SETTINGS OVERLAY
-// ============================
-// ============================
-// ⚙️ SETTINGS OVERLAY
+// ⚙️ SETTINGS
 // ============================
 window.showSettings = function () {
     const overlay = document.getElementById("settingsOverlay");
-    const email    = currentUser?.email || "Not logged in";
+    const email = currentUser?.email || "Not logged in";
     const fullName = document.getElementById("userFullname")?.textContent || "User";
-    const initials = document.getElementById("userAvatar")?.textContent  || "?";
+    const initials = document.getElementById("userAvatar")?.textContent || "?";
 
     overlay.innerHTML = `
         <button class="settings-close-btn" onclick="closeSettings()" title="Close">✕</button>
@@ -756,55 +595,19 @@ window.showSettings = function () {
             <div class="settings-nav">
                 <h2 class="settings-nav-title">Settings</h2>
                 <div class="settings-nav-item active" onclick="showSettingsTab('general', this)">
-                    <svg class="sn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="3"></circle>
-                        <path d="M12 1v6m0 6v6m10.39-9.39l-4.24 4.24m-8.3 0l-4.24-4.24m12.53 8.53l4.24 4.24m-8.3 0l4.24-4.24"></path>
-                    </svg> General
+                    <svg class="sn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 1v6m0 6v6m10.39-9.39l-4.24 4.24m-8.3 0l-4.24-4.24m12.53 8.53l4.24 4.24m-8.3 0l4.24-4.24"></path></svg> General
                 </div>
                 <div class="settings-nav-item" onclick="showSettingsTab('profile', this)">
-                    <svg class="sn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="12" cy="7" r="4"></circle>
-                    </svg> Profile
+                    <svg class="sn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> Profile
                 </div>
                 <div class="settings-nav-item" onclick="showSettingsTab('chats', this)">
-                    <svg class="sn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                    </svg> Chats
+                    <svg class="sn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg> Chats
                 </div>
                 <div class="settings-nav-item" onclick="showSettingsTab('privacy', this)">
-                    <svg class="sn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                    </svg> Privacy
-                </div>
-                <div class="settings-nav-item" onclick="showSettingsTab('speech', this)">
-                    <svg class="sn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="8" y1="6" x2="8" y2="18"></line>
-                        <line x1="12" y1="3" x2="12" y2="21"></line>
-                        <line x1="16" y1="7" x2="16" y2="17"></line>
-                        <line x1="4" y1="9" x2="4" y2="15"></line>
-                        <line x1="20" y1="9" x2="20" y2="15"></line>
-                    </svg> Speech
-                </div>
-                <div class="settings-nav-item" onclick="showSettingsTab('personalization', this)">
-                    <svg class="sn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="12" cy="7" r="4"></circle>
-                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                    </svg> Personalization
-                </div>
-                <div class="settings-nav-item" onclick="showSettingsTab('datacontrols', this)">
-                    <svg class="sn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
-                        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
-                        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
-                    </svg> Data controls
+                    <svg class="sn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg> Privacy
                 </div>
                 <div class="settings-nav-item" onclick="showSettingsTab('account', this)">
-                    <svg class="sn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="7" r="4"></circle>
-                        <path d="M5.5 21a9 9 0 0 1 13 0"></path>
-                    </svg> Account
+                    <svg class="sn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"></circle><path d="M5.5 21a9 9 0 0 1 13 0"></path></svg> Account
                 </div>
             </div>
             <div class="settings-content" id="settingsContent"></div>
@@ -812,7 +615,6 @@ window.showSettings = function () {
 
     overlay.classList.add("active");
     showSettingsTab('general', overlay.querySelector('.settings-nav-item.active'));
-
     if (window.innerWidth <= 768) closeSidebar();
 };
 
@@ -822,184 +624,93 @@ window.closeSettings = function () {
     showMainMenu();
 };
 
-// ============================
-// ✏️ EDIT DISPLAY NAME
-// ============================
 window.editDisplayName = async function () {
     const currentName = document.getElementById("userFullname")?.textContent || "User";
     const newName = prompt("Enter your new display name:", currentName);
-    
-    if (!newName || newName.trim() === "" || newName.trim() === currentName) {
-        return;
-    }
+    if (!newName || newName.trim() === "" || newName.trim() === currentName) return;
 
     const trimmedName = newName.trim();
-
     try {
-        const { data, error } = await supabaseClient.auth.updateUser({
-            data: { full_name: trimmedName }
-        });
-
-        if (error) {
-            console.error("❌ Update failed:", error.message);
-            showToast("❌ Failed to update name. Please try again.");
-            return;
-        }
+        const { data, error } = await supabaseClient.auth.updateUser({ data: { full_name: trimmedName } });
+        if (error) { showToast("❌ Failed to update name."); return; }
 
         currentUser = data.user;
-
         const parts = trimmedName.split(/\s+/).filter(Boolean);
         const initials = parts.length >= 2
             ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
             : parts[0].slice(0, 2).toUpperCase();
 
-        const avatarEl    = document.getElementById("userAvatar");
-        const nameEl      = document.getElementById("userFullname");
-        const railAvatar  = document.getElementById("railAvatar");
+        ["userAvatar", "userFullname", "railAvatar"].forEach((id, idx) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = idx === 1 ? trimmedName : initials;
+        });
         const scProfileName = document.querySelector(".sc-profile-name");
-
-        if (avatarEl)   avatarEl.textContent  = initials;
-        if (nameEl)     nameEl.textContent    = trimmedName;
-        if (railAvatar) railAvatar.textContent = initials;
         if (scProfileName) scProfileName.textContent = trimmedName;
 
         showToast(`✓ Name updated to ${trimmedName}`);
-        
-        setTimeout(() => {
-            showSettingsTab('profile', document.querySelector('.settings-nav-item.active'));
-        }, 500);
-
+        setTimeout(() => showSettingsTab('profile', document.querySelector('.settings-nav-item.active')), 500);
     } catch (err) {
-        console.error("❌ Error:", err);
-        showToast("❌ Failed to update name. Please try again.");
+        showToast("❌ Failed to update name.");
     }
 };
-
-// ============================
-// 🔲 COMING SOON HELPER
-// ============================
-function comingSoonSection(title, items) {
-    const rows = items.map(({ icon, label, sub }) => `
-        <div class="sc-row disabled">
-            <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                ${icon}
-            </svg>
-            <div class="sc-row-body">
-                <p class="sc-row-label">${label}</p>
-                <p class="sc-row-sub soon">${sub || 'Coming soon'}</p>
-            </div>
-        </div>`).join('');
-    return `<div class="sc-section"><div class="sc-section-title">${title}</div>${rows}</div>`;
-}
 
 window.showSettingsTab = function (tab, clickedEl) {
     document.querySelectorAll(".settings-nav-item").forEach(el => el.classList.remove("active"));
     if (clickedEl) clickedEl.classList.add("active");
 
-    const content  = document.getElementById("settingsContent");
+    const content = document.getElementById("settingsContent");
     if (!content) return;
 
-    const email    = currentUser?.email || "Not logged in";
+    const email = currentUser?.email || "Not logged in";
     const fullName = document.getElementById("userFullname")?.textContent || "User";
-    const initials = document.getElementById("userAvatar")?.textContent  || "?";
+    const initials = document.getElementById("userAvatar")?.textContent || "?";
 
     const tabs = {
-
         general: `
             <div class="sc-section">
                 <div class="sc-section-title">Appearance</div>
-
                 <div class="sc-row sc-row-block">
                     <div class="sc-row-top">
-                        <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="5"></circle>
-                            <path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"></path>
-                        </svg>
+                        <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"></path></svg>
                         <p class="sc-row-label">Theme</p>
                     </div>
                     <div class="theme-picker">
-                        <button class="theme-option ${(localStorage.getItem('catura-theme') || 'dark') === 'light' ? 'active' : ''}" onclick="setTheme('light')" title="Light">
-                            <div class="theme-preview light-preview">
-                                <div class="tp-bar"></div>
-                                <div class="tp-line"></div>
-                                <div class="tp-line short"></div>
-                                <div class="tp-bubble"></div>
-                            </div>
+                        <button class="theme-option ${(localStorage.getItem('catura-theme') || 'dark') === 'light' ? 'active' : ''}" onclick="setTheme('light')">
+                            <div class="theme-preview light-preview"><div class="tp-bar"></div><div class="tp-line"></div><div class="tp-line short"></div><div class="tp-bubble"></div></div>
                             <span>Light</span>
                         </button>
-                        <button class="theme-option ${(localStorage.getItem('catura-theme') || 'dark') === 'auto' ? 'active' : ''}" onclick="setTheme('auto')" title="Auto">
-                            <div class="theme-preview auto-preview">
-                                <div class="tp-half-light"></div>
-                                <div class="tp-half-dark"></div>
-                                <div class="tp-bar"></div>
-                                <div class="tp-line"></div>
-                                <div class="tp-bubble"></div>
-                            </div>
+                        <button class="theme-option ${(localStorage.getItem('catura-theme') || 'dark') === 'auto' ? 'active' : ''}" onclick="setTheme('auto')">
+                            <div class="theme-preview auto-preview"><div class="tp-bar"></div><div class="tp-line"></div><div class="tp-bubble"></div></div>
                             <span>Auto</span>
                         </button>
-                        <button class="theme-option ${(localStorage.getItem('catura-theme') || 'dark') === 'dark' ? 'active' : ''}" onclick="setTheme('dark')" title="Dark">
-                            <div class="theme-preview dark-preview">
-                                <div class="tp-bar"></div>
-                                <div class="tp-line"></div>
-                                <div class="tp-line short"></div>
-                                <div class="tp-bubble"></div>
-                            </div>
+                        <button class="theme-option ${(localStorage.getItem('catura-theme') || 'dark') === 'dark' ? 'active' : ''}" onclick="setTheme('dark')">
+                            <div class="theme-preview dark-preview"><div class="tp-bar"></div><div class="tp-line"></div><div class="tp-line short"></div><div class="tp-bubble"></div></div>
                             <span>Dark</span>
                         </button>
                     </div>
                 </div>
-
                 <div class="sc-row sc-row-block" style="margin-top:8px;">
                     <div class="sc-row-top">
-                        <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="4 7 4 4 20 4 20 7"></polyline>
-                            <rect x="2" y="7" width="20" height="13" rx="2"></rect>
-                            <path d="M9 17v-3m6 3v-3"></path>
-                        </svg>
+                        <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"></polyline><rect x="2" y="7" width="20" height="13" rx="2"></rect></svg>
                         <p class="sc-row-label">Chat font size</p>
                     </div>
                     <div class="font-picker">
-                        <button class="font-option ${(localStorage.getItem('catura-font') || 'default') === 'default' ? 'active' : ''}" onclick="setFontSize('default')">
-                            <span class="font-sample">Aa</span>
-                            <span>Default</span>
-                        </button>
-                        <button class="font-option ${(localStorage.getItem('catura-font') || 'default') === 'small' ? 'active' : ''}" onclick="setFontSize('small')">
-                            <span class="font-sample small-sample">Aa</span>
-                            <span>Small</span>
-                        </button>
-                        <button class="font-option ${(localStorage.getItem('catura-font') || 'default') === 'large' ? 'active' : ''}" onclick="setFontSize('large')">
-                            <span class="font-sample large-sample">Aa</span>
-                            <span>Large</span>
-                        </button>
-                        <button class="font-option ${(localStorage.getItem('catura-font') || 'default') === 'xlarge' ? 'active' : ''}" onclick="setFontSize('xlarge')">
-                            <span class="font-sample xlarge-sample">Aa</span>
-                            <span>X-Large</span>
-                        </button>
+                        <button class="font-option ${(localStorage.getItem('catura-font') || 'default') === 'default' ? 'active' : ''}" onclick="setFontSize('default')"><span class="font-sample">Aa</span><span>Default</span></button>
+                        <button class="font-option ${(localStorage.getItem('catura-font') || 'default') === 'small' ? 'active' : ''}" onclick="setFontSize('small')"><span class="font-sample small-sample">Aa</span><span>Small</span></button>
+                        <button class="font-option ${(localStorage.getItem('catura-font') || 'default') === 'large' ? 'active' : ''}" onclick="setFontSize('large')"><span class="font-sample large-sample">Aa</span><span>Large</span></button>
+                        <button class="font-option ${(localStorage.getItem('catura-font') || 'default') === 'xlarge' ? 'active' : ''}" onclick="setFontSize('xlarge')"><span class="font-sample xlarge-sample">Aa</span><span>X-Large</span></button>
                     </div>
                 </div>
             </div>
             <div class="sc-section">
                 <div class="sc-section-title">Support</div>
                 <div class="sc-row" onclick="openFeedbackModal('bug')">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
-                        <line x1="9" y1="9" x2="9.01" y2="9"></line>
-                        <line x1="15" y1="9" x2="15.01" y2="9"></line>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label">Send bug report</p>
-                        <p class="sc-row-sub">Help us fix issues</p>
-                    </div>
+                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>
+                    <div class="sc-row-body"><p class="sc-row-label">Send bug report</p><p class="sc-row-sub">Help us fix issues</p></div>
                 </div>
                 <div class="sc-row" onclick="openFeedbackModal('feature')">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label">Request a feature</p>
-                        <p class="sc-row-sub">Suggest improvements</p>
-                    </div>
+                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                    <div class="sc-row-body"><p class="sc-row-label">Request a feature</p><p class="sc-row-sub">Suggest improvements</p></div>
                 </div>
             </div>`,
 
@@ -1008,34 +719,18 @@ window.showSettingsTab = function (tab, clickedEl) {
                 <div class="sc-section-title">Account</div>
                 <div class="sc-profile-card">
                     <div class="sc-avatar">${initials}</div>
-                    <div>
-                        <p class="sc-profile-name">${fullName}</p>
-                        <p class="sc-profile-email">${email}</p>
-                    </div>
+                    <div><p class="sc-profile-name">${fullName}</p><p class="sc-profile-email">${email}</p></div>
                 </div>
             </div>
             <div class="sc-section">
                 <div class="sc-section-title">Actions</div>
                 <div class="sc-row" onclick="editDisplayName()">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label">Edit display name</p>
-                        <p class="sc-row-sub">Change how your name appears</p>
-                    </div>
+                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    <div class="sc-row-body"><p class="sc-row-label">Edit display name</p><p class="sc-row-sub">Change how your name appears</p></div>
                 </div>
                 <div class="sc-row danger" onclick="logoutUser()">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                        <polyline points="16 17 21 12 16 7"></polyline>
-                        <line x1="21" y1="12" x2="9" y2="12"></line>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label">Log out</p>
-                        <p class="sc-row-sub">Sign out of your account</p>
-                    </div>
+                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                    <div class="sc-row-body"><p class="sc-row-label">Log out</p><p class="sc-row-sub">Sign out of your account</p></div>
                 </div>
             </div>`,
 
@@ -1043,439 +738,114 @@ window.showSettingsTab = function (tab, clickedEl) {
             <div class="sc-section">
                 <div class="sc-section-title">Manage chats</div>
                 <div class="sc-row" onclick="archiveAllChats()">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="21 8 21 21 3 21 3 8"></polyline>
-                        <rect x="1" y="3" width="22" height="5"></rect>
-                        <line x1="10" y1="12" x2="14" y2="12"></line>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label">Archive all chats</p>
-                        <p class="sc-row-sub">Hide all chats from your history</p>
-                    </div>
+                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect></svg>
+                    <div class="sc-row-body"><p class="sc-row-label">Archive all chats</p><p class="sc-row-sub">Hide all chats from your history</p></div>
                 </div>
                 <div class="sc-row danger" onclick="clearAllChats()">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="3 6 5 6 21 6"></polyline>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                        <line x1="10" y1="11" x2="10" y2="17"></line>
-                        <line x1="14" y1="11" x2="14" y2="17"></line>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label">Delete all chats</p>
-                        <p class="sc-row-sub">Permanently remove all history</p>
-                    </div>
-                </div>
-            </div>
-            <div class="sc-section">
-                <div class="sc-section-title">Preferences</div>
-                <div class="sc-row disabled">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-                        <polyline points="17 21 17 13 7 13 7 21"></polyline>
-                        <polyline points="7 3 7 8 15 8"></polyline>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label">Export chat history</p>
-                        <p class="sc-row-sub soon">Coming soon</p>
-                    </div>
+                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    <div class="sc-row-body"><p class="sc-row-label">Delete all chats</p><p class="sc-row-sub">Permanently remove all history</p></div>
                 </div>
             </div>`,
 
         privacy: `
             <div class="sc-section">
                 <div class="sc-section-title">Privacy controls</div>
-
-                <!-- ✅ Data & Privacy — clickable, opens modal -->
-                <div class="sc-row" onclick="showPrivacyModal()" style="cursor:pointer;">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label">Data & privacy</p>
-                        <p class="sc-row-sub">View how we collect and use your data</p>
-                    </div>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-left:8px;">
-                        <polyline points="9 18 15 12 9 6"></polyline>
-                    </svg>
+                <div class="sc-row" onclick="showPrivacyModal()">
+                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                    <div class="sc-row-body"><p class="sc-row-label">Data & privacy</p><p class="sc-row-sub">View how we handle your data</p></div>
                 </div>
-
-                <!-- ✅ Delete my account — clickable, opens confirm popup -->
-                <div class="sc-row danger" onclick="showDeleteAccountModal()" style="cursor:pointer;">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="3 6 5 6 21 6"></polyline>
-                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
-                        <path d="M10 11v6M14 11v6"></path>
-                        <path d="M9 6V4h6v2"></path>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label" style="color:#e06c6c;">Delete my account</p>
-                        <p class="sc-row-sub">Permanently delete your account and all data</p>
-                    </div>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e06c6c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-left:8px;">
-                        <polyline points="9 18 15 12 9 6"></polyline>
-                    </svg>
-                </div>
-            </div>
-
-            <!-- Toggles section -->
-            <div class="sc-section">
-                <div class="sc-section-title">Data preferences</div>
-
-                <!-- Toggle 1: Location metadata — coming soon -->
-                <div class="sc-row-block">
-                    <div class="sc-row-top">
-                        <div class="sc-row-icon-wrap">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                                <circle cx="12" cy="10" r="3"></circle>
-                            </svg>
-                        </div>
-                        <div class="sc-row-body">
-                            <p class="sc-row-label">Location metadata</p>
-                            <p class="sc-row-sub">Allow approximate location to improve responses <span class="badge-soon">Coming soon</span></p>
-                        </div>
-                        <label class="toggle-switch disabled-toggle" title="Coming soon">
-                            <input type="checkbox" disabled>
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Toggle 2: Help to improve us — coming soon -->
-                <div class="sc-row-block">
-                    <div class="sc-row-top">
-                        <div class="sc-row-icon-wrap">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"></path>
-                                <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
-                            </svg>
-                        </div>
-                        <div class="sc-row-body">
-                            <p class="sc-row-label">Help to improve us</p>
-                            <p class="sc-row-sub">Share anonymized usage data to help improve Catura AI <span class="badge-soon">Coming soon</span></p>
-                        </div>
-                        <label class="toggle-switch disabled-toggle" title="Coming soon">
-                            <input type="checkbox" disabled>
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
+                <div class="sc-row danger" onclick="showDeleteAccountModal()">
+                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path></svg>
+                    <div class="sc-row-body"><p class="sc-row-label" style="color:#e06c6c;">Delete my account</p><p class="sc-row-sub">Permanently delete your account</p></div>
                 </div>
             </div>`,
 
-        // ============================
-        // 🔊 SPEECH TAB
-        // ============================
-        speech: `
-            <div class="sc-section">
-                <div class="sc-section-title">Voice & speech</div>
-                <div class="sc-row disabled">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                        <line x1="12" y1="19" x2="12" y2="23"></line>
-                        <line x1="8" y1="23" x2="16" y2="23"></line>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label">Voice input</p>
-                        <p class="sc-row-sub soon">Coming soon</p>
-                    </div>
-                </div>
-                <div class="sc-row disabled">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
-                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label">Text-to-speech</p>
-                        <p class="sc-row-sub soon">Coming soon</p>
-                    </div>
-                </div>
-                <div class="sc-row disabled">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="8" y1="6" x2="8" y2="18"></line>
-                        <line x1="12" y1="3" x2="12" y2="21"></line>
-                        <line x1="16" y1="7" x2="16" y2="17"></line>
-                        <line x1="4" y1="9" x2="4" y2="15"></line>
-                        <line x1="20" y1="9" x2="20" y2="15"></line>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label">Voice style</p>
-                        <p class="sc-row-sub soon">Coming soon</p>
-                    </div>
-                </div>
-            </div>`,
-
-        // ============================
-        // 🎨 PERSONALIZATION TAB
-        // ============================
-        personalization: `
-            <div class="sc-section">
-                <div class="sc-section-title">Custom instructions</div>
-                <div class="sc-row disabled">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 20h9"></path>
-                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label">Custom instructions</p>
-                        <p class="sc-row-sub soon">Tell Catura how to respond — coming soon</p>
-                    </div>
-                </div>
-                <div class="sc-row disabled">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
-                        <line x1="9" y1="9" x2="9.01" y2="9"></line>
-                        <line x1="15" y1="9" x2="15.01" y2="9"></line>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label">AI personality</p>
-                        <p class="sc-row-sub soon">Coming soon</p>
-                    </div>
-                </div>
-            </div>
-            <div class="sc-section">
-                <div class="sc-section-title">Memory</div>
-                <div class="sc-row disabled">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label">Memory & context</p>
-                        <p class="sc-row-sub soon">Coming soon</p>
-                    </div>
-                </div>
-            </div>`,
-
-        // ============================
-        // 🗄️ DATA CONTROLS TAB
-        // ============================
-        datacontrols: `
-            <div class="sc-section">
-                <div class="sc-section-title">Your data</div>
-                <div class="sc-row disabled">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-                        <polyline points="17 21 17 13 7 13 7 21"></polyline>
-                        <polyline points="7 3 7 8 15 8"></polyline>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label">Export all data</p>
-                        <p class="sc-row-sub soon">Download a copy of your data — coming soon</p>
-                    </div>
-                </div>
-                <div class="sc-row disabled">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
-                        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
-                        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label">Manage stored data</p>
-                        <p class="sc-row-sub soon">Coming soon</p>
-                    </div>
-                </div>
-                <div class="sc-row disabled">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label">Data sharing preferences</p>
-                        <p class="sc-row-sub soon">Coming soon</p>
-                    </div>
-                </div>
-            </div>`,
-
-        // ============================
-        // 👤 ACCOUNT TAB
-        // ============================
         account: `
             <div class="sc-section">
                 <div class="sc-section-title">Account details</div>
                 <div class="sc-profile-card">
                     <div class="sc-avatar">${initials}</div>
-                    <div>
-                        <p class="sc-profile-name">${fullName}</p>
-                        <p class="sc-profile-email">${email}</p>
-                    </div>
+                    <div><p class="sc-profile-name">${fullName}</p><p class="sc-profile-email">${email}</p></div>
                 </div>
             </div>
             <div class="sc-section">
                 <div class="sc-section-title">Subscription</div>
                 <div class="sc-row disabled">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
-                        <line x1="1" y1="10" x2="23" y2="10"></line>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label">Upgrade plan</p>
-                        <p class="sc-row-sub soon">Pro features — coming soon</p>
-                    </div>
-                </div>
-                <div class="sc-row disabled">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label">Current plan: Free</p>
-                        <p class="sc-row-sub">Unlimited chats with Dagr & Apep</p>
-                    </div>
-                </div>
-            </div>
-            <div class="sc-section">
-                <div class="sc-section-title">Security</div>
-                <div class="sc-row disabled">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label">Change password</p>
-                        <p class="sc-row-sub soon">Coming soon</p>
-                    </div>
-                </div>
-                <div class="sc-row disabled">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                        <path d="M12 8v4M12 16h.01"></path>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label">Two-factor authentication</p>
-                        <p class="sc-row-sub soon">Coming soon</p>
-                    </div>
-                </div>
-                <div class="sc-row danger disabled">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="3 6 5 6 21 6"></polyline>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label">Delete account</p>
-                        <p class="sc-row-sub soon">Permanently remove your account — coming soon</p>
-                    </div>
+                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                    <div class="sc-row-body"><p class="sc-row-label">Current plan: Free</p><p class="sc-row-sub">Unlimited chats with all models</p></div>
                 </div>
             </div>`
     };
-
     content.innerHTML = tabs[tab] || tabs.general;
 };
 
 // ============================
-// 🗂️ ARCHIVE ALL CHATS
+// 🗂️ CHAT MGMT
 // ============================
 window.archiveAllChats = async function () {
-    if (!confirm("Archive all chats? They will be hidden from your history.")) return;
-    const { error } = await supabaseClient
-        .from("chat_sessions").update({ archived: true }).eq("user_id", currentUser.id);
-    if (error) {
-        console.error("❌ Archive error:", error.code, error.message, error.details, error.hint);
-        showToast("❌ Archive failed: " + (error.message || "Check console for details"));
-    } else {
-        showToast("✓ All chats archived successfully");
-        if (typeof loadChatHistory === "function") loadChatHistory();
-        else if (typeof showHistory === "function") showHistory();
-    }
+    if (!confirm("Archive all chats?")) return;
+    const { error } = await supabaseClient.from("chat_sessions").update({ archived: true }).eq("user_id", currentUser.id);
+    if (error) showToast("❌ Archive failed");
+    else { showToast("✓ All chats archived"); if (typeof showHistory === "function") showHistory(); }
 };
 
-// ============================
-// 🗑️ DELETE ALL CHATS
-// ============================
 window.clearAllChats = async function () {
-    if (!confirm("Delete ALL chats permanently? This cannot be undone.")) return;
-
+    if (!confirm("Delete ALL chats permanently?")) return;
     const { error: msgErr } = await supabaseClient.from("messages").delete().eq("user_id", currentUser.id);
-    if (msgErr) { showToast("❌ Failed to delete messages"); return; }
-
+    if (msgErr) { showToast("❌ Failed"); return; }
     const { error: sessErr } = await supabaseClient.from("chat_sessions").delete().eq("user_id", currentUser.id);
-    if (sessErr) { showToast("❌ Failed to delete sessions"); return; }
-
-    showToast("✓ All chats deleted successfully");
-
-    const chatbox   = document.getElementById("chatbox");
+    if (sessErr) { showToast("❌ Failed"); return; }
+    showToast("✓ All chats deleted");
+    const chatbox = document.getElementById("chatbox");
     const inputArea = document.getElementById("inputArea");
-    const app       = document.getElementById("app");
-
+    const app = document.getElementById("app");
     if (chatbox) chatbox.innerHTML = "";
     currentSessionId = generateSessionId();
     firstMessage = true;
-    if (inputArea) {
-        inputArea.classList.remove("bottom");
-        inputArea.classList.add("center");
-    }
+    if (inputArea) { inputArea.classList.remove("bottom"); inputArea.classList.add("center"); }
     if (app) app.classList.add("greeting-mode");
     displayGreeting();
     closeSettings();
 };
 
-// ============================
-// 🗑️ DELETE SINGLE CHAT
-// ============================
 async function deleteSingleChat(sessionId) {
-    if (!confirm("Delete this chat? This cannot be undone.")) return;
-
-    const { error: msgErr } = await supabaseClient.from("messages").delete()
-        .eq("session_id", sessionId).eq("user_id", currentUser.id);
-    if (msgErr) { showToast("❌ Failed to delete messages"); return; }
-
-    const { error: sessErr } = await supabaseClient.from("chat_sessions").delete()
-        .eq("session_id", sessionId).eq("user_id", currentUser.id);
-    if (sessErr) { showToast("❌ Failed to delete session"); return; }
-
+    if (!confirm("Delete this chat?")) return;
+    await supabaseClient.from("messages").delete().eq("session_id", sessionId).eq("user_id", currentUser.id);
+    await supabaseClient.from("chat_sessions").delete().eq("session_id", sessionId).eq("user_id", currentUser.id);
     if (currentSessionId === sessionId) {
         currentSessionId = generateSessionId();
         firstMessage = true;
-        const chatbox   = document.getElementById("chatbox");
-        const inputArea = document.getElementById("inputArea");
-        const app       = document.getElementById("app");
+        const chatbox = document.getElementById("chatbox");
         if (chatbox) chatbox.innerHTML = "";
-        if (inputArea) {
-            inputArea.classList.remove("bottom");
-            inputArea.classList.add("center");
-        }
-        if (app) app.classList.add("greeting-mode");
+        document.getElementById("inputArea")?.classList.remove("bottom");
+        document.getElementById("inputArea")?.classList.add("center");
+        document.getElementById("app")?.classList.add("greeting-mode");
         displayGreeting();
     }
-
     showToast("✓ Chat deleted");
     showHistory();
 }
 
-// ============================
-// ✏️ RENAME CHAT
-// ============================
 async function renameChat(sessionId, currentTitle, titleEl) {
     const newTitle = prompt("Rename chat:", currentTitle);
     if (!newTitle || newTitle.trim() === currentTitle) return;
-
-    const { error } = await supabaseClient.from("chat_sessions")
-        .update({ title: newTitle.trim() })
-        .eq("session_id", sessionId)
-        .eq("user_id", currentUser.id);
-
-    if (error) { showToast("❌ Failed to rename chat"); return; }
+    await supabaseClient.from("chat_sessions").update({ title: newTitle.trim() }).eq("session_id", sessionId).eq("user_id", currentUser.id);
     titleEl.textContent = newTitle.trim();
-    showToast("✓ Chat renamed");
+    showToast("✓ Renamed");
 }
 
-// ============================
-// ⋯ HISTORY 3-DOT MENU
-// ============================
 function closeAllMenus() {
     document.querySelectorAll(".history-dropdown.open").forEach(d => d.classList.remove("open"));
 }
 
 function buildHistoryItem(session, openSessionFn) {
     const date = new Date(session.created_at).toLocaleDateString();
-
     const item = document.createElement("div");
     item.classList.add("sidebar-item", "history-item");
 
     const info = document.createElement("div");
     info.classList.add("history-info");
-    info.style.flex = "1";
-    info.style.minWidth = "0";
-    info.style.cursor = "pointer";
+    info.style.flex = "1"; info.style.minWidth = "0"; info.style.cursor = "pointer";
 
     const titleEl = document.createElement("span");
     titleEl.classList.add("history-title");
@@ -1485,39 +855,22 @@ function buildHistoryItem(session, openSessionFn) {
     dateEl.classList.add("history-date");
     dateEl.textContent = date;
 
-    info.appendChild(titleEl);
-    info.appendChild(dateEl);
+    info.appendChild(titleEl); info.appendChild(dateEl);
     info.onclick = () => {
-        const overlay = document.getElementById("settingsOverlay");
-        if (overlay) overlay.classList.remove("active");
+        document.getElementById("settingsOverlay")?.classList.remove("active");
         openSessionFn(session.session_id);
     };
 
     const menuBtn = document.createElement("button");
     menuBtn.classList.add("history-menu-btn");
-    menuBtn.title = "Options";
-    menuBtn.innerHTML = `
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-            <circle cx="12" cy="5"  r="1.5"/>
-            <circle cx="12" cy="12" r="1.5"/>
-            <circle cx="12" cy="19" r="1.5"/>
-        </svg>`;
+    menuBtn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>`;
 
     const dropdown = document.createElement("div");
     dropdown.classList.add("history-dropdown");
     dropdown.innerHTML = `
-        <button class="history-dropdown-item" data-action="open">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-            Open chat
-        </button>
-        <button class="history-dropdown-item" data-action="rename">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-            Rename
-        </button>
-        <button class="history-dropdown-item danger" data-action="delete">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-            Delete chat
-        </button>`;
+        <button class="history-dropdown-item" data-action="open">Open chat</button>
+        <button class="history-dropdown-item" data-action="rename">Rename</button>
+        <button class="history-dropdown-item danger" data-action="delete">Delete</button>`;
 
     menuBtn.onclick = (e) => {
         e.stopPropagation();
@@ -1531,21 +884,19 @@ function buildHistoryItem(session, openSessionFn) {
             e.stopPropagation();
             closeAllMenus();
             const action = btn.dataset.action;
-            if (action === "open")   openSessionFn(session.session_id);
+            if (action === "open") openSessionFn(session.session_id);
             if (action === "rename") renameChat(session.session_id, session.title || "Untitled", titleEl);
             if (action === "delete") deleteSingleChat(session.session_id);
         };
     });
 
-    document.addEventListener("click", closeAllMenus, { once: false });
+    document.addEventListener("click", closeAllMenus);
 
     const menuWrap = document.createElement("div");
     menuWrap.classList.add("history-menu-wrap");
-    menuWrap.appendChild(menuBtn);
-    menuWrap.appendChild(dropdown);
+    menuWrap.appendChild(menuBtn); menuWrap.appendChild(dropdown);
 
-    item.appendChild(info);
-    item.appendChild(menuWrap);
+    item.appendChild(info); item.appendChild(menuWrap);
     return item;
 }
 
@@ -1553,10 +904,8 @@ function buildHistoryItem(session, openSessionFn) {
 // 🚀 APP START
 // ============================
 document.addEventListener("DOMContentLoaded", async function () {
-
     initTheme();
     initFontSize();
-
     await getUser();
 
     if (!currentUser) {
@@ -1566,10 +915,10 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     displayGreeting();
 
-    const chatbox   = document.getElementById("chatbox");
-    const input     = document.getElementById("input");
+    const chatbox = document.getElementById("chatbox");
+    const input = document.getElementById("input");
     const inputArea = document.getElementById("inputArea");
-    const app       = document.getElementById("app");
+    const app = document.getElementById("app");
 
     window.autoResize = function () {
         input.style.height = "auto";
@@ -1578,14 +927,13 @@ document.addEventListener("DOMContentLoaded", async function () {
     input.addEventListener("input", autoResize);
 
     // ============================
-    // 🔥 SEND MESSAGE — with file upload support
+    // 🔥 SEND MESSAGE
     // ============================
     window.sendMessage = async function () {
-        const message  = input.value.trim();
+        const message = input.value.trim();
         const hasFiles = (typeof attachedFiles !== 'undefined') && attachedFiles.length > 0;
         if (!message && !hasFiles) return;
 
-        // ── Layout transition on first message ──────────────────────────────
         if (firstMessage) {
             chatbox.innerHTML = "";
             inputArea.classList.remove("center");
@@ -1593,58 +941,46 @@ document.addEventListener("DOMContentLoaded", async function () {
             app.classList.remove("greeting-mode");
         }
 
-        // ── Snapshot + immediately clear attached files from preview ─────────
         const filesToSend = (typeof attachedFiles !== 'undefined') ? attachedFiles.slice() : [];
         if (typeof attachedFiles !== 'undefined') attachedFiles = [];
         if (typeof renderAttachedPreview === 'function') renderAttachedPreview();
 
-        // ── Build user bubble (text + file previews) ─────────────────────────
         const userBubble = createUserBubble(message, filesToSend);
         chatbox.appendChild(userBubble);
 
-        // ── Session: create on very first message ────────────────────────────
         if (firstMessage) {
             firstMessage = false;
             chatTitle = (message || (filesToSend.length ? filesToSend[0].name : 'File Chat')).substring(0, 40);
-            const { error } = await supabaseClient.from("chat_sessions").insert([{
+            await supabaseClient.from("chat_sessions").insert([{
                 session_id: currentSessionId,
-                title     : chatTitle,
-                user_id   : currentUser.id
+                title: chatTitle,
+                user_id: currentUser.id
             }]);
-            if (error) console.error("❌ Session insert failed:", error.message);
         }
 
-        // ── Save user message to DB ──────────────────────────────────────────
-        const fileUrls = filesToSend.map(function(f) { return f.url; });
-        const { error: userError } = await supabaseClient.from("messages").insert([{
-            role      : "user",
-            content   : message,
+        const fileUrls = filesToSend.map(f => f.url);
+        await supabaseClient.from("messages").insert([{
+            role: "user",
+            content: message,
             session_id: currentSessionId,
-            user_id   : currentUser.id,
-            file_urls : fileUrls.length > 0 ? fileUrls : null
+            user_id: currentUser.id,
+            file_urls: fileUrls.length > 0 ? fileUrls : null
         }]);
-        if (userError) console.error("❌ User message save failed:", userError.message);
 
-        // ── Clear input ──────────────────────────────────────────────────────
         input.value = "";
         input.style.height = "auto";
         chatbox.scrollTop = chatbox.scrollHeight;
 
-        // ── Thinking indicator ───────────────────────────────────────────────
-        const heavy   = isHeavyQuery(message || (filesToSend.length ? filesToSend[0].name : ''));
+        const heavy = isHeavyQuery(message || (filesToSend.length ? filesToSend[0].name : ''));
         const thinking = heavy ? createThinkingIndicator() : createLightIndicator();
         chatbox.appendChild(thinking);
         chatbox.scrollTop = chatbox.scrollHeight;
 
-        // ── Build prompt text ────────────────────────────────────────────────
         let promptText = message;
         if (filesToSend.length > 0 && !message) {
             promptText = "Please analyse the attached file(s) and describe what you see in detail.";
         }
 
-        // ── TOOL ROUTER: detect intent, update thinking label ──────────────
-        // Backend handles ALL tool execution. We detect intent client-side
-        // only to show the right "thinking" label before response arrives.
         let webResults = [];
         const detectedIntent = message ? detectClientIntent(message) : "general";
 
@@ -1652,16 +988,15 @@ document.addEventListener("DOMContentLoaded", async function () {
             const thinkLabel = thinking.querySelector(".thinking-label");
             if (thinkLabel) {
                 const intentLabels = {
-                    weather:    "🌤️ Checking live weather…",
-                    finance:    "💹 Fetching market data…",
-                    sports:     "🏏 Fetching live scores…",
-                    news:       "📰 Getting latest news…",
+                    weather: "🌤️ Checking live weather…",
+                    finance: "💹 Fetching market data…",
+                    sports: "🏏 Fetching live scores…",
+                    news: "📰 Getting latest news…",
                     web_search: "🔍 Searching the web…",
                 };
                 const label = intentLabels[detectedIntent];
                 if (label) thinkLabel.innerHTML = `<span class="think-icon"></span>${label}`;
             }
-            // Legacy manual web search toggle (still supported for general intent)
             if (webSearchEnabled && detectedIntent === "general") {
                 webResults = await performWebSearch(message);
             }
@@ -1670,12 +1005,12 @@ document.addEventListener("DOMContentLoaded", async function () {
         try {
             const model = getSelectedModel();
             const res = await fetch("/chat", {
-                method : "POST",
+                method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body   : JSON.stringify({
-                    prompt    : promptText,
-                    model     : model,
-                    file_urls : fileUrls,
+                body: JSON.stringify({
+                    prompt: promptText,
+                    model: model,
+                    file_urls: fileUrls,
                     web_results: webResults
                 })
             });
@@ -1686,64 +1021,54 @@ document.addEventListener("DOMContentLoaded", async function () {
             const { wrapper, botMsg } = createBotWrapper();
             chatbox.appendChild(wrapper);
 
-            const reader    = res.body.getReader();
-            const decoder   = new TextDecoder();
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
 
-            // ── Stream with tool-badge support ──────────────────────────────
             let toolUsed = null;
             const fullReply = await streamWordsWithTools(
                 botMsg, wrapper, reader, decoder, chatbox,
                 (tu) => { toolUsed = tu; }
             );
 
-            // ── Show tool badge above message ────────────────────────────────
             if (toolUsed) {
                 const toolBadges = {
-                    weather:    { icon: "🌤️", label: "Live Weather" },
-                    finance:    { icon: "💹", label: "Market Data" },
-                    sports:     { icon: "🏏", label: "Live Scores" },
-                    news:       { icon: "📰", label: "Latest News" },
+                    weather: { icon: "🌤️", label: "Live Weather" },
+                    finance: { icon: "💹", label: "Market Data" },
+                    sports: { icon: "🏏", label: "Live Scores" },
+                    news: { icon: "📰", label: "Latest News" },
                     web_search: { icon: "🔍", label: "Web Search" },
                 };
                 const badge = toolBadges[toolUsed] || { icon: "🔧", label: toolUsed };
                 const badgeDiv = document.createElement("div");
                 badgeDiv.className = "tool-badge";
-                badgeDiv.setAttribute("data-tool", toolUsed);
-                badgeDiv.innerHTML = `<span class="tool-badge-icon">${badge.icon}</span><span class="tool-badge-label">${badge.label} used</span>`;
+                badgeDiv.style.cssText = "display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#10a37f;background:rgba(16,163,127,0.1);border:1px solid rgba(16,163,127,0.3);padding:4px 10px;border-radius:14px;margin-bottom:8px;font-weight:500;";
+                badgeDiv.innerHTML = `<span>${badge.icon}</span><span>${badge.label} used</span>`;
                 wrapper.insertBefore(badgeDiv, botMsg);
             }
 
-            // ── Show source chips if web search was used ──────────────────────
             if (fullReply && webResults.length > 0) {
                 const sourcesDiv = document.createElement("div");
                 sourcesDiv.className = "search-sources";
                 sourcesDiv.innerHTML = `<span class="sources-label">🌐 Sources:</span>` +
-                    webResults.slice(0, 4).map(r =>
-                        `<a href="${r.href}" target="_blank" rel="noopener" class="source-chip">${r.title}</a>`
-                    ).join('');
+                    webResults.slice(0, 4).map(r => `<a href="${r.href}" target="_blank" rel="noopener" class="source-chip">${r.title}</a>`).join('');
                 wrapper.appendChild(sourcesDiv);
             }
 
             if (fullReply) {
-                const { error: botError } = await supabaseClient.from("messages").insert([{
-                    role      : "bot",
-                    content   : fullReply,
+                await supabaseClient.from("messages").insert([{
+                    role: "bot",
+                    content: fullReply,
                     session_id: currentSessionId,
-                    user_id   : currentUser.id
+                    user_id: currentUser.id
                 }]);
-                if (botError) console.error("❌ Bot message save failed:", botError.message);
             }
-
         } catch (err) {
             try { thinking.remove(); } catch (_) {}
             console.error("❌ AI fetch failed:", err);
-            const existingWrapper = chatbox.querySelector(".bot-msg-wrapper:last-child");
-            if (!existingWrapper || existingWrapper.querySelector(".message.bot")?.innerHTML?.trim() === "") {
-                const errMsg = document.createElement("div");
-                errMsg.classList.add("message", "bot");
-                errMsg.innerHTML = `<p style="color:#e06c6c">⚠️ Failed to get a response. Please try again.</p>`;
-                chatbox.appendChild(errMsg);
-            }
+            const errMsg = document.createElement("div");
+            errMsg.classList.add("message", "bot");
+            errMsg.innerHTML = `<p style="color:#e06c6c">⚠️ Failed to get a response. Please try again.</p>`;
+            chatbox.appendChild(errMsg);
         }
     };
 
@@ -1754,15 +1079,11 @@ document.addEventListener("DOMContentLoaded", async function () {
         }
     });
 
-    // ============================
-    // 📂 LOAD SESSION
-    // ============================
     async function loadSession(sessionId) {
         chatbox.innerHTML = "";
         inputArea.classList.remove("center");
         inputArea.classList.add("bottom");
         app.classList.remove("greeting-mode");
-
         currentSessionId = sessionId;
         firstMessage = false;
 
@@ -1776,11 +1097,13 @@ document.addEventListener("DOMContentLoaded", async function () {
 
         data.forEach(msg => {
             if (msg.role === "user") {
-                // Reconstruct file objects from stored URLs for history display
                 const historyFiles = (msg.file_urls && msg.file_urls.length)
-                    ? msg.file_urls.map(function(url) {
-                        return { url: url, name: url.split('/').pop().replace(/^\d+_[a-z0-9]+_/, ''), type: /\.(png|jpg|jpeg|gif|webp)$/i.test(url) ? 'image/jpeg' : 'application/octet-stream', size: 0 };
-                      })
+                    ? msg.file_urls.map(url => ({
+                        url: url,
+                        name: url.split('/').pop().replace(/^\d+_[a-z0-9]+_/, ''),
+                        type: /\.(png|jpg|jpeg|gif|webp)$/i.test(url) ? 'image/jpeg' : 'application/octet-stream',
+                        size: 0
+                    }))
                     : [];
                 chatbox.appendChild(createUserBubble(msg.content, historyFiles));
             } else {
@@ -1796,27 +1119,19 @@ document.addEventListener("DOMContentLoaded", async function () {
         showMainMenu();
     }
 
-    // ============================
-    // 📜 SHOW HISTORY
-    // ============================
     window.showHistory = async function () {
-        const overlay = document.getElementById("settingsOverlay");
-        if (overlay) overlay.classList.remove("active");
-
+        document.getElementById("settingsOverlay")?.classList.remove("active");
         const { data, error } = await supabaseClient
             .from("chat_sessions").select("*")
             .eq("user_id", currentUser.id)
             .order("created_at", { ascending: false });
 
-        if (error) { console.error("❌ History failed:", error.message); return; }
+        if (error) return;
 
         const menu = document.querySelector(".sidebar-menu");
         menu.innerHTML = `
             <div class="history-header">
-                <button class="back-btn" onclick="showMainMenu()">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-                    Back
-                </button>
+                <button class="back-btn" onclick="showMainMenu()">← Back</button>
                 <span>Chat History</span>
             </div>`;
 
@@ -1825,21 +1140,16 @@ document.addEventListener("DOMContentLoaded", async function () {
             return;
         }
 
-        data.forEach(session => {
-            const item = buildHistoryItem(session, loadSession);
-            menu.appendChild(item);
-        });
+        data.forEach(session => menu.appendChild(buildHistoryItem(session, loadSession)));
     };
-
 });
 
 // ============================
-// 🎨 THEME SYSTEM
+// 🎨 THEME
 // ============================
 window.setTheme = function(theme) {
     localStorage.setItem('catura-theme', theme);
     applyTheme(theme);
-    // Update active button
     document.querySelectorAll('.theme-option').forEach(btn => btn.classList.remove('active'));
     const activeBtn = document.querySelector(`.theme-option[onclick="setTheme('${theme}')"]`);
     if (activeBtn) activeBtn.classList.add('active');
@@ -1849,26 +1159,23 @@ window.setTheme = function(theme) {
 function applyTheme(theme) {
     const root = document.documentElement;
     root.removeAttribute('data-theme');
-    if (theme === 'light') {
-        root.setAttribute('data-theme', 'light');
-    } else if (theme === 'auto') {
+    if (theme === 'light') root.setAttribute('data-theme', 'light');
+    else if (theme === 'auto') {
         const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
         if (!prefersDark) root.setAttribute('data-theme', 'light');
     }
-    // dark = default, no attribute needed
 }
 
 function initTheme() {
     const saved = localStorage.getItem('catura-theme') || 'dark';
     applyTheme(saved);
-    // Listen for system preference changes (for auto mode)
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
         if ((localStorage.getItem('catura-theme') || 'dark') === 'auto') applyTheme('auto');
     });
 }
 
 // ============================
-// 🔠 FONT SIZE SYSTEM
+// 🔠 FONT SIZE
 // ============================
 window.setFontSize = function(size) {
     localStorage.setItem('catura-font', size);
@@ -1876,7 +1183,7 @@ window.setFontSize = function(size) {
     document.querySelectorAll('.font-option').forEach(btn => btn.classList.remove('active'));
     const activeBtn = document.querySelector(`.font-option[onclick="setFontSize('${size}')"]`);
     if (activeBtn) activeBtn.classList.add('active');
-    showToast(`Font size: ${size.charAt(0).toUpperCase() + size.slice(1)}`, 1500);
+    showToast(`Font: ${size}`, 1500);
 };
 
 function applyFontSize(size) {
@@ -1891,13 +1198,10 @@ function initFontSize() {
 }
 
 // ============================
-// 🌐 WEB SEARCH & INTENT SYSTEM
+// 🌐 WEB SEARCH & INTENT
 // ============================
 let webSearchEnabled = false;
 
-// ── Client-side intent detector ─────────────────────────────────────────────
-// Mirrors backend detect_intent() — used ONLY for UI labels (thinking text).
-// Actual tool execution always happens on the backend.
 function detectClientIntent(message) {
     const lower = message.toLowerCase();
     if (/weather|temperature|humidity|forecast|sunny|cloudy|will it rain|feels like/.test(lower)) return "weather";
@@ -1909,26 +1213,25 @@ function detectClientIntent(message) {
     return "general";
 }
 
-// ── Legacy needsWebSearch (kept for compatibility) ───────────────────────────
 function needsWebSearch(message) {
     return detectClientIntent(message) !== "general";
 }
 
-// ── performWebSearch (legacy manual toggle) ──────────────────────────────────
 async function performWebSearch(query) {
     try {
-        const res  = await fetch(`/search?q=${encodeURIComponent(query)}&max_results=5`);
+        const res = await fetch(`/search?q=${encodeURIComponent(query)}&max_results=5`);
         const data = await res.json();
         return data.results || [];
     } catch (e) {
-        console.error("❌ Web search failed:", e);
         return [];
     }
 }
 
-// ── streamWordsWithTools — intercepts tool_used SSE event, then renders ──────
+// ============================
+// ✍️ STREAMER WITH TOOLS (FAST)
+// ============================
 async function streamWordsWithTools(botMsg, wrapper, reader, decoder, chatbox, onToolUsed) {
-    let buffer    = "";
+    let buffer = "";
     let fullReply = "";
     let renderTimer = null;
 
@@ -1937,11 +1240,10 @@ async function streamWordsWithTools(botMsg, wrapper, reader, decoder, chatbox, o
         renderTimer = setTimeout(() => {
             renderTimer = null;
             if (fullReply) {
-                botMsg.innerHTML = formatMessage(repairTruncated(fullReply)) +
-                    '<span class="stream-cursor"></span>';
+                botMsg.innerHTML = formatMessage(repairTruncated(fullReply)) + '<span class="stream-cursor"></span>';
                 chatbox.scrollTop = chatbox.scrollHeight;
             }
-        }, 80);
+        }, 40);
     };
 
     try {
@@ -1959,7 +1261,6 @@ async function streamWordsWithTools(botMsg, wrapper, reader, decoder, chatbox, o
                 if (payload === "[DONE]") break outer;
                 try {
                     const data = JSON.parse(payload);
-                    // Tool badge event — intercept before rendering
                     if (data.tool_used !== undefined) {
                         if (typeof onToolUsed === "function") onToolUsed(data.tool_used);
                         continue;
@@ -1969,7 +1270,16 @@ async function streamWordsWithTools(botMsg, wrapper, reader, decoder, chatbox, o
                         if (renderTimer) { clearTimeout(renderTimer); renderTimer = null; }
                         return fullReply || "";
                     }
-                    if (data.token) { fullReply += data.token; scheduleRender(); }
+                    if (data.token) {
+                        fullReply += data.token;
+                        // Render the very first token instantly for snappy feel
+                        if (fullReply.length === data.token.length) {
+                            botMsg.innerHTML = formatMessage(repairTruncated(fullReply)) + '<span class="stream-cursor"></span>';
+                            chatbox.scrollTop = chatbox.scrollHeight;
+                        } else {
+                            scheduleRender();
+                        }
+                    }
                 } catch { continue; }
             }
         }
@@ -1994,51 +1304,42 @@ window.toggleWebSearch = function() {
     if (chip) chip.style.display = webSearchEnabled ? "flex" : "none";
     showToast(webSearchEnabled ? "🌐 Web search enabled" : "Web search disabled", 1500);
 };
+
+// ============================
+// ➕ PLUS MENU
+// ============================
 function togglePlusMenu(e) {
     e.stopPropagation();
-    const dropdown = document.getElementById('plusDropdown');
-    dropdown.classList.toggle('open');
+    document.getElementById('plusDropdown')?.classList.toggle('open');
 }
 
-// Close dropdown when clicking outside
 document.addEventListener('click', function(e) {
     const wrap = document.getElementById('plusMenuWrap');
     if (wrap && !wrap.contains(e.target)) {
-        const dropdown = document.getElementById('plusDropdown');
-        if (dropdown) dropdown.classList.remove('open');
+        document.getElementById('plusDropdown')?.classList.remove('open');
     }
 });
 
 function handlePlusAction(action) {
-    const dropdown = document.getElementById('plusDropdown');
-    if (dropdown) dropdown.classList.remove('open');
-
-    if (action === 'file') {
-        const fi = document.getElementById('fileInput');
-        if (fi) fi.click();
-    } else if (action === 'connect') {
-        showToast('Connect apps — coming soon!');
-    } else if (action === 'think') {
-        showToast('Think mode — coming soon!');
-    } else if (action === 'research') {
-        showToast('Deep research — coming soon!');
-    } else if (action === 'search') {
-        toggleWebSearch();
-    }
+    document.getElementById('plusDropdown')?.classList.remove('open');
+    if (action === 'file') document.getElementById('fileInput')?.click();
+    else if (action === 'connect') showToast('Connect apps — coming soon!');
+    else if (action === 'think') showToast('Think mode — coming soon!');
+    else if (action === 'research') showToast('Deep research — coming soon!');
+    else if (action === 'search') toggleWebSearch();
 }
 
 function handleFileSelect(event) {
     const files = event.target.files;
     if (!files || files.length === 0) return;
-    const names = Array.from(files).map(f => f.name).join(', ');
-    showToast(`Selected: ${names}`);
+    showToast(`Selected: ${Array.from(files).map(f => f.name).join(', ')}`);
     event.target.value = '';
 }
 
 // ============================
 // 🤖 MODEL SELECTOR — FIXED
 // ============================
-let selectedModel = 'dagr'; // Default model — options: dagr, apep, sambhav, gemma, gemma4
+let selectedModel = 'dagr';
 
 window.toggleModelSelector = function (e) {
     if (e) e.stopPropagation();
@@ -2050,79 +1351,71 @@ window.toggleModelSelector = function (e) {
     closeAllModelMenus();
     if (isOpen) return;
 
-    // ── Off-screen measurement (no flicker) ───────────────────────
+    // Off-screen measurement (no flicker)
     const prev = {
         visibility: dropdown.style.visibility,
-        opacity:    dropdown.style.opacity,
-        transform:  dropdown.style.transform,
+        opacity: dropdown.style.opacity,
+        transform: dropdown.style.transform,
         transition: dropdown.style.transition,
-        left:       dropdown.style.left,
-        top:        dropdown.style.top,
-        bottom:     dropdown.style.bottom,
+        left: dropdown.style.left,
+        top: dropdown.style.top,
+        bottom: dropdown.style.bottom,
         pointerEvents: dropdown.style.pointerEvents,
     };
 
-    dropdown.style.transition    = 'none';
-    dropdown.style.visibility    = 'hidden';
-    dropdown.style.opacity       = '0';
-    dropdown.style.transform     = 'none';
+    dropdown.style.transition = 'none';
+    dropdown.style.visibility = 'hidden';
+    dropdown.style.opacity = '0';
+    dropdown.style.transform = 'none';
     dropdown.style.pointerEvents = 'none';
-    dropdown.style.left          = '-9999px';
-    dropdown.style.top           = '-9999px';
-    dropdown.style.bottom        = 'auto';
+    dropdown.style.left = '-9999px';
+    dropdown.style.top = '-9999px';
+    dropdown.style.bottom = 'auto';
     dropdown.classList.add('open');
 
     const dropH = dropdown.offsetHeight || 200;
     const dropW = Math.max(dropdown.offsetWidth || 0, 220);
 
     dropdown.classList.remove('open');
-    dropdown.style.transition    = prev.transition;
-    dropdown.style.visibility    = prev.visibility;
-    dropdown.style.opacity       = prev.opacity;
-    dropdown.style.transform     = prev.transform;
+    dropdown.style.transition = prev.transition;
+    dropdown.style.visibility = prev.visibility;
+    dropdown.style.opacity = prev.opacity;
+    dropdown.style.transform = prev.transform;
     dropdown.style.pointerEvents = prev.pointerEvents;
 
-    // ── Compute final position ────────────────────────────────────
+    // Position
     const rect = btn.getBoundingClientRect();
-    const vw   = window.innerWidth;
-    const vh   = window.innerHeight;
-    const gap  = 8;
-    const pad  = 8;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const gap = 8;
+    const pad = 8;
 
-    // Prefer ABOVE the button
     let top = rect.top - dropH - gap;
     if (top < pad) {
-        // Try BELOW the button
         const belowTop = rect.bottom + gap;
         if (belowTop + dropH > vh - pad) {
-            // Doesn't fit either — pin to whichever side has more room
             const spaceAbove = rect.top;
             const spaceBelow = vh - rect.bottom;
-            if (spaceAbove >= spaceBelow) {
-                top = pad;
-            } else {
-                top = Math.max(pad, vh - dropH - pad);
-            }
+            if (spaceAbove >= spaceBelow) top = pad;
+            else top = Math.max(pad, vh - dropH - pad);
         } else {
             top = belowTop;
         }
     }
     top = Math.max(pad, Math.min(top, vh - dropH - pad));
 
-    // Right-align with button
     let left = rect.right - dropW;
     if (left + dropW > vw - pad) left = vw - dropW - pad;
     if (left < pad) left = pad;
 
     dropdown.style.position = 'fixed';
-    dropdown.style.top      = top + 'px';
-    dropdown.style.left     = left + 'px';
-    dropdown.style.bottom   = 'auto';
+    dropdown.style.top = top + 'px';
+    dropdown.style.left = left + 'px';
+    dropdown.style.bottom = 'auto';
 
     dropdown.classList.add('open');
     btn.classList.add('open');
 
-    // Auto-show "More models" panel if a secondary model is active
     const moreModels = ['apep', 'gemma', 'gemma4'];
     if (moreModels.includes(selectedModel)) {
         requestAnimationFrame(() => {
@@ -2133,33 +1426,26 @@ window.toggleModelSelector = function (e) {
 
 window.selectModel = function (modelId, modelName) {
     selectedModel = modelId.toLowerCase();
-
     const modelNameEl = document.getElementById('modelName');
     if (modelNameEl) modelNameEl.textContent = modelName;
-
     document.querySelectorAll('.model-option').forEach(opt => opt.classList.remove('active'));
     const activeOption = document.querySelector(`[data-model="${modelId}"]`);
     if (activeOption) activeOption.classList.add('active');
-
     closeAllModelMenus();
     showToast(`✓ Switched to ${modelName}`, 1500);
 };
 
 function closeAllModelMenus() {
-    const dropdown = document.getElementById('modelDropdown');
-    const btn      = document.getElementById('modelSelectorBtn');
-    const panel    = document.getElementById('moreModelsPanel');
-    const row      = document.getElementById('moreModelsRow');
-    if (dropdown) dropdown.classList.remove('open');
-    if (btn)      btn.classList.remove('open');
-    if (panel)    panel.classList.remove('open');
-    if (row)      row.classList.remove('open');
+    document.getElementById('modelDropdown')?.classList.remove('open');
+    document.getElementById('modelSelectorBtn')?.classList.remove('open');
+    document.getElementById('moreModelsPanel')?.classList.remove('open');
+    document.getElementById('moreModelsRow')?.classList.remove('open');
 }
 
 window.toggleMoreModels = function (e) {
     if (e) e.stopPropagation();
     const panel = document.getElementById('moreModelsPanel');
-    const row   = document.getElementById('moreModelsRow');
+    const row = document.getElementById('moreModelsRow');
     const dropdownEl = document.getElementById('modelDropdown');
     if (!panel || !row || !dropdownEl) return;
 
@@ -2170,45 +1456,39 @@ window.toggleMoreModels = function (e) {
         return;
     }
 
-    // Off-screen measure the panel
-    const prevLeft = panel.style.left;
-    const prevTop  = panel.style.top;
-    const prevVis  = panel.style.visibility;
-    const prevOp   = panel.style.opacity;
-    const prevTr   = panel.style.transform;
-    const prevTrn  = panel.style.transition;
-    const prevPE   = panel.style.pointerEvents;
+    const prevTr = panel.style.transition;
+    const prevVis = panel.style.visibility;
+    const prevOp = panel.style.opacity;
+    const prevTrans = panel.style.transform;
+    const prevPE = panel.style.pointerEvents;
 
-    panel.style.transition    = 'none';
-    panel.style.visibility    = 'hidden';
-    panel.style.opacity       = '0';
-    panel.style.transform     = 'none';
+    panel.style.transition = 'none';
+    panel.style.visibility = 'hidden';
+    panel.style.opacity = '0';
+    panel.style.transform = 'none';
     panel.style.pointerEvents = 'none';
-    panel.style.left          = '-9999px';
-    panel.style.top           = '-9999px';
+    panel.style.left = '-9999px';
+    panel.style.top = '-9999px';
     panel.classList.add('open');
 
-    const panelW = panel.offsetWidth  || 230;
+    const panelW = panel.offsetWidth || 230;
     const panelH = panel.offsetHeight || 210;
 
     panel.classList.remove('open');
-    panel.style.transition    = prevTrn;
-    panel.style.visibility    = prevVis;
-    panel.style.opacity       = prevOp;
-    panel.style.transform     = prevTr;
+    panel.style.transition = prevTr;
+    panel.style.visibility = prevVis;
+    panel.style.opacity = prevOp;
+    panel.style.transform = prevTrans;
     panel.style.pointerEvents = prevPE;
 
     const dropRect = dropdownEl.getBoundingClientRect();
-    const vw  = window.innerWidth;
-    const vh  = window.innerHeight;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
     const gap = 8;
     const pad = 8;
 
-    // Try right of dropdown, else left
     let left = dropRect.right + gap;
-    if (left + panelW > vw - pad) {
-        left = dropRect.left - panelW - gap;
-    }
+    if (left + panelW > vw - pad) left = dropRect.left - panelW - gap;
     if (left < pad) left = pad;
 
     let top = dropRect.top;
@@ -2216,244 +1496,126 @@ window.toggleMoreModels = function (e) {
 
     panel.style.position = 'fixed';
     panel.style.left = left + 'px';
-    panel.style.top  = top  + 'px';
+    panel.style.top = top + 'px';
 
     panel.classList.add('open');
     row.classList.add('open');
 };
 
-// Close dropdown when clicking outside
 document.addEventListener('click', function (e) {
-    const wrap  = document.getElementById('modelSelectorWrap');
+    const wrap = document.getElementById('modelSelectorWrap');
     const panel = document.getElementById('moreModelsPanel');
-    const insideWrap  = wrap  && wrap.contains(e.target);
+    const insideWrap = wrap && wrap.contains(e.target);
     const insidePanel = panel && panel.contains(e.target);
-    if (!insideWrap && !insidePanel) {
-        closeAllModelMenus();
-    }
+    if (!insideWrap && !insidePanel) closeAllModelMenus();
 });
 
-// Close on viewport changes (prevents stale positioning)
 window.addEventListener('resize', closeAllModelMenus);
 window.addEventListener('scroll', closeAllModelMenus, true);
 
-// Get currently selected model
 function getSelectedModel() {
     return selectedModel;
 }
 
-// ============================================================
-// ✅ PRIVACY POLICY MODAL
-// ============================================================
+// ============================
+// ✅ PRIVACY MODAL
+// ============================
 window.showPrivacyModal = function () {
-    // Remove any existing
     document.getElementById('privacyModal')?.remove();
-
     const modal = document.createElement('div');
     modal.id = 'privacyModal';
     modal.className = 'priv-modal-overlay';
     modal.innerHTML = `
-        <div class="priv-modal-box" role="dialog" aria-modal="true" aria-label="Data & Privacy">
+        <div class="priv-modal-box" role="dialog" aria-modal="true">
             <div class="priv-modal-header">
                 <div class="priv-modal-title-wrap">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10a37f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                    </svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10a37f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
                     <h2 class="priv-modal-title">Data &amp; Privacy</h2>
                 </div>
-                <button class="priv-modal-close" onclick="document.getElementById('privacyModal').remove()" aria-label="Close">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
+                <button class="priv-modal-close" onclick="document.getElementById('privacyModal').remove()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
             </div>
             <div class="priv-modal-body">
                 <p class="priv-intro">We respect your privacy and are committed to protecting your data.</p>
-
-                <div class="priv-item">
-                    <div class="priv-num">1</div>
-                    <div>
-                        <p class="priv-item-title">Data We Collect</p>
-                        <p class="priv-item-text">We may collect basic information such as your email address, chat messages, and usage data to improve our AI services.</p>
-                    </div>
-                </div>
-                <div class="priv-item">
-                    <div class="priv-num">2</div>
-                    <div>
-                        <p class="priv-item-title">How We Use Your Data</p>
-                        <p class="priv-item-text">Your data is used to provide responses, improve AI performance, and ensure security. We do not sell your personal data to third parties.</p>
-                    </div>
-                </div>
-                <div class="priv-item">
-                    <div class="priv-num">3</div>
-                    <div>
-                        <p class="priv-item-title">AI Conversations</p>
-                        <p class="priv-item-text">Your conversations may be stored and analyzed to improve the quality of responses. Avoid sharing sensitive or personal information.</p>
-                    </div>
-                </div>
-                <div class="priv-item">
-                    <div class="priv-num">4</div>
-                    <div>
-                        <p class="priv-item-title">Email &amp; Authentication</p>
-                        <p class="priv-item-text">We use your email for account creation, login verification (OTP), and password recovery. We do not send spam.</p>
-                    </div>
-                </div>
-                <div class="priv-item">
-                    <div class="priv-num">5</div>
-                    <div>
-                        <p class="priv-item-title">Data Security</p>
-                        <p class="priv-item-text">We implement reasonable security measures to protect your data, but no system is completely secure.</p>
-                    </div>
-                </div>
-                <div class="priv-item">
-                    <div class="priv-num">6</div>
-                    <div>
-                        <p class="priv-item-title">Third-Party Services</p>
-                        <p class="priv-item-text">We may use trusted third-party services (such as authentication and email providers) to operate our platform.</p>
-                    </div>
-                </div>
-                <div class="priv-item">
-                    <div class="priv-num">7</div>
-                    <div>
-                        <p class="priv-item-title">Your Control</p>
-                        <p class="priv-item-text">You can request deletion of your data at any time by contacting support.</p>
-                    </div>
-                </div>
-                <div class="priv-item">
-                    <div class="priv-num">8</div>
-                    <div>
-                        <p class="priv-item-title">Changes to Policy</p>
-                        <p class="priv-item-text">We may update this policy from time to time. Continued use of the service means you accept the changes.</p>
-                    </div>
-                </div>
-
+                <div class="priv-item"><div class="priv-num">1</div><div><p class="priv-item-title">Data We Collect</p><p class="priv-item-text">We may collect basic info such as your email, chat messages, and usage data.</p></div></div>
+                <div class="priv-item"><div class="priv-num">2</div><div><p class="priv-item-title">How We Use Your Data</p><p class="priv-item-text">To provide responses, improve AI performance, and ensure security. We do not sell your data.</p></div></div>
+                <div class="priv-item"><div class="priv-num">3</div><div><p class="priv-item-title">AI Conversations</p><p class="priv-item-text">Conversations may be stored to improve quality. Avoid sharing sensitive info.</p></div></div>
+                <div class="priv-item"><div class="priv-num">4</div><div><p class="priv-item-title">Data Security</p><p class="priv-item-text">We implement reasonable security measures.</p></div></div>
+                <div class="priv-item"><div class="priv-num">5</div><div><p class="priv-item-title">Your Control</p><p class="priv-item-text">You can request data deletion at any time by contacting support.</p></div></div>
                 <div class="priv-contact">
                     <p class="priv-contact-title">Contact Us</p>
                     <div class="priv-contact-row">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10a37f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                            <polyline points="22,6 12,13 2,6"></polyline>
-                        </svg>
-                        <a href="mailto:support@yourdomain.co" class="priv-link">support@yourdomain.co</a>
-                    </div>
-                    <div class="priv-contact-row">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10a37f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path>
-                        </svg>
-                        <a href="https://github.com/**************" target="_blank" rel="noopener" class="priv-link">github.com/**************</a>
-                    </div>
-                    <div class="priv-contact-row">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10a37f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path>
-                            <rect x="2" y="9" width="4" height="12"></rect>
-                            <circle cx="4" cy="4" r="2"></circle>
-                        </svg>
-                        <a href="https://linkedin.com/in/************************" target="_blank" rel="noopener" class="priv-link">linkedin.com/in/************************</a>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10a37f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                        <a href="mailto:support@catura.ai" class="priv-link">support@catura.ai</a>
                     </div>
                 </div>
             </div>
             <div class="priv-modal-footer">
                 <button class="priv-close-btn" onclick="document.getElementById('privacyModal').remove()">Close</button>
             </div>
-        </div>
-    `;
-
-    // Close on backdrop click
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) modal.remove();
-    });
-
+        </div>`;
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
     document.body.appendChild(modal);
-    // Animate in
     requestAnimationFrame(() => modal.classList.add('priv-modal-open'));
 };
 
-// ============================================================
+// ============================
 // ✅ DELETE ACCOUNT MODAL
-// ============================================================
+// ============================
 window.showDeleteAccountModal = function () {
     document.getElementById('deleteAccountModal')?.remove();
-
     const modal = document.createElement('div');
     modal.id = 'deleteAccountModal';
     modal.className = 'priv-modal-overlay';
     modal.innerHTML = `
-        <div class="priv-modal-box del-modal-box" role="dialog" aria-modal="true" aria-label="Delete Account">
+        <div class="priv-modal-box del-modal-box" role="dialog" aria-modal="true">
             <div class="del-modal-icon-wrap">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#e06c6c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
-                    <path d="M10 11v6M14 11v6"></path>
-                    <path d="M9 6V4h6v2"></path>
-                </svg>
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#e06c6c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path></svg>
             </div>
             <h2 class="del-modal-title">Delete Account</h2>
-            <p class="del-modal-desc">This action is <strong>permanent and irreversible</strong>. All your conversations, settings, and account data will be deleted forever.</p>
+            <p class="del-modal-desc">This action is <strong>permanent and irreversible</strong>. All your data will be deleted forever.</p>
             <p class="del-modal-confirm-label">Type <span class="del-confirm-word">DELETE</span> to confirm:</p>
             <input type="text" id="deleteConfirmInput" class="del-confirm-input" placeholder="Type DELETE here" autocomplete="off" oninput="checkDeleteConfirm()">
             <div class="del-modal-actions">
                 <button class="del-cancel-btn" onclick="document.getElementById('deleteAccountModal').remove()">Cancel</button>
-                <button class="del-confirm-btn" id="deleteConfirmBtn" disabled onclick="executeDeleteAccount()">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="3 6 5 6 21 6"></polyline>
-                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
-                    </svg>
-                    Delete my account
-                </button>
+                <button class="del-confirm-btn" id="deleteConfirmBtn" disabled onclick="executeDeleteAccount()">Delete my account</button>
             </div>
-        </div>
-    `;
-
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) modal.remove();
-    });
-
+        </div>`;
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
     document.body.appendChild(modal);
     requestAnimationFrame(() => modal.classList.add('priv-modal-open'));
-
-    // Focus input
     setTimeout(() => document.getElementById('deleteConfirmInput')?.focus(), 100);
 };
 
-// Enable the delete button only when user types "DELETE"
 window.checkDeleteConfirm = function () {
     const val = document.getElementById('deleteConfirmInput')?.value || '';
     const btn = document.getElementById('deleteConfirmBtn');
     if (btn) btn.disabled = val !== 'DELETE';
 };
 
-// Execute account deletion via Supabase
 window.executeDeleteAccount = async function () {
     const btn = document.getElementById('deleteConfirmBtn');
     if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Deleting…'; }
-
     try {
-        // Get the current session token to authenticate the request
         const { data: sessionData } = await supabaseClient.auth.getSession();
         const token = sessionData?.session?.access_token;
-
-        if (!token) {
-            alert('You are not logged in. Please refresh and try again.');
-            if (btn) { btn.disabled = false; btn.textContent = 'Delete my account'; }
-            return;
-        }
-
+        if (!token) { alert('Not logged in.'); if (btn) { btn.disabled = false; btn.textContent = 'Delete my account'; } return; }
         const res = await fetch('/delete_account', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` }
         });
-
         if (res.ok) {
             document.getElementById('deleteAccountModal').remove();
             await supabaseClient.auth.signOut();
             window.location.href = '/auth';
         } else {
             const data = await res.json().catch(() => ({}));
-            alert(data.error || 'Failed to delete account. Please contact support.');
+            alert(data.error || 'Failed to delete account.');
             if (btn) { btn.disabled = false; btn.textContent = 'Delete my account'; }
         }
     } catch (e) {
-        alert('Network error. Please try again.');
+        alert('Network error.');
         if (btn) { btn.disabled = false; btn.textContent = 'Delete my account'; }
     }
 };
