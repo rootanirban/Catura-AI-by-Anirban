@@ -2158,8 +2158,8 @@ window.toggleMoreModels = function (e) {
     }
     if (left < 8) left = 8;
 
-    // Align the top of the panel with the top of the dropdown
-    let top = dropRect.top;
+    // Align the top of the panel slightly above the dropdown top
+    let top = dropRect.top - 20;
     // Clamp so panel stays on screen
     const panelEstH = 210; // ~3 items
     top = Math.max(8, Math.min(top, window.innerHeight - panelEstH - 8));
