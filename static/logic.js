@@ -2086,7 +2086,7 @@ window.toggleModelSelector = function (e) {
 
         // Auto-show floating panel if a secondary model is active
         // Use requestAnimationFrame to ensure dropdown is painted before measuring
-        const moreModels = ['apep', 'gemma', 'gemma4'];
+        const moreModels = ['apep', 'gemma', 'gemma4', 'qwen'];
         if (moreModels.includes(selectedModel)) {
             requestAnimationFrame(() => {
                 requestAnimationFrame(() => { toggleMoreModels(null); });
