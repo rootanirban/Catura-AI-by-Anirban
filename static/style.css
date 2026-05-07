@@ -2055,14 +2055,14 @@ html { scroll-behavior: smooth; }
     border: 1px solid #2a2a2a;
     border-radius: 12px;
     min-width: 220px;
-    padding-top: 6px;
+    padding: 6px 0 8px 0;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
     z-index: 9000;
     opacity: 0;
     visibility: hidden;
     transform: translateY(6px) scale(0.97);
     transition: opacity 0.15s ease, visibility 0.15s ease, transform 0.15s ease;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .model-dropdown.open {
@@ -3079,3 +3079,30 @@ html { scroll-behavior: smooth; }
 [data-theme="light"] .toggle-slider { background: #e0e0e0; border-color: #ccc; }
 [data-theme="light"] .toggle-slider::before { background: #aaa; }
 [data-theme="light"] .del-modal-icon-wrap { background: rgba(224,108,108,0.06); }
+
+/* ============================
+   CHAT DISCLAIMER (Claude-style footer)
+   Only visible after first message — greeting-mode hides it
+============================ */
+.chat-disclaimer {
+    display: none; /* hidden by default — shown when greeting-mode is removed */
+    text-align: center;
+    font-size: 12px;
+    color: #555;
+    padding: 6px 20px 10px;
+    width: 100%;
+    max-width: 760px;
+    margin: 0 auto;
+    box-sizing: border-box;
+    line-height: 1.4;
+    flex-shrink: 0;
+}
+
+/* Show only when app is NOT in greeting-mode (i.e. after a message is sent) */
+.app:not(.greeting-mode) .chat-disclaimer {
+    display: block;
+}
+
+[data-theme="light"] .chat-disclaimer {
+    color: #999;
+}

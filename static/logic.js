@@ -2056,9 +2056,13 @@ window.toggleModelSelector = function (e) {
         dropdown.style.opacity = '0';
         dropdown.style.transform = 'none';
         dropdown.style.display = 'block';
-        const dropH = dropdown.offsetHeight || 180;
+        dropdown.style.top = '-9999px';
+        dropdown.style.left = '-9999px';
+        const dropH = dropdown.scrollHeight || 180;
         const dropW = Math.max(dropdown.offsetWidth || 0, 220);
         dropdown.style.display = '';
+        dropdown.style.top = '';
+        dropdown.style.left = '';
         dropdown.style.visibility = '';
         dropdown.style.opacity = '';
         dropdown.style.transform = '';
@@ -2158,8 +2162,8 @@ window.toggleMoreModels = function (e) {
     }
     if (left < 8) left = 8;
 
-    // Align the top of the panel slightly above the dropdown top
-    let top = dropRect.top - 20;
+    // Align the top of the panel with the top of the dropdown
+    let top = dropRect.top;
     // Clamp so panel stays on screen
     const panelEstH = 210; // ~3 items
     top = Math.max(8, Math.min(top, window.innerHeight - panelEstH - 8));
