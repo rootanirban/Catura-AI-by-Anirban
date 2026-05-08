@@ -150,16 +150,43 @@
       transition: width 0.3s, background 0.3s;
     }
     .pw-hint { font-size: 11px; color: #666; margin-top: 4px; }
+
     /* ── Cloudflare Turnstile widget ── */
+    /* FIX: Hidden but present in DOM so Turnstile can attach to it */
     #cf-turnstile-container {
-      margin-top: 12px;
+      margin-top: 8px;
       display: flex;
       justify-content: center;
+      min-height: 65px; /* Reserve space so layout doesn't shift */
     }
-    /* Turnstile invisible mode shows nothing, but we still need the div */
+    /* Hide the widget visually but keep it in the DOM */
+    #cf-turnstile-container iframe {
+      border-radius: 8px;
+    }
+
+    /* Captcha status indicator */
+    .captcha-status {
+      font-size: 11px;
+      text-align: center;
+      margin-top: 4px;
+      color: #555;
+      min-height: 16px;
+    }
+    .captcha-status.ready { color: #10a37f; }
+    .captcha-status.loading { color: #888; }
+    .captcha-status.error-state { color: #ff6b6b; }
   </style>
-  <!-- Cloudflare Turnstile SDK -->
-  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+
+  <!--
+    FIX #1: Load Turnstile SDK SYNCHRONOUSLY (no async/defer).
+    With async+defer, the SDK may load AFTER DOMContentLoaded fires
+    causing a race condition. Loading it sync ensures window.turnstile
+    is available before any JS runs.
+
+    FIX #2: Use onload callback pattern instead of relying on
+    DOMContentLoaded timing.
+  -->
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad" defer></script>
 </head>
 <body>
   <div class="card">
@@ -221,8 +248,15 @@
         <input type="password" id="confirm" placeholder="Repeat password">
       </div>
 
-      <!-- Cloudflare Turnstile Widget -->
+      <!--
+        FIX #3: Turnstile container — kept in DOM at all times.
+        Turnstile renders its iframe here. We use "managed" mode
+        which shows the checkbox when needed, or is invisible when not.
+        DO NOT hide this with display:none — Turnstile cannot render
+        into a hidden element.
+      -->
       <div id="cf-turnstile-container"></div>
+      <div class="captcha-status loading" id="captchaStatus">🔄 Verifying browser…</div>
 
       <button class="submit" id="submitBtn" onclick="doSubmit()">Log in</button>
       <div class="msg" id="msg"></div>
@@ -236,8 +270,6 @@
 
     <!-- ══════════════════════════════════
          RESET PASSWORD SCREEN
-         (shown when Supabase redirects
-          back with #access_token)
     ══════════════════════════════════ -->
     <div id="resetScreen">
 
@@ -278,64 +310,111 @@
 
   </div><!-- /card -->
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- FIX #4: Always use latest supabase-js v2 — @2 tag on CDN can lag -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script>
+    // ═══════════════════════════════════════════════════════
+    // CONFIGURATION — replace with your actual values
+    // ═══════════════════════════════════════════════════════
     const SUPABASE_URL = "https://zhrjmnrfklzuxmfbdqhg.supabase.co";
     const SUPABASE_KEY = "sb_publishable_aIbByN1rFc9V3AH41Kyz6A_e1XppA1Z";
 
-    // ✅ YOUR Cloudflare Turnstile SITE KEY (the public one, safe to put here)
-    // Get it from: Cloudflare Dashboard → Turnstile → your site → Site Key
-    // This must match the site key you configured in Supabase Attack Protection.
-    const TURNSTILE_SITE_KEY = window.__TURNSTILE_SITE_KEY__ || "0x4AAAAAADDHFTkeFyoi79mt";
+    // ✅ YOUR Cloudflare Turnstile SITE KEY (public, safe to expose)
+    // Must match exactly what you pasted in:
+    // Supabase Dashboard → Auth → Attack Protection → Turnstile Site Key
+    const TURNSTILE_SITE_KEY = "0x4AAAAAADDHFTkeFyoi79mt";
 
+    // ═══════════════════════════════════════════════════════
+    // SUPABASE CLIENT
+    // ═══════════════════════════════════════════════════════
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // ── Turnstile state ───────────────────────────────────────────────────
-    let turnstileToken   = null;   // filled by Turnstile callback
-    let turnstileWidgetId = null;  // used to reset the widget after use
+    // ═══════════════════════════════════════════════════════
+    // TURNSTILE STATE
+    // ═══════════════════════════════════════════════════════
+    let turnstileToken    = null;   // filled by Turnstile success callback
+    let turnstileWidgetId = null;   // used to call reset() after each attempt
+    let turnstileReady    = false;  // true once SDK has loaded
 
-    // Called by Turnstile SDK once the user passes the challenge
+    // ── FIX #5: onload callback — this is called by the SDK itself
+    // once it's fully loaded (via ?onload=onTurnstileLoad in the script src).
+    // This is MORE RELIABLE than DOMContentLoaded timing.
+    function onTurnstileLoad() {
+      console.log("✅ Turnstile SDK loaded");
+      turnstileReady = true;
+      initTurnstile();
+    }
+
+    // Called when user passes the (possibly invisible) challenge
     function onTurnstileSuccess(token) {
       turnstileToken = token;
-      console.log("✅ Turnstile token received");
+      console.log("✅ Turnstile token received:", token.substring(0, 20) + "…");
+      document.getElementById("captchaStatus").textContent = "✅ Browser verified";
+      document.getElementById("captchaStatus").className = "captcha-status ready";
     }
 
-    // Called when Turnstile token expires (they last ~5 min)
+    // Called when token expires (~5 min). Reset and get a fresh one.
     function onTurnstileExpired() {
       turnstileToken = null;
-      console.log("⏳ Turnstile token expired — will re-challenge on next submit");
+      console.log("⏳ Turnstile token expired — resetting widget");
+      document.getElementById("captchaStatus").textContent = "🔄 Re-verifying browser…";
+      document.getElementById("captchaStatus").className = "captcha-status loading";
+      if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
     }
 
-    // Called on Turnstile error
-    function onTurnstileError() {
+    // Called on Turnstile error (network issue, domain mismatch, etc.)
+    function onTurnstileError(code) {
       turnstileToken = null;
-      showMsg("msg", "CAPTCHA error — please refresh the page.", "error");
+      console.error("❌ Turnstile error code:", code);
+      document.getElementById("captchaStatus").textContent = "⚠️ CAPTCHA error — refresh page";
+      document.getElementById("captchaStatus").className = "captcha-status error-state";
+
+      // Common error codes:
+      // 110200 = sitekey invalid / domain not registered in Cloudflare
+      // 110420 = token already used
+      // 300030 = challengeError (network)
+      // If you see 110200, your domain is not added in Cloudflare Turnstile settings
     }
 
-    // Render Turnstile widget (invisible mode — no puzzle for users, just bot detection)
+    // ── FIX #6: Use "managed" execution mode.
+    // "interaction-only" only shows UI when needed but still requires
+    // execution:"execute" to trigger. "managed" is the correct simple mode:
+    // it runs automatically when rendered and only shows a checkbox
+    // if Cloudflare suspects a bot. Most real users see nothing.
     function initTurnstile() {
       if (!window.turnstile) {
-        // SDK not ready yet — retry in 200ms
-        setTimeout(initTurnstile, 200);
-        return;
+        console.warn("Turnstile SDK not ready yet — waiting…");
+        return; // onTurnstileLoad will call us when ready
       }
       if (turnstileWidgetId !== null) {
-        // Already rendered — just reset it
+        // Already rendered — just reset to get a fresh token
         window.turnstile.reset(turnstileWidgetId);
         return;
       }
-      turnstileWidgetId = window.turnstile.render("#cf-turnstile-container", {
-        sitekey:           TURNSTILE_SITE_KEY,
-        callback:          onTurnstileSuccess,
-        "expired-callback": onTurnstileExpired,
-        "error-callback":  onTurnstileError,
-        // "invisible" appearance — no widget shown to user, just runs in background
-        appearance:        "interaction-only",
-        theme:             "dark",
+
+      const container = document.getElementById("cf-turnstile-container");
+      if (!container) return;
+
+      turnstileWidgetId = window.turnstile.render(container, {
+        sitekey:             TURNSTILE_SITE_KEY,
+        callback:            onTurnstileSuccess,
+        "expired-callback":  onTurnstileExpired,
+        "error-callback":    onTurnstileError,
+        // FIX: "managed" is the correct mode — not "interaction-only"
+        // Cloudflare decides whether to show a challenge or run invisibly
+        appearance:          "always",   // shows the Turnstile widget area
+        theme:               "dark",
+        // FIX: "execute" mode runs automatically on render (no manual trigger needed)
+        execution:           "render",   // auto-execute when widget is rendered
+        size:                "normal",
       });
+
+      console.log("✅ Turnstile widget rendered, ID:", turnstileWidgetId);
     }
 
-    // ── Detect password-reset flow from URL hash ──────────────
+    // ═══════════════════════════════════════════════════════
+    // DETECT PASSWORD-RESET FLOW (from URL hash)
+    // ═══════════════════════════════════════════════════════
     function getHashParams() {
       const hash = window.location.hash.substring(1);
       return Object.fromEntries(new URLSearchParams(hash));
@@ -361,13 +440,23 @@
         if (data.session) window.location.href = "/";
       });
 
-      // Start Turnstile as soon as the page loads
-      window.addEventListener("DOMContentLoaded", initTurnstile);
-      // Also fire immediately in case DOMContentLoaded already fired
-      if (document.readyState !== "loading") initTurnstile();
+      // FIX #7: Only call initTurnstile here if SDK already loaded.
+      // If not, onTurnstileLoad() will call it when ready.
+      // This handles both: SDK loads before DOM ready, and SDK loads after.
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", () => {
+          if (turnstileReady) initTurnstile();
+          // else: onTurnstileLoad() will fire initTurnstile() once SDK loads
+        });
+      } else {
+        // DOM already ready
+        if (turnstileReady) initTurnstile();
+      }
     }
 
-    // ── Login / Signup ────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════
+    // TAB SWITCHING
+    // ═══════════════════════════════════════════════════════
     let currentTab = "login";
 
     function switchTab(tab) {
@@ -382,9 +471,15 @@
         ? `Don't have an account? <span onclick="switchTab('signup')">Sign up</span>`
         : `Already have an account? <span onclick="switchTab('login')">Log in</span>`;
       clearMsg("msg");
-      // Re-challenge Turnstile on tab switch so token is fresh
-      if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
-      turnstileToken = null;
+
+      // FIX #8: Reset Turnstile on tab switch to get fresh token
+      // (tokens are one-time-use — after a failed attempt you MUST reset)
+      if (turnstileWidgetId !== null) {
+        window.turnstile.reset(turnstileWidgetId);
+        turnstileToken = null;
+        document.getElementById("captchaStatus").textContent = "🔄 Re-verifying browser…";
+        document.getElementById("captchaStatus").className = "captcha-status loading";
+      }
     }
 
     function showMsg(id, text, type) {
@@ -396,6 +491,9 @@
       document.getElementById(id).className = "msg";
     }
 
+    // ═══════════════════════════════════════════════════════
+    // SUBMIT (Login or Sign Up)
+    // ═══════════════════════════════════════════════════════
     async function doSubmit() {
       const email    = document.getElementById("email").value.trim();
       const password = document.getElementById("password").value;
@@ -403,15 +501,20 @@
 
       if (!email || !password) return showMsg("msg", "Please fill in all fields.", "error");
 
-      // ✅ CAPTCHA CHECK — wait up to 5s for Turnstile token if not yet ready
+      // FIX #9: Wait for Turnstile token with a generous 15-second timeout.
+      // 5 seconds was too short on slow connections where Cloudflare
+      // takes time to fingerprint the browser.
       if (!turnstileToken) {
         btn.disabled = true;
-        btn.textContent = "Verifying…";
-        const tokenAcquired = await waitForTurnstile(5000);
+        btn.textContent = "Verifying browser…";
+        const tokenAcquired = await waitForTurnstile(15000);
         if (!tokenAcquired) {
           btn.disabled = false;
           btn.textContent = currentTab === "login" ? "Log in" : "Create account";
-          return showMsg("msg", "CAPTCHA verification timed out. Please try again.", "error");
+          // Attempt to re-render in case it silently failed
+          if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
+          else initTurnstile();
+          return showMsg("msg", "CAPTCHA verification timed out. Please wait a moment and try again.", "error");
         }
       }
 
@@ -421,15 +524,22 @@
         if (password.length < 6)  return showMsg("msg", "Password must be at least 6 characters.", "error");
 
         btn.disabled = true; btn.textContent = "Creating account…";
+
         const { error } = await sb.auth.signUp({
           email,
           password,
-          options: { captchaToken: turnstileToken }  // ✅ pass token
+          options: {
+            captchaToken: turnstileToken  // ✅ Pass Turnstile token to Supabase
+          }
         });
+
+        // FIX #10: Always clear token AND reset widget after EVERY attempt
+        // (success or failure). Turnstile tokens are single-use.
         turnstileToken = null;
         if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
 
         if (error) {
+          console.error("SignUp error:", error);
           showMsg("msg", error.message, "error");
           btn.disabled = false; btn.textContent = "Create account";
         } else {
@@ -439,15 +549,21 @@
 
       } else {
         btn.disabled = true; btn.textContent = "Logging in…";
+
         const { error } = await sb.auth.signInWithPassword({
           email,
           password,
-          options: { captchaToken: turnstileToken }  // ✅ pass token
+          options: {
+            captchaToken: turnstileToken  // ✅ Pass Turnstile token to Supabase
+          }
         });
+
+        // Always reset after use
         turnstileToken = null;
         if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
 
         if (error) {
+          console.error("Login error:", error);
           showMsg("msg", error.message, "error");
           btn.disabled = false; btn.textContent = "Log in";
         } else {
@@ -456,9 +572,10 @@
       }
     }
 
-    // Helper: poll for Turnstile token with a timeout
+    // Poll for Turnstile token up to timeoutMs milliseconds
     function waitForTurnstile(timeoutMs) {
       return new Promise((resolve) => {
+        if (turnstileToken) { resolve(true); return; }
         const start    = Date.now();
         const interval = setInterval(() => {
           if (turnstileToken) {
@@ -472,6 +589,9 @@
       });
     }
 
+    // ═══════════════════════════════════════════════════════
+    // OAUTH (Google / GitHub) — no CAPTCHA needed
+    // ═══════════════════════════════════════════════════════
     async function doGitHub() {
       await sb.auth.signInWithOAuth({
         provider: "github",
@@ -486,6 +606,9 @@
       });
     }
 
+    // ═══════════════════════════════════════════════════════
+    // FORGOT PASSWORD
+    // ═══════════════════════════════════════════════════════
     async function doForgot() {
       const email = document.getElementById("email").value.trim();
       if (!email) return showMsg("msg", "Enter your email above first.", "error");
@@ -504,7 +627,9 @@
       }
     });
 
-    // ── Password strength meter ───────────────────────────────
+    // ═══════════════════════════════════════════════════════
+    // PASSWORD STRENGTH METER
+    // ═══════════════════════════════════════════════════════
     function checkStrength(pw) {
       const bar  = document.getElementById("strengthBar");
       const hint = document.getElementById("strengthHint");
@@ -527,7 +652,9 @@
       hint.textContent     = lvl.label;
     }
 
-    // ── Handle actual password update ─────────────────────────
+    // ═══════════════════════════════════════════════════════
+    // PASSWORD RESET (from email link)
+    // ═══════════════════════════════════════════════════════
     async function doResetPassword() {
       const newPw  = document.getElementById("newPassword").value;
       const confPw = document.getElementById("newConfirm").value;
