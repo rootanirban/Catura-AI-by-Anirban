@@ -101,7 +101,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.45"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.46"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -111,7 +111,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.45", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.46", "timestamp": datetime.utcnow().isoformat()}
 
 
 # ============================================================
@@ -564,7 +564,6 @@ def tool_weather(prompt: str) -> dict:
             "wind_speed": wind.get("speed", "N/A"),
             "min_temp": m["temp_min"],
             "max_temp": m["temp_max"],
-            "data_quality": "LIVE — fetched right now from OpenWeatherMap",
         }
         print(f"✅ [TOOL] weather success: {result}")
         return result
@@ -576,217 +575,440 @@ def tool_weather(prompt: str) -> dict:
 
 # ============================================================
 # ✅ TOOL: FINANCE
-# PRIMARY: Yahoo Finance API (no key needed, always-live Indian prices)
-# FALLBACK: DuckDuckGo web search with precise query
+# Step 1 — Known ticker map (instant, no network call)
+# Step 2 — Yahoo Finance Search API (finds ANY company by name)
+# Step 3 — Yahoo Finance Quote API (live price, no API key needed)
+# Step 4 — Alpha Vantage fallback (US stocks, if key set)
+# Step 5 — DuckDuckGo last resort (never used for price numbers)
 # ============================================================
-def tool_finance(prompt: str) -> dict:
+
+# ── Known Indian company → Yahoo Finance ticker (NSE .NS preferred) ──────────
+# Ordered longest-match first to avoid partial hits (e.g. "hdfc bank" before "hdfc")
+KNOWN_TICKERS: list[tuple[str, str, str]] = [
+    # keyword (lowercase)          yahoo symbol      display name
+    # ── Reliance group ──────────────────────────────────────────────────────
+    ("reliance power",          "RPOWER.NS",        "Reliance Power"),
+    ("reliance infrastructure", "RELINFRA.NS",      "Reliance Infrastructure"),
+    ("reliance capital",        "RELCAPITAL.NS",    "Reliance Capital"),
+    ("reliance communications", "RCOM.NS",          "Reliance Communications"),
+    ("reliance industries",     "RELIANCE.NS",      "Reliance Industries"),
+    ("reliance",                "RELIANCE.NS",      "Reliance Industries"),
+    # ── Tata group ──────────────────────────────────────────────────────────
+    ("tata consultancy",        "TCS.NS",           "Tata Consultancy Services"),
+    ("tata steel",              "TATASTEEL.NS",     "Tata Steel"),
+    ("tata motors",             "TATAMOTORS.NS",    "Tata Motors"),
+    ("tata power",              "TATAPOWER.NS",     "Tata Power"),
+    ("tata chemicals",          "TATACHEM.NS",      "Tata Chemicals"),
+    ("tata consumer",           "TATACONSUM.NS",    "Tata Consumer Products"),
+    ("tata elxsi",              "TATAELXSI.NS",     "Tata Elxsi"),
+    ("tcs",                     "TCS.NS",           "TCS"),
+    ("tata",                    "TATAMOTORS.NS",    "Tata Motors"),
+    # ── Adani group ─────────────────────────────────────────────────────────
+    ("adani power",             "ADANIPOWER.NS",    "Adani Power"),
+    ("adani green",             "ADANIGREEN.NS",    "Adani Green Energy"),
+    ("adani enterprises",       "ADANIENT.NS",      "Adani Enterprises"),
+    ("adani ports",             "ADANIPORTS.NS",    "Adani Ports"),
+    ("adani total",             "ATGL.NS",          "Adani Total Gas"),
+    ("adani wilmar",            "AWL.NS",           "Adani Wilmar"),
+    ("adani transmission",      "ADANITRANS.NS",    "Adani Transmission"),
+    ("adani",                   "ADANIENT.NS",      "Adani Enterprises"),
+    # ── IT ──────────────────────────────────────────────────────────────────
+    ("infosys",                 "INFY.NS",          "Infosys"),
+    ("wipro",                   "WIPRO.NS",         "Wipro"),
+    ("hcl technologies",        "HCLTECH.NS",       "HCL Technologies"),
+    ("hcl tech",                "HCLTECH.NS",       "HCL Technologies"),
+    ("tech mahindra",           "TECHM.NS",         "Tech Mahindra"),
+    ("mphasis",                 "MPHASIS.NS",       "Mphasis"),
+    ("ltimindtree",             "LTIM.NS",          "LTIMindtree"),
+    ("l&t technology",          "LTTS.NS",          "L&T Technology Services"),
+    ("persistent",              "PERSISTENT.NS",    "Persistent Systems"),
+    ("coforge",                 "COFORGE.NS",       "Coforge"),
+    ("zensar",                  "ZENSARTECH.NS",    "Zensar Technologies"),
+    ("cyient",                  "CYIENT.NS",        "Cyient"),
+    # ── Banking ─────────────────────────────────────────────────────────────
+    ("hdfc bank",               "HDFCBANK.NS",      "HDFC Bank"),
+    ("hdfc life",               "HDFCLIFE.NS",      "HDFC Life"),
+    ("hdfc amc",                "HDFCAMC.NS",       "HDFC AMC"),
+    ("hdfc",                    "HDFCBANK.NS",      "HDFC Bank"),
+    ("icici bank",              "ICICIBANK.NS",     "ICICI Bank"),
+    ("icici lombard",           "ICICIGI.NS",       "ICICI Lombard"),
+    ("icici prudential",        "ICICIPRULI.NS",    "ICICI Prudential"),
+    ("icici",                   "ICICIBANK.NS",     "ICICI Bank"),
+    ("state bank",              "SBIN.NS",          "State Bank of India"),
+    ("sbi",                     "SBIN.NS",          "SBI"),
+    ("axis bank",               "AXISBANK.NS",      "Axis Bank"),
+    ("kotak mahindra",          "KOTAKBANK.NS",     "Kotak Mahindra Bank"),
+    ("kotak",                   "KOTAKBANK.NS",     "Kotak Mahindra Bank"),
+    ("yes bank",                "YESBANK.NS",       "Yes Bank"),
+    ("pnb",                     "PNB.NS",           "Punjab National Bank"),
+    ("punjab national",         "PNB.NS",           "Punjab National Bank"),
+    ("bank of baroda",          "BANKBARODA.NS",    "Bank of Baroda"),
+    ("canara bank",             "CANBK.NS",         "Canara Bank"),
+    ("union bank",              "UNIONBANK.NS",     "Union Bank of India"),
+    ("indusind",                "INDUSINDBK.NS",    "IndusInd Bank"),
+    ("bandhan bank",            "BANDHANBNK.NS",    "Bandhan Bank"),
+    ("idfc first",              "IDFCFIRSTB.NS",    "IDFC First Bank"),
+    ("au small",                "AUBANK.NS",        "AU Small Finance Bank"),
+    ("bajaj finance",           "BAJFINANCE.NS",    "Bajaj Finance"),
+    ("bajaj finserv",           "BAJAJFINSV.NS",    "Bajaj Finserv"),
+    ("bajaj auto",              "BAJAJ-AUTO.NS",    "Bajaj Auto"),
+    ("bajaj",                   "BAJAJ-AUTO.NS",    "Bajaj Auto"),
+    ("shriram finance",         "SHRIRAMFIN.NS",    "Shriram Finance"),
+    ("muthoot",                 "MUTHOOTFIN.NS",    "Muthoot Finance"),
+    ("manappuram",              "MANAPPURAM.NS",    "Manappuram Finance"),
+    ("cholamandalam",           "CHOLAFIN.NS",      "Cholamandalam Finance"),
+    ("lic",                     "LICI.NS",          "LIC India"),
+    # ── Energy & Power ──────────────────────────────────────────────────────
+    ("ntpc",                    "NTPC.NS",          "NTPC"),
+    ("power grid",              "POWERGRID.NS",     "Power Grid Corp"),
+    ("bhel",                    "BHEL.NS",          "BHEL"),
+    ("ongc",                    "ONGC.NS",          "ONGC"),
+    ("coal india",              "COALINDIA.NS",     "Coal India"),
+    ("indian oil",              "IOC.NS",           "Indian Oil Corp"),
+    ("ioc",                     "IOC.NS",           "Indian Oil Corp"),
+    ("bpcl",                    "BPCL.NS",          "BPCL"),
+    ("hpcl",                    "HPCL.NS",          "HPCL"),
+    ("gail",                    "GAIL.NS",          "GAIL India"),
+    ("petronet",                "PETRONET.NS",      "Petronet LNG"),
+    ("torrent power",           "TORNTPOWER.NS",    "Torrent Power"),
+    ("cesc",                    "CESC.NS",          "CESC"),
+    ("jsw energy",              "JSWENERGY.NS",     "JSW Energy"),
+    # ── Auto ────────────────────────────────────────────────────────────────
+    ("maruti",                  "MARUTI.NS",        "Maruti Suzuki"),
+    ("hero motocorp",           "HEROMOTOCO.NS",    "Hero MotoCorp"),
+    ("hero moto",               "HEROMOTOCO.NS",    "Hero MotoCorp"),
+    ("mahindra & mahindra",     "M&M.NS",           "Mahindra & Mahindra"),
+    ("mahindra",                "M&M.NS",           "Mahindra & Mahindra"),
+    ("m&m",                     "M&M.NS",           "Mahindra & Mahindra"),
+    ("ashok leyland",           "ASHOKLEY.NS",      "Ashok Leyland"),
+    ("eicher",                  "EICHERMOT.NS",     "Eicher Motors (Royal Enfield)"),
+    ("tvs motor",               "TVSMOTOR.NS",      "TVS Motor"),
+    ("tvs",                     "TVSMOTOR.NS",      "TVS Motor"),
+    ("bosch",                   "BOSCHLTD.NS",      "Bosch India"),
+    ("motherson",               "MOTHERSON.NS",     "Samvardhana Motherson"),
+    ("minda",                   "MINDAIND.NS",      "Minda Industries"),
+    ("exide",                   "EXIDEIND.NS",      "Exide Industries"),
+    ("amara raja",              "AMARAJABAT.NS",    "Amara Raja Energy"),
+    # ── Pharma ──────────────────────────────────────────────────────────────
+    ("sun pharma",              "SUNPHARMA.NS",     "Sun Pharma"),
+    ("sun pharmaceutical",      "SUNPHARMA.NS",     "Sun Pharma"),
+    ("dr reddy",                "DRREDDY.NS",       "Dr. Reddy's"),
+    ("cipla",                   "CIPLA.NS",         "Cipla"),
+    ("divi's",                  "DIVISLAB.NS",      "Divi's Laboratories"),
+    ("divis",                   "DIVISLAB.NS",      "Divi's Laboratories"),
+    ("aurobindo",               "AUROPHARMA.NS",    "Aurobindo Pharma"),
+    ("lupin",                   "LUPIN.NS",         "Lupin"),
+    ("torrent pharma",          "TORNTPHARM.NS",    "Torrent Pharma"),
+    ("alkem",                   "ALKEM.NS",         "Alkem Laboratories"),
+    ("biocon",                  "BIOCON.NS",        "Biocon"),
+    ("abbott india",            "ABBOTINDIA.NS",    "Abbott India"),
+    ("pfizer india",            "PFIZER.NS",        "Pfizer India"),
+    ("gland pharma",            "GLAND.NS",         "Gland Pharma"),
+    ("ipca",                    "IPCALAB.NS",       "IPCA Laboratories"),
+    ("laurus",                  "LAURUSLABS.NS",    "Laurus Labs"),
+    ("granules",                "GRANULES.NS",      "Granules India"),
+    # ── FMCG ────────────────────────────────────────────────────────────────
+    ("hindustan unilever",      "HINDUNILVR.NS",    "Hindustan Unilever"),
+    ("hul",                     "HINDUNILVR.NS",    "HUL"),
+    ("itc",                     "ITC.NS",           "ITC"),
+    ("nestle india",            "NESTLEIND.NS",     "Nestlé India"),
+    ("nestleind",               "NESTLEIND.NS",     "Nestlé India"),
+    ("nestle",                  "NESTLEIND.NS",     "Nestlé India"),
+    ("asian paints",            "ASIANPAINT.NS",    "Asian Paints"),
+    ("pidilite",                "PIDILITIND.NS",    "Pidilite (Fevicol)"),
+    ("dabur",                   "DABUR.NS",         "Dabur"),
+    ("marico",                  "MARICO.NS",        "Marico"),
+    ("godrej consumer",         "GODREJCP.NS",      "Godrej Consumer Products"),
+    ("godrej industries",       "GODREJIND.NS",     "Godrej Industries"),
+    ("godrej",                  "GODREJCP.NS",      "Godrej Consumer Products"),
+    ("emami",                   "EMAMILTD.NS",      "Emami"),
+    ("britannia",               "BRITANNIA.NS",     "Britannia"),
+    ("tata consumer",           "TATACONSUM.NS",    "Tata Consumer Products"),
+    ("varun beverages",         "VBL.NS",           "Varun Beverages (PepsiCo)"),
+    ("radico",                  "RADICO.NS",        "Radico Khaitan"),
+    ("united spirits",          "MCDOWELL-N.NS",    "United Spirits"),
+    # ── Telecom ─────────────────────────────────────────────────────────────
+    ("bharti airtel",           "BHARTIARTL.NS",    "Bharti Airtel"),
+    ("airtel",                  "BHARTIARTL.NS",    "Bharti Airtel"),
+    ("vodafone idea",           "IDEA.NS",          "Vodafone Idea"),
+    ("vi ",                     "IDEA.NS",          "Vodafone Idea"),
+    ("idea",                    "IDEA.NS",          "Vodafone Idea"),
+    ("indus towers",            "INDUSTOWER.NS",    "Indus Towers"),
+    # ── Cement ──────────────────────────────────────────────────────────────
+    ("ultratech",               "ULTRACEMCO.NS",    "UltraTech Cement"),
+    ("shree cement",            "SHREECEM.NS",      "Shree Cement"),
+    ("acc",                     "ACC.NS",           "ACC Cement"),
+    ("ambuja",                  "AMBUJACEM.NS",     "Ambuja Cement"),
+    ("jk cement",               "JKCEMENT.NS",      "JK Cement"),
+    ("dalmia",                  "DALBHARAT.NS",     "Dalmia Bharat"),
+    ("birla corporation",       "BIRLACORPN.NS",    "Birla Corporation"),
+    # ── Steel & Metals ──────────────────────────────────────────────────────
+    ("jsw steel",               "JSWSTEEL.NS",      "JSW Steel"),
+    ("jsw",                     "JSWSTEEL.NS",      "JSW Steel"),
+    ("steel authority",         "SAIL.NS",          "SAIL"),
+    ("sail",                    "SAIL.NS",          "SAIL"),
+    ("hindalco",                "HINDALCO.NS",      "Hindalco"),
+    ("vedanta",                 "VEDL.NS",          "Vedanta"),
+    ("national aluminium",      "NATIONALUM.NS",    "NALCO"),
+    ("nalco",                   "NATIONALUM.NS",    "NALCO"),
+    ("nmdc",                    "NMDC.NS",          "NMDC"),
+    ("hindustan zinc",          "HINDZINC.NS",      "Hindustan Zinc"),
+    # ── Consumer & Retail ───────────────────────────────────────────────────
+    ("avenue supermarts",       "DMART.NS",         "D-Mart (Avenue Supermarts)"),
+    ("dmart",                   "DMART.NS",         "D-Mart"),
+    ("titan",                   "TITAN.NS",         "Titan Company"),
+    ("trent",                   "TRENT.NS",         "Trent (Westside/Zudio)"),
+    ("kalyan jewellers",        "KALYANKJIL.NS",    "Kalyan Jewellers"),
+    ("senco gold",              "SENCO.NS",         "Senco Gold"),
+    ("pc jeweller",             "PCJEWELLER.NS",    "PC Jeweller"),
+    ("zomato",                  "ZOMATO.NS",        "Zomato"),
+    ("swiggy",                  "SWIGGY.NS",        "Swiggy"),
+    ("nykaa",                   "FSN.NS",           "Nykaa (FSN E-Commerce)"),
+    ("paytm",                   "PAYTM.NS",         "Paytm (One 97 Communications)"),
+    ("policybazaar",            "POLICYBZR.NS",     "PolicyBazaar"),
+    ("cartrade",                "CARTRADE.NS",      "CarTrade Tech"),
+    ("irctc",                   "IRCTC.NS",         "IRCTC"),
+    ("india mart",              "INDIAMART.NS",     "IndiaMART InterMESH"),
+    ("indiamart",               "INDIAMART.NS",     "IndiaMART InterMESH"),
+    # ── Infrastructure & Real Estate ────────────────────────────────────────
+    ("larsen",                  "LT.NS",            "L&T (Larsen & Toubro)"),
+    ("l&t",                     "LT.NS",            "L&T"),
+    ("dlf",                     "DLF.NS",           "DLF"),
+    ("godrej properties",       "GODREJPROP.NS",    "Godrej Properties"),
+    ("oberoi realty",           "OBEROIRLTY.NS",    "Oberoi Realty"),
+    ("prestige",                "PRESTIGE.NS",      "Prestige Estates"),
+    ("macrotech",               "LODHA.NS",         "Macrotech (Lodha)"),
+    ("brigade",                 "BRIGADE.NS",       "Brigade Enterprises"),
+    ("irb infra",               "IRB.NS",           "IRB Infrastructure"),
+    ("gmr airports",            "GMRAIRPORT.NS",    "GMR Airports"),
+    ("indian railways",         "IRFC.NS",          "IRFC"),
+    ("irfc",                    "IRFC.NS",          "IRFC"),
+    ("rvnl",                    "RVNL.NS",          "Rail Vikas Nigam"),
+    # ── Defence & Aerospace ─────────────────────────────────────────────────
+    ("hal",                     "HAL.NS",           "HAL"),
+    ("hindustan aeronautics",   "HAL.NS",           "HAL"),
+    ("bharat electronics",      "BEL.NS",           "BEL"),
+    ("bel",                     "BEL.NS",           "BEL"),
+    ("bharat dynamics",         "BDL.NS",           "Bharat Dynamics"),
+    ("mazagon dock",            "MAZDOCK.NS",       "Mazagon Dock"),
+    ("garden reach",            "GRSE.NS",          "Garden Reach Shipbuilders"),
+    ("cochin shipyard",         "COCHINSHIP.NS",    "Cochin Shipyard"),
+    # ── Indices ─────────────────────────────────────────────────────────────
+    ("nifty bank",              "^NSEBANK",         "Nifty Bank Index"),
+    ("nifty 50",                "^NSEI",            "Nifty 50 Index"),
+    ("nifty",                   "^NSEI",            "Nifty 50 Index"),
+    ("sensex",                  "^BSESN",           "BSE Sensex Index"),
+    # ── Crypto ──────────────────────────────────────────────────────────────
+    ("bitcoin",                 "BTC-USD",          "Bitcoin"),
+    ("ethereum",                "ETH-USD",          "Ethereum"),
+    ("btc",                     "BTC-USD",          "Bitcoin"),
+    ("eth",                     "ETH-USD",          "Ethereum"),
+    ("solana",                  "SOL-USD",          "Solana"),
+    ("bnb",                     "BNB-USD",          "BNB"),
+    ("xrp",                     "XRP-USD",          "XRP"),
+    ("dogecoin",                "DOGE-USD",         "Dogecoin"),
+    ("doge",                    "DOGE-USD",         "Dogecoin"),
+    ("shiba",                   "SHIB-USD",         "Shiba Inu"),
+]
+
+
+def _yahoo_fetch_price(ticker: str, display_name: str) -> dict | None:
     """
-    Fetch live stock price from Yahoo Finance.
-    Uses .NS suffix for NSE (most liquid Indian stocks) and
-    .BO suffix for BSE-only listings (e.g. Reliance Power).
-    Never falls back to the LLM's memory — always returns live data or
-    an explicit 'unavailable' signal so the AI doesn't hallucinate.
+    Fetch live price from Yahoo Finance v8 chart API.
+    Returns a finance result dict or None on failure.
+    No API key needed. Works for NSE (.NS), BSE (.BO), US, crypto.
     """
-    print(f"💹 [TOOL] finance | prompt: {prompt[:80]}")
-
-    # ── Indian company → Yahoo Finance ticker (NSE .NS / BSE .BO) ──────────
-    # Ordered from most-specific to least-specific to avoid false matches
-    INDIAN_TICKERS: list[tuple[str, str, str]] = [
-        # (keyword_in_lowercase, yahoo_symbol, display_name)
-        # ── Reliance group ──
-        ("reliance power",          "RPOWER.NS",        "Reliance Power"),
-        ("reliance infrastructure", "RELINFRA.NS",      "Reliance Infrastructure"),
-        ("reliance capital",        "RELCAPITAL.NS",    "Reliance Capital"),
-        ("reliance communications", "RCOM.NS",          "Reliance Communications"),
-        ("reliance industries",     "RELIANCE.NS",      "Reliance Industries"),
-        ("reliance",                "RELIANCE.NS",      "Reliance Industries"),
-        # ── Tata group ──
-        ("tata consultancy",        "TCS.NS",           "Tata Consultancy Services"),
-        ("tcs",                     "TCS.NS",           "TCS"),
-        ("tata steel",              "TATASTEEL.NS",     "Tata Steel"),
-        ("tata motors",             "TATAMOTORS.NS",    "Tata Motors"),
-        ("tata power",              "TATAPOWER.NS",     "Tata Power"),
-        ("tata",                    "TCS.NS",           "TCS (Tata)"),
-        # ── IT ──
-        ("infosys",                 "INFY.NS",          "Infosys"),
-        ("wipro",                   "WIPRO.NS",         "Wipro"),
-        ("hcl tech",                "HCLTECH.NS",       "HCL Technologies"),
-        ("hcl technologies",        "HCLTECH.NS",       "HCL Technologies"),
-        ("tech mahindra",           "TECHM.NS",         "Tech Mahindra"),
-        # ── Banking & Finance ──
-        ("hdfc bank",               "HDFCBANK.NS",      "HDFC Bank"),
-        ("hdfc life",               "HDFCLIFE.NS",      "HDFC Life"),
-        ("hdfc",                    "HDFCBANK.NS",      "HDFC Bank"),
-        ("icici bank",              "ICICIBANK.NS",     "ICICI Bank"),
-        ("icici",                   "ICICIBANK.NS",     "ICICI Bank"),
-        ("sbi",                     "SBIN.NS",          "SBI"),
-        ("state bank",              "SBIN.NS",          "State Bank of India"),
-        ("axis bank",               "AXISBANK.NS",      "Axis Bank"),
-        ("kotak",                   "KOTAKBANK.NS",     "Kotak Mahindra Bank"),
-        ("bajaj finance",           "BAJFINANCE.NS",    "Bajaj Finance"),
-        ("bajaj finserv",           "BAJAJFINSV.NS",    "Bajaj Finserv"),
-        ("bajaj",                   "BAJAJ-AUTO.NS",    "Bajaj Auto"),
-        # ── Energy & Power ──
-        ("adani power",             "ADANIPOWER.NS",    "Adani Power"),
-        ("adani green",             "ADANIGREEN.NS",    "Adani Green Energy"),
-        ("adani enterprises",       "ADANIENT.NS",      "Adani Enterprises"),
-        ("adani ports",             "ADANIPORTS.NS",    "Adani Ports"),
-        ("adani",                   "ADANIENT.NS",      "Adani Enterprises"),
-        ("ntpc",                    "NTPC.NS",          "NTPC"),
-        ("power grid",              "POWERGRID.NS",     "Power Grid Corp"),
-        ("bhel",                    "BHEL.NS",          "BHEL"),
-        ("ongc",                    "ONGC.NS",          "ONGC"),
-        ("coal india",              "COALINDIA.NS",     "Coal India"),
-        ("ioc",                     "IOC.NS",           "Indian Oil Corp"),
-        ("indian oil",              "IOC.NS",           "Indian Oil Corp"),
-        ("bpcl",                    "BPCL.NS",          "BPCL"),
-        ("hpcl",                    "HPCL.NS",          "HPCL"),
-        # ── Auto ──
-        ("maruti",                  "MARUTI.NS",        "Maruti Suzuki"),
-        ("hero motocorp",           "HEROMOTOCO.NS",    "Hero MotoCorp"),
-        ("m&m",                     "M&M.NS",           "Mahindra & Mahindra"),
-        ("mahindra",                "M&M.NS",           "Mahindra & Mahindra"),
-        ("ashok leyland",           "ASHOKLEY.NS",      "Ashok Leyland"),
-        # ── Pharma ──
-        ("sun pharma",              "SUNPHARMA.NS",     "Sun Pharma"),
-        ("dr reddy",                "DRREDDY.NS",       "Dr. Reddy's"),
-        ("cipla",                   "CIPLA.NS",         "Cipla"),
-        ("divi's",                  "DIVISLAB.NS",      "Divi's Laboratories"),
-        ("divis",                   "DIVISLAB.NS",      "Divi's Laboratories"),
-        # ── FMCG ──
-        ("hindustan unilever",      "HINDUNILVR.NS",    "Hindustan Unilever"),
-        ("hul",                     "HINDUNILVR.NS",    "HUL"),
-        ("itc",                     "ITC.NS",           "ITC"),
-        ("nestle",                  "NESTLEIND.NS",     "Nestlé India"),
-        ("asian paints",            "ASIANPAINT.NS",    "Asian Paints"),
-        # ── Telecom ──
-        ("bharti airtel",           "BHARTIARTL.NS",    "Bharti Airtel"),
-        ("airtel",                  "BHARTIARTL.NS",    "Bharti Airtel"),
-        ("vodafone",                "IDEA.NS",          "Vodafone Idea"),
-        ("vi ",                     "IDEA.NS",          "Vodafone Idea"),
-        # ── Indices ──
-        ("nifty",                   "^NSEI",            "Nifty 50"),
-        ("sensex",                  "^BSESN",           "BSE Sensex"),
-        ("nifty bank",              "^NSEBANK",         "Nifty Bank"),
-        # ── Crypto ──
-        ("bitcoin",                 "BTC-USD",          "Bitcoin"),
-        ("ethereum",                "ETH-USD",          "Ethereum"),
-        ("btc",                     "BTC-USD",          "Bitcoin"),
-        ("eth",                     "ETH-USD",          "Ethereum"),
-    ]
-
-    lower = prompt.lower()
-    ticker = None
-    display_name = None
-
-    # Longest-match wins (list is already ordered specific → generic)
-    for keyword, symbol, name in INDIAN_TICKERS:
-        if keyword in lower:
-            ticker = symbol
-            display_name = name
-            break
-
-    # If no match found → fall back to DDG web search
-    if not ticker:
-        print("⚠️ [TOOL] finance — no ticker matched, using web search")
-        return tool_web_search(f"{prompt.strip()} stock share price today NSE BSE live")
-
-    # ── PRIMARY: Yahoo Finance v8 quote API (no key, always live) ──────────
     try:
-        yf_url = (
-            f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
-            f"?interval=1d&range=1d"
-        )
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=1d"
         headers = {
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
+                "Chrome/124.0.0.0 Safari/537.36"
             ),
             "Accept": "application/json",
         }
-        resp = requests.get(yf_url, headers=headers, timeout=10)
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code != 200:
+            print(f"⚠️ [Yahoo] HTTP {resp.status_code} for {ticker}")
+            return None
 
-        if resp.status_code == 200:
-            data = resp.json()
-            meta = data.get("chart", {}).get("result", [{}])[0].get("meta", {})
+        data   = resp.json()
+        result_list = data.get("chart", {}).get("result")
+        if not result_list:
+            print(f"⚠️ [Yahoo] empty result for {ticker}")
+            return None
 
-            price          = meta.get("regularMarketPrice")
-            prev_close     = meta.get("chartPreviousClose") or meta.get("previousClose")
-            currency       = meta.get("currency", "INR")
-            exchange       = meta.get("exchangeName", "NSE")
-            market_state   = meta.get("marketState", "UNKNOWN")
+        meta   = result_list[0].get("meta", {})
+        price  = meta.get("regularMarketPrice")
+        if not price:
+            return None
 
-            if price:
-                change     = round(price - prev_close, 2) if prev_close else "N/A"
-                change_pct = (
-                    f"{round((change / prev_close) * 100, 2)}%"
-                    if prev_close and isinstance(change, float) else "N/A"
-                )
-                # Indian number formatting helper
-                def fmt_inr(val):
-                    if val is None:
-                        return "N/A"
-                    return f"₹{val:,.2f}" if currency == "INR" else f"{val:,.4f}"
+        prev_close = meta.get("chartPreviousClose") or meta.get("previousClose") or 0
+        currency   = meta.get("currency", "INR")
+        exchange   = meta.get("exchangeName", "")
+        mkt_state  = meta.get("marketState", "UNKNOWN")
 
-                result = {
-                    "tool":           "finance",
-                    "source":         "Yahoo Finance (live)",
-                    "symbol":         ticker,
-                    "display_name":   display_name,
-                    "price":          fmt_inr(price),
-                    "change":         f"{'+'if isinstance(change,float) and change>=0 else ''}{change}",
-                    "change_pct":     change_pct,
-                    "previous_close": fmt_inr(prev_close),
-                    "currency":       currency,
-                    "exchange":       exchange,
-                    "market_state":   market_state,
-                    "data_quality":   "LIVE — fetched right now from Yahoo Finance",
-                }
-                print(f"✅ [TOOL] finance Yahoo: {display_name} = {fmt_inr(price)}")
-                return result
+        change     = round(price - prev_close, 2) if prev_close else 0
+        change_pct = f"{round((change / prev_close) * 100, 2)}%" if prev_close else "N/A"
+        sign       = "+" if change >= 0 else ""
 
-        print(f"⚠️ [TOOL] finance Yahoo returned status {resp.status_code}")
+        sym_prefix = "₹" if currency == "INR" else ("$" if currency == "USD" else "")
+        fmt        = lambda v: f"{sym_prefix}{v:,.2f}" if v else "N/A"
+
+        return {
+            "tool":         "finance",
+            "source":       "Yahoo Finance (live)",
+            "symbol":       ticker,
+            "display_name": display_name,
+            "price":        fmt(price),
+            "change":       f"{sign}{change}",
+            "change_pct":   change_pct,
+            "prev_close":   fmt(prev_close),
+            "currency":     currency,
+            "exchange":     exchange,
+            "market_state": mkt_state,
+            "data_quality": "LIVE — fetched right now from Yahoo Finance",
+        }
+    except Exception as e:
+        print(f"❌ [Yahoo] exception for {ticker}: {e}")
+        return None
+
+
+def _yahoo_search_ticker(company_name: str) -> tuple[str, str] | tuple[None, None]:
+    """
+    Use Yahoo Finance search API to find the NSE/BSE ticker for ANY company name.
+    Returns (ticker, display_name) or (None, None) on failure.
+    Strongly prefers .NS (NSE) tickers for Indian companies.
+    """
+    try:
+        url = "https://query1.finance.yahoo.com/v1/finance/search"
+        params = {
+            "q":            company_name,
+            "quotesCount":  10,
+            "newsCount":    0,
+            "listsCount":   0,
+            "enableFuzzyQuery": False,
+        }
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Accept": "application/json",
+        }
+        resp = requests.get(url, params=params, headers=headers, timeout=8)
+        if resp.status_code != 200:
+            return None, None
+
+        quotes = resp.json().get("quotes", [])
+        if not quotes:
+            return None, None
+
+        # Priority: NSE equity > BSE equity > other exchanges
+        ns_hit  = next((q for q in quotes if str(q.get("symbol", "")).endswith(".NS")
+                        and q.get("quoteType") == "EQUITY"), None)
+        bo_hit  = next((q for q in quotes if str(q.get("symbol", "")).endswith(".BO")
+                        and q.get("quoteType") == "EQUITY"), None)
+        any_hit = next((q for q in quotes if q.get("quoteType") == "EQUITY"), None)
+
+        best = ns_hit or bo_hit or any_hit or quotes[0]
+        symbol = best.get("symbol", "")
+        name   = best.get("longname") or best.get("shortname") or company_name.title()
+        print(f"🔎 [Yahoo Search] '{company_name}' → {symbol} ({name})")
+        return symbol, name
 
     except Exception as e:
-        print(f"❌ [TOOL] finance Yahoo exception: {e}")
+        print(f"❌ [Yahoo Search] exception: {e}")
+        return None, None
 
-    # ── FALLBACK: Alpha Vantage (if API key is set) ─────────────────────────
-    # Note: Alpha Vantage does NOT support Indian NSE/BSE tickers reliably.
-    # Only use it for US stocks and crypto as a fallback.
-    if ALPHAVANTAGE_KEY and not ticker.endswith((".NS", ".BO")):
-        try:
-            url = (
-                f"https://www.alphavantage.co/query"
-                f"?function=GLOBAL_QUOTE&symbol={ticker}&apikey={ALPHAVANTAGE_KEY}"
-            )
-            resp = requests.get(url, timeout=8)
-            data = resp.json()
-            quote = data.get("Global Quote", {})
-            if quote and quote.get("05. price"):
-                result = {
-                    "tool":           "finance",
-                    "source":         "Alpha Vantage (live)",
-                    "symbol":         quote.get("01. symbol", ticker),
-                    "display_name":   display_name or ticker,
-                    "price":          quote.get("05. price", "N/A"),
-                    "change":         quote.get("09. change", "N/A"),
-                    "change_pct":     quote.get("10. change percent", "N/A"),
-                    "previous_close": quote.get("08. previous close", "N/A"),
-                    "volume":         quote.get("06. volume", "N/A"),
-                    "data_quality":   "LIVE — fetched right now from Alpha Vantage",
-                }
-                print(f"✅ [TOOL] finance AlphaVantage fallback: {result['price']}")
+
+def tool_finance(prompt: str) -> dict:
+    """
+    Fetch live stock/share price for ANY company.
+
+    Pipeline:
+      1. Check KNOWN_TICKERS map (instant, no network)
+      2. If not found → Yahoo Finance Search API (finds ticker by name)
+      3. Fetch live quote via Yahoo Finance Chart API (no API key needed)
+      4. Alpha Vantage fallback for US stocks (if ALPHAVANTAGE_KEY set)
+      5. DuckDuckGo ONLY as absolute last resort (flagged so AI won't hallucinate)
+    """
+    print(f"💹 [TOOL] finance | prompt: {prompt[:80]}")
+
+    lower = prompt.lower()
+
+    # ── Step 1: Known ticker map (longest match wins) ────────────────────────
+    ticker       = None
+    display_name = None
+    for keyword, symbol, name in KNOWN_TICKERS:
+        if keyword in lower:
+            ticker       = symbol
+            display_name = name
+            print(f"✅ [Finance] known map hit: '{keyword}' → {symbol}")
+            break
+
+    # ── Step 2: Yahoo Finance Search (for unknown companies) ─────────────────
+    if not ticker:
+        # Extract company name from prompt — strip finance keywords
+        company_raw = re.sub(
+            r'\b(share price|stock price|price today|current price|nse|bse|'
+            r'today|live|what is|what\'s|the|of|for|tell me|how much|'
+            r'share|stock|market)\b',
+            " ", lower, flags=re.IGNORECASE
+        ).strip()
+        # Clean up extra spaces
+        company_raw = re.sub(r'\s+', ' ', company_raw).strip(" ?.,!")
+
+        if company_raw and len(company_raw) >= 2:
+            print(f"🔎 [Finance] searching Yahoo for: '{company_raw}'")
+            ticker, display_name = _yahoo_search_ticker(company_raw)
+
+    # ── Step 3: Fetch live price from Yahoo Finance ───────────────────────────
+    if ticker:
+        result = _yahoo_fetch_price(ticker, display_name or ticker)
+        if result:
+            print(f"✅ [Finance] Yahoo live price: {display_name} ({ticker}) = {result['price']}")
+            return result
+        # Ticker found but price fetch failed — try .NS variant if we have .BO
+        if ticker.endswith(".BO"):
+            alt = ticker.replace(".BO", ".NS")
+            result = _yahoo_fetch_price(alt, display_name or alt)
+            if result:
                 return result
-        except Exception as e:
-            print(f"❌ [TOOL] finance AlphaVantage fallback exception: {e}")
 
-    # ── LAST RESORT: DuckDuckGo search ──────────────────────────────────────
-    print("⚠️ [TOOL] finance — all APIs failed, using web search")
-    search_name = display_name or ticker
-    return tool_web_search(
+    # ── Step 4: Alpha Vantage (US stocks only, if key is set) ────────────────
+    if ALPHAVANTAGE_KEY and ticker and not ticker.endswith((".NS", ".BO")):
+        try:
+            url   = (f"https://www.alphavantage.co/query"
+                     f"?function=GLOBAL_QUOTE&symbol={ticker}&apikey={ALPHAVANTAGE_KEY}")
+            resp  = requests.get(url, timeout=8)
+            quote = resp.json().get("Global Quote", {})
+            if quote and quote.get("05. price"):
+                return {
+                    "tool":         "finance",
+                    "source":       "Alpha Vantage (live)",
+                    "symbol":       quote.get("01. symbol", ticker),
+                    "display_name": display_name or ticker,
+                    "price":        quote.get("05. price", "N/A"),
+                    "change":       quote.get("09. change", "N/A"),
+                    "change_pct":   quote.get("10. change percent", "N/A"),
+                    "prev_close":   quote.get("08. previous close", "N/A"),
+                    "data_quality": "LIVE — fetched right now from Alpha Vantage",
+                }
+        except Exception as e:
+            print(f"❌ [Finance] Alpha Vantage exception: {e}")
+
+    # ── Step 5: Last resort — DuckDuckGo search ───────────────────────────────
+    # Flag this so the AI knows NOT to trust numbers in snippets
+    print("⚠️ [Finance] all APIs failed — DDG last resort")
+    search_name = display_name or (company_raw if 'company_raw' in dir() else prompt[:40])
+    ddg_result  = tool_web_search(
         f"{search_name} share price today live NSE BSE {datetime.utcnow().strftime('%B %Y')}"
     )
+    ddg_result["finance_ddg_fallback"] = True  # signal to context builder
+    return ddg_result
 
 
 # ============================================================
@@ -970,30 +1192,39 @@ def build_tool_context(tool_result: dict) -> str:
             f"Humidity: {tool_result['humidity']}%",
             f"Wind Speed: {tool_result['wind_speed']} m/s",
             f"Min/Max Today: {tool_result['min_temp']}°C / {tool_result['max_temp']}°C",
-            f"Data Source: {tool_result.get('data_quality', 'live')}",
         ]
-        lines.append(
-            "\n⚠️ ANTI-HALLUCINATION RULE: Use ONLY the temperature and weather data above. "
-            "Do NOT use any weather values from your training memory. "
-            "If a value is missing, say so — never invent a temperature."
-        )
 
     elif tool == "finance":
-        lines += [
-            f"Stock: {tool_result.get('display_name', tool_result.get('symbol', 'N/A'))} ({tool_result.get('symbol', 'N/A')})",
-            f"Exchange: {tool_result.get('exchange', 'NSE/BSE')} | Market State: {tool_result.get('market_state', 'N/A')}",
-            f"Current Price: {tool_result.get('price', 'N/A')}",
-            f"Change Today: {tool_result.get('change', 'N/A')} ({tool_result.get('change_pct', 'N/A')})",
-            f"Previous Close: {tool_result.get('previous_close', 'N/A')}",
-            f"Data Source: {tool_result.get('data_quality', 'Yahoo Finance (live)')}",
-        ]
-        lines.append(
-            "\n⚠️ ANTI-HALLUCINATION RULE: The price shown above is the ONLY correct price. "
-            "Do NOT quote any other number from your training data. "
-            "If price is 'N/A', tell the user the live price could not be fetched right now "
-            "and suggest they check NSE (nseindia.com) or BSE (bseindia.com). "
-            "NEVER invent or guess stock prices."
-        )
+        if tool_result.get("finance_ddg_fallback"):
+            # DDG fallback — snippets are unreliable, warn AI strongly
+            lines.append(f"Search query: {tool_result.get('query', '')}")
+            lines.append(
+                "\n🚨 WARNING: Live price APIs FAILED for this stock. "
+                "The search snippets below may be STALE or WRONG. "
+                "You MUST tell the user: 'I could not fetch the live price right now. "
+                "Please check NSE (nseindia.com) or BSE (bseindia.com) or your broker app.' "
+                "Do NOT quote any number from the snippets as the current price."
+            )
+            for i, r in enumerate(tool_result.get("results", []), 1):
+                lines.append(f"\n{i}. {r['title']}")
+                lines.append(f"   {r['body']}")
+        else:
+            lines += [
+                f"Stock: {tool_result.get('display_name', tool_result.get('symbol', 'N/A'))} "
+                f"({tool_result.get('symbol', 'N/A')})",
+                f"Exchange: {tool_result.get('exchange', 'NSE')} | "
+                f"Market State: {tool_result.get('market_state', 'N/A')}",
+                f"Current Price (LIVE): {tool_result.get('price', 'N/A')}",
+                f"Change Today: {tool_result.get('change', 'N/A')} "
+                f"({tool_result.get('change_pct', 'N/A')})",
+                f"Previous Close: {tool_result.get('prev_close', 'N/A')}",
+                f"Data Source: {tool_result.get('data_quality', 'Yahoo Finance (live)')}",
+            ]
+            lines.append(
+                "\n⚠️ ANTI-HALLUCINATION: The price above is the ONLY correct current price. "
+                "Do NOT use any number from your training memory. "
+                "Report this exact price to the user."
+            )
 
     elif tool == "news":
         lines.append(f"Topic: {tool_result['topic']}")
@@ -1020,12 +1251,12 @@ def build_tool_context(tool_result: dict) -> str:
             lines.append(f"   Source: {r['href']}")
 
     lines.append(
-        "\n\n🚨 CRITICAL RULES FOR LIVE DATA:\n"
-        "1. Use ONLY the data shown above — do NOT use any numbers from your training memory.\n"
-        "2. If a value shows 'N/A', say it is currently unavailable — do NOT invent a number.\n"
+        "\n\n🚨 CRITICAL RULES FOR ALL LIVE DATA:\n"
+        "1. Use ONLY the data shown above — NEVER use numbers from your training memory.\n"
+        "2. If a value shows 'N/A', tell the user it is unavailable — do NOT invent a number.\n"
         "3. NEVER fabricate prices, temperatures, scores, or headlines.\n"
-        "4. Do NOT say 'I don't have real-time data' — you have it above. Use it.\n"
-        "5. Format the answer cleanly and cite the data source."
+        "4. Do NOT say 'I don't have real-time data' — you have live data above. Use it.\n"
+        "5. Format the answer clearly and mention the data source."
     )
     return "\n".join(lines)
 
@@ -1333,15 +1564,15 @@ async def chat_post(request: Request):
             "3. If live data (weather, finance, news, sports, search results) "
             "is provided above in your system context, use it directly to write "
             "your answer in natural language. Do NOT say you are 'using a tool'.\n"
-            "4. If no live data is provided, answer from your knowledge but be clear "
-            "it may not reflect today's values.\n"
+            "4. If no live data is provided, answer from your knowledge but note "
+            "it may not reflect today's current values.\n"
             "5. Always respond in clean, readable prose or markdown. Never output raw JSON.\n"
             "6. 🚨 NEVER INVENT NUMBERS: Do NOT fabricate or guess stock prices, share prices, "
-            "temperatures, scores, or any numerical live data from your training memory. "
-            "If the live data context does not contain the exact number, say so clearly. "
-            "Hallucinating a price (e.g. saying ₹1,233 for a stock that trades at ₹28) "
-            "is a critical failure — always prefer 'I couldn't fetch the live price' "
-            "over inventing a number."
+            "temperatures, scores, or any live numerical data from your training memory. "
+            "Your training data is months old — prices in it are WRONG. "
+            "If live data is missing a number, say: 'I could not fetch the live price right now "
+            "— please check NSE (nseindia.com) or BSE (bseindia.com) or your broker app.' "
+            "Inventing a price (e.g. saying 1233 for a stock that trades at 28) is a critical error."
         )
 
         system_prompts = {
@@ -1782,11 +2013,10 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "3. If live data is provided in your system context, use it directly. "
             "Do NOT say you are 'using a tool'.\n"
             "4. Always respond in clean, readable prose or markdown. Never output raw JSON.\n"
-            "5. 🚨 NEVER INVENT NUMBERS: Do NOT fabricate or guess stock prices, share prices, "
-            "temperatures, scores, or any numerical live data from your training memory. "
-            "If the live data context does not contain the exact number, say so clearly. "
-            "Hallucinating a price is a critical failure — always prefer 'I couldn't fetch "
-            "the live price right now' over inventing a number."
+            "5. 🚨 NEVER INVENT NUMBERS: Do NOT fabricate stock prices, temperatures, scores "
+            "or any live data from your training memory. Your training data is months old. "
+            "If live data is missing, say you could not fetch it and suggest nseindia.com. "
+            "Inventing prices is a critical hallucination error."
         )
 
         # ══════════════════════════════════════════════════════════════════════
