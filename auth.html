@@ -25,10 +25,7 @@
       width: 100%;
       max-width: 390px;
     }
-    .logo-area {
-      text-align: center;
-      margin-bottom: 1.75rem;
-    }
+    .logo-area { text-align: center; margin-bottom: 1.75rem; }
     .logo-box {
       width: 60px; height: 60px;
       border-radius: 12px;
@@ -36,10 +33,7 @@
       margin: 0 auto 12px;
       background: transparent;
     }
-    .logo-box img {
-      width: 100%; height: 100%;
-      object-fit: contain;
-    }
+    .logo-box img { width: 100%; height: 100%; object-fit: contain; }
     .logo-area h1 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
     .logo-area p  { font-size: 13px; color: #888; }
 
@@ -110,7 +104,7 @@
       cursor: pointer; margin-top: 12px;
       transition: background 0.2s;
     }
-    .submit:hover  { background: #0d8c6d; }
+    .submit:hover    { background: #0d8c6d; }
     .submit:disabled { background: #1a4a3a; cursor: not-allowed; }
 
     .msg {
@@ -128,7 +122,27 @@
     .switch-row span { color: #10a37f; cursor: pointer; }
     .switch-row span:hover { text-decoration: underline; }
 
-    /* ── Reset Password Screen ── */
+    /* Turnstile widget container */
+    #cf-turnstile-container {
+      margin-top: 8px;
+      display: flex;
+      justify-content: center;
+      min-height: 65px;
+    }
+    #cf-turnstile-container iframe { border-radius: 8px; }
+
+    .captcha-status {
+      font-size: 11px;
+      text-align: center;
+      margin-top: 4px;
+      color: #555;
+      min-height: 16px;
+    }
+    .captcha-status.ready      { color: #10a37f; }
+    .captcha-status.loading    { color: #888; }
+    .captcha-status.error-state { color: #ff6b6b; }
+
+    /* Reset Password Screen */
     #resetScreen { display: none; }
     .reset-icon {
       width: 52px; height: 52px;
@@ -141,8 +155,7 @@
     .reset-icon svg { color: #10a37f; }
     .pw-strength {
       height: 4px; border-radius: 2px;
-      background: #1e1e1e; margin-top: 6px;
-      overflow: hidden;
+      background: #1e1e1e; margin-top: 6px; overflow: hidden;
     }
     .pw-strength-bar {
       height: 100%; width: 0%;
@@ -150,532 +163,438 @@
       transition: width 0.3s, background 0.3s;
     }
     .pw-hint { font-size: 11px; color: #666; margin-top: 4px; }
-
-    /* ── Cloudflare Turnstile widget ── */
-    /* FIX: Hidden but present in DOM so Turnstile can attach to it */
-    #cf-turnstile-container {
-      margin-top: 8px;
-      display: flex;
-      justify-content: center;
-      min-height: 65px; /* Reserve space so layout doesn't shift */
-    }
-    /* Hide the widget visually but keep it in the DOM */
-    #cf-turnstile-container iframe {
-      border-radius: 8px;
-    }
-
-    /* Captcha status indicator */
-    .captcha-status {
-      font-size: 11px;
-      text-align: center;
-      margin-top: 4px;
-      color: #555;
-      min-height: 16px;
-    }
-    .captcha-status.ready { color: #10a37f; }
-    .captcha-status.loading { color: #888; }
-    .captcha-status.error-state { color: #ff6b6b; }
   </style>
 
   <!--
-    FIX #1: Load Turnstile SDK SYNCHRONOUSLY (no async/defer).
-    With async+defer, the SDK may load AFTER DOMContentLoaded fires
-    causing a race condition. Loading it sync ensures window.turnstile
-    is available before any JS runs.
-
-    FIX #2: Use onload callback pattern instead of relying on
-    DOMContentLoaded timing.
+    KEY FIX: Use ?onload=onTurnstileLoad (no async — defer only).
+    This guarantees onTurnstileLoad() fires AFTER the SDK is fully ready,
+    eliminating the race condition with DOMContentLoaded.
   -->
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad" defer></script>
 </head>
 <body>
-  <div class="card">
+<div class="card">
 
-    <!-- ══════════════════════════════════
-         NORMAL LOGIN / SIGNUP SCREEN
-    ══════════════════════════════════ -->
-    <div id="authScreen">
-
-      <div class="logo-area">
-        <div class="logo-box">
-          <img src="static/logo.png" alt="Catura AI logo">
-        </div>
-        <h1>Log in to Catura AI</h1>
-        <p>Your AI assistant, always there for you</p>
+  <!-- AUTH SCREEN -->
+  <div id="authScreen">
+    <div class="logo-area">
+      <div class="logo-box">
+        <img src="static/logo.png" alt="Catura AI logo">
       </div>
+      <h1>Log in to Catura AI</h1>
+      <p>Your AI assistant, always there for you</p>
+    </div>
 
-      <div class="tabs">
-        <button class="tab active" id="tab-login"  onclick="switchTab('login')">Login</button>
-        <button class="tab"        id="tab-signup" onclick="switchTab('signup')">Sign up</button>
+    <div class="tabs">
+      <button class="tab active" id="tab-login"  onclick="switchTab('login')">Login</button>
+      <button class="tab"        id="tab-signup" onclick="switchTab('signup')">Sign up</button>
+    </div>
+
+    <!-- GitHub OAuth -->
+    <button class="oauth-btn" onclick="doGitHub()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.38.6.11.82-.26.82-.58 0-.28-.01-1.03-.02-2.02-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02.005 2.04.14 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.21.7.82.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/>
+      </svg>
+      Continue with GitHub
+    </button>
+
+    <!-- Google OAuth -->
+    <button class="oauth-btn" onclick="doGoogle()">
+      <svg width="16" height="16" viewBox="0 0 48 48">
+        <path fill="#EA4335" d="M24 9.5c3.1 0 5.6 1.1 7.6 2.9l5.6-5.6C33.6 3.5 29.1 1.5 24 1.5 14.9 1.5 7.2 7.1 4 14.9l6.6 5.1C12.3 13.7 17.6 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.5 24c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.9 7.2l7.6 5.9C43.8 37 46.5 31 46.5 24z"/>
+        <path fill="#FBBC05" d="M10.6 28.6A14.6 14.6 0 0 1 9.5 24c0-1.6.3-3.2.8-4.6L3.7 14.3A22.5 22.5 0 0 0 1.5 24c0 3.6.9 7.1 2.5 10.1l6.6-5.5z"/>
+        <path fill="#34A853" d="M24 46.5c5.1 0 9.4-1.7 12.5-4.6l-7.6-5.9c-1.7 1.1-3.8 1.8-4.9 1.8-6.4 0-11.7-4.3-13.6-10l-6.6 5.1C7.2 40.9 14.9 46.5 24 46.5z"/>
+      </svg>
+      Continue with Google
+    </button>
+
+    <div class="divider">or</div>
+
+    <div class="field">
+      <label>Email address</label>
+      <input type="email" id="email" placeholder="you@example.com">
+    </div>
+
+    <div class="field">
+      <div class="field-row">
+        <label style="margin:0">Password</label>
+        <button class="forgot" id="forgotBtn" onclick="doForgot()">I forgot my password</button>
       </div>
+      <input type="password" id="password" placeholder="••••••••">
+    </div>
 
-      <!-- GitHub -->
-      <button class="oauth-btn" onclick="doGitHub()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.38.6.11.82-.26.82-.58 0-.28-.01-1.03-.02-2.02-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02.005 2.04.14 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.21.7.82.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/>
+    <div class="field" id="confirmField" style="display:none">
+      <label>Confirm password</label>
+      <input type="password" id="confirm" placeholder="Repeat password">
+    </div>
+
+    <!--
+      CRITICAL: This container must ALWAYS be in the DOM and NEVER hidden
+      with display:none — Turnstile cannot render into a hidden element.
+    -->
+    <div id="cf-turnstile-container"></div>
+    <div class="captcha-status loading" id="captchaStatus">🔄 Verifying browser…</div>
+
+    <button class="submit" id="submitBtn" onclick="doSubmit()">Log in</button>
+    <div class="msg" id="msg"></div>
+
+    <div class="switch-row" id="switchRow">
+      Don't have an account? <span id="switchLink" onclick="switchTab('signup')">Sign up</span>
+    </div>
+  </div><!-- /authScreen -->
+
+
+  <!-- RESET PASSWORD SCREEN (shown when arriving from reset email link) -->
+  <div id="resetScreen">
+    <div class="logo-area">
+      <div class="reset-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
         </svg>
-        Continue with GitHub
-      </button>
-
-      <!-- Google -->
-      <button class="oauth-btn" onclick="doGoogle()">
-        <svg width="16" height="16" viewBox="0 0 48 48">
-          <path fill="#EA4335" d="M24 9.5c3.1 0 5.6 1.1 7.6 2.9l5.6-5.6C33.6 3.5 29.1 1.5 24 1.5 14.9 1.5 7.2 7.1 4 14.9l6.6 5.1C12.3 13.7 17.6 9.5 24 9.5z"/>
-          <path fill="#4285F4" d="M46.5 24c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.9 7.2l7.6 5.9C43.8 37 46.5 31 46.5 24z"/>
-          <path fill="#FBBC05" d="M10.6 28.6A14.6 14.6 0 0 1 9.5 24c0-1.6.3-3.2.8-4.6L3.7 14.3A22.5 22.5 0 0 0 1.5 24c0 3.6.9 7.1 2.5 10.1l6.6-5.5z"/>
-          <path fill="#34A853" d="M24 46.5c5.1 0 9.4-1.7 12.5-4.6l-7.6-5.9c-1.7 1.1-3.8 1.8-4.9 1.8-6.4 0-11.7-4.3-13.6-10l-6.6 5.1C7.2 40.9 14.9 46.5 24 46.5z"/>
-        </svg>
-        Continue with Google
-      </button>
-
-      <div class="divider">or</div>
-
-      <div class="field">
-        <label>Email address</label>
-        <input type="email" id="email" placeholder="you@example.com">
       </div>
+      <h1>Set new password</h1>
+      <p>Choose a strong password for your account</p>
+    </div>
 
-      <div class="field">
-        <div class="field-row">
-          <label style="margin:0">Password</label>
-          <button class="forgot" id="forgotBtn" onclick="doForgot()">I forgot my password</button>
-        </div>
-        <input type="password" id="password" placeholder="••••••••">
+    <div class="field">
+      <label>New password</label>
+      <input type="password" id="newPassword" placeholder="••••••••"
+             oninput="checkStrength(this.value)">
+      <div class="pw-strength">
+        <div class="pw-strength-bar" id="strengthBar"></div>
       </div>
+      <div class="pw-hint" id="strengthHint">At least 6 characters</div>
+    </div>
 
-      <div class="field" id="confirmField" style="display:none">
-        <label>Confirm password</label>
-        <input type="password" id="confirm" placeholder="Repeat password">
-      </div>
+    <div class="field">
+      <label>Confirm new password</label>
+      <input type="password" id="newConfirm" placeholder="Repeat password">
+    </div>
 
-      <!--
-        FIX #3: Turnstile container — kept in DOM at all times.
-        Turnstile renders its iframe here. We use "managed" mode
-        which shows the checkbox when needed, or is invisible when not.
-        DO NOT hide this with display:none — Turnstile cannot render
-        into a hidden element.
-      -->
-      <div id="cf-turnstile-container"></div>
-      <div class="captcha-status loading" id="captchaStatus">🔄 Verifying browser…</div>
+    <button class="submit" id="resetBtn" onclick="doResetPassword()">Update password</button>
+    <div class="msg" id="resetMsg"></div>
+  </div><!-- /resetScreen -->
 
-      <button class="submit" id="submitBtn" onclick="doSubmit()">Log in</button>
-      <div class="msg" id="msg"></div>
+</div><!-- /card -->
 
-      <div class="switch-row" id="switchRow">
-        Don't have an account? <span id="switchLink" onclick="switchTab('signup')">Sign up</span>
-      </div>
+<!-- Use explicit UMD build URL to avoid CDN serving stale version -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+  // ═══════════════════════════════════════════════════════
+  // CONFIGURATION — replace with your actual values
+  // ═══════════════════════════════════════════════════════
+  const SUPABASE_URL      = "https://zhrjmnrfklzuxmfbdqhg.supabase.co";
+  const SUPABASE_KEY      = "sb_publishable_aIbByN1rFc9V3AH41Kyz6A_e1XppA1Z";
+  const TURNSTILE_SITE_KEY = "0x4AAAAAADDHFTkeFyoi79mt"; // your public site key
 
-    </div><!-- /authScreen -->
+  // ═══════════════════════════════════════════════════════
+  // SUPABASE CLIENT
+  // ═══════════════════════════════════════════════════════
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+  // ═══════════════════════════════════════════════════════
+  // TURNSTILE STATE
+  // ═══════════════════════════════════════════════════════
+  let turnstileToken    = null;
+  let turnstileWidgetId = null;
+  let turnstileReady    = false;
 
-    <!-- ══════════════════════════════════
-         RESET PASSWORD SCREEN
-    ══════════════════════════════════ -->
-    <div id="resetScreen">
+  // Called by Cloudflare SDK via ?onload=onTurnstileLoad in the script tag.
+  // This fires AFTER the SDK is 100% ready — no race condition possible.
+  function onTurnstileLoad() {
+    console.log("✅ Turnstile SDK loaded");
+    turnstileReady = true;
+    initTurnstile();
+  }
 
-      <div class="logo-area">
-        <div class="reset-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-          </svg>
-        </div>
-        <h1>Set new password</h1>
-        <p>Choose a strong password for your account</p>
-      </div>
+  function onTurnstileSuccess(token) {
+    turnstileToken = token;
+    console.log("✅ Turnstile token received:", token.substring(0, 20) + "…");
+    document.getElementById("captchaStatus").textContent = "✅ Browser verified";
+    document.getElementById("captchaStatus").className  = "captcha-status ready";
+  }
 
-      <div class="field">
-        <label>New password</label>
-        <input type="password" id="newPassword" placeholder="••••••••"
-               oninput="checkStrength(this.value)">
-        <div class="pw-strength">
-          <div class="pw-strength-bar" id="strengthBar"></div>
-        </div>
-        <div class="pw-hint" id="strengthHint">At least 6 characters</div>
-      </div>
+  function onTurnstileExpired() {
+    turnstileToken = null;
+    console.log("⏳ Turnstile token expired — resetting");
+    document.getElementById("captchaStatus").textContent = "🔄 Re-verifying browser…";
+    document.getElementById("captchaStatus").className  = "captcha-status loading";
+    if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
+  }
 
-      <div class="field">
-        <label>Confirm new password</label>
-        <input type="password" id="newConfirm" placeholder="Repeat password">
-      </div>
+  function onTurnstileError(code) {
+    turnstileToken = null;
+    console.error("❌ Turnstile error code:", code);
+    // Error 110200 = domain not registered in Cloudflare Turnstile dashboard
+    // Error 300030 = network/challenge error
+    document.getElementById("captchaStatus").textContent = "⚠️ CAPTCHA error — refresh page";
+    document.getElementById("captchaStatus").className  = "captcha-status error-state";
+  }
 
-      <button class="submit" id="resetBtn" onclick="doResetPassword()">
-        Update password
-      </button>
-      <div class="msg" id="resetMsg"></div>
+  function initTurnstile() {
+    if (!window.turnstile) { return; } // onTurnstileLoad will call us when ready
 
-    </div><!-- /resetScreen -->
-
-  </div><!-- /card -->
-
-  <!-- FIX #4: Always use latest supabase-js v2 — @2 tag on CDN can lag -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script>
-    // ═══════════════════════════════════════════════════════
-    // CONFIGURATION — replace with your actual values
-    // ═══════════════════════════════════════════════════════
-    const SUPABASE_URL = "https://zhrjmnrfklzuxmfbdqhg.supabase.co";
-    const SUPABASE_KEY = "sb_publishable_aIbByN1rFc9V3AH41Kyz6A_e1XppA1Z";
-
-    // ✅ YOUR Cloudflare Turnstile SITE KEY (public, safe to expose)
-    // Must match exactly what you pasted in:
-    // Supabase Dashboard → Auth → Attack Protection → Turnstile Site Key
-    const TURNSTILE_SITE_KEY = "0x4AAAAAADDHFTkeFyoi79mt";
-
-    // ═══════════════════════════════════════════════════════
-    // SUPABASE CLIENT
-    // ═══════════════════════════════════════════════════════
-    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    // ═══════════════════════════════════════════════════════
-    // TURNSTILE STATE
-    // ═══════════════════════════════════════════════════════
-    let turnstileToken    = null;   // filled by Turnstile success callback
-    let turnstileWidgetId = null;   // used to call reset() after each attempt
-    let turnstileReady    = false;  // true once SDK has loaded
-
-    // ── FIX #5: onload callback — this is called by the SDK itself
-    // once it's fully loaded (via ?onload=onTurnstileLoad in the script src).
-    // This is MORE RELIABLE than DOMContentLoaded timing.
-    function onTurnstileLoad() {
-      console.log("✅ Turnstile SDK loaded");
-      turnstileReady = true;
-      initTurnstile();
+    if (turnstileWidgetId !== null) {
+      // Already rendered — reset to get a fresh token
+      window.turnstile.reset(turnstileWidgetId);
+      return;
     }
 
-    // Called when user passes the (possibly invisible) challenge
-    function onTurnstileSuccess(token) {
-      turnstileToken = token;
-      console.log("✅ Turnstile token received:", token.substring(0, 20) + "…");
-      document.getElementById("captchaStatus").textContent = "✅ Browser verified";
-      document.getElementById("captchaStatus").className = "captcha-status ready";
-    }
+    const container = document.getElementById("cf-turnstile-container");
+    if (!container) return;
 
-    // Called when token expires (~5 min). Reset and get a fresh one.
-    function onTurnstileExpired() {
-      turnstileToken = null;
-      console.log("⏳ Turnstile token expired — resetting widget");
-      document.getElementById("captchaStatus").textContent = "🔄 Re-verifying browser…";
-      document.getElementById("captchaStatus").className = "captcha-status loading";
-      if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
-    }
-
-    // Called on Turnstile error (network issue, domain mismatch, etc.)
-    function onTurnstileError(code) {
-      turnstileToken = null;
-      console.error("❌ Turnstile error code:", code);
-      document.getElementById("captchaStatus").textContent = "⚠️ CAPTCHA error — refresh page";
-      document.getElementById("captchaStatus").className = "captcha-status error-state";
-
-      // Common error codes:
-      // 110200 = sitekey invalid / domain not registered in Cloudflare
-      // 110420 = token already used
-      // 300030 = challengeError (network)
-      // If you see 110200, your domain is not added in Cloudflare Turnstile settings
-    }
-
-    // ── FIX #6: Use "managed" execution mode.
-    // "interaction-only" only shows UI when needed but still requires
-    // execution:"execute" to trigger. "managed" is the correct simple mode:
-    // it runs automatically when rendered and only shows a checkbox
-    // if Cloudflare suspects a bot. Most real users see nothing.
-    function initTurnstile() {
-      if (!window.turnstile) {
-        console.warn("Turnstile SDK not ready yet — waiting…");
-        return; // onTurnstileLoad will call us when ready
-      }
-      if (turnstileWidgetId !== null) {
-        // Already rendered — just reset to get a fresh token
-        window.turnstile.reset(turnstileWidgetId);
-        return;
-      }
-
-      const container = document.getElementById("cf-turnstile-container");
-      if (!container) return;
-
-      turnstileWidgetId = window.turnstile.render(container, {
-        sitekey:             TURNSTILE_SITE_KEY,
-        callback:            onTurnstileSuccess,
-        "expired-callback":  onTurnstileExpired,
-        "error-callback":    onTurnstileError,
-        // FIX: "managed" is the correct mode — not "interaction-only"
-        // Cloudflare decides whether to show a challenge or run invisibly
-        appearance:          "always",   // shows the Turnstile widget area
-        theme:               "dark",
-        // FIX: "execute" mode runs automatically on render (no manual trigger needed)
-        execution:           "render",   // auto-execute when widget is rendered
-        size:                "normal",
-      });
-
-      console.log("✅ Turnstile widget rendered, ID:", turnstileWidgetId);
-    }
-
-    // ═══════════════════════════════════════════════════════
-    // DETECT PASSWORD-RESET FLOW (from URL hash)
-    // ═══════════════════════════════════════════════════════
-    function getHashParams() {
-      const hash = window.location.hash.substring(1);
-      return Object.fromEntries(new URLSearchParams(hash));
-    }
-
-    const hashParams = getHashParams();
-    const isRecovery = hashParams.type === "recovery" && hashParams.access_token;
-
-    if (isRecovery) {
-      sb.auth.setSession({
-        access_token:  hashParams.access_token,
-        refresh_token: hashParams.refresh_token || ""
-      }).then(() => {
-        document.getElementById("authScreen").style.display  = "none";
-        document.getElementById("resetScreen").style.display = "block";
-        history.replaceState(null, "", window.location.pathname);
-      });
-    } else {
-      sb.auth.onAuthStateChange((event, session) => {
-        if (event === "SIGNED_IN" && session) window.location.href = "/";
-      });
-      sb.auth.getSession().then(({ data }) => {
-        if (data.session) window.location.href = "/";
-      });
-
-      // FIX #7: Only call initTurnstile here if SDK already loaded.
-      // If not, onTurnstileLoad() will call it when ready.
-      // This handles both: SDK loads before DOM ready, and SDK loads after.
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", () => {
-          if (turnstileReady) initTurnstile();
-          // else: onTurnstileLoad() will fire initTurnstile() once SDK loads
-        });
-      } else {
-        // DOM already ready
-        if (turnstileReady) initTurnstile();
-      }
-    }
-
-    // ═══════════════════════════════════════════════════════
-    // TAB SWITCHING
-    // ═══════════════════════════════════════════════════════
-    let currentTab = "login";
-
-    function switchTab(tab) {
-      currentTab = tab;
-      const isLogin = tab === "login";
-      document.getElementById("tab-login").className  = "tab" + (isLogin ? " active" : "");
-      document.getElementById("tab-signup").className = "tab" + (!isLogin ? " active" : "");
-      document.getElementById("confirmField").style.display = isLogin ? "none" : "block";
-      document.getElementById("forgotBtn").style.display    = isLogin ? "inline" : "none";
-      document.getElementById("submitBtn").textContent      = isLogin ? "Log in" : "Create account";
-      document.getElementById("switchRow").innerHTML = isLogin
-        ? `Don't have an account? <span onclick="switchTab('signup')">Sign up</span>`
-        : `Already have an account? <span onclick="switchTab('login')">Log in</span>`;
-      clearMsg("msg");
-
-      // FIX #8: Reset Turnstile on tab switch to get fresh token
-      // (tokens are one-time-use — after a failed attempt you MUST reset)
-      if (turnstileWidgetId !== null) {
-        window.turnstile.reset(turnstileWidgetId);
-        turnstileToken = null;
-        document.getElementById("captchaStatus").textContent = "🔄 Re-verifying browser…";
-        document.getElementById("captchaStatus").className = "captcha-status loading";
-      }
-    }
-
-    function showMsg(id, text, type) {
-      const el = document.getElementById(id);
-      el.textContent = text;
-      el.className = "msg " + type;
-    }
-    function clearMsg(id) {
-      document.getElementById(id).className = "msg";
-    }
-
-    // ═══════════════════════════════════════════════════════
-    // SUBMIT (Login or Sign Up)
-    // ═══════════════════════════════════════════════════════
-    async function doSubmit() {
-      const email    = document.getElementById("email").value.trim();
-      const password = document.getElementById("password").value;
-      const btn      = document.getElementById("submitBtn");
-
-      if (!email || !password) return showMsg("msg", "Please fill in all fields.", "error");
-
-      // FIX #9: Wait for Turnstile token with a generous 15-second timeout.
-      // 5 seconds was too short on slow connections where Cloudflare
-      // takes time to fingerprint the browser.
-      if (!turnstileToken) {
-        btn.disabled = true;
-        btn.textContent = "Verifying browser…";
-        const tokenAcquired = await waitForTurnstile(15000);
-        if (!tokenAcquired) {
-          btn.disabled = false;
-          btn.textContent = currentTab === "login" ? "Log in" : "Create account";
-          // Attempt to re-render in case it silently failed
-          if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
-          else initTurnstile();
-          return showMsg("msg", "CAPTCHA verification timed out. Please wait a moment and try again.", "error");
-        }
-      }
-
-      if (currentTab === "signup") {
-        const confirm = document.getElementById("confirm").value;
-        if (password !== confirm) return showMsg("msg", "Passwords do not match.", "error");
-        if (password.length < 6)  return showMsg("msg", "Password must be at least 6 characters.", "error");
-
-        btn.disabled = true; btn.textContent = "Creating account…";
-
-        const { error } = await sb.auth.signUp({
-          email,
-          password,
-          options: {
-            captchaToken: turnstileToken  // ✅ Pass Turnstile token to Supabase
-          }
-        });
-
-        // FIX #10: Always clear token AND reset widget after EVERY attempt
-        // (success or failure). Turnstile tokens are single-use.
-        turnstileToken = null;
-        if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
-
-        if (error) {
-          console.error("SignUp error:", error);
-          showMsg("msg", error.message, "error");
-          btn.disabled = false; btn.textContent = "Create account";
-        } else {
-          showMsg("msg", "✅ Account created! Check your email to confirm, then log in.", "success");
-          btn.disabled = false; btn.textContent = "Create account";
-        }
-
-      } else {
-        btn.disabled = true; btn.textContent = "Logging in…";
-
-        const { error } = await sb.auth.signInWithPassword({
-          email,
-          password,
-          options: {
-            captchaToken: turnstileToken  // ✅ Pass Turnstile token to Supabase
-          }
-        });
-
-        // Always reset after use
-        turnstileToken = null;
-        if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
-
-        if (error) {
-          console.error("Login error:", error);
-          showMsg("msg", error.message, "error");
-          btn.disabled = false; btn.textContent = "Log in";
-        } else {
-          window.location.href = "/";
-        }
-      }
-    }
-
-    // Poll for Turnstile token up to timeoutMs milliseconds
-    function waitForTurnstile(timeoutMs) {
-      return new Promise((resolve) => {
-        if (turnstileToken) { resolve(true); return; }
-        const start    = Date.now();
-        const interval = setInterval(() => {
-          if (turnstileToken) {
-            clearInterval(interval);
-            resolve(true);
-          } else if (Date.now() - start > timeoutMs) {
-            clearInterval(interval);
-            resolve(false);
-          }
-        }, 100);
-      });
-    }
-
-    // ═══════════════════════════════════════════════════════
-    // OAUTH (Google / GitHub) — no CAPTCHA needed
-    // ═══════════════════════════════════════════════════════
-    async function doGitHub() {
-      await sb.auth.signInWithOAuth({
-        provider: "github",
-        options: { redirectTo: window.location.origin }
-      });
-    }
-
-    async function doGoogle() {
-      await sb.auth.signInWithOAuth({
-        provider: "google",
-        options: { redirectTo: window.location.origin }
-      });
-    }
-
-    // ═══════════════════════════════════════════════════════
-    // FORGOT PASSWORD
-    // ═══════════════════════════════════════════════════════
-    async function doForgot() {
-      const email = document.getElementById("email").value.trim();
-      if (!email) return showMsg("msg", "Enter your email above first.", "error");
-      const { error } = await sb.auth.resetPasswordForEmail(email, {
-        redirectTo: window.location.origin + "/auth"
-      });
-      if (error) showMsg("msg", error.message, "error");
-      else showMsg("msg", "✅ Password reset email sent! Check your inbox.", "success");
-    }
-
-    // Enter key support
-    document.addEventListener("keydown", e => {
-      if (e.key === "Enter") {
-        if (isRecovery) doResetPassword();
-        else doSubmit();
-      }
+    turnstileWidgetId = window.turnstile.render(container, {
+      sitekey:            TURNSTILE_SITE_KEY,
+      callback:           onTurnstileSuccess,
+      "expired-callback": onTurnstileExpired,
+      "error-callback":   onTurnstileError,
+      appearance:         "always",   // show the widget area
+      theme:              "dark",
+      execution:          "render",   // auto-challenge on render, no manual trigger
+      size:               "normal",
     });
 
-    // ═══════════════════════════════════════════════════════
-    // PASSWORD STRENGTH METER
-    // ═══════════════════════════════════════════════════════
-    function checkStrength(pw) {
-      const bar  = document.getElementById("strengthBar");
-      const hint = document.getElementById("strengthHint");
-      let score = 0;
-      if (pw.length >= 6)  score++;
-      if (pw.length >= 10) score++;
-      if (/[A-Z]/.test(pw)) score++;
-      if (/[0-9]/.test(pw)) score++;
-      if (/[^A-Za-z0-9]/.test(pw)) score++;
-      const levels = [
-        { pct: "0%",   color: "#333",    label: "At least 6 characters" },
-        { pct: "25%",  color: "#e06c6c", label: "Weak" },
-        { pct: "50%",  color: "#e0a46c", label: "Fair" },
-        { pct: "75%",  color: "#d4e06c", label: "Good" },
-        { pct: "100%", color: "#10a37f", label: "Strong 💪" },
-      ];
-      const lvl = levels[Math.min(score, 4)];
-      bar.style.width      = lvl.pct;
-      bar.style.background = lvl.color;
-      hint.textContent     = lvl.label;
+    console.log("✅ Turnstile widget rendered, ID:", turnstileWidgetId);
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // DETECT PASSWORD-RESET FLOW (arriving from email link)
+  // ═══════════════════════════════════════════════════════
+  function getHashParams() {
+    return Object.fromEntries(new URLSearchParams(window.location.hash.substring(1)));
+  }
+
+  const hashParams = getHashParams();
+  const isRecovery = hashParams.type === "recovery" && hashParams.access_token;
+
+  if (isRecovery) {
+    sb.auth.setSession({
+      access_token:  hashParams.access_token,
+      refresh_token: hashParams.refresh_token || ""
+    }).then(() => {
+      document.getElementById("authScreen").style.display  = "none";
+      document.getElementById("resetScreen").style.display = "block";
+      history.replaceState(null, "", window.location.pathname);
+    });
+  } else {
+    // Normal flow: check if already logged in
+    sb.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && session) window.location.href = "/";
+    });
+    sb.auth.getSession().then(({ data }) => {
+      if (data.session) window.location.href = "/";
+    });
+
+    // Init Turnstile if SDK already loaded (handles case where defer fires fast)
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", () => {
+        if (turnstileReady) initTurnstile();
+      });
+    } else {
+      if (turnstileReady) initTurnstile();
     }
+  }
 
-    // ═══════════════════════════════════════════════════════
-    // PASSWORD RESET (from email link)
-    // ═══════════════════════════════════════════════════════
-    async function doResetPassword() {
-      const newPw  = document.getElementById("newPassword").value;
-      const confPw = document.getElementById("newConfirm").value;
-      const btn    = document.getElementById("resetBtn");
+  // ═══════════════════════════════════════════════════════
+  // TAB SWITCHING
+  // ═══════════════════════════════════════════════════════
+  let currentTab = "login";
 
-      if (!newPw || !confPw) return showMsg("resetMsg", "Please fill in both fields.", "error");
-      if (newPw !== confPw)  return showMsg("resetMsg", "Passwords do not match.", "error");
-      if (newPw.length < 6)  return showMsg("resetMsg", "Password must be at least 6 characters.", "error");
+  function switchTab(tab) {
+    currentTab = tab;
+    const isLogin = tab === "login";
+    document.getElementById("tab-login").className   = "tab" + (isLogin ? " active" : "");
+    document.getElementById("tab-signup").className  = "tab" + (!isLogin ? " active" : "");
+    document.getElementById("confirmField").style.display = isLogin ? "none" : "block";
+    document.getElementById("forgotBtn").style.display    = isLogin ? "inline" : "none";
+    document.getElementById("submitBtn").textContent      = isLogin ? "Log in" : "Create account";
+    document.getElementById("switchRow").innerHTML = isLogin
+      ? `Don't have an account? <span onclick="switchTab('signup')">Sign up</span>`
+      : `Already have an account? <span onclick="switchTab('login')">Log in</span>`;
+    clearMsg("msg");
 
-      btn.disabled = true; btn.textContent = "Updating…";
-      const { error } = await sb.auth.updateUser({ password: newPw });
-      if (error) {
-        showMsg("resetMsg", error.message, "error");
-        btn.disabled = false; btn.textContent = "Update password";
-      } else {
-        showMsg("resetMsg", "✅ Password updated! Redirecting to login…", "success");
-        await sb.auth.signOut();
-        setTimeout(() => { window.location.href = "/auth"; }, 2000);
+    // Tokens are single-use — reset on tab switch
+    if (turnstileWidgetId !== null) {
+      window.turnstile.reset(turnstileWidgetId);
+      turnstileToken = null;
+      document.getElementById("captchaStatus").textContent = "🔄 Re-verifying browser…";
+      document.getElementById("captchaStatus").className   = "captcha-status loading";
+    }
+  }
+
+  function showMsg(id, text, type) {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    el.className = "msg " + type;
+  }
+  function clearMsg(id) { document.getElementById(id).className = "msg"; }
+
+  // ═══════════════════════════════════════════════════════
+  // SUBMIT (Login or Sign Up)
+  // ═══════════════════════════════════════════════════════
+  async function doSubmit() {
+    const email    = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    const btn      = document.getElementById("submitBtn");
+
+    if (!email || !password) return showMsg("msg", "Please fill in all fields.", "error");
+
+    // Wait up to 15s for Turnstile to finish verifying
+    // (mobile on slower connections can take 8-12 seconds)
+    if (!turnstileToken) {
+      btn.disabled    = true;
+      btn.textContent = "Verifying browser…";
+      const ok = await waitForTurnstile(15000);
+      btn.disabled = false;
+      btn.textContent = currentTab === "login" ? "Log in" : "Create account";
+      if (!ok) {
+        if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
+        else initTurnstile();
+        return showMsg("msg", "CAPTCHA timed out. Please wait a moment and try again.", "error");
       }
     }
-  </script>
 
+    if (currentTab === "signup") {
+      const confirm = document.getElementById("confirm").value;
+      if (password !== confirm) return showMsg("msg", "Passwords do not match.", "error");
+      if (password.length < 6)  return showMsg("msg", "Password must be at least 6 characters.", "error");
+
+      btn.disabled = true; btn.textContent = "Creating account…";
+
+      const { error } = await sb.auth.signUp({
+        email, password,
+        options: { captchaToken: turnstileToken }
+      });
+
+      // ALWAYS clear + reset after every attempt — tokens are one-time-use
+      turnstileToken = null;
+      if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
+
+      btn.disabled = false; btn.textContent = "Create account";
+      if (error) showMsg("msg", error.message, "error");
+      else showMsg("msg", "✅ Account created! Check your email to confirm, then log in.", "success");
+
+    } else {
+      btn.disabled = true; btn.textContent = "Logging in…";
+
+      const { error } = await sb.auth.signInWithPassword({
+        email, password,
+        options: { captchaToken: turnstileToken }
+      });
+
+      // ALWAYS clear + reset after every attempt
+      turnstileToken = null;
+      if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
+
+      if (error) {
+        btn.disabled = false; btn.textContent = "Log in";
+        showMsg("msg", error.message, "error");
+      } else {
+        window.location.href = "/";
+      }
+    }
+  }
+
+  function waitForTurnstile(timeoutMs) {
+    return new Promise(resolve => {
+      if (turnstileToken) { resolve(true); return; }
+      const start = Date.now();
+      const iv = setInterval(() => {
+        if (turnstileToken) { clearInterval(iv); resolve(true); }
+        else if (Date.now() - start > timeoutMs) { clearInterval(iv); resolve(false); }
+      }, 100);
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // OAUTH — no CAPTCHA needed (Supabase skips it for OAuth)
+  // ═══════════════════════════════════════════════════════
+  async function doGitHub() {
+    await sb.auth.signInWithOAuth({
+      provider: "github",
+      options: { redirectTo: window.location.origin }
+    });
+  }
+  async function doGoogle() {
+    await sb.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.origin }
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // FORGOT PASSWORD
+  // ═══════════════════════════════════════════════════════
+  async function doForgot() {
+    const email = document.getElementById("email").value.trim();
+    if (!email) return showMsg("msg", "Enter your email above first.", "error");
+    const { error } = await sb.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + "/auth"
+    });
+    if (error) showMsg("msg", error.message, "error");
+    else showMsg("msg", "✅ Reset email sent! Check your inbox.", "success");
+  }
+
+  // Enter key support
+  document.addEventListener("keydown", e => {
+    if (e.key === "Enter") {
+      if (isRecovery) doResetPassword();
+      else doSubmit();
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════
+  // PASSWORD STRENGTH METER
+  // ═══════════════════════════════════════════════════════
+  function checkStrength(pw) {
+    const bar  = document.getElementById("strengthBar");
+    const hint = document.getElementById("strengthHint");
+    let score = 0;
+    if (pw.length >= 6)          score++;
+    if (pw.length >= 10)         score++;
+    if (/[A-Z]/.test(pw))        score++;
+    if (/[0-9]/.test(pw))        score++;
+    if (/[^A-Za-z0-9]/.test(pw)) score++;
+    const levels = [
+      { pct: "0%",   color: "#333",    label: "At least 6 characters" },
+      { pct: "25%",  color: "#e06c6c", label: "Weak" },
+      { pct: "50%",  color: "#e0a46c", label: "Fair" },
+      { pct: "75%",  color: "#d4e06c", label: "Good" },
+      { pct: "100%", color: "#10a37f", label: "Strong 💪" },
+    ];
+    const lvl = levels[Math.min(score, 4)];
+    bar.style.width      = lvl.pct;
+    bar.style.background = lvl.color;
+    hint.textContent     = lvl.label;
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // PASSWORD RESET (from email link)
+  // ═══════════════════════════════════════════════════════
+  async function doResetPassword() {
+    const newPw  = document.getElementById("newPassword").value;
+    const confPw = document.getElementById("newConfirm").value;
+    const btn    = document.getElementById("resetBtn");
+
+    if (!newPw || !confPw)  return showMsg("resetMsg", "Please fill in both fields.", "error");
+    if (newPw !== confPw)   return showMsg("resetMsg", "Passwords do not match.", "error");
+    if (newPw.length < 6)   return showMsg("resetMsg", "Password must be at least 6 characters.", "error");
+
+    btn.disabled = true; btn.textContent = "Updating…";
+    const { error } = await sb.auth.updateUser({ password: newPw });
+    if (error) {
+      showMsg("resetMsg", error.message, "error");
+      btn.disabled = false; btn.textContent = "Update password";
+    } else {
+      showMsg("resetMsg", "✅ Password updated! Redirecting…", "success");
+      await sb.auth.signOut();
+      setTimeout(() => { window.location.href = "/auth"; }, 2000);
+    }
+  }
+</script>
 </body>
 </html>
