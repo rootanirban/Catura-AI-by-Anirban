@@ -1948,6 +1948,8 @@ window.handleSendOrStop = function () {
         sendMessage();
     }
 };
+
+window.toggleWebSearch = function() {
     webSearchEnabled = !webSearchEnabled;
 
     // Update the plus-dropdown item to show active state (green background + tick)
