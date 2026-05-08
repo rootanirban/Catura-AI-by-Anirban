@@ -2650,11 +2650,7 @@ html { scroll-behavior: smooth; }
         letter-spacing: 1.2px;
     }
 
-    /* Dim backdrop when model dropdown is open */
-    .model-dropdown.open ~ .model-backdrop,
-    .model-backdrop.active {
-        display: block;
-    }
+    /* Dim backdrop when model dropdown is open — handled via JS */
 }
 
 /* ============================
@@ -3419,10 +3415,8 @@ html { scroll-behavior: smooth; }
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.55);
-    z-index: 9999;
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(2px);
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9998;
 }
 
 @media (min-width: 769px) {
