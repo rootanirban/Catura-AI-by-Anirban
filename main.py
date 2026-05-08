@@ -48,7 +48,7 @@ NEWSDATA_API_KEY    = os.getenv("NEWSDATA_API_KEY", "")           # https://news
 ALPHAVANTAGE_KEY    = os.getenv("ALPHAVANTAGE_API_KEY", "")       # https://www.alphavantage.co (free)
 CRICAPI_KEY         = os.getenv("CRICAPI_KEY", "")                # https://www.cricapi.com (free)
 GEMINI_API_KEY      = os.getenv("GEMINI_API_KEY", "")               # https://aistudio.google.com (free)
-HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY", "")          # https://huggingface.co (free)
+
 
 
 # ============================================================
@@ -101,7 +101,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.38"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.39"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -111,7 +111,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.38", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.39", "timestamp": datetime.utcnow().isoformat()}
 
 
 # ============================================================
@@ -792,56 +792,6 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
         return None, str(e)
 
 # ============================================================
-# ✅ HELPER: Call Hugging Face Inference API with streaming
-# Used exclusively for Qwen (Catura AI Qwen)
-# ============================================================
-def call_huggingface_stream(messages, system_prompt):
-    """
-    Calls Qwen3-Coder via Hugging Face Inference API with streaming.
-    Uses HUGGINGFACE_API_KEY env var.
-    """
-    if not HUGGINGFACE_API_KEY:
-        return None, "HUGGINGFACE_API_KEY not set in environment variables"
-
-    try:
-        hf_messages = [{"role": "system", "content": system_prompt}]
-        for msg in messages:
-            if msg.get("role") != "system":
-                hf_messages.append({"role": msg["role"], "content": msg["content"]})
-
-        resp = requests.post(
-            "https://api-inference.huggingface.co/models/Qwen/Qwen3-Coder/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {HUGGINGFACE_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": "Qwen/Qwen3-Coder",
-                "messages": hf_messages,
-                "stream": True,
-                "temperature": 0.3,
-                "max_tokens": 4096,
-            },
-            stream=True,
-            timeout=(10, 120),
-        )
-        if resp.status_code != 200:
-            try:
-                err_body = resp.json()
-                err_msg = err_body.get("error", f"HTTP {resp.status_code}")
-                if isinstance(err_msg, dict):
-                    err_msg = err_msg.get("message", f"HTTP {resp.status_code}")
-            except Exception:
-                err_msg = f"HTTP {resp.status_code}"
-            return None, err_msg
-        return resp, None
-    except requests.exceptions.Timeout:
-        return None, "Request timed out"
-    except Exception as e:
-        return None, str(e)
-
-
-# ============================================================
 # ✅ MAIN CHAT ENDPOINT (POST)
 # Full pipeline: intent → tool → context → AI → stream
 # ============================================================
@@ -889,8 +839,6 @@ async def chat_post(request: Request):
             "dagr":    ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
             "apep":    ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
             "sambhav": [],  # Routed via Google AI Studio (Gemma 4 E4B) — see GEMMA_GOOGLE_MODELS
-            "ra": ["nousresearch/hermes-3-llama-3.1-405b:free"],
-            "qwen": [],  # Routed via Hugging Face (see call_huggingface_stream)
         }
         model_key  = model.strip()
         model_pool = model_pools.get(model_key, model_pools["dagr"])
@@ -1044,17 +992,6 @@ async def chat_post(request: Request):
                 "always say: 'I am Catura AI Gemma4.' Never mention Dagr, Apep, Sambhav, or Gemma."
                 + NO_TOOL_CALL_RULE
             ),
-            "qwen": (
-                "Your name is Catura (pronounced kuh-CHUR-uh). You are a precise and powerful "
-                "AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI Qwen, specialised in coding and technical problem-solving. "
-                "Be direct, accurate, and efficient. Never start with 'Certainly!', 'Great question!', or similar openers. "
-                "Match the user's language automatically. Keep code in fenced markdown blocks with language tags. "
-                "Never make up facts. If asked who made you, say 'I was created by Anirban.' "
-                "If asked which model you are, say: 'I am Catura AI Qwen.' "
-                "Never reveal the underlying model name or provider."
-                + NO_TOOL_CALL_RULE
-            ),
         }
         system_prompt = system_prompts.get(model_key, system_prompts["dagr"])
 
@@ -1194,57 +1131,6 @@ async def chat_post(request: Request):
 
             return StreamingResponse(
                 generate_gemma(),
-                media_type="text/event-stream",
-                headers={
-                    "Cache-Control": "no-cache",
-                    "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000",
-                }
-            )
-
-        # ── QWEN: Hugging Face Inference API ──────────────────────────────
-        if model_key == "qwen":
-            def generate_qwen():
-                full_reply = ""
-                if tool_result:
-                    badge_payload = json.dumps({"tool_used": tool_result.get("tool", ""), "intent": intent})
-                    yield f"data: {badge_payload}\n\n"
-                yield ": heartbeat\n\n"
-                resp, err = call_huggingface_stream(user_memory[session_id][-20:], system_prompt)
-                if resp is None:
-                    yield f"data: {json.dumps({'error': f'Qwen unavailable: {err}'})}\n\n"
-                    yield "data: [DONE]\n\n"
-                    return
-                try:
-                    for line in resp.iter_lines():
-                        if not line:
-                            continue
-                        decoded = line.decode("utf-8")
-                        if not decoded.startswith("data: "):
-                            continue
-                        payload = decoded[6:]
-                        if payload.strip() == "[DONE]":
-                            break
-                        try:
-                            chunk = json.loads(payload)
-                            choices = chunk.get("choices", [])
-                            if not choices:
-                                continue
-                            token = (choices[0].get("delta") or {}).get("content") or ""
-                            if token:
-                                full_reply += token
-                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
-                            continue
-                except Exception as e:
-                    print(f"❌ [Qwen POST] stream exception: {e}")
-                if full_reply.strip():
-                    user_memory[session_id].append({"role": "assistant", "content": full_reply})
-                    if len(user_memory[session_id]) > 40:
-                        user_memory[session_id] = user_memory[session_id][-40:]
-                yield "data: [DONE]\n\n"
-
-            return StreamingResponse(
-                generate_qwen(),
                 media_type="text/event-stream",
                 headers={
                     "Cache-Control": "no-cache",
@@ -1400,8 +1286,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "dagr":    ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
             "apep":    ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
             "sambhav": [],  # Routed via Google AI Studio (Gemma 4 E4B) — see GEMMA_GOOGLE_MODELS
-            "ra": ["nousresearch/hermes-3-llama-3.1-405b:free"],
-            "qwen": [],  # Routed via Hugging Face (see call_huggingface_stream)
         }
         model_key  = model.strip()
         model_pool = model_pools.get(model_key, model_pools["dagr"])
@@ -1467,17 +1351,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "If asked who made you, say 'I was created by Anirban.'"
                 + NO_TOOL_CALL_RULE
             ),
-            "qwen": (
-                "Your name is Catura (pronounced kuh-CHUR-uh). You are a precise and powerful "
-                "AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI Qwen, specialised in coding and technical problem-solving. "
-                "Be direct, accurate, and efficient. Never start with 'Certainly!', 'Great question!', or similar openers. "
-                "Match the user's language automatically. Keep code in fenced markdown blocks with language tags. "
-                "Never make up facts. If asked who made you, say 'I was created by Anirban.' "
-                "If asked which model you are, say: 'I am Catura AI Qwen.' "
-                "Never reveal the underlying model name or provider."
-                + NO_TOOL_CALL_RULE
-            ),
         }
         system_prompt = system_prompts.get(model_key, system_prompts["dagr"])
 
@@ -1492,56 +1365,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
         messages = [{"role": "system", "content": system_prompt}] + user_memory[session_id][-20:]
         api_key  = os.getenv("OPENROUTER_API_KEY")
-
-        # ── QWEN: Hugging Face Inference API ──────────────────────────────
-        if model_key == "qwen":
-            def generate_qwen_get():
-                full_reply = ""
-                if tool_result:
-                    yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
-                yield ": heartbeat\n\n"
-                resp, err = call_huggingface_stream(user_memory[session_id][-20:], system_prompt)
-                if resp is None:
-                    yield f"data: {json.dumps({'error': f'Qwen unavailable: {err}'})}\n\n"
-                    yield "data: [DONE]\n\n"
-                    return
-                try:
-                    for line in resp.iter_lines():
-                        if not line:
-                            continue
-                        decoded = line.decode("utf-8")
-                        if not decoded.startswith("data: "):
-                            continue
-                        payload = decoded[6:]
-                        if payload.strip() == "[DONE]":
-                            break
-                        try:
-                            chunk = json.loads(payload)
-                            choices = chunk.get("choices", [])
-                            if not choices:
-                                continue
-                            token = (choices[0].get("delta") or {}).get("content") or ""
-                            if token:
-                                full_reply += token
-                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
-                            continue
-                except Exception as e:
-                    print(f"❌ [Qwen GET] stream exception: {e}")
-                if full_reply.strip():
-                    user_memory[session_id].append({"role": "assistant", "content": full_reply})
-                    if len(user_memory[session_id]) > 40:
-                        user_memory[session_id] = user_memory[session_id][-40:]
-                yield "data: [DONE]\n\n"
-
-            return StreamingResponse(
-                generate_qwen_get(),
-                media_type="text/event-stream",
-                headers={
-                    "Cache-Control": "no-cache",
-                    "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000",
-                }
-            )
 
         def generate():
             MAX_HANDOFFS = 40

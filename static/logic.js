@@ -588,87 +588,6 @@ function createBotWrapper() {
     return { wrapper, botMsg };
 }
 
-// ============================
-// ✍️ STREAMER
-// ============================
-async function streamWords(botMsg, wrapper, reader, decoder, chatbox) {
-    let buffer         = "";
-    let fullReply      = "";
-    let done_streaming = false;
-    let renderTimer    = null;
-
-    // Live render: re-render markdown every ~80ms during streaming
-    // so the user sees formatted output as it arrives, not plain text.
-    const scheduleRender = () => {
-        if (renderTimer) return;
-        renderTimer = setTimeout(() => {
-            renderTimer = null;
-            if (fullReply) {
-                botMsg.innerHTML = formatMessage(repairTruncated(fullReply)) +
-                    '<span class="stream-cursor"></span>';
-                chatbox.scrollTop = chatbox.scrollHeight;
-            }
-        }, 80);
-    };
-
-    try {
-        outer:
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split("\n");
-            buffer = lines.pop();
-
-            for (const line of lines) {
-                if (!line.startsWith("data: ")) continue;
-                const payload = line.slice(6).trim();
-
-                if (payload === "[DONE]") {
-                    done_streaming = true;
-                    break outer;
-                }
-
-                try {
-                    const chunk = JSON.parse(payload);
-
-                    if (chunk.error) {
-                        if (!fullReply.trim()) {
-                            botMsg.innerHTML = `<p style="color:#e06c6c">⚠️ ${chunk.error}</p>`;
-                        }
-                        return fullReply || "";
-                    }
-
-                    if (chunk.status) continue;
-
-                    if (chunk.token) {
-                        fullReply += chunk.token;
-                        scheduleRender();
-                    }
-                } catch { continue; }
-            }
-        }
-    } catch (networkErr) {
-        console.warn("Stream read error (handled):", networkErr);
-    }
-
-    // Cancel any pending incremental render
-    if (renderTimer) { clearTimeout(renderTimer); renderTimer = null; }
-
-    // Final render — full, clean, no cursor
-    if (fullReply.trim()) {
-        botMsg.innerHTML = formatMessage(repairTruncated(fullReply));
-        wrapper.dataset.raw = fullReply;
-        chatbox.scrollTop = chatbox.scrollHeight;
-        return fullReply;
-    }
-
-    if (!done_streaming) {
-        botMsg.innerHTML = `<p style="color:#e06c6c">⚠️ No response received. The model may be rate-limited — please try again.</p>`;
-    }
-    return "";
-}
 
 // ============================
 // ➕ NEW CHAT
@@ -1909,11 +1828,6 @@ function detectClientIntent(message) {
     return "general";
 }
 
-// ── Legacy needsWebSearch (kept for compatibility) ───────────────────────────
-function needsWebSearch(message) {
-    return detectClientIntent(message) !== "general";
-}
-
 // ── performWebSearch (legacy manual toggle) ──────────────────────────────────
 async function performWebSearch(query) {
     try {
@@ -2086,7 +2000,7 @@ window.toggleModelSelector = function (e) {
 
         // Auto-show floating panel if a secondary model is active
         // Use requestAnimationFrame to ensure dropdown is painted before measuring
-        const moreModels = ['apep', 'gemma', 'gemma4', 'qwen'];
+        const moreModels = ['apep', 'gemma', 'gemma4'];
         if (moreModels.includes(selectedModel)) {
             requestAnimationFrame(() => {
                 requestAnimationFrame(() => { toggleMoreModels(null); });
