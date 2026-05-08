@@ -1635,6 +1635,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                     sports:     { icon: "🏏", label: "Live Scores" },
                     news:       { icon: "📰", label: "Latest News" },
                     web_search: { icon: "🔍", label: "Web Search" },
+                    wikipedia:  { icon: "📖", label: "Wikipedia" },
                 };
                 const badge = toolBadges[toolUsed] || { icon: "🔧", label: toolUsed };
                 const badgeDiv = document.createElement("div");

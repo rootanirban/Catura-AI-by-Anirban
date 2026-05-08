@@ -13,6 +13,7 @@ import base64
 import io
 from PIL import Image
 from duckduckgo_search import DDGS
+from wiki import search_wikipedia
 
 app = FastAPI()
 
@@ -101,7 +102,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.47"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.48"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -111,7 +112,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.47", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.48", "timestamp": datetime.utcnow().isoformat()}
 
 
 # ============================================================
@@ -191,6 +192,43 @@ def detect_intent(text: str) -> str:
     ]
     if any(re.search(p, lower) for p in news_patterns):
         return "news"
+
+    # ── WIKIPEDIA (educational / informational / GK / concept / biography) ──
+    # Triggered when the question is clearly knowledge-based and NOT real-time.
+    # wiki.py has its own internal skip-check so real-time questions routed here
+    # by mistake will still fall through to web_search automatically.
+    wikipedia_patterns = [
+        # Definition / explanation
+        r'\bwhat is\b', r'\bwhat are\b', r'\bwhat was\b', r'\bwhat were\b',
+        r'\bwho is\b', r'\bwho was\b', r'\bwho were\b',
+        r'\bwhere is\b', r'\bwhere was\b',
+        r'\bwhen (was|did|were|is) (the|a|an)\b',
+        r'\bhow (does|do|did|was|were|is|are)\b',
+        r'\bwhy (is|are|was|were|did|does)\b',
+        r'\bexplain\b', r'\bdescribe\b', r'\bdefine\b', r'\bdefinition\b',
+        r'\bmeaning of\b', r'\bmeant by\b',
+        # Knowledge domains
+        r'\bhistory of\b', r'\bhistorical\b', r'\borigin of\b', r'\borigins of\b',
+        r'\bbiography\b', r'\bborn in\b', r'\bfounded by\b', r'\binvented by\b',
+        r'\bdiscovered by\b', r'\bcreated by\b',
+        r'\bcountry\b', r'\bcapital of\b', r'\bpopulation of\b',
+        r'\bplanet\b', r'\bgalaxy\b', r'\bstar\b', r'\buniverse\b', r'\bsolar system\b',
+        r'\bscience\b', r'\bphysics\b', r'\bchemistry\b', r'\bbiology\b',
+        r'\bmathematics?\b', r'\bformula\b', r'\bequation\b', r'\btheorem\b',
+        r'\blanguage\b', r'\balphabet\b', r'\bliterature\b', r'\bauthor of\b',
+        r'\bmovie\b', r'\bfilm\b', r'\bdirected by\b',
+        r'\breligion\b', r'\bphilosophy\b', r'\bmythology\b',
+        r'\bwar\b', r'\bempire\b', r'\bcivilization\b', r'\bdinasty\b',
+        r'\btechnology\b', r'\binvention\b', r'\bdiscovery\b',
+        r'\beconomics?\b', r'\btheory\b', r'\bconcept\b', r'\bprinciple\b',
+        r'\bfamous\b', r'\blegendary\b', r'\bnotable\b', r'\bknown for\b',
+        r'\btell me about\b', r'\blearn about\b', r'\binformation (about|on)\b',
+        r'\bfacts? about\b', r'\bwhat do you know about\b',
+        r'\bhow (many|much|far|long|tall|big|old|deep|high)\b',
+        r'\blocation of\b', r'\bsituated\b', r'\blocated\b',
+    ]
+    if any(re.search(p, lower) for p in wikipedia_patterns):
+        return "wikipedia"
 
     # ── WEB SEARCH (general real-time lookup) ──────────────────────────────
     web_search_patterns = [
@@ -1145,6 +1183,26 @@ def tool_web_search(query: str, max_results: int = 5) -> dict:
         return {"tool": "web_search", "query": query, "results": [], "error": str(e)}
 
 
+def tool_wikipedia(prompt: str) -> dict:
+    """
+    Wikipedia intelligence tool.
+    Searches Wikipedia for the best matching article and returns a context dict.
+    If Wikipedia has no good result, automatically falls back to DuckDuckGo web search.
+    """
+    print(f"📚 [TOOL] wikipedia | prompt: {prompt[:80]}")
+    result = search_wikipedia(prompt)
+
+    if result["found"]:
+        return result  # {"tool": "wikipedia", "found": True, "title": ..., "context": ...}
+
+    # Fallback: Wikipedia had no useful answer — use web search silently
+    reason = result.get("reason", "")
+    print(f"⚡ [Wiki→Web] fallback reason='{reason}' — running web_search")
+    web_result = tool_web_search(prompt)
+    web_result["wiki_fallback"] = True   # flag so context builder knows
+    return web_result
+
+
 # ============================================================
 # ✅ TOOL ROUTER — dispatches to the correct tool
 # ============================================================
@@ -1159,6 +1217,7 @@ def run_tool(intent: str, prompt: str) -> dict | None:
     if intent == "finance":     return tool_finance(prompt)
     if intent == "news":        return tool_news(prompt)
     if intent == "sports":      return tool_sports(prompt)
+    if intent == "wikipedia":   return tool_wikipedia(prompt)
     if intent == "web_search":  return tool_web_search(prompt)
     return None  # general — no tool
 
@@ -1253,6 +1312,29 @@ def build_tool_context(tool_result: dict) -> str:
             lines.append(f"  Venue: {m.get('venue', 'N/A')}")
             for s in m.get("score", []):
                 lines.append(f"  Score: {s.get('inning', '')} — {s.get('r', 0)}/{s.get('w', 0)} in {s.get('o', 0)} overs")
+
+    elif tool == "wikipedia":
+        if tool_result.get("found"):
+            lines.append(tool_result["context"])
+            lines.append(
+                "\n\n📌 INSTRUCTION: Use the Wikipedia context above to answer accurately. "
+                "Explain naturally in your own words — do not copy the extract verbatim. "
+                "If the context covers the question fully, do NOT search further. "
+                "If the user asked something the context only partially answers, note the gap."
+            )
+        else:
+            # Should not reach here (tool_wikipedia auto-falls to web_search),
+            # but handle defensively
+            lines.append("Wikipedia had no result for this query.")
+
+    elif tool == "web_search" and tool_result.get("wiki_fallback"):
+        # Wikipedia fell back to web search — label it correctly
+        lines.append(f"Search query: {tool_result['query']}")
+        lines.append("(Wikipedia had no result — showing web search results instead)")
+        for i, r in enumerate(tool_result.get("results", []), 1):
+            lines.append(f"\n{i}. {r['title']}")
+            lines.append(f"   {r['body']}")
+            lines.append(f"   Source: {r['href']}")
 
     elif tool == "web_search":
         lines.append(f"Search query: {tool_result['query']}")
