@@ -221,12 +221,20 @@
         <label style="margin:0">Password</label>
         <button class="forgot" id="forgotBtn" onclick="doForgot()">I forgot my password</button>
       </div>
-      <input type="password" id="password" placeholder="••••••••">
+      <input type="password" id="password" placeholder="••••••••" oninput="checkSignupStrength(this.value)">
+      <div class="pw-strength" id="signupPwStrength" style="display:none; margin-top:6px;">
+        <div class="pw-strength-bar" id="signupPwBar"></div>
+      </div>
+      <div class="pw-hint" id="signupPwHint" style="display:none"></div>
     </div>
 
     <div class="field" id="confirmField" style="display:none">
       <label>Confirm password</label>
       <input type="password" id="confirm" placeholder="Repeat password">
+      <div class="pw-strength" id="signupStrengthBar" style="margin-top:8px;">
+        <div class="pw-strength-bar" id="signupStrengthBarInner"></div>
+      </div>
+      <div class="pw-hint" id="signupStrengthHint" style="display:none"></div>
     </div>
 
     <!--
@@ -234,7 +242,6 @@
       with display:none — Turnstile cannot render into a hidden element.
     -->
     <div id="cf-turnstile-container"></div>
-    <div class="captcha-status loading" id="captchaStatus">🔄 Verifying browser…</div>
 
     <button class="submit" id="submitBtn" onclick="doSubmit()">Log in</button>
     <div class="msg" id="msg"></div>
@@ -314,8 +321,6 @@
   function onTurnstileSuccess(token) {
     turnstileToken = token;
     console.log("✅ Turnstile token received:", token.substring(0, 20) + "…");
-    document.getElementById("captchaStatus").textContent = "✅ Browser verified";
-    document.getElementById("captchaStatus").className  = "captcha-status ready";
   }
 
   function onTurnstileExpired() {
@@ -421,8 +426,6 @@
     if (turnstileWidgetId !== null) {
       window.turnstile.reset(turnstileWidgetId);
       turnstileToken = null;
-      document.getElementById("captchaStatus").textContent = "🔄 Re-verifying browser…";
-      document.getElementById("captchaStatus").className   = "captcha-status loading";
     }
   }
 
@@ -548,7 +551,36 @@
   });
 
   // ═══════════════════════════════════════════════════════
-  // PASSWORD STRENGTH METER
+  // PASSWORD STRENGTH METER (signup form)
+  // ═══════════════════════════════════════════════════════
+  function checkSignupStrength(pw) {
+    const bar      = document.getElementById("signupPwBar");
+    const hint     = document.getElementById("signupPwHint");
+    const wrap     = document.getElementById("signupPwStrength");
+    if (!pw) { wrap.style.display = "none"; hint.style.display = "none"; return; }
+    wrap.style.display = "block"; hint.style.display = "block";
+    let score = 0;
+    if (pw.length >= 6)           score++;
+    if (pw.length >= 10)          score++;
+    if (/[A-Z]/.test(pw))         score++;
+    if (/[0-9]/.test(pw))         score++;
+    if (/[^A-Za-z0-9]/.test(pw))  score++;
+    const levels = [
+      { pct: "10%",  color: "#e06c6c", label: "Too short" },
+      { pct: "25%",  color: "#e06c6c", label: "Weak" },
+      { pct: "50%",  color: "#e0a46c", label: "Fair" },
+      { pct: "75%",  color: "#d4e06c", label: "Good" },
+      { pct: "100%", color: "#10a37f", label: "Strong 💪" },
+    ];
+    const lvl = levels[Math.min(score, 4)];
+    bar.style.width      = lvl.pct;
+    bar.style.background = lvl.color;
+    hint.textContent     = lvl.label;
+    hint.style.color     = lvl.color;
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // PASSWORD STRENGTH METER (reset password screen)
   // ═══════════════════════════════════════════════════════
   function checkStrength(pw) {
     const bar  = document.getElementById("strengthBar");
