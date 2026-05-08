@@ -2027,48 +2027,76 @@ window.toggleModelSelector = function (e) {
     closeAllModelMenus();
 
     if (!isOpen) {
-        const rect = btn.getBoundingClientRect();
+        const isMobile = window.innerWidth <= 768;
 
-        // Measure real dropdown height off-screen before showing
-        dropdown.style.visibility = 'hidden';
-        dropdown.style.opacity = '0';
-        dropdown.style.transform = 'none';
-        dropdown.style.display = 'block';
-        dropdown.style.top = '-9999px';
-        dropdown.style.left = '-9999px';
-        const dropH = dropdown.scrollHeight || 180;
-        const dropW = Math.max(dropdown.offsetWidth || 0, 220);
-        dropdown.style.display = '';
-        dropdown.style.top = '';
-        dropdown.style.left = '';
-        dropdown.style.visibility = '';
-        dropdown.style.opacity = '';
-        dropdown.style.transform = '';
+        if (isMobile) {
+            // ── Mobile: bottom-sheet, no manual positioning needed ──
+            dropdown.style.top    = '';
+            dropdown.style.left   = '';
+            dropdown.style.bottom = '';
 
-        // Place above the button with an 8px gap
-        let top = rect.top - dropH - 8;
-        if (top < 8) top = rect.bottom + 8; // flip below if no room above
-        top = Math.max(8, Math.min(top, window.innerHeight - dropH - 8));
+            // Show/create backdrop
+            let backdrop = document.getElementById('modelBackdrop');
+            if (!backdrop) {
+                backdrop = document.createElement('div');
+                backdrop.id = 'modelBackdrop';
+                backdrop.className = 'model-backdrop';
+                backdrop.addEventListener('click', () => closeAllModelMenus());
+                document.body.appendChild(backdrop);
+            }
+            backdrop.style.display = 'block';
+            // Force reflow then fade in
+            requestAnimationFrame(() => { backdrop.style.opacity = '1'; });
 
-        // Align right edge of dropdown with right edge of button
-        let left = rect.right - dropW;
-        if (left < 8) left = 8;
-        if (left + dropW > window.innerWidth - 8) left = window.innerWidth - dropW - 8;
+            dropdown.classList.add('open');
+            btn.classList.add('open');
 
-        dropdown.style.top    = top + 'px';
-        dropdown.style.left   = left + 'px';
-        dropdown.style.bottom = 'auto';
+            const moreModels = ['apep', 'gemma', 'gemma4'];
+            if (moreModels.includes(selectedModel)) {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => { toggleMoreModels(null); });
+                });
+            }
+        } else {
+            // ── Desktop: original floating dropdown positioning ──
+            const rect = btn.getBoundingClientRect();
 
-        dropdown.classList.add('open');
-        btn.classList.add('open');
+            dropdown.style.visibility = 'hidden';
+            dropdown.style.opacity = '0';
+            dropdown.style.transform = 'none';
+            dropdown.style.display = 'block';
+            dropdown.style.top = '-9999px';
+            dropdown.style.left = '-9999px';
+            const dropH = dropdown.scrollHeight || 180;
+            const dropW = Math.max(dropdown.offsetWidth || 0, 220);
+            dropdown.style.display = '';
+            dropdown.style.top = '';
+            dropdown.style.left = '';
+            dropdown.style.visibility = '';
+            dropdown.style.opacity = '';
+            dropdown.style.transform = '';
 
-        // Auto-show floating panel if a secondary model is active
-        // Use requestAnimationFrame to ensure dropdown is painted before measuring
-        const moreModels = ['apep', 'gemma', 'gemma4'];
-        if (moreModels.includes(selectedModel)) {
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => { toggleMoreModels(null); });
-            });
+            let top = rect.top - dropH - 8;
+            if (top < 8) top = rect.bottom + 8;
+            top = Math.max(8, Math.min(top, window.innerHeight - dropH - 8));
+
+            let left = rect.right - dropW;
+            if (left < 8) left = 8;
+            if (left + dropW > window.innerWidth - 8) left = window.innerWidth - dropW - 8;
+
+            dropdown.style.top    = top + 'px';
+            dropdown.style.left   = left + 'px';
+            dropdown.style.bottom = 'auto';
+
+            dropdown.classList.add('open');
+            btn.classList.add('open');
+
+            const moreModels = ['apep', 'gemma', 'gemma4'];
+            if (moreModels.includes(selectedModel)) {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => { toggleMoreModels(null); });
+                });
+            }
         }
     }
 };
@@ -2108,6 +2136,10 @@ function closeAllModelMenus() {
     const row   = document.getElementById('moreModelsRow');
     if (panel) panel.classList.remove('open');
     if (row)   row.classList.remove('open');
+
+    // Hide mobile backdrop
+    const backdrop = document.getElementById('modelBackdrop');
+    if (backdrop) backdrop.style.display = 'none';
 }
 
 window.toggleMoreModels = function (e) {
@@ -2123,31 +2155,35 @@ window.toggleMoreModels = function (e) {
         return;
     }
 
-    const dropdownEl = document.getElementById('modelDropdown');
-    if (!dropdownEl) return;
+    const isMobile = window.innerWidth <= 768;
 
-    const panelW = 230;
-    const gap    = 8;
+    if (!isMobile) {
+        // Desktop: position panel to the right of the dropdown
+        const dropdownEl = document.getElementById('modelDropdown');
+        if (!dropdownEl) return;
 
-    // Get the live rect of the already-positioned fixed dropdown
-    const dropRect = dropdownEl.getBoundingClientRect();
+        const panelW = 230;
+        const gap    = 8;
+        const dropRect = dropdownEl.getBoundingClientRect();
 
-    // Place panel to the RIGHT of the dropdown
-    let left = dropRect.right + gap;
-    // If not enough room on the right, flip to the left
-    if (left + panelW > window.innerWidth - 8) {
-        left = dropRect.left - panelW - gap;
+        let left = dropRect.right + gap;
+        if (left + panelW > window.innerWidth - 8) {
+            left = dropRect.left - panelW - gap;
+        }
+        if (left < 8) left = 8;
+
+        let top = dropRect.top;
+        const panelEstH = 210;
+        top = Math.max(8, Math.min(top, window.innerHeight - panelEstH - 8));
+
+        panel.style.left = left + 'px';
+        panel.style.top  = top + 'px';
+    } else {
+        // Mobile: clear desktop positioning — CSS handles bottom-sheet
+        panel.style.left = '';
+        panel.style.top  = '';
     }
-    if (left < 8) left = 8;
 
-    // Align the top of the panel with the top of the dropdown
-    let top = dropRect.top;
-    // Clamp so panel stays on screen
-    const panelEstH = 210; // ~3 items
-    top = Math.max(8, Math.min(top, window.innerHeight - panelEstH - 8));
-
-    panel.style.left = left + 'px';
-    panel.style.top  = top + 'px';
     panel.classList.add('open');
     row.classList.add('open');
 };
