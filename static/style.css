@@ -3454,38 +3454,4 @@ html { scroll-behavior: smooth; }
 /* ============================
    MODEL DROPDOWN BACKDROP (mobile)
    ============================ */
-.model-backdrop {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.65);
-    z-index: 9998;
-    pointer-events: all;
-    cursor: default;
-    transition: opacity 0.25s ease;
-    opacity: 0;
-}
-
-/* Body content recedes when model panel is open */
-body.model-panel-open .chat-wrapper,
-body.model-panel-open #chatContainer,
-body.model-panel-open .messages-area {
-    transform: scale(0.97);
-    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-body:not(.model-panel-open) .chat-wrapper,
-body:not(.model-panel-open) #chatContainer,
-body:not(.model-panel-open) .messages-area {
-    transform: scale(1);
-    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-@media (min-width: 769px) {
-    .model-backdrop { display: none !important; }
-    body.model-panel-open .chat-wrapper,
-    body.model-panel-open #chatContainer,
-    body.model-panel-open .messages-area {
-        transform: none;
-    }
-}
+/* model-backdrop removed */
