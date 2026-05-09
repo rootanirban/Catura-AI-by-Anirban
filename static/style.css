@@ -1747,8 +1747,8 @@ html { scroll-behavior: smooth; }
         width: 100%;
         height: auto;
         margin: 0;
-        padding: 10px 14px;
-        padding-bottom: max(10px, env(safe-area-inset-bottom));
+        padding: 12px 14px 10px 14px;
+        padding-bottom: max(12px, env(safe-area-inset-bottom));
         border-radius: 12px 12px 0 0;
         border: 1px solid #252525;
         border-left: none;
@@ -1799,7 +1799,7 @@ html { scroll-behavior: smooth; }
         -webkit-appearance: none;
         appearance: none;
         -webkit-user-zoom: fixed;
-        min-height: 22px;
+        min-height: 42px;
         max-height: 120px;
     }
 
@@ -1809,17 +1809,27 @@ html { scroll-behavior: smooth; }
 
     /* === SEND & PLUS BUTTONS === */
     .send-btn {
-        width: 34px;
-        height: 34px;
-        min-width: 44px;
-        min-height: 44px;
+        width: 32px;
+        height: 32px;
+        min-width: 32px;
+        min-height: 32px;
+    }
+
+    .send-btn svg {
+        width: 15px;
+        height: 15px;
     }
 
     .plus-btn {
-        width: 34px;
-        height: 34px;
-        min-width: 44px;
-        min-height: 44px;
+        width: 30px;
+        height: 30px;
+        min-width: 30px;
+        min-height: 30px;
+    }
+
+    .plus-btn svg {
+        width: 14px;
+        height: 14px;
     }
 
     /* === SIDEBAR === */
