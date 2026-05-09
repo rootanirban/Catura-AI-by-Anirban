@@ -1,632 +1,908 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Catura AI — Login</title>
-  <link rel="icon" type="image/png" href="static/logos.png">
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      background: #0d0d0d;
-      color: #e5e5e5;
-      min-height: 100dvh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 1rem;
-    }
-    .card {
-      background: #1a1a1a;
-      border: 1px solid #2a2a2a;
-      border-radius: 18px;
-      padding: 2rem;
-      width: 100%;
-      max-width: 390px;
-    }
-    .logo-area { text-align: center; margin-bottom: 1.75rem; }
-    .logo-box {
-      width: 60px; height: 60px;
-      border-radius: 12px;
-      display: flex; align-items: center; justify-content: center;
-      margin: 0 auto 12px;
-      background: transparent;
-    }
-    .logo-box img { width: 100%; height: 100%; object-fit: contain; }
-    .logo-area h1 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
-    .logo-area p  { font-size: 13px; color: #888; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    .tabs {
-      display: flex;
-      background: #111;
-      border-radius: 10px;
-      padding: 3px;
-      gap: 3px;
-      margin-bottom: 1.5rem;
-    }
-    .tab {
-      flex: 1; padding: 8px;
-      border-radius: 8px; border: none;
-      font-size: 13px; font-weight: 500;
-      cursor: pointer; transition: 0.2s;
-      background: transparent; color: #888;
-    }
-    .tab.active { background: #10a37f; color: white; }
+    <!-- ═══ PRIMARY META ═══ -->
+    <title>Sign in to Catura AI — Free AI Chatbot</title>
+    <meta name="description" content="Log in or create a free account to chat with Catura AI — your intelligent everyday AI assistant.">
+    <meta name="robots" content="noindex, nofollow">
 
-    .oauth-btn {
-      display: flex; align-items: center; gap: 10px;
-      padding: 10px 14px;
-      width: 100%;
-      background: #111; border: 1px solid #2a2a2a;
-      border-radius: 10px; color: #e5e5e5;
-      font-size: 13px; cursor: pointer;
-      transition: background 0.15s;
-      margin-bottom: 8px;
-    }
-    .oauth-btn:hover { background: #222; }
-    .oauth-btn svg { flex-shrink: 0; }
+    <!-- ═══ OPEN GRAPH ═══ -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Sign in to Catura AI">
+    <meta property="og:description" content="Log in or create a free account to chat with Catura AI.">
+    <meta property="og:image" content="/static/icons/icon-512.png">
+    <meta property="og:url" content="https://catura.ai/auth">
+    <meta property="og:site_name" content="Catura AI">
 
-    .divider {
-      display: flex; align-items: center; gap: 10px;
-      margin: 1rem 0; color: #444; font-size: 12px;
-    }
-    .divider::before, .divider::after {
-      content: ''; flex: 1;
-      height: 1px; background: #2a2a2a;
-    }
+    <!-- ═══ ICONS ═══ -->
+    <link rel="icon" type="image/png" href="static/logos.png">
 
-    label { display: block; font-size: 12px; color: #aaa; margin-bottom: 5px; }
-    .field { margin-bottom: 10px; }
-    .field-row {
-      display: flex; justify-content: space-between; align-items: center;
-      margin-bottom: 5px;
-    }
-    .forgot { font-size: 12px; color: #10a37f; cursor: pointer; background: none; border: none; padding: 0; }
-    .forgot:hover { text-decoration: underline; }
+    <style>
+        /* ── Reset ── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    input[type="email"],
-    input[type="password"],
-    input[type="text"] {
-      width: 100%; padding: 10px 13px;
-      background: #111; border: 1px solid #2a2a2a;
-      border-radius: 10px; color: #e5e5e5;
-      font-size: 13px; outline: none;
-      transition: border 0.2s;
-    }
-    input:focus { border-color: #10a37f; }
+        /* ── Screen-reader only utility ── */
+        .sr-only {
+            position: absolute;
+            width: 1px; height: 1px;
+            padding: 0; margin: -1px;
+            overflow: hidden;
+            clip: rect(0,0,0,0);
+            white-space: nowrap;
+            border: 0;
+        }
 
-    .submit {
-      width: 100%; padding: 11px;
-      background: #10a37f; border: none;
-      border-radius: 10px; color: white;
-      font-size: 14px; font-weight: 600;
-      cursor: pointer; margin-top: 12px;
-      transition: background 0.2s;
-    }
-    .submit:hover    { background: #0d8c6d; }
-    .submit:disabled { background: #1a4a3a; cursor: not-allowed; }
+        /* ── Base ── */
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #0d0d0d;
+            color: #e5e5e5;
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
 
-    .msg {
-      margin-top: 12px; padding: 10px 13px;
-      border-radius: 8px; font-size: 13px;
-      text-align: center; display: none;
-    }
-    .msg.error   { background: #2a1a1a; color: #ff6b6b; border: 1px solid #3a1a1a; display: block; }
-    .msg.success { background: #1a2a1a; color: #6bff9e; border: 1px solid #1a3a1a; display: block; }
+        /* ── Card ── */
+        .card {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 18px;
+            padding: 2rem;
+            width: 100%;
+            max-width: 390px;
+        }
 
-    .switch-row {
-      text-align: center; font-size: 12px;
-      color: #888; margin-top: 14px;
-    }
-    .switch-row span { color: #10a37f; cursor: pointer; }
-    .switch-row span:hover { text-decoration: underline; }
+        /* ── Logo / brand area ── */
+        .logo-area {
+            text-align: center;
+            margin-bottom: 1.75rem;
+        }
+        .logo-box {
+            width: 60px; height: 60px;
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 12px;
+            background: transparent;
+        }
+        .logo-box img { width: 100%; height: 100%; object-fit: contain; }
+        .logo-area h1 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+        .logo-area p  { font-size: 13px; color: #888; }
 
-    /* Turnstile widget container */
-    #cf-turnstile-container {
-      margin-top: 8px;
-      display: flex;
-      justify-content: center;
-      min-height: 65px;
-    }
-    #cf-turnstile-container iframe { border-radius: 8px; }
+        /* ── Tab bar (Login / Sign up) ── */
+        .tabs {
+            display: flex;
+            background: #111;
+            border-radius: 10px;
+            padding: 3px;
+            gap: 3px;
+            margin-bottom: 1.5rem;
+        }
+        .tab {
+            flex: 1; padding: 8px;
+            border-radius: 8px; border: none;
+            font-size: 13px; font-weight: 500;
+            cursor: pointer; transition: background 0.2s, color 0.2s;
+            background: transparent; color: #888;
+        }
+        .tab[aria-selected="true"] { background: #10a37f; color: #fff; }
+        .tab:focus-visible {
+            outline: 2px solid #10a37f;
+            outline-offset: 2px;
+        }
 
-    .captcha-status {
-      font-size: 11px;
-      text-align: center;
-      margin-top: 4px;
-      color: #555;
-      min-height: 16px;
-    }
-    .captcha-status.ready      { color: #10a37f; }
-    .captcha-status.loading    { color: #888; }
-    .captcha-status.error-state { color: #ff6b6b; }
+        /* ── OAuth buttons ── */
+        .oauth-btn {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 14px;
+            width: 100%;
+            background: #111; border: 1px solid #2a2a2a;
+            border-radius: 10px; color: #e5e5e5;
+            font-size: 13px; cursor: pointer;
+            transition: background 0.15s;
+            margin-bottom: 8px;
+        }
+        .oauth-btn:hover { background: #222; }
+        .oauth-btn:focus-visible {
+            outline: 2px solid #10a37f;
+            outline-offset: 2px;
+        }
+        .oauth-btn svg { flex-shrink: 0; }
 
-    /* Reset Password Screen */
-    #resetScreen { display: none; }
-    .reset-icon {
-      width: 52px; height: 52px;
-      background: #10a37f22;
-      border: 1px solid #10a37f44;
-      border-radius: 14px;
-      display: flex; align-items: center; justify-content: center;
-      margin: 0 auto 14px;
-    }
-    .reset-icon svg { color: #10a37f; }
-    .pw-strength {
-      height: 4px; border-radius: 2px;
-      background: #1e1e1e; margin-top: 6px; overflow: hidden;
-    }
-    .pw-strength-bar {
-      height: 100%; width: 0%;
-      border-radius: 2px;
-      transition: width 0.3s, background 0.3s;
-    }
-    .pw-hint { font-size: 11px; color: #666; margin-top: 4px; }
-  </style>
+        /* ── Divider ── */
+        .divider {
+            display: flex; align-items: center; gap: 10px;
+            margin: 1rem 0; color: #444; font-size: 12px;
+        }
+        .divider::before, .divider::after {
+            content: ''; flex: 1;
+            height: 1px; background: #2a2a2a;
+        }
 
-  <!--
-    KEY FIX: Use ?onload=onTurnstileLoad (no async — defer only).
-    This guarantees onTurnstileLoad() fires AFTER the SDK is fully ready,
-    eliminating the race condition with DOMContentLoaded.
-  -->
-  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad" defer></script>
-</head>
-<body>
-<div class="card">
+        /* ── Form fields ── */
+        label {
+            display: block;
+            font-size: 12px; color: #aaa;
+            margin-bottom: 5px;
+        }
+        .field { margin-bottom: 10px; }
+        .field-row {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 5px;
+        }
+        .field-row label { margin-bottom: 0; }
 
-  <!-- AUTH SCREEN -->
-  <div id="authScreen">
-    <div class="logo-area">
-      <div class="logo-box">
-        <img src="static/logo.png" alt="Catura AI logo">
-      </div>
-      <h1>Log in to Catura AI</h1>
-      <p>Your AI assistant, always there for you</p>
-    </div>
+        .forgot {
+            font-size: 12px; color: #10a37f;
+            cursor: pointer; background: none; border: none; padding: 0;
+        }
+        .forgot:hover { text-decoration: underline; }
+        .forgot:focus-visible {
+            outline: 2px solid #10a37f;
+            outline-offset: 2px;
+            border-radius: 2px;
+        }
 
-    <div class="tabs">
-      <button class="tab active" id="tab-login"  onclick="switchTab('login')">Login</button>
-      <button class="tab"        id="tab-signup" onclick="switchTab('signup')">Sign up</button>
-    </div>
+        input[type="email"],
+        input[type="password"],
+        input[type="text"] {
+            width: 100%; padding: 10px 13px;
+            background: #111; border: 1px solid #2a2a2a;
+            border-radius: 10px; color: #e5e5e5;
+            font-size: 13px; outline: none;
+            transition: border-color 0.2s;
+        }
+        input:focus { border-color: #10a37f; }
+        input[aria-invalid="true"] { border-color: #ff6b6b; }
 
-    <!-- GitHub OAuth -->
-    <button class="oauth-btn" onclick="doGitHub()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.38.6.11.82-.26.82-.58 0-.28-.01-1.03-.02-2.02-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02.005 2.04.14 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.21.7.82.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/>
-      </svg>
-      Continue with GitHub
-    </button>
+        /* ── Submit button ── */
+        .submit {
+            width: 100%; padding: 11px;
+            background: #10a37f; border: none;
+            border-radius: 10px; color: #fff;
+            font-size: 14px; font-weight: 600;
+            cursor: pointer; margin-top: 12px;
+            transition: background 0.2s;
+        }
+        .submit:hover    { background: #0d8c6d; }
+        .submit:disabled { background: #1a4a3a; cursor: not-allowed; }
+        .submit:focus-visible {
+            outline: 2px solid #10a37f;
+            outline-offset: 2px;
+        }
 
-    <!-- Google OAuth -->
-    <button class="oauth-btn" onclick="doGoogle()">
-      <svg width="16" height="16" viewBox="0 0 48 48">
-        <path fill="#EA4335" d="M24 9.5c3.1 0 5.6 1.1 7.6 2.9l5.6-5.6C33.6 3.5 29.1 1.5 24 1.5 14.9 1.5 7.2 7.1 4 14.9l6.6 5.1C12.3 13.7 17.6 9.5 24 9.5z"/>
-        <path fill="#4285F4" d="M46.5 24c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.9 7.2l7.6 5.9C43.8 37 46.5 31 46.5 24z"/>
-        <path fill="#FBBC05" d="M10.6 28.6A14.6 14.6 0 0 1 9.5 24c0-1.6.3-3.2.8-4.6L3.7 14.3A22.5 22.5 0 0 0 1.5 24c0 3.6.9 7.1 2.5 10.1l6.6-5.5z"/>
-        <path fill="#34A853" d="M24 46.5c5.1 0 9.4-1.7 12.5-4.6l-7.6-5.9c-1.7 1.1-3.8 1.8-4.9 1.8-6.4 0-11.7-4.3-13.6-10l-6.6 5.1C7.2 40.9 14.9 46.5 24 46.5z"/>
-      </svg>
-      Continue with Google
-    </button>
+        /* ── Status / error message ── */
+        .msg {
+            margin-top: 12px; padding: 10px 13px;
+            border-radius: 8px; font-size: 13px;
+            text-align: center;
+        }
+        .msg:empty { display: none; }
+        .msg.error   { background: #2a1a1a; color: #ff6b6b; border: 1px solid #3a1a1a; }
+        .msg.success { background: #1a2a1a; color: #6bff9e; border: 1px solid #1a3a1a; }
 
-    <div class="divider">or</div>
+        /* ── Switch row (login ↔ signup) ── */
+        .switch-row {
+            text-align: center; font-size: 12px;
+            color: #888; margin-top: 14px;
+        }
+        .switch-row button {
+            color: #10a37f; background: none; border: none;
+            padding: 0; cursor: pointer; font-size: 12px;
+        }
+        .switch-row button:hover { text-decoration: underline; }
+        .switch-row button:focus-visible {
+            outline: 2px solid #10a37f;
+            outline-offset: 2px;
+            border-radius: 2px;
+        }
 
-    <div class="field">
-      <label>Email address</label>
-      <input type="email" id="email" placeholder="you@example.com">
-    </div>
+        /* ── Cloudflare Turnstile ── */
+        #cf-turnstile-container {
+            margin-top: 8px;
+            display: flex;
+            justify-content: center;
+            min-height: 65px;
+        }
+        #cf-turnstile-container iframe { border-radius: 8px; }
 
-    <div class="field">
-      <div class="field-row">
-        <label style="margin:0">Password</label>
-        <button class="forgot" id="forgotBtn" onclick="doForgot()">I forgot my password</button>
-      </div>
-      <input type="password" id="password" placeholder="••••••••" oninput="checkSignupStrength(this.value)">
-      <div class="pw-strength" id="signupPwStrength" style="display:none; margin-top:6px;">
-        <div class="pw-strength-bar" id="signupPwBar"></div>
-      </div>
-      <div class="pw-hint" id="signupPwHint" style="display:none"></div>
-    </div>
+        .captcha-status {
+            font-size: 11px;
+            text-align: center;
+            margin-top: 4px;
+            color: #555;
+            min-height: 16px;
+        }
+        .captcha-status.ready       { color: #10a37f; }
+        .captcha-status.loading     { color: #888; }
+        .captcha-status.error-state { color: #ff6b6b; }
 
-    <div class="field" id="confirmField" style="display:none">
-      <label>Confirm password</label>
-      <input type="password" id="confirm" placeholder="Repeat password">
-      <div class="pw-strength" id="signupStrengthBar" style="margin-top:8px;">
-        <div class="pw-strength-bar" id="signupStrengthBarInner"></div>
-      </div>
-      <div class="pw-hint" id="signupStrengthHint" style="display:none"></div>
-    </div>
+        /* ── Password strength meter ── */
+        .pw-strength {
+            height: 4px; border-radius: 2px;
+            background: #1e1e1e; margin-top: 6px; overflow: hidden;
+        }
+        .pw-strength-bar {
+            height: 100%; width: 0%;
+            border-radius: 2px;
+            transition: width 0.3s, background 0.3s;
+        }
+        .pw-hint { font-size: 11px; color: #666; margin-top: 4px; }
+
+        /* ── Reset password screen ── */
+        #resetScreen { display: none; }
+        .reset-icon {
+            width: 52px; height: 52px;
+            background: #10a37f22;
+            border: 1px solid #10a37f44;
+            border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 14px;
+        }
+        .reset-icon svg { color: #10a37f; }
+    </style>
 
     <!--
-      CRITICAL: This container must ALWAYS be in the DOM and NEVER hidden
-      with display:none — Turnstile cannot render into a hidden element.
+        KEY: Use ?onload=onTurnstileLoad (defer, no async).
+        Guarantees onTurnstileLoad() fires after the SDK is fully ready,
+        eliminating the DOMContentLoaded race condition.
     -->
-    <div id="cf-turnstile-container"></div>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad" defer></script>
+</head>
 
-    <button class="submit" id="submitBtn" onclick="doSubmit()">Log in</button>
-    <div class="msg" id="msg"></div>
+<body>
 
-    <div class="switch-row" id="switchRow">
-      Don't have an account? <span id="switchLink" onclick="switchTab('signup')">Sign up</span>
-    </div>
-  </div><!-- /authScreen -->
+    <!-- ═══════════════════════════════════════════════
+         MAIN CARD
+    ═══════════════════════════════════════════════ -->
+    <main class="card" id="mainCard">
+
+        <!-- ── AUTH SCREEN ── -->
+        <section id="authScreen" aria-label="Sign in or create account">
+
+            <!-- Brand / logo -->
+            <div class="logo-area">
+                <div class="logo-box">
+                    <img src="static/logo.png" alt="Catura AI logo">
+                </div>
+                <h1>Log in to Catura AI</h1>
+                <p>Your AI assistant, always there for you</p>
+            </div>
+
+            <!-- ── Tab bar ── -->
+            <div
+                class="tabs"
+                role="tablist"
+                aria-label="Authentication options"
+            >
+                <button
+                    class="tab"
+                    id="tab-login"
+                    type="button"
+                    role="tab"
+                    aria-selected="true"
+                    aria-controls="panel-login"
+                    onclick="switchTab('login')"
+                >Login</button>
+                <button
+                    class="tab"
+                    id="tab-signup"
+                    type="button"
+                    role="tab"
+                    aria-selected="false"
+                    aria-controls="panel-signup"
+                    onclick="switchTab('signup')"
+                >Sign up</button>
+            </div>
+
+            <!-- ── OAuth buttons ── -->
+            <button class="oauth-btn" type="button" onclick="doGitHub()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+                    <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.38.6.11.82-.26.82-.58 0-.28-.01-1.03-.02-2.02-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02.005 2.04.14 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.21.7.82.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/>
+                </svg>
+                Continue with GitHub
+            </button>
+
+            <button class="oauth-btn" type="button" onclick="doGoogle()">
+                <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                    <path fill="#EA4335" d="M24 9.5c3.1 0 5.6 1.1 7.6 2.9l5.6-5.6C33.6 3.5 29.1 1.5 24 1.5 14.9 1.5 7.2 7.1 4 14.9l6.6 5.1C12.3 13.7 17.6 9.5 24 9.5z"/>
+                    <path fill="#4285F4" d="M46.5 24c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.9 7.2l7.6 5.9C43.8 37 46.5 31 46.5 24z"/>
+                    <path fill="#FBBC05" d="M10.6 28.6A14.6 14.6 0 0 1 9.5 24c0-1.6.3-3.2.8-4.6L3.7 14.3A22.5 22.5 0 0 0 1.5 24c0 3.6.9 7.1 2.5 10.1l6.6-5.5z"/>
+                    <path fill="#34A853" d="M24 46.5c5.1 0 9.4-1.7 12.5-4.6l-7.6-5.9c-1.7 1.1-3.8 1.8-4.9 1.8-6.4 0-11.7-4.3-13.6-10l-6.6 5.1C7.2 40.9 14.9 46.5 24 46.5z"/>
+                </svg>
+                Continue with Google
+            </button>
+
+            <div class="divider" role="separator">or</div>
+
+            <!-- ── Login / Sign-up form panels ── -->
+            <div
+                id="panel-login"
+                role="tabpanel"
+                aria-labelledby="tab-login"
+            >
+                <!-- Email -->
+                <div class="field">
+                    <label for="email">Email address</label>
+                    <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        placeholder="you@example.com"
+                        autocomplete="email"
+                        required
+                        aria-required="true"
+                        inputmode="email"
+                    >
+                </div>
+
+                <!-- Password (with forgot link shown in login mode) -->
+                <div class="field">
+                    <div class="field-row">
+                        <label for="password">Password</label>
+                        <button
+                            class="forgot"
+                            id="forgotBtn"
+                            type="button"
+                            onclick="doForgot()"
+                            aria-label="Send password reset email"
+                        >I forgot my password</button>
+                    </div>
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        placeholder="••••••••"
+                        autocomplete="current-password"
+                        required
+                        aria-required="true"
+                        oninput="checkSignupStrength(this.value)"
+                    >
+                    <div
+                        class="pw-strength"
+                        id="signupPwStrength"
+                        role="progressbar"
+                        aria-label="Password strength"
+                        aria-valuemin="0"
+                        aria-valuemax="100"
+                        aria-valuenow="0"
+                        hidden
+                    >
+                        <div class="pw-strength-bar" id="signupPwBar"></div>
+                    </div>
+                    <p class="pw-hint" id="signupPwHint" aria-live="polite" hidden></p>
+                </div>
+
+                <!-- Confirm password (sign-up only) -->
+                <div class="field" id="confirmField" hidden>
+                    <label for="confirm">Confirm password</label>
+                    <input
+                        type="password"
+                        id="confirm"
+                        name="confirm"
+                        placeholder="Repeat password"
+                        autocomplete="new-password"
+                    >
+                </div>
+
+                <!--
+                    CRITICAL: Must ALWAYS remain in the DOM and never be hidden
+                    with display:none — Turnstile cannot render into hidden elements.
+                -->
+                <div id="cf-turnstile-container" aria-label="Security verification"></div>
+                <p
+                    class="captcha-status"
+                    id="captchaStatus"
+                    role="status"
+                    aria-live="polite"
+                ></p>
+
+                <button
+                    class="submit"
+                    id="submitBtn"
+                    type="button"
+                    onclick="doSubmit()"
+                >Log in</button>
+
+                <div
+                    class="msg"
+                    id="msg"
+                    role="alert"
+                    aria-live="assertive"
+                    aria-atomic="true"
+                ></div>
+
+                <p class="switch-row" id="switchRow">
+                    Don't have an account?
+                    <button
+                        type="button"
+                        id="switchLink"
+                        onclick="switchTab('signup')"
+                        aria-label="Switch to sign up"
+                    >Sign up</button>
+                </p>
+            </div><!-- /panel-login -->
+
+        </section><!-- /authScreen -->
 
 
-  <!-- RESET PASSWORD SCREEN (shown when arriving from reset email link) -->
-  <div id="resetScreen">
-    <div class="logo-area">
-      <div class="reset-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-        </svg>
-      </div>
-      <h1>Set new password</h1>
-      <p>Choose a strong password for your account</p>
-    </div>
+        <!-- ── RESET PASSWORD SCREEN (shown when arriving via reset email link) ── -->
+        <section id="resetScreen" aria-label="Set new password" hidden>
 
-    <div class="field">
-      <label>New password</label>
-      <input type="password" id="newPassword" placeholder="••••••••"
-             oninput="checkStrength(this.value)">
-      <div class="pw-strength">
-        <div class="pw-strength-bar" id="strengthBar"></div>
-      </div>
-      <div class="pw-hint" id="strengthHint">At least 6 characters</div>
-    </div>
+            <div class="logo-area">
+                <div class="reset-icon" aria-hidden="true">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                </div>
+                <h1>Set new password</h1>
+                <p>Choose a strong password for your account</p>
+            </div>
 
-    <div class="field">
-      <label>Confirm new password</label>
-      <input type="password" id="newConfirm" placeholder="Repeat password">
-    </div>
+            <div class="field">
+                <label for="newPassword">New password</label>
+                <input
+                    type="password"
+                    id="newPassword"
+                    name="newPassword"
+                    placeholder="••••••••"
+                    autocomplete="new-password"
+                    required
+                    aria-required="true"
+                    oninput="checkStrength(this.value)"
+                >
+                <div
+                    class="pw-strength"
+                    role="progressbar"
+                    aria-label="Password strength"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                    aria-valuenow="0"
+                    id="pwStrengthBar"
+                >
+                    <div class="pw-strength-bar" id="strengthBar"></div>
+                </div>
+                <p class="pw-hint" id="strengthHint" aria-live="polite">At least 6 characters</p>
+            </div>
 
-    <button class="submit" id="resetBtn" onclick="doResetPassword()">Update password</button>
-    <div class="msg" id="resetMsg"></div>
-  </div><!-- /resetScreen -->
+            <div class="field">
+                <label for="newConfirm">Confirm new password</label>
+                <input
+                    type="password"
+                    id="newConfirm"
+                    name="newConfirm"
+                    placeholder="Repeat password"
+                    autocomplete="new-password"
+                    required
+                    aria-required="true"
+                >
+            </div>
 
-</div><!-- /card -->
+            <button
+                class="submit"
+                id="resetBtn"
+                type="button"
+                onclick="doResetPassword()"
+            >Update password</button>
 
-<!-- Use explicit UMD build URL to avoid CDN serving stale version -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script>
-  // ═══════════════════════════════════════════════════════
-  // CONFIGURATION — replace with your actual values
-  // ═══════════════════════════════════════════════════════
-  const SUPABASE_URL      = "https://zhrjmnrfklzuxmfbdqhg.supabase.co";
-  const SUPABASE_KEY      = "sb_publishable_aIbByN1rFc9V3AH41Kyz6A_e1XppA1Z";
-  const TURNSTILE_SITE_KEY = "0x4AAAAAADDHFTkeFyoi79mt"; // your public site key
+            <div
+                class="msg"
+                id="resetMsg"
+                role="alert"
+                aria-live="assertive"
+                aria-atomic="true"
+            ></div>
 
-  // ═══════════════════════════════════════════════════════
-  // SUPABASE CLIENT
-  // ═══════════════════════════════════════════════════════
-  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        </section><!-- /resetScreen -->
 
-  // ═══════════════════════════════════════════════════════
-  // TURNSTILE STATE
-  // ═══════════════════════════════════════════════════════
-  let turnstileToken    = null;
-  let turnstileWidgetId = null;
-  let turnstileReady    = false;
+    </main><!-- /card -->
 
-  // Called by Cloudflare SDK via ?onload=onTurnstileLoad in the script tag.
-  // This fires AFTER the SDK is 100% ready — no race condition possible.
-  function onTurnstileLoad() {
-    console.log("✅ Turnstile SDK loaded");
-    turnstileReady = true;
-    initTurnstile();
-  }
 
-  function onTurnstileSuccess(token) {
-    turnstileToken = token;
-    console.log("✅ Turnstile token received:", token.substring(0, 20) + "…");
-  }
+    <!-- ═══════════════════════════════════════════════
+         SCRIPTS
+    ═══════════════════════════════════════════════ -->
+    <!-- Use explicit UMD build URL to avoid CDN serving stale version -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
-  function onTurnstileExpired() {
-    turnstileToken = null;
-    console.log("⏳ Turnstile token expired — resetting");
-    document.getElementById("captchaStatus").textContent = "🔄 Re-verifying browser…";
-    document.getElementById("captchaStatus").className  = "captcha-status loading";
-    if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
-  }
+    <script>
+        // ═══════════════════════════════════════════════════════
+        // CONFIGURATION — replace with your actual values
+        // ═══════════════════════════════════════════════════════
+        const SUPABASE_URL       = "https://zhrjmnrfklzuxmfbdqhg.supabase.co";
+        const SUPABASE_KEY       = "sb_publishable_aIbByN1rFc9V3AH41Kyz6A_e1XppA1Z";
+        const TURNSTILE_SITE_KEY = "0x4AAAAAADDHFTkeFyoi79mt";
 
-  function onTurnstileError(code) {
-    turnstileToken = null;
-    console.error("❌ Turnstile error code:", code);
-    // Error 110200 = domain not registered in Cloudflare Turnstile dashboard
-    // Error 300030 = network/challenge error
-    document.getElementById("captchaStatus").textContent = "⚠️ CAPTCHA error — refresh page";
-    document.getElementById("captchaStatus").className  = "captcha-status error-state";
-  }
+        // ═══════════════════════════════════════════════════════
+        // SUPABASE CLIENT
+        // ═══════════════════════════════════════════════════════
+        const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  function initTurnstile() {
-    if (!window.turnstile) { return; } // onTurnstileLoad will call us when ready
+        // ═══════════════════════════════════════════════════════
+        // TURNSTILE STATE
+        // ═══════════════════════════════════════════════════════
+        let turnstileToken    = null;
+        let turnstileWidgetId = null;
+        let turnstileReady    = false;
 
-    if (turnstileWidgetId !== null) {
-      // Already rendered — reset to get a fresh token
-      window.turnstile.reset(turnstileWidgetId);
-      return;
-    }
+        function onTurnstileLoad() {
+            turnstileReady = true;
+            initTurnstile();
+        }
 
-    const container = document.getElementById("cf-turnstile-container");
-    if (!container) return;
+        function onTurnstileSuccess(token) {
+            turnstileToken = token;
+            const status = document.getElementById('captchaStatus');
+            if (status) { status.textContent = ''; status.className = 'captcha-status ready'; }
+        }
 
-    turnstileWidgetId = window.turnstile.render(container, {
-      sitekey:            TURNSTILE_SITE_KEY,
-      callback:           onTurnstileSuccess,
-      "expired-callback": onTurnstileExpired,
-      "error-callback":   onTurnstileError,
-      appearance:         "always",   // show the widget area
-      theme:              "dark",
-      execution:          "render",   // auto-challenge on render, no manual trigger
-      size:               "normal",
-    });
+        function onTurnstileExpired() {
+            turnstileToken = null;
+            const status = document.getElementById('captchaStatus');
+            if (status) {
+                status.textContent = 'Re-verifying browser…';
+                status.className   = 'captcha-status loading';
+            }
+            if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
+        }
 
-    console.log("✅ Turnstile widget rendered, ID:", turnstileWidgetId);
-  }
+        function onTurnstileError(code) {
+            turnstileToken = null;
+            const status = document.getElementById('captchaStatus');
+            if (status) {
+                status.textContent = 'CAPTCHA error — please refresh the page';
+                status.className   = 'captcha-status error-state';
+            }
+        }
 
-  // ═══════════════════════════════════════════════════════
-  // DETECT PASSWORD-RESET FLOW (arriving from email link)
-  // ═══════════════════════════════════════════════════════
-  function getHashParams() {
-    return Object.fromEntries(new URLSearchParams(window.location.hash.substring(1)));
-  }
+        function initTurnstile() {
+            if (!window.turnstile) return; // onTurnstileLoad will call us when ready
 
-  const hashParams = getHashParams();
-  const isRecovery = hashParams.type === "recovery" && hashParams.access_token;
+            if (turnstileWidgetId !== null) {
+                window.turnstile.reset(turnstileWidgetId);
+                return;
+            }
 
-  if (isRecovery) {
-    sb.auth.setSession({
-      access_token:  hashParams.access_token,
-      refresh_token: hashParams.refresh_token || ""
-    }).then(() => {
-      document.getElementById("authScreen").style.display  = "none";
-      document.getElementById("resetScreen").style.display = "block";
-      history.replaceState(null, "", window.location.pathname);
-    });
-  } else {
-    // Normal flow: check if already logged in
-    sb.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" && session) window.location.href = "/";
-    });
-    sb.auth.getSession().then(({ data }) => {
-      if (data.session) window.location.href = "/";
-    });
+            const container = document.getElementById('cf-turnstile-container');
+            if (!container) return;
 
-    // Init Turnstile if SDK already loaded (handles case where defer fires fast)
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", () => {
-        if (turnstileReady) initTurnstile();
-      });
-    } else {
-      if (turnstileReady) initTurnstile();
-    }
-  }
+            turnstileWidgetId = window.turnstile.render(container, {
+                sitekey:            TURNSTILE_SITE_KEY,
+                callback:           onTurnstileSuccess,
+                'expired-callback': onTurnstileExpired,
+                'error-callback':   onTurnstileError,
+                appearance:         'always',
+                theme:              'dark',
+                execution:          'render',
+                size:               'normal',
+            });
+        }
 
-  // ═══════════════════════════════════════════════════════
-  // TAB SWITCHING
-  // ═══════════════════════════════════════════════════════
-  let currentTab = "login";
+        // ═══════════════════════════════════════════════════════
+        // DETECT PASSWORD-RESET FLOW (arriving from email link)
+        // ═══════════════════════════════════════════════════════
+        function getHashParams() {
+            return Object.fromEntries(new URLSearchParams(window.location.hash.substring(1)));
+        }
 
-  function switchTab(tab) {
-    currentTab = tab;
-    const isLogin = tab === "login";
-    document.getElementById("tab-login").className   = "tab" + (isLogin ? " active" : "");
-    document.getElementById("tab-signup").className  = "tab" + (!isLogin ? " active" : "");
-    document.getElementById("confirmField").style.display = isLogin ? "none" : "block";
-    document.getElementById("forgotBtn").style.display    = isLogin ? "inline" : "none";
-    document.getElementById("submitBtn").textContent      = isLogin ? "Log in" : "Create account";
-    document.getElementById("switchRow").innerHTML = isLogin
-      ? `Don't have an account? <span onclick="switchTab('signup')">Sign up</span>`
-      : `Already have an account? <span onclick="switchTab('login')">Log in</span>`;
-    clearMsg("msg");
+        const hashParams = getHashParams();
+        const isRecovery = hashParams.type === 'recovery' && hashParams.access_token;
 
-    // Tokens are single-use — reset on tab switch
-    if (turnstileWidgetId !== null) {
-      window.turnstile.reset(turnstileWidgetId);
-      turnstileToken = null;
-    }
-  }
+        if (isRecovery) {
+            sb.auth.setSession({
+                access_token:  hashParams.access_token,
+                refresh_token: hashParams.refresh_token || ''
+            }).then(() => {
+                document.getElementById('authScreen').hidden  = true;
+                const resetScreen = document.getElementById('resetScreen');
+                resetScreen.hidden  = false;
+                resetScreen.style.display = 'block';
+                history.replaceState(null, '', window.location.pathname);
+            });
+        } else {
+            // Normal flow: redirect if already logged in
+            sb.auth.onAuthStateChange((event, session) => {
+                if (event === 'SIGNED_IN' && session) window.location.href = '/';
+            });
+            sb.auth.getSession().then(({ data }) => {
+                if (data.session) window.location.href = '/';
+            });
 
-  function showMsg(id, text, type) {
-    const el = document.getElementById(id);
-    el.textContent = text;
-    el.className = "msg " + type;
-  }
-  function clearMsg(id) { document.getElementById(id).className = "msg"; }
+            // Init Turnstile if SDK already loaded
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => {
+                    if (turnstileReady) initTurnstile();
+                });
+            } else {
+                if (turnstileReady) initTurnstile();
+            }
+        }
 
-  // ═══════════════════════════════════════════════════════
-  // SUBMIT (Login or Sign Up)
-  // ═══════════════════════════════════════════════════════
-  async function doSubmit() {
-    const email    = document.getElementById("email").value.trim();
-    const password = document.getElementById("password").value;
-    const btn      = document.getElementById("submitBtn");
+        // ═══════════════════════════════════════════════════════
+        // TAB SWITCHING
+        // ═══════════════════════════════════════════════════════
+        let currentTab = 'login';
 
-    if (!email || !password) return showMsg("msg", "Please fill in all fields.", "error");
+        function switchTab(tab) {
+            currentTab    = tab;
+            const isLogin = tab === 'login';
 
-    // Wait up to 15s for Turnstile to finish verifying
-    // (mobile on slower connections can take 8-12 seconds)
-    if (!turnstileToken) {
-      btn.disabled    = true;
-      btn.textContent = "Verifying browser…";
-      const ok = await waitForTurnstile(15000);
-      btn.disabled = false;
-      btn.textContent = currentTab === "login" ? "Log in" : "Create account";
-      if (!ok) {
-        if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
-        else initTurnstile();
-        return showMsg("msg", "CAPTCHA timed out. Please wait a moment and try again.", "error");
-      }
-    }
+            // Update ARIA tab state
+            document.getElementById('tab-login').setAttribute('aria-selected',  isLogin ? 'true' : 'false');
+            document.getElementById('tab-signup').setAttribute('aria-selected', isLogin ? 'false' : 'true');
 
-    if (currentTab === "signup") {
-      const confirm = document.getElementById("confirm").value;
-      if (password !== confirm) return showMsg("msg", "Passwords do not match.", "error");
-      if (password.length < 6)  return showMsg("msg", "Password must be at least 6 characters.", "error");
+            // Show/hide conditional fields
+            document.getElementById('confirmField').hidden             = isLogin;
+            document.getElementById('forgotBtn').hidden                = !isLogin;
+            document.getElementById('submitBtn').textContent           = isLogin ? 'Log in' : 'Create account';
+            document.getElementById('submitBtn').setAttribute(
+                'aria-label', isLogin ? 'Log in to Catura AI' : 'Create a new Catura AI account'
+            );
 
-      btn.disabled = true; btn.textContent = "Creating account…";
+            // Update autocomplete on password field
+            document.getElementById('password').setAttribute(
+                'autocomplete', isLogin ? 'current-password' : 'new-password'
+            );
 
-      const { error } = await sb.auth.signUp({
-        email, password,
-        options: { captchaToken: turnstileToken }
-      });
+            // Update switch-row
+            const switchRow = document.getElementById('switchRow');
+            const switchLink = document.getElementById('switchLink');
+            if (isLogin) {
+                switchRow.firstChild.textContent = "Don't have an account? ";
+                switchLink.textContent = 'Sign up';
+                switchLink.setAttribute('aria-label', 'Switch to sign up');
+                switchLink.setAttribute('onclick', "switchTab('signup')");
+            } else {
+                switchRow.firstChild.textContent = 'Already have an account? ';
+                switchLink.textContent = 'Log in';
+                switchLink.setAttribute('aria-label', 'Switch to log in');
+                switchLink.setAttribute('onclick', "switchTab('login')");
+            }
 
-      // ALWAYS clear + reset after every attempt — tokens are one-time-use
-      turnstileToken = null;
-      if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
+            clearMsg('msg');
 
-      btn.disabled = false; btn.textContent = "Create account";
-      if (error) showMsg("msg", error.message, "error");
-      else showMsg("msg", "✅ Account created! Check your email to confirm, then log in.", "success");
+            // Tokens are single-use — reset on tab switch
+            if (turnstileWidgetId !== null) {
+                window.turnstile.reset(turnstileWidgetId);
+                turnstileToken = null;
+            }
+        }
 
-    } else {
-      btn.disabled = true; btn.textContent = "Logging in…";
+        // ═══════════════════════════════════════════════════════
+        // MESSAGE HELPERS
+        // ═══════════════════════════════════════════════════════
+        function showMsg(id, text, type) {
+            const el = document.getElementById(id);
+            el.textContent = text;
+            el.className   = 'msg ' + type;
+        }
+        function clearMsg(id) {
+            const el = document.getElementById(id);
+            el.textContent = '';
+            el.className   = 'msg';
+        }
 
-      const { error } = await sb.auth.signInWithPassword({
-        email, password,
-        options: { captchaToken: turnstileToken }
-      });
+        // ═══════════════════════════════════════════════════════
+        // SUBMIT (Login or Sign Up)
+        // ═══════════════════════════════════════════════════════
+        async function doSubmit() {
+            const email    = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const btn      = document.getElementById('submitBtn');
 
-      // ALWAYS clear + reset after every attempt
-      turnstileToken = null;
-      if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
+            if (!email || !password) {
+                return showMsg('msg', 'Please fill in all fields.', 'error');
+            }
 
-      if (error) {
-        btn.disabled = false; btn.textContent = "Log in";
-        showMsg("msg", error.message, "error");
-      } else {
-        window.location.href = "/";
-      }
-    }
-  }
+            // Wait up to 15s for Turnstile (mobile on slow connections can take 8-12 s)
+            if (!turnstileToken) {
+                btn.disabled    = true;
+                btn.textContent = 'Verifying browser…';
+                const ok = await waitForTurnstile(15000);
+                btn.disabled    = false;
+                btn.textContent = currentTab === 'login' ? 'Log in' : 'Create account';
+                if (!ok) {
+                    if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
+                    else initTurnstile();
+                    return showMsg('msg', 'CAPTCHA timed out. Please wait and try again.', 'error');
+                }
+            }
 
-  function waitForTurnstile(timeoutMs) {
-    return new Promise(resolve => {
-      if (turnstileToken) { resolve(true); return; }
-      const start = Date.now();
-      const iv = setInterval(() => {
-        if (turnstileToken) { clearInterval(iv); resolve(true); }
-        else if (Date.now() - start > timeoutMs) { clearInterval(iv); resolve(false); }
-      }, 100);
-    });
-  }
+            if (currentTab === 'signup') {
+                const confirm = document.getElementById('confirm').value;
+                if (password !== confirm) return showMsg('msg', 'Passwords do not match.', 'error');
+                if (password.length < 6)  return showMsg('msg', 'Password must be at least 6 characters.', 'error');
 
-  // ═══════════════════════════════════════════════════════
-  // OAUTH — no CAPTCHA needed (Supabase skips it for OAuth)
-  // ═══════════════════════════════════════════════════════
-  async function doGitHub() {
-    await sb.auth.signInWithOAuth({
-      provider: "github",
-      options: { redirectTo: window.location.origin }
-    });
-  }
-  async function doGoogle() {
-    await sb.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: window.location.origin }
-    });
-  }
+                btn.disabled    = true;
+                btn.textContent = 'Creating account…';
 
-  // ═══════════════════════════════════════════════════════
-  // FORGOT PASSWORD
-  // ═══════════════════════════════════════════════════════
-  async function doForgot() {
-    const email = document.getElementById("email").value.trim();
-    if (!email) return showMsg("msg", "Enter your email above first.", "error");
-    const { error } = await sb.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + "/auth"
-    });
-    if (error) showMsg("msg", error.message, "error");
-    else showMsg("msg", "✅ Reset email sent! Check your inbox.", "success");
-  }
+                const { error } = await sb.auth.signUp({
+                    email, password,
+                    options: { captchaToken: turnstileToken }
+                });
 
-  // Enter key support
-  document.addEventListener("keydown", e => {
-    if (e.key === "Enter") {
-      if (isRecovery) doResetPassword();
-      else doSubmit();
-    }
-  });
+                // Tokens are one-time-use — always clear after attempt
+                turnstileToken = null;
+                if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
 
-  // ═══════════════════════════════════════════════════════
-  // PASSWORD STRENGTH METER (signup form)
-  // ═══════════════════════════════════════════════════════
-  function checkSignupStrength(pw) {
-    const bar      = document.getElementById("signupPwBar");
-    const hint     = document.getElementById("signupPwHint");
-    const wrap     = document.getElementById("signupPwStrength");
-    if (!pw) { wrap.style.display = "none"; hint.style.display = "none"; return; }
-    wrap.style.display = "block"; hint.style.display = "block";
-    let score = 0;
-    if (pw.length >= 6)           score++;
-    if (pw.length >= 10)          score++;
-    if (/[A-Z]/.test(pw))         score++;
-    if (/[0-9]/.test(pw))         score++;
-    if (/[^A-Za-z0-9]/.test(pw))  score++;
-    const levels = [
-      { pct: "10%",  color: "#e06c6c", label: "Too short" },
-      { pct: "25%",  color: "#e06c6c", label: "Weak" },
-      { pct: "50%",  color: "#e0a46c", label: "Fair" },
-      { pct: "75%",  color: "#d4e06c", label: "Good" },
-      { pct: "100%", color: "#10a37f", label: "Strong 💪" },
-    ];
-    const lvl = levels[Math.min(score, 4)];
-    bar.style.width      = lvl.pct;
-    bar.style.background = lvl.color;
-    hint.textContent     = lvl.label;
-    hint.style.color     = lvl.color;
-  }
+                btn.disabled    = false;
+                btn.textContent = 'Create account';
 
-  // ═══════════════════════════════════════════════════════
-  // PASSWORD STRENGTH METER (reset password screen)
-  // ═══════════════════════════════════════════════════════
-  function checkStrength(pw) {
-    const bar  = document.getElementById("strengthBar");
-    const hint = document.getElementById("strengthHint");
-    let score = 0;
-    if (pw.length >= 6)          score++;
-    if (pw.length >= 10)         score++;
-    if (/[A-Z]/.test(pw))        score++;
-    if (/[0-9]/.test(pw))        score++;
-    if (/[^A-Za-z0-9]/.test(pw)) score++;
-    const levels = [
-      { pct: "0%",   color: "#333",    label: "At least 6 characters" },
-      { pct: "25%",  color: "#e06c6c", label: "Weak" },
-      { pct: "50%",  color: "#e0a46c", label: "Fair" },
-      { pct: "75%",  color: "#d4e06c", label: "Good" },
-      { pct: "100%", color: "#10a37f", label: "Strong 💪" },
-    ];
-    const lvl = levels[Math.min(score, 4)];
-    bar.style.width      = lvl.pct;
-    bar.style.background = lvl.color;
-    hint.textContent     = lvl.label;
-  }
+                if (error) showMsg('msg', error.message, 'error');
+                else showMsg('msg', '✅ Account created! Check your email to confirm, then log in.', 'success');
 
-  // ═══════════════════════════════════════════════════════
-  // PASSWORD RESET (from email link)
-  // ═══════════════════════════════════════════════════════
-  async function doResetPassword() {
-    const newPw  = document.getElementById("newPassword").value;
-    const confPw = document.getElementById("newConfirm").value;
-    const btn    = document.getElementById("resetBtn");
+            } else {
+                btn.disabled    = true;
+                btn.textContent = 'Logging in…';
 
-    if (!newPw || !confPw)  return showMsg("resetMsg", "Please fill in both fields.", "error");
-    if (newPw !== confPw)   return showMsg("resetMsg", "Passwords do not match.", "error");
-    if (newPw.length < 6)   return showMsg("resetMsg", "Password must be at least 6 characters.", "error");
+                const { error } = await sb.auth.signInWithPassword({
+                    email, password,
+                    options: { captchaToken: turnstileToken }
+                });
 
-    btn.disabled = true; btn.textContent = "Updating…";
-    const { error } = await sb.auth.updateUser({ password: newPw });
-    if (error) {
-      showMsg("resetMsg", error.message, "error");
-      btn.disabled = false; btn.textContent = "Update password";
-    } else {
-      showMsg("resetMsg", "✅ Password updated! Redirecting…", "success");
-      await sb.auth.signOut();
-      setTimeout(() => { window.location.href = "/auth"; }, 2000);
-    }
-  }
-</script>
+                // Always clear + reset after every attempt
+                turnstileToken = null;
+                if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
+
+                if (error) {
+                    btn.disabled    = false;
+                    btn.textContent = 'Log in';
+                    showMsg('msg', error.message, 'error');
+                } else {
+                    window.location.href = '/';
+                }
+            }
+        }
+
+        function waitForTurnstile(timeoutMs) {
+            return new Promise(resolve => {
+                if (turnstileToken) { resolve(true); return; }
+                const start = Date.now();
+                const iv = setInterval(() => {
+                    if (turnstileToken)               { clearInterval(iv); resolve(true);  }
+                    else if (Date.now() - start > timeoutMs) { clearInterval(iv); resolve(false); }
+                }, 100);
+            });
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // OAUTH — no CAPTCHA needed (Supabase skips it for OAuth)
+        // ═══════════════════════════════════════════════════════
+        async function doGitHub() {
+            await sb.auth.signInWithOAuth({
+                provider: 'github',
+                options: { redirectTo: window.location.origin }
+            });
+        }
+        async function doGoogle() {
+            await sb.auth.signInWithOAuth({
+                provider: 'google',
+                options: { redirectTo: window.location.origin }
+            });
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // FORGOT PASSWORD
+        // ═══════════════════════════════════════════════════════
+        async function doForgot() {
+            const email = document.getElementById('email').value.trim();
+            if (!email) return showMsg('msg', 'Enter your email above first.', 'error');
+            const { error } = await sb.auth.resetPasswordForEmail(email, {
+                redirectTo: window.location.origin + '/auth'
+            });
+            if (error) showMsg('msg', error.message, 'error');
+            else showMsg('msg', '✅ Reset email sent! Check your inbox.', 'success');
+        }
+
+        // Enter key support
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                if (isRecovery) doResetPassword();
+                else doSubmit();
+            }
+        });
+
+        // ═══════════════════════════════════════════════════════
+        // PASSWORD STRENGTH METER (signup / password field)
+        // ═══════════════════════════════════════════════════════
+        function checkSignupStrength(pw) {
+            const bar       = document.getElementById('signupPwBar');
+            const hint      = document.getElementById('signupPwHint');
+            const wrap      = document.getElementById('signupPwStrength');
+            const wrapEl    = document.getElementById('pwStrengthBar'); // reset screen fallback
+            if (!pw) {
+                wrap.hidden  = true;
+                hint.hidden  = true;
+                wrap.setAttribute('aria-valuenow', '0');
+                return;
+            }
+            wrap.hidden  = false;
+            hint.hidden  = false;
+
+            let score = 0;
+            if (pw.length >= 6)           score++;
+            if (pw.length >= 10)          score++;
+            if (/[A-Z]/.test(pw))         score++;
+            if (/[0-9]/.test(pw))         score++;
+            if (/[^A-Za-z0-9]/.test(pw))  score++;
+
+            const levels = [
+                { pct: '10%',  color: '#e06c6c', label: 'Too short' },
+                { pct: '25%',  color: '#e06c6c', label: 'Weak' },
+                { pct: '50%',  color: '#e0a46c', label: 'Fair' },
+                { pct: '75%',  color: '#d4e06c', label: 'Good' },
+                { pct: '100%', color: '#10a37f', label: 'Strong' },
+            ];
+            const lvl = levels[Math.min(score, 4)];
+            bar.style.width      = lvl.pct;
+            bar.style.background = lvl.color;
+            hint.textContent     = lvl.label;
+            hint.style.color     = lvl.color;
+            wrap.setAttribute('aria-valuenow', parseInt(lvl.pct));
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // PASSWORD STRENGTH METER (reset password screen)
+        // ═══════════════════════════════════════════════════════
+        function checkStrength(pw) {
+            const bar  = document.getElementById('strengthBar');
+            const hint = document.getElementById('strengthHint');
+            const wrap = document.getElementById('pwStrengthBar');
+
+            let score = 0;
+            if (pw.length >= 6)          score++;
+            if (pw.length >= 10)         score++;
+            if (/[A-Z]/.test(pw))        score++;
+            if (/[0-9]/.test(pw))        score++;
+            if (/[^A-Za-z0-9]/.test(pw)) score++;
+
+            const levels = [
+                { pct: '0%',   color: '#333',    label: 'At least 6 characters' },
+                { pct: '25%',  color: '#e06c6c', label: 'Weak' },
+                { pct: '50%',  color: '#e0a46c', label: 'Fair' },
+                { pct: '75%',  color: '#d4e06c', label: 'Good' },
+                { pct: '100%', color: '#10a37f', label: 'Strong' },
+            ];
+            const lvl = levels[Math.min(score, 4)];
+            bar.style.width      = lvl.pct;
+            bar.style.background = lvl.color;
+            hint.textContent     = lvl.label;
+            if (wrap) wrap.setAttribute('aria-valuenow', parseInt(lvl.pct) || 0);
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // PASSWORD RESET (from email link)
+        // ═══════════════════════════════════════════════════════
+        async function doResetPassword() {
+            const newPw  = document.getElementById('newPassword').value;
+            const confPw = document.getElementById('newConfirm').value;
+            const btn    = document.getElementById('resetBtn');
+
+            if (!newPw || !confPw)  return showMsg('resetMsg', 'Please fill in both fields.', 'error');
+            if (newPw !== confPw)   return showMsg('resetMsg', 'Passwords do not match.', 'error');
+            if (newPw.length < 6)   return showMsg('resetMsg', 'Password must be at least 6 characters.', 'error');
+
+            btn.disabled    = true;
+            btn.textContent = 'Updating…';
+
+            const { error } = await sb.auth.updateUser({ password: newPw });
+
+            if (error) {
+                showMsg('resetMsg', error.message, 'error');
+                btn.disabled    = false;
+                btn.textContent = 'Update password';
+            } else {
+                showMsg('resetMsg', '✅ Password updated! Redirecting…', 'success');
+                await sb.auth.signOut();
+                setTimeout(() => { window.location.href = '/auth'; }, 2000);
+            }
+        }
+    </script>
+
 </body>
 </html>
