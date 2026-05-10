@@ -39,7 +39,7 @@
     <meta name="apple-mobile-web-app-title" content="Catura AI">
 
     <!-- ═══ STYLES ═══ -->
-    <link rel="stylesheet" href="static/style.css?v=0.0.69">
+    <link rel="stylesheet" href="static/style.css?v=0.0.70">
 
     <noscript>
         <style>.app { display: none; }</style>
@@ -782,22 +782,12 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js" defer></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js" defer></script>
-    <script src="static/firebase-config.js?v=0.0.69" defer></script>
-    <script src="static/logic.js?v=0.0.69" defer></script>
-    <script src="static/feedback.js?v=0.0.69" defer></script>
-    <script src="static/file-upload.js?v=0.0.69" defer></script>
+    <script src="static/firebase-config.js?v=0.0.70" defer></script>
+    <script src="static/logic.js?v=0.0.70" defer></script>
+    <script src="static/feedback.js?v=0.0.70" defer></script>
+    <script src="static/file-upload.js?v=0.0.70" defer></script>
 
     <script>
-        // ── JS ID ALIAS: keep old id="input" working in logic.js ──
-        // The textarea was renamed to id="chatInput" for semantics.
-        // If logic.js references document.getElementById('input'), alias it:
-        document.addEventListener('DOMContentLoaded', () => {
-            if (!document.getElementById('input')) {
-                const ta = document.getElementById('chatInput');
-                if (ta) ta.id = 'chatInput'; // logic.js should use 'chatInput'
-            }
-        });
-
         // ── MOBILE: Dynamic input area height tracking ──
         // Updates --mobile-input-h so .chatbox bottom adapts when
         // the input area grows (multi-line) or shrinks (single-line).
@@ -847,19 +837,18 @@
                 // Gap between bottom of visual viewport and bottom of layout viewport
                 const keyboardHeight = Math.max(0, windowHeight - viewportHeight - vv.offsetTop);
 
+                const inputArea = document.getElementById('inputArea');
                 // Only adjust if keyboard is meaningfully open (>100px)
                 if (keyboardHeight > 100) {
                     root.style.setProperty('--vv-keyboard-offset', keyboardHeight + 'px');
-                    // Move input area up
-                    const inputArea = document.getElementById('inputArea');
                     if (inputArea) {
                         inputArea.style.bottom = keyboardHeight + 'px';
+                        // Use getBoundingClientRect (no style recalc) to measure current input height
+                        const inputH = inputArea.getBoundingClientRect().height || 80;
+                        root.style.setProperty('--mobile-input-h', (keyboardHeight + inputH) + 'px');
                     }
-                    // Shrink chatbox bottom accordingly
-                    root.style.setProperty('--mobile-input-h', (keyboardHeight + (parseInt(getComputedStyle(document.getElementById('inputArea')).height) || 80)) + 'px');
                 } else {
                     root.style.setProperty('--vv-keyboard-offset', '0px');
-                    const inputArea = document.getElementById('inputArea');
                     if (inputArea) {
                         inputArea.style.bottom = '';
                     }
@@ -874,7 +863,7 @@
 
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js?v=0.0.69')
+                navigator.serviceWorker.register('/service-worker.js?v=0.0.70')
                     .then(() => console.log('Catura AI PWA ready'))
                     .catch((err) => console.warn('Service worker registration failed:', err));
             });

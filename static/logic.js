@@ -167,7 +167,7 @@ const DOM = (() => {
 
     return {
         chatbox:        () => q('chatbox'),
-        input:          () => q('input'),
+        input:          () => q('chatInput'),
         inputArea:      () => q('inputArea'),
         app:            () => q('app'),
         sidebar:        () => q('sidebar'),
@@ -617,12 +617,12 @@ const ChatReset = (() => {
         const chatbox   = DOM.chatbox();
         const inputArea = DOM.inputArea();
         const app       = DOM.app();
-        if (chatbox)   chatbox.innerHTML = '';
         if (inputArea) { inputArea.classList.remove('bottom'); inputArea.classList.add('center'); }
         if (app)       app.classList.add('greeting-mode');
 
         const userName = DOM.userFullname()?.textContent || 'User';
         const greeting = UIFactory.createGreetingEl(userName);
+        // Single DOM clear — eliminates the double-flush flicker
         if (chatbox) { chatbox.innerHTML = ''; chatbox.appendChild(greeting); }
     }
 
@@ -1065,6 +1065,9 @@ const Settings = (() => {
         const overlay = DOM.settingsOverlay();
         if (!overlay) return;
 
+        // Already open — don't thrash the DOM; just ensure the first tab is active
+        if (overlay.classList.contains('active')) return;
+
         overlay.innerHTML = `
             <button class="settings-close-btn js-close-settings" title="Close">✕</button>
             <div class="settings-panel-wrap">
@@ -1250,13 +1253,8 @@ const History = (() => {
 
     async function show() {
         DOM.settingsOverlay()?.classList.remove('active');
-        const { data, error } = await DB.from(Config.DB.SESSIONS)
-            .select('*')
-            .eq('user_id', State.getUser().id)
-            .order('created_at', { ascending: false });
 
-        if (error) { console.error('❌ History failed:', error.message); return; }
-
+        // Show a loading state immediately — prevents the blank sidebar flash
         const menu = DOM.sidebarMenu();
         menu.innerHTML = `
             <div class="history-header">
@@ -1265,21 +1263,18 @@ const History = (() => {
                     Back
                 </button>
                 <span>Chat History</span>
-            </div>`;
+            </div>
+            <div class="history-loading" style="padding:16px;color:var(--text-dim);font-size:13px;text-align:center;">Loading…</div>`;
 
-        if (!data.length) {
-            menu.innerHTML += '<div class="no-history">No chats yet. Start a new chat to see history.</div>';
-        } else {
-            const frag = document.createDocumentFragment();
-            data.forEach(session => frag.appendChild(_buildItem(session, _loadSession)));
-            menu.appendChild(frag);
-        }
-
-        // Single delegated listener — remove old one first to avoid stacking
+        // Bind back button before the await so it works during loading
         if (_dropdownDelegate) menu.removeEventListener('click', _dropdownDelegate);
         _dropdownDelegate = (e) => {
             const target = e.target.closest('[data-history-action]');
-            if (!target) { _closeAllDropdowns(); return; }
+            if (!target) {
+                const backBtn = e.target.closest('[data-menu-action="back"]');
+                if (backBtn) { Menu.showMain(); return; }
+                _closeAllDropdowns(); return;
+            }
             e.stopPropagation();
             const action    = target.dataset.historyAction;
             const item      = target.closest('.history-item');
@@ -1301,19 +1296,55 @@ const History = (() => {
             if (action === 'delete') ChatActions.deleteSingle(sessionId);
         };
         menu.addEventListener('click', _dropdownDelegate);
+
+        const { data, error } = await DB.from(Config.DB.SESSIONS)
+            .select('*')
+            .eq('user_id', State.getUser().id)
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error('❌ History failed:', error.message);
+            menu.querySelector('.history-loading').textContent = '⚠️ Failed to load history.';
+            return;
+        }
+
+        // Remove loading placeholder
+        menu.querySelector('.history-loading')?.remove();
+
+        if (!data.length) {
+            menu.innerHTML += '<div class="no-history">No chats yet. Start a new chat to see history.</div>';
+        } else {
+            const frag = document.createDocumentFragment();
+            data.forEach(session => frag.appendChild(_buildItem(session, _loadSession)));
+            menu.appendChild(frag);
+        }
     }
 
     async function _loadSession(sessionId) {
         const chatbox   = DOM.chatbox();
         const inputArea = DOM.inputArea();
         const app       = DOM.app();
-        chatbox.innerHTML = '';
-        inputArea.classList.remove('center');
-        inputArea.classList.add('bottom');
-        app.classList.remove('greeting-mode');
 
         State.setSessionId(sessionId);
         State.setFirstMessage(false);
+
+        // Show a loading skeleton while we fetch — don't blank the chatbox yet
+        const loadingEl = document.createElement('div');
+        loadingEl.className = 'session-loading';
+        loadingEl.innerHTML = `<div class="thinking-wrap">
+            <div class="thinking-label"><span class="think-icon"></span>Loading chat…</div>
+            <div class="skeleton-lines">
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line"></div>
+            </div>
+        </div>`;
+        chatbox.innerHTML = '';
+        chatbox.appendChild(loadingEl);
+
+        inputArea.classList.remove('center');
+        inputArea.classList.add('bottom');
+        app.classList.remove('greeting-mode');
 
         const { data, error } = await DB.from(Config.DB.MESSAGES)
             .select('*')
@@ -1321,7 +1352,15 @@ const History = (() => {
             .eq('user_id', State.getUser().id)
             .order('created_at', { ascending: true });
 
-        if (error) { console.error('❌ Load session failed:', error.message); return; }
+        if (error) {
+            console.error('❌ Load session failed:', error.message);
+            loadingEl.remove();
+            const errEl = document.createElement('div');
+            errEl.className = 'message bot';
+            errEl.innerHTML = `<p style="color:#e06c6c">⚠️ Failed to load chat. Please try again.</p>`;
+            chatbox.appendChild(errEl);
+            return;
+        }
 
         const frag = document.createDocumentFragment();
         data.forEach(msg => {
@@ -1343,6 +1382,8 @@ const History = (() => {
             }
         });
 
+        // Replace loading indicator atomically with real content
+        chatbox.innerHTML = '';
         chatbox.appendChild(frag);
         chatbox.scrollTop = chatbox.scrollHeight;
         if (window.innerWidth <= Config.BREAKPOINT) Sidebar.close();
@@ -1401,7 +1442,8 @@ const ModelSelector = (() => {
         }
 
         if (MORE_MODELS.includes(State.getModel())) {
-            requestAnimationFrame(() => requestAnimationFrame(() => toggleMoreModels(null)));
+            // Use queueMicrotask for reliable post-paint execution — more predictable than double-rAF
+            queueMicrotask(() => toggleMoreModels(null));
         }
     }
 
@@ -1525,12 +1567,19 @@ const Stream = (() => {
     async function read(botMsg, wrapper, reader, decoder, chatbox, onToolUsed) {
         let buffer = '', fullReply = '', renderTimer = null;
 
+        // Cursor injected once as a real DOM node — never re-created during streaming.
+        // Eliminates the 80ms innerHTML-reparse flicker caused by a cursor suffix string.
+        const cursor = document.createElement('span');
+        cursor.className = 'stream-cursor';
+        botMsg.appendChild(cursor);
+
         const scheduleRender = () => {
             if (renderTimer) return;
             renderTimer = setTimeout(() => {
                 renderTimer = null;
                 if (fullReply) {
-                    botMsg.innerHTML = Markdown.render(Utils.repairTruncated(fullReply)) + '<span class="stream-cursor"></span>';
+                    botMsg.innerHTML = Markdown.render(Utils.repairTruncated(fullReply));
+                    botMsg.appendChild(cursor); // re-attach cursor after innerHTML reset
                     chatbox.scrollTop = chatbox.scrollHeight;
                 }
             }, Config.STREAM_THROTTLE_MS);
@@ -1561,7 +1610,11 @@ const Stream = (() => {
             }
         } catch (e) { console.warn('Stream read error:', e); }
 
+        // Cancel any pending throttled render before doing the final synchronous one
         if (renderTimer) { clearTimeout(renderTimer); renderTimer = null; }
+
+        // Remove cursor — stream is complete
+        cursor.remove();
 
         if (fullReply.trim()) {
             botMsg.innerHTML    = Markdown.render(Utils.repairTruncated(fullReply));
@@ -1590,6 +1643,9 @@ const SendMessage = (() => {
     }
 
     async function send() {
+        // Guard: never start a new request while one is streaming
+        if (State.isStreaming()) return;
+
         const inputEl  = DOM.input();
         const chatbox  = DOM.chatbox();
         const inputArea = DOM.inputArea();
@@ -1599,12 +1655,17 @@ const SendMessage = (() => {
         const hasFiles = typeof attachedFiles !== 'undefined' && attachedFiles.length > 0;
         if (!message && !hasFiles) return;
 
+        // Snapshot the firstMessage flag atomically before any await.
+        // This prevents a second rapid call from also seeing isFirstMessage()===true.
+        const wasFirstMessage = State.isFirstMessage();
+
         // ── Layout: transition on first message ──────────────
-        if (State.isFirstMessage()) {
+        if (wasFirstMessage) {
             chatbox.innerHTML = '';
             inputArea.classList.remove('center');
             inputArea.classList.add('bottom');
             app.classList.remove('greeting-mode');
+            State.setFirstMessage(false); // flip immediately — before any await
         }
 
         // ── Snapshot files, clear preview immediately ────────
@@ -1616,8 +1677,7 @@ const SendMessage = (() => {
         chatbox.appendChild(UIFactory.createUserBubble(message, filesToSend));
 
         // ── Create session on first message ──────────────────
-        if (State.isFirstMessage()) {
-            State.setFirstMessage(false);
+        if (wasFirstMessage) {
             const title = (message || (filesToSend[0]?.name || 'File Chat')).substring(0, 40);
             State.setChatTitle(title);
             const { error } = await DB.from(Config.DB.SESSIONS).insert([{
