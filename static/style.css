@@ -3040,42 +3040,154 @@ body {
 
 
 /* ============================================================
-   27. RESPONSIVE — MOBILE (≤768px)
+   26.5 RESPONSIVE — TABLET (769px–1024px)
    ============================================================ */
-@media (max-width: 768px) {
-  /* ── Viewport fix (Android) ── */
-  html, body {
-    width: 100%;
-    height: 100%;
-    position: fixed;
-    top: 0; left: 0;
-    overflow: hidden;
+@media (min-width: 769px) and (max-width: 1024px) {
+  /* Sidebar: narrower on tablet */
+  :root {
+    --sidebar-width: 220px;
   }
 
-  /* ── Touch ── */
+  /* Sidebar starts collapsed on tablet — slides in on demand */
+  .sidebar {
+    position: fixed;
+    top: 0; left: calc(-1 * var(--sidebar-width) - 20px);
+    height: 100dvh;
+    z-index: var(--z-sidebar);
+    overflow: visible;
+    will-change: left;
+    transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+    transition: left var(--duration-slow) var(--ease-out);
+  }
+  .sidebar.open {
+    left: 0;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.55);
+  }
+
+  /* Show overlay on tablet when sidebar open */
+  .sidebar-overlay.show { display: block; }
+
+  /* Show close button inside sidebar on tablet */
+  .close-btn { display: block; }
+
+  /* Icon rail visible on tablet */
+  .icon-rail { display: flex; }
+
+  /* App fills remaining space */
+  .app {
+    margin-left: var(--rail-width);
+    width: calc(100% - var(--rail-width));
+  }
+
+  /* Chat messages — comfortable reading width on tablet */
+  .chatbox {
+    max-width: 680px;
+    padding: 60px var(--sp-6) var(--sp-4);
+  }
+
+  /* Input: slightly narrower max-width for tablet readability */
+  .input-area,
+  .input-area.center {
+    max-width: 640px;
+  }
+
+  /* Model dropdown on tablet — anchored, not full bottom sheet */
+  .model-dropdown {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    right: 0;
+    left: auto;
+    width: 300px;
+    max-height: 60vh;
+  }
+
+  /* Suggestion grid — 2 columns on tablet */
+  .suggestions { grid-template-columns: repeat(2, 1fr); }
+
+  /* Touch targets — 44px minimum */
+  button,
+  .sidebar-item,
+  .model-selector-btn { min-height: 44px; min-width: 44px; }
+
+  /* Settings panel */
+  .settings-panel-wrap { padding: var(--sp-6) var(--sp-5); }
+}
+
+
+/* ============================================================
+   27. RESPONSIVE — MOBILE (≤768px)
+   ============================================================ */
+
+/*
+ * MOBILE LAYOUT ARCHITECTURE
+ * ──────────────────────────
+ * Fixed header:  top:0   → height: --mobile-header-h + safe-area-inset-top
+ * Fixed input:   bottom:0 → height varies with content + safe-area-inset-bottom
+ * Chatbox:       fills the space between header and input via
+ *                top / bottom anchors (no hardcoded px values)
+ *
+ * Keyboard handling: input-area uses position:fixed which rides
+ * with the visual viewport on iOS (no JS needed). On Android we
+ * additionally handle visualViewport resize via JS if needed.
+ * The chatbox bottom is kept dynamic using CSS custom property
+ * --input-area-h (updated by JS) with a safe fallback of 130px.
+ */
+
+@media (max-width: 768px) {
+  /* ── Viewport / overflow fix ── */
+  html {
+    /* Don't use position:fixed on html — breaks scroll restoration.
+       Use overflow:hidden on body instead. */
+    height: 100%;
+    overflow: hidden;
+  }
+  body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    /* Prevent elastic overscroll on the body itself */
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: auto;
+  }
+
+  /* ── Touch optimisations ── */
   * {
     -webkit-tap-highlight-color: transparent;
+  }
+  a, button, [role="button"], [role="option"], label, select, input, textarea {
     touch-action: manipulation;
   }
 
-  /* ── Mobile header ── */
+  /* ── Mobile header ──
+     Height = base height + safe area top inset so content
+     is never hidden behind a notch / Dynamic Island. */
   .mobile-header {
     display: flex;
-    align-items: center;
+    align-items: flex-end; /* content sits below safe area padding */
     justify-content: space-between;
     position: fixed;
     top: 0; left: 0; right: 0;
-    height: var(--mobile-header-h);
+    /* total rendered height = base + notch */
+    min-height: calc(var(--mobile-header-h) + env(safe-area-inset-top, 0px));
+    height: calc(var(--mobile-header-h) + env(safe-area-inset-top, 0px));
     background: rgba(13,13,13,0.99);
     border-bottom: 1px solid var(--border-subtle);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     z-index: var(--z-mobile-header);
-    padding: 0 var(--sp-3);
-    padding-top: max(0px, env(safe-area-inset-top));
+    /* Horizontal padding; vertical padding pushes content below notch */
+    padding: env(safe-area-inset-top, 0px) var(--sp-3) 0;
     box-sizing: border-box;
   }
 
+  /* Inner wrapper so items are vertically centred in the non-notch band */
+  .mobile-header > * {
+    margin-bottom: 0;
+    /* align items to bottom of notch-aware header */
+  }
+
+  /* ── Hamburger button ── */
   .mobile-hamburger {
     display: flex;
     flex-direction: column;
@@ -3093,6 +3205,7 @@ body {
     border-radius: var(--radius-lg);
     flex-shrink: 0;
     appearance: none;
+    -webkit-appearance: none;
   }
   .mobile-hamburger:active { background: var(--bg-4); }
 
@@ -3107,11 +3220,13 @@ body {
       opacity 0.25s,
       background 0.2s;
     transform-origin: center;
+    pointer-events: none;
   }
   .mobile-hamburger.is-open span:nth-child(1) { transform: translateY(7px)  rotate(45deg); }
   .mobile-hamburger.is-open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
   .mobile-hamburger.is-open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 
+  /* ── Header brand ── */
   .mobile-header-brand {
     display: flex;
     align-items: center;
@@ -3120,13 +3235,26 @@ body {
     font-weight: 600;
     color: var(--text-base);
     letter-spacing: -0.01em;
+    /* Prevent brand from growing and pushing buttons out */
+    flex: 1;
+    justify-content: center;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .mobile-header-brand span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .mobile-header-logo {
     width: 22px; height: 22px;
     object-fit: contain;
     border-radius: 5px;
+    flex-shrink: 0;
   }
 
+  /* ── New-chat button ── */
   .mobile-header-new {
     display: flex;
     align-items: center;
@@ -3140,6 +3268,7 @@ body {
     border-radius: var(--radius-lg);
     padding: 0;
     appearance: none;
+    -webkit-appearance: none;
     flex-shrink: 0;
     transition:
       background var(--duration-base),
@@ -3147,49 +3276,85 @@ body {
   }
   .mobile-header-new:active { background: var(--bg-4); color: var(--text-base); }
 
-  /* ── Layout ── */
+  /* ── Layout: hide rail, show close button ── */
   .icon-rail  { display: none; }
   .close-btn  { display: block; }
 
+  /* ── App container ──
+     Uses 100dvh (dynamic viewport height) to handle browser
+     chrome appearing/disappearing. On older browsers falls back
+     to 100vh. */
   .app {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
     width: 100%;
     height: 100dvh;
-    padding-top: var(--mobile-header-h);
+    /* Push content below fixed header */
+    padding-top: calc(var(--mobile-header-h) + env(safe-area-inset-top, 0px));
     box-sizing: border-box;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
+  /* Greeting mode: centre the welcome block */
   .app.greeting-mode {
-    justify-content: center;
-    align-items: center;
-    padding-top: var(--mobile-header-h);
+    justify-content: flex-start;
+    align-items: stretch;
+    padding-top: calc(var(--mobile-header-h) + env(safe-area-inset-top, 0px));
   }
-  .app.greeting-mode .chatbox { padding-top: 0; }
+  .app.greeting-mode .chatbox {
+    padding-top: var(--sp-5);
+    overflow-y: auto;
+    flex: 1;
+  }
 
-  /* ── Chatbox ── */
+  /* ── Chatbox ──
+     Fills the space between the mobile header and the fixed
+     input area. We use a CSS custom property --mobile-input-h
+     (set by JS measuring the input area) with a safe fallback.
+     On first render before JS fires, 130px covers the default
+     single-line input. */
   .chatbox {
     position: absolute;
-    top: var(--mobile-header-h);
+    top: calc(var(--mobile-header-h) + env(safe-area-inset-top, 0px));
     left: 0; right: 0;
-    bottom: 120px;
+    /* Use JS-measured height var; fall back to 130px */
+    bottom: var(--mobile-input-h, 130px);
     max-width: 100%;
     width: 100%;
     margin: 0;
-    padding: var(--sp-3) var(--sp-4);
+    padding: var(--sp-4) var(--sp-4) var(--sp-3);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     box-sizing: border-box;
+    /* Smooth momentum on iOS */
+    scroll-snap-type: none;
   }
   .chatbox::-webkit-scrollbar { display: none; }
 
   /* ── Messages ── */
-  .message.user { max-width: 82%; font-size: var(--text-base-size); }
-  .message.bot  { font-size: var(--text-md); padding: var(--sp-3) 0; }
+  .message.user {
+    max-width: 84%;
+    font-size: var(--text-base-size);
+    /* Prevent user bubble from overflowing narrow screens */
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+  .message.bot {
+    font-size: var(--text-md);
+    padding: var(--sp-3) 0;
+    /* Ensure bot text doesn't overflow */
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
 
-  /* ── Input area ── */
+  /* ── Fixed input area ──
+     Sits at the bottom, always visible. On iOS the visual
+     viewport shrinks when the keyboard appears and position:fixed
+     elements ride up with it automatically (iOS 15+).
+     On older iOS / Android we rely on the keyboard-inset CSS env. */
   .input-area,
   .input-area.center,
   .input-area.bottom {
@@ -3197,55 +3362,168 @@ body {
     bottom: 0; left: 0; right: 0;
     width: 100%;
     margin: 0;
-    padding: var(--sp-3) var(--sp-4) max(var(--sp-3), env(safe-area-inset-bottom));
+    /* Bottom padding = max(12px, safe-area-inset-bottom) so content
+       clears the home indicator on notched devices */
+    padding:
+      var(--sp-3)
+      var(--sp-4)
+      max(var(--sp-3), env(safe-area-inset-bottom, 0px))
+      var(--sp-4);
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-    border: 1px solid var(--bg-5);
+    border-top: 1px solid var(--bg-5);
     border-left: none; border-right: none; border-bottom: none;
-    background: rgba(22,22,22,0.98);
+    background: rgba(17,17,17,0.99);
     box-sizing: border-box;
-    z-index: 100;
-    box-shadow: 0 -2px 8px rgba(0,0,0,0.4);
+    /* High enough to sit above model dropdowns */
+    z-index: 200;
+    box-shadow: 0 -2px 16px rgba(0,0,0,0.5);
     /* No transition on mobile — causes keyboard jump */
     transition: none;
+    /* Prevent layout thrash by isolating layer */
+    will-change: transform;
+    -webkit-backface-visibility: hidden;
   }
   .input-area:hover,
-  .input-area:focus-within { box-shadow: 0 -2px 8px rgba(0,0,0,0.4); border-color: var(--bg-5); }
+  .input-area:focus-within {
+    box-shadow: 0 -2px 16px rgba(0,0,0,0.5);
+    border-color: var(--bg-5);
+  }
 
+  [data-theme="light"] .input-area,
+  [data-theme="light"] .input-area.center,
+  [data-theme="light"] .input-area.bottom {
+    background: rgba(255,255,255,0.99);
+    border-color: var(--border-muted);
+  }
+
+  /* ── Textarea ── */
   .chat-textarea,
   #input {
-    font-size: 16px; /* prevents iOS zoom */
+    /* 16px minimum prevents iOS auto-zoom on focus */
+    font-size: 16px;
     appearance: none;
-    min-height: 42px;
-    max-height: 120px;
+    -webkit-appearance: none;
+    min-height: 44px;
+    max-height: 130px;
+    /* Use smooth scroll inside the textarea itself */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .chat-textarea::placeholder,
-  #input::placeholder { font-size: var(--text-lg); }
+  #input::placeholder { font-size: 15px; }
 
-  /* ── Buttons ── */
-  .send-btn      { width: 32px; height: 32px; min-width: 32px; min-height: 32px; }
+  /* ── Input row bottom: flex layout ── */
+  .input-row-bottom {
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: var(--sp-2);
+    min-height: 44px;
+  }
+
+  /* ── Touch targets ──
+     WCAG 2.5.5 requires 44×44px minimum.
+     Apply carefully — small icon-only buttons need special handling. */
+  .sidebar-item { min-height: 48px; }
+  .model-selector-btn { min-height: 36px; }
+
+  /* Send and plus buttons: keep visual size but expand tap area via padding */
+  .send-btn {
+    width: 36px; height: 36px;
+    min-width: 36px; min-height: 36px;
+    /* Expand touch area without changing visual size */
+    padding: 0;
+    position: relative;
+  }
+  .send-btn::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: inherit;
+  }
   .send-btn svg  { width: 15px; height: 15px; }
-  .plus-btn      { width: 30px; height: 30px; min-width: 30px; min-height: 30px; }
-  .plus-btn svg  { width: 14px; height: 14px; }
 
-  /* Touch target enforcement */
-  .sidebar-item,
-  .model-selector-btn,
-  button { min-width: 44px; min-height: 44px; }
+  .plus-btn {
+    width: 34px; height: 34px;
+    min-width: 34px; min-height: 34px;
+    padding: 0;
+    position: relative;
+  }
+  .plus-btn::after {
+    content: '';
+    position: absolute;
+    inset: -5px;
+    border-radius: inherit;
+  }
+  .plus-btn svg  { width: 15px; height: 15px; }
 
-  /* ── Sidebar ── */
+  /* Model selector button — needs comfortable tap target */
+  .model-selector-btn {
+    height: 36px;
+    padding: 0 var(--sp-3);
+    min-height: 36px;
+    position: relative;
+  }
+  .model-selector-btn::after {
+    content: '';
+    position: absolute;
+    inset: -4px -2px;
+    border-radius: inherit;
+  }
+
+  /* Web search chip */
+  .web-search-chip {
+    min-height: 30px;
+    padding: 4px 10px;
+  }
+
+  /* ── Plus dropdown ── */
+  .plus-dropdown {
+    /* Position above the plus button, not clipped by input area */
+    bottom: calc(100% + 8px);
+    top: auto;
+    left: 0;
+    right: auto;
+    z-index: 300;
+    min-width: 200px;
+    max-width: calc(100vw - 32px);
+  }
+
+  /* ── Sidebar ──
+     Slides in from left as an overlay (drawer pattern).
+     height: 100dvh accounts for browser chrome changes. */
   .sidebar {
     position: fixed;
-    top: 0; left: -280px;
+    top: 0;
+    /* Start fully off-screen (width + shadow clearance) */
+    left: calc(-1 * var(--sidebar-width) - 24px);
     width: var(--sidebar-width);
     height: 100dvh;
     z-index: var(--z-sidebar);
-    overflow: visible;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     will-change: left;
+    /* GPU-compose the panel */
     transform: translateZ(0);
     -webkit-backface-visibility: hidden;
     transition: left var(--duration-slow) var(--ease-out);
   }
-  .sidebar.open { left: 0; box-shadow: 4px 0 20px rgba(0,0,0,0.6); }
+  .sidebar.open {
+    left: 0;
+    box-shadow: 4px 0 20px rgba(0,0,0,0.6);
+  }
+
+  /* Sidebar menu items: taller touch targets on mobile */
+  .sidebar-item {
+    min-height: 48px;
+    padding: var(--sp-3) var(--sp-4);
+  }
+
+  /* Sidebar bottom profile row */
+  .sidebar-bottom {
+    padding-bottom: max(var(--sp-4), env(safe-area-inset-bottom, var(--sp-4)));
+  }
 
   /* ── Model dropdown — bottom sheet ── */
   .model-dropdown {
@@ -3256,16 +3534,18 @@ body {
     max-width: 100%;
     max-height: 70vh;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     border-bottom: none;
-    padding: 0 0 env(safe-area-inset-bottom, var(--sp-3));
+    padding: 0 0 max(var(--sp-4), env(safe-area-inset-bottom, var(--sp-4)));
     transform: translateY(100%);
     opacity: 1;
     box-shadow: 0 -8px 40px rgba(0,0,0,0.7);
+    /* Above input area (z:200) and sidebar overlay (z:999) */
     z-index: 10000;
     transition:
       transform 0.28s var(--ease-sheet),
-      opacity var(--duration-base),
       visibility var(--duration-base);
   }
   .model-dropdown.open {
@@ -3279,7 +3559,8 @@ body {
     width: 36px; height: 4px;
     background: var(--bg-5);
     border-radius: 2px;
-    margin: 10px auto var(--sp-1);
+    margin: 12px auto var(--sp-2);
+    flex-shrink: 0;
   }
   .model-dropdown-header {
     padding: 10px var(--sp-4);
@@ -3292,8 +3573,8 @@ body {
   .model-option          { padding: var(--sp-4); font-size: var(--text-md); min-height: 60px; }
   .model-option-name     { font-size: var(--text-md); }
   .model-option-desc     { font-size: var(--text-sm); margin-top: 3px; }
-  .model-option-check    { width: 22px; height: 22px; font-size: var(--text-base-size); }
-  .model-more-row        { padding: var(--sp-4); font-size: var(--text-md); }
+  .model-option-check    { width: 22px; height: 22px; font-size: var(--text-base-size); flex-shrink: 0; }
+  .model-more-row        { padding: var(--sp-4); font-size: var(--text-md); min-height: 52px; }
   .model-more-back-btn   { display: flex; }
 
   /* More models panel — also bottom sheet on mobile */
@@ -3305,7 +3586,9 @@ body {
     border-bottom: none;
     max-height: 75vh;
     overflow-y: auto;
-    padding-bottom: env(safe-area-inset-bottom, var(--sp-3));
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding-bottom: max(var(--sp-4), env(safe-area-inset-bottom, var(--sp-4)));
     transform: translateY(100%);
     opacity: 1;
     z-index: 10001;
@@ -3318,23 +3601,33 @@ body {
     width: 36px; height: 4px;
     background: var(--bg-5);
     border-radius: 2px;
-    margin: 10px auto var(--sp-1);
+    margin: 12px auto var(--sp-2);
   }
-  .model-more-panel .model-option { padding: var(--sp-4) var(--sp-4); }
+  .model-more-panel .model-option { padding: var(--sp-4); }
 
-  /* ── Welcome / suggestions ── */
-  .welcome               { width: 92%; top: 26%; }
-  .welcome h1            { font-size: 20px; }
-  .welcome p             { font-size: var(--text-md); }
-  .suggestions           { grid-template-columns: 1fr 1fr; gap: 8px; }
-  .suggestion-card       { font-size: var(--text-xs); padding: var(--sp-3); }
+  /* ── Welcome screen / suggestions ── */
+  .welcome {
+    width: 92%;
+    /* Don't use fixed top% — use flex centering from parent instead */
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
+    margin: auto;
+  }
+  .welcome h1  { font-size: 20px; }
+  .welcome p   { font-size: var(--text-md); }
+  .suggestions { grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 0; }
+  .suggestion-card { font-size: var(--text-xs); padding: var(--sp-3); min-height: 44px; }
 
-  /* ── Settings ── */
+  /* ── Settings panel ── */
   .settings-panel-wrap {
     flex-direction: column;
-    padding: 52px var(--sp-4) var(--sp-5);
+    /* Account for mobile header height */
+    padding: calc(var(--mobile-header-h) + env(safe-area-inset-top, 0px) + var(--sp-4)) var(--sp-4) max(var(--sp-5), env(safe-area-inset-bottom, var(--sp-5)));
     gap: 0;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .settings-nav {
     width: 100%;
@@ -3347,34 +3640,89 @@ body {
     border-bottom: 1px solid var(--bg-3);
     margin-bottom: var(--sp-5);
     scrollbar-width: none;
+    /* Momentum scrolling for tab bar */
+    -webkit-overflow-scrolling: touch;
   }
   .settings-nav::-webkit-scrollbar { display: none; }
-  .settings-nav-title    { display: none; }
-  .settings-nav-item     { white-space: nowrap; font-size: var(--text-base-size); padding: 7px var(--sp-4); flex-shrink: 0; }
-  .settings-content      { overflow-y: auto; padding-right: 0; -webkit-overflow-scrolling: touch; }
+  .settings-nav-title   { display: none; }
+  .settings-nav-item    {
+    white-space: nowrap;
+    font-size: var(--text-base-size);
+    padding: 7px var(--sp-4);
+    flex-shrink: 0;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+  .settings-content {
+    overflow-y: auto;
+    padding-right: 0;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
 
   /* ── Modals on mobile ── */
   .feedback-modal-overlay,
   .settings-overlay,
-  .priv-modal-overlay    { position: fixed; inset: 0; z-index: var(--z-modal); }
+  .priv-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-modal);
+  }
   .feedback-modal-content,
   .priv-modal-box,
-  .del-modal-box         { max-height: 90vh; max-width: 90%; }
-  .feedback-modal-content { padding: var(--sp-5); border-radius: var(--radius-xl); }
+  .del-modal-box {
+    max-height: 90dvh;
+    max-width: min(90%, 480px);
+    /* Ensure modals clear safe areas */
+    margin-bottom: max(0px, env(safe-area-inset-bottom, 0px));
+  }
+  .feedback-modal-content {
+    padding: var(--sp-5);
+    border-radius: var(--radius-xl);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
   .feedback-modal-header h2 { font-size: var(--text-xl); }
+  /* 16px minimum to prevent iOS zoom on form focus */
   .form-group input,
-  .form-group textarea   { font-size: 16px; appearance: none; }
+  .form-group textarea {
+    font-size: 16px;
+    appearance: none;
+    -webkit-appearance: none;
+  }
 
-  /* ── Misc ── */
+  /* ── Scrollable containers ── */
   .priv-modal-body,
-  .settings-content      { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
-  #toastNotif            { bottom: 120px; }
-  .msg-file--img         { max-width: 180px; }
-  .msg-file-img          { width: 170px; }
-  .msg-file--doc         { max-width: 200px; }
-  .plus-dropdown         { bottom: 42px; top: auto; }
+  .settings-content {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
 
+  /* ── Toast notification: above input area ──
+     Uses same dynamic var as chatbox for consistency. */
+  #toastNotif { bottom: var(--mobile-input-h, 130px); }
+
+  /* ── File preview bubbles ── */
+  .msg-file--img { max-width: 180px; }
+  .msg-file-img  { width: 170px; }
+  .msg-file--doc { max-width: 220px; }
+
+  /* ── Attached files preview bar ── */
+  .attached-files-preview {
+    /* Ensure it doesn't overflow input area width */
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ── Light theme adjustments ── */
   [data-theme="light"] .model-dropdown { background: var(--bg-2); }
+  [data-theme="light"] .model-more-panel { background: var(--bg-2); }
+  [data-theme="light"] .mobile-header {
+    background: rgba(235,235,235,0.99);
+    border-bottom-color: var(--border-muted);
+  }
 }
 
 
@@ -3382,7 +3730,66 @@ body {
    28. RESPONSIVE — SMALL MOBILE (≤480px)
    ============================================================ */
 @media (max-width: 480px) {
-  .message.user { max-width: 88%; }
-  .suggestion-card { font-size: var(--text-sm); }
-  .del-modal-box { padding: var(--sp-6) var(--sp-5) var(--sp-5); }
+  /* Slightly wider user bubbles on narrow screens */
+  .message.user { max-width: 90%; }
+
+  /* Single-column suggestions on very small phones */
+  .suggestions { grid-template-columns: 1fr; }
+  .suggestion-card { font-size: var(--text-sm); min-height: 44px; }
+
+  /* Modal sizing on small phones */
+  .del-modal-box { padding: var(--sp-6) var(--sp-5) var(--sp-5); max-width: 95%; }
+  .feedback-modal-content { max-width: 95%; padding: var(--sp-4); }
+
+  /* Reduce horizontal padding on very narrow screens */
+  .chatbox { padding-left: var(--sp-3); padding-right: var(--sp-3); }
+  .input-area,
+  .input-area.center,
+  .input-area.bottom { padding-left: var(--sp-3); padding-right: var(--sp-3); }
+
+  /* Slightly smaller model selector text */
+  .model-name { font-size: var(--text-base-size); }
+
+  /* Welcome screen on small phones */
+  .welcome h1 { font-size: 18px; }
+  .welcome p  { font-size: var(--text-base-size); }
+}
+
+
+/* ============================================================
+   29. KEYBOARD-AWARE LAYOUT HELPER
+   Injected by JS (visualViewport API) for Android/older iOS.
+   These rules let CSS respond to the --keyboard-inset variable
+   that JS writes to document.documentElement.style.
+   ============================================================ */
+
+/* When keyboard is open on Android, shift input area up */
+@supports (height: env(keyboard-inset-height)) {
+  @media (max-width: 768px) {
+    .input-area,
+    .input-area.center,
+    .input-area.bottom {
+      /* Native keyboard inset (Chrome 94+ on Android) */
+      bottom: env(keyboard-inset-height, 0px);
+      padding-bottom: max(var(--sp-3), env(safe-area-inset-bottom, 0px));
+    }
+  }
+}
+
+
+/* ============================================================
+   30. SAFE AREA & NOTCH UTILITIES
+   ============================================================ */
+
+/* Sticky bottom bars always clear the home indicator */
+.safe-bottom {
+  padding-bottom: max(var(--sp-3), env(safe-area-inset-bottom, 0px));
+}
+
+/* Full-height panels that need notch awareness */
+.safe-full {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
 }
