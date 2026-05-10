@@ -2552,147 +2552,99 @@ body {
 
 
 /* ============================================================
-   23. FEEDBACK MODAL
+   23. FEEDBACK MODAL — v2 additions
+   Append these rules into the existing section 23 block,
+   or replace the whole section with this file.
    ============================================================ */
-.feedback-modal {
-  display: none; /* shown via JS adding display:flex or removing hidden */
-}
-.feedback-modal[open],
-.feedback-modal:not([hidden]) {
-  display: flex;
+
+/* ── Honeypot: invisible to sighted users, screen readers, and tab order ── */
+.feedback-hp {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  tabindex: -1;
 }
 
-.feedback-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.7);
-  backdrop-filter: blur(4px);
-  z-index: var(--z-modal);
+/* ── Form group header: label + char counter on same row ── */
+.form-group-header {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--sp-5);
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+/* ── Character counter ── */
+.char-count {
+  font-size: var(--text-xs, 11px);
+  color: var(--text-ghost);
+  white-space: nowrap;
+  transition: color var(--duration-base);
+  font-variant-numeric: tabular-nums;
+}
+.char-count-warn  { color: var(--warning, #e5a345); }
+.char-count-error { color: var(--danger);           }
+
+/* ── Inline field error ── */
+.form-field-error {
+  display: block;
+  font-size: var(--text-xs, 11px);
+  color: var(--danger);
+  margin-top: 3px;
+  min-height: 1em; /* reserve space to avoid layout shift */
   animation: fade-in var(--duration-base) ease;
 }
 
-.feedback-modal-content {
-  position: relative;
-  background: var(--bg-3);
-  border: 1px solid var(--border-muted);
-  border-radius: var(--radius-2xl);
-  padding: var(--sp-8);
-  width: 100%;
-  max-width: 480px;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: var(--shadow-xl);
+/* ── Invalid field ring ── */
+.form-group input.input-error,
+.form-group textarea.input-error {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px var(--danger-alpha-8);
 }
 
-.feedback-close-btn {
-  position: absolute;
-  top: var(--sp-3);
-  right: var(--sp-3);
-  background: transparent;
-  border: none;
-  color: var(--text-faint);
-  font-size: 24px;
-  cursor: pointer;
-  padding: var(--sp-1) var(--sp-2);
-  border-radius: var(--radius-sm);
-  line-height: 1;
-  transition:
-    background var(--duration-base),
-    color var(--duration-base);
-}
-.feedback-close-btn:hover { background: var(--bg-5); color: var(--text-base); }
-
-.feedback-modal-header { margin-bottom: var(--sp-5); }
-.feedback-modal-header h2 {
-  margin: 0;
-  font-size: var(--text-xl);
-  font-weight: 600;
+/* ── Close button focus ring (keyboard accessibility) ── */
+.feedback-close-btn:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  background: var(--bg-5);
   color: var(--text-base);
-  letter-spacing: -0.02em;
 }
 
-.feedback-form { display: flex; flex-direction: column; gap: var(--sp-4); }
-
-.form-group { display: flex; flex-direction: column; gap: var(--sp-1); }
-
-.form-group label {
-  font-size: var(--text-base-size);
-  font-weight: 500;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
+/* ── Submit button focus ring ── */
+.feedback-submit-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
 }
 
-.form-group input,
-.form-group textarea {
-  background: var(--bg-code);
-  border: 1px solid var(--border-muted);
-  border-radius: var(--radius-md);
-  padding: 10px var(--sp-3);
-  color: var(--text-base);
-  font-family: inherit;
-  font-size: var(--text-md);
-  line-height: var(--leading-base);
-  resize: vertical;
-  appearance: none;
-  transition:
-    border-color var(--duration-base),
-    box-shadow var(--duration-base),
-    background var(--duration-base);
+/* ── Input focus ring already exists; also add focus-visible ── */
+.form-group input:focus-visible,
+.form-group textarea:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 0;
 }
-.form-group input::placeholder,
-.form-group textarea::placeholder { color: var(--text-ghost); }
-.form-group input:focus,
-.form-group textarea:focus {
-  outline: none;
-  border-color: var(--brand);
-  box-shadow: 0 0 0 2px var(--brand-alpha-10);
-  background: var(--bg-1);
-}
-.form-group textarea { min-height: 120px; font-family: var(--font-sans); }
 
+/* ── Spinner for loading state ── */
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Keep submit btn gap consistent during loading ── */
 .feedback-submit-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   gap: var(--sp-2);
-  background: linear-gradient(135deg, var(--brand), var(--brand-dark));
-  border: none;
-  color: #fff;
-  padding: 11px var(--sp-4);
-  border-radius: var(--radius-md);
-  font-size: var(--text-md);
-  font-weight: 600;
-  cursor: pointer;
-  margin-top: var(--sp-2);
-  box-shadow: var(--shadow-brand-sm);
-  transition:
-    background var(--duration-base) var(--ease-out),
-    transform var(--duration-base) var(--ease-out),
-    box-shadow var(--duration-base) var(--ease-out);
 }
-.feedback-submit-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--brand-dark), var(--brand-darker));
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-brand-md);
-}
-.feedback-submit-btn:active:not(:disabled)  { transform: translateY(0); box-shadow: var(--shadow-brand-sm); }
-.feedback-submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-
-.feedback-message {
-  padding: var(--sp-3) var(--sp-4);
-  border-radius: var(--radius-md);
-  font-size: var(--text-md);
-  line-height: var(--leading-base);
-  text-align: center;
-  animation: fade-in var(--duration-slow) ease;
-}
-.feedback-message-success { background: var(--brand-alpha-10); border: 1px solid var(--brand-alpha-20); color: var(--brand); }
-.feedback-message-error   { background: var(--danger-alpha-8); border: 1px solid var(--danger-alpha-20); color: #ff8080; }
 
 
 /* ============================================================

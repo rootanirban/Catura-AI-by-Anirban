@@ -39,7 +39,7 @@
     <meta name="apple-mobile-web-app-title" content="Catura AI">
 
     <!-- ═══ STYLES ═══ -->
-    <link rel="stylesheet" href="static/style.css?v=0.0.71">
+    <link rel="stylesheet" href="static/style.css?v=0.0.72">
 
     <noscript>
         <style>.app { display: none; }</style>
@@ -683,6 +683,8 @@
 
     <!-- ═══════════════════════════════════════════════
          FEEDBACK MODAL
+         Drop-in replacement for the equivalent block
+         in index.html. Remove the old block and paste this.
     ═══════════════════════════════════════════════ -->
     <div
         id="feedbackModal"
@@ -693,10 +695,10 @@
         aria-describedby="feedbackModalDesc"
         hidden
     >
-        <!-- Click-outside overlay -->
+        <!-- Click-outside overlay (JS listener, not inline onclick) -->
         <div
+            id="feedbackModalOverlay"
             class="feedback-modal-overlay"
-            onclick="closeFeedbackModal()"
             role="presentation"
             aria-hidden="true"
         ></div>
@@ -705,7 +707,7 @@
             <button
                 class="feedback-close-btn"
                 type="button"
-                onclick="closeFeedbackModal()"
+                id="feedbackCloseBtn"
                 aria-label="Close feedback dialog"
             >
                 <span aria-hidden="true">✕</span>
@@ -713,10 +715,26 @@
 
             <header class="feedback-modal-header">
                 <h2 id="feedbackModalTitle">Send Feedback</h2>
-                <p id="feedbackModalDesc" class="sr-only">Use this form to send feedback about Catura AI.</p>
+                <p id="feedbackModalDesc" class="sr-only">
+                    Use this form to send feedback about Catura AI.
+                </p>
             </header>
 
             <form id="feedbackForm" class="feedback-form" novalidate>
+
+                <!-- ── Honeypot (hidden from real users, bots fill it) ── -->
+                <div class="feedback-hp" aria-hidden="true">
+                    <label for="feedback_url">Website</label>
+                    <input
+                        type="text"
+                        id="feedback_url"
+                        name="feedback_url"
+                        tabindex="-1"
+                        autocomplete="off"
+                    >
+                </div>
+
+                <!-- ── Name ── -->
                 <div class="form-group">
                     <label for="feedbackName">Name</label>
                     <input
@@ -727,9 +745,12 @@
                         required
                         autocomplete="name"
                         aria-required="true"
+                        maxlength="80"
                     >
+                    <!-- Error injected here by JS -->
                 </div>
 
+                <!-- ── Email ── -->
                 <div class="form-group">
                     <label for="feedbackEmail">Email</label>
                     <input
@@ -740,30 +761,47 @@
                         required
                         autocomplete="email"
                         aria-required="true"
+                        maxlength="254"
                     >
+                    <!-- Error injected here by JS -->
                 </div>
 
+                <!-- ── Message ── -->
                 <div class="form-group">
-                    <label for="feedbackText">Message</label>
+                    <div class="form-group-header">
+                        <label for="feedbackText">Message</label>
+                        <span
+                            id="feedbackCharCount"
+                            class="char-count"
+                            aria-live="polite"
+                            aria-atomic="true"
+                        >0 / 3000</span>
+                    </div>
                     <textarea
                         id="feedbackText"
                         name="feedbackText"
-                        placeholder="Tell us your thoughts…"
+                        placeholder="Tell us your thoughts… (minimum 20 characters)"
                         rows="5"
                         required
                         aria-required="true"
+                        maxlength="3000"
                     ></textarea>
+                    <!-- Error injected here by JS -->
                 </div>
 
                 <button type="submit" class="feedback-submit-btn" id="feedbackSubmitBtn">
                     <span>Submit</span>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round"
+                         aria-hidden="true" focusable="false">
                         <line x1="12" y1="19" x2="12" y2="5"></line>
                         <polyline points="5 12 12 5 19 12"></polyline>
                     </svg>
                 </button>
             </form>
 
+            <!-- Status / success / error banner -->
             <div
                 id="feedbackMessage"
                 class="feedback-message"
@@ -776,16 +814,17 @@
     </div>
 
 
+
     <!-- ═══════════════════════════════════════════════
          SCRIPTS
     ═══════════════════════════════════════════════ -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js" defer></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js" defer></script>
-    <script src="static/firebase-config.js?v=0.0.71" defer></script>
-    <script src="static/logic.js?v=0.0.71" defer></script>
-    <script src="static/feedback.js?v=0.0.71" defer></script>
-    <script src="static/file-upload.js?v=0.0.71" defer></script>
+    <script src="static/firebase-config.js?v=0.0.72" defer></script>
+    <script src="static/logic.js?v=0.0.72" defer></script>
+    <script src="static/feedback.js?v=0.0.72" defer></script>
+    <script src="static/file-upload.js?v=0.0.72" defer></script>
 
     <script>
         // ── MOBILE: Dynamic input area height tracking ──
@@ -863,7 +902,7 @@
 
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js?v=0.0.71')
+                navigator.serviceWorker.register('/service-worker.js?v=0.0.72')
                     .then(() => console.log('Catura AI PWA ready'))
                     .catch((err) => console.warn('Service worker registration failed:', err));
             });
