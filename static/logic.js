@@ -1867,12 +1867,15 @@ async function performWebSearch(query) {
     }
 }
 
-// ── streamWordsWithTools — intercepts tool_used SSE event, then renders ──────
+// ── streamWordsWithTools — word-queue streaming animator (ChatGPT/Claude style) ──
 async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decoder, chatbox, onToolUsed, onFirstToken, onToolRunning) {
-    let buffer    = "";
-    let fullReply = "";
-    let renderTimer = null;
-    let gotWrapper = false;
+    let buffer      = "";
+    let fullReply   = "";       // complete received text (source of truth)
+    let displayed   = "";       // what has been rendered so far
+    let wordQueue   = [];       // words waiting to be painted
+    let gotWrapper  = false;
+    let streamDone  = false;    // SSE stream finished
+    let animRunning = false;
 
     // Support both old (direct elements) and new (lazy callback) API
     let botMsg  = botMsgInitial;
@@ -1887,19 +1890,6 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
         return { wrapper, botMsg };
     };
 
-    const scheduleRender = () => {
-        if (renderTimer) return;
-        renderTimer = setTimeout(() => {
-            renderTimer = null;
-            const { botMsg: bm } = getOrCreateWrapper();
-            if (fullReply && bm) {
-                bm.innerHTML = formatMessage(repairTruncated(fullReply)) +
-                    '<span class="stream-cursor"></span>';
-                chatbox.scrollTop = chatbox.scrollHeight;
-            }
-        }, 16); // reduced from 80ms → 16ms (1 frame) for instant feel
-    };
-
     const intentLabels = {
         clock:      "🕐 Checking live time…",
         weather:    "🌤️ Checking live weather…",
@@ -1910,6 +1900,66 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
         wikipedia:  "📖 Looking up Wikipedia…",
     };
 
+    // ── Word-queue drain loop ────────────────────────────────────────────────
+    // Runs on rAF; emits ~2-3 words per frame (~40-50 ms between renders) for
+    // a fast but readable pace — similar to ChatGPT / Claude.
+    const WORDS_PER_TICK = 2;   // words painted per animation frame
+    const RENDER_EVERY   = 2;   // re-parse markdown every N ticks (keeps it smooth)
+    let   tickCount      = 0;
+
+    const drainQueue = () => {
+        const { botMsg: bm } = getOrCreateWrapper();
+        if (!bm) { if (!streamDone || wordQueue.length) requestAnimationFrame(drainQueue); return; }
+
+        if (wordQueue.length === 0) {
+            if (!streamDone) {
+                // waiting for more tokens — keep loop alive
+                requestAnimationFrame(drainQueue);
+            } else {
+                // stream finished AND queue empty — do final render
+                animRunning = false;
+                bm.innerHTML = formatMessage(repairTruncated(fullReply));
+                if (wrapper) wrapper.dataset.raw = fullReply;
+                chatbox.scrollTop = chatbox.scrollHeight;
+            }
+            return;
+        }
+
+        // Paint WORDS_PER_TICK words this frame
+        const batch = wordQueue.splice(0, WORDS_PER_TICK);
+        displayed += batch.join("");
+        tickCount++;
+
+        if (tickCount % RENDER_EVERY === 0 || (streamDone && wordQueue.length === 0)) {
+            // Full markdown re-parse (kept infrequent to stay fast)
+            bm.innerHTML = formatMessage(repairTruncated(displayed)) +
+                (streamDone && wordQueue.length === 0 ? "" : '<span class="stream-cursor"></span>');
+        } else {
+            // Lightweight: just append a text node for speed between re-parses
+            // (cursor injected at end of last parsed node)
+            const cursor = bm.querySelector(".stream-cursor");
+            if (cursor) {
+                cursor.insertAdjacentText("beforebegin", batch.join(""));
+            } else {
+                bm.innerHTML = formatMessage(repairTruncated(displayed)) +
+                    '<span class="stream-cursor"></span>';
+            }
+        }
+
+        chatbox.scrollTop = chatbox.scrollHeight;
+        requestAnimationFrame(drainQueue);
+    };
+
+    // Push incoming text into word-queue, splitting on whitespace boundaries
+    // so each "word + its trailing space" is one queue entry.
+    const enqueueText = (text) => {
+        // Split keeping the delimiter (space/newline) attached to the left token
+        const parts = text.split(/(?<=\s)/);
+        for (const p of parts) if (p) wordQueue.push(p);
+        if (!animRunning) { animRunning = true; requestAnimationFrame(drainQueue); }
+    };
+
+    // ── SSE reader loop ──────────────────────────────────────────────────────
     try {
         outer:
         while (true) {
@@ -1925,12 +1975,11 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
                 if (payload === "[DONE]") break outer;
                 try {
                     const data = JSON.parse(payload);
-                    // Tool badge event — intercept before rendering
+
                     if (data.tool_used !== undefined) {
                         if (typeof onToolUsed === "function") onToolUsed(data.tool_used);
                         continue;
                     }
-                    // Status event from backend (tool running)
                     if (data.status === "tool_running") {
                         const label = intentLabels[data.intent] || "🔍 Fetching data…";
                         if (typeof onToolRunning === "function") onToolRunning(label);
@@ -1939,19 +1988,26 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
                     if (data.error) {
                         const { botMsg: bm } = getOrCreateWrapper();
                         if (!fullReply.trim() && bm) bm.innerHTML = `<p style="color:#e06c6c">⚠️ ${data.error}</p>`;
-                        if (renderTimer) { clearTimeout(renderTimer); renderTimer = null; }
+                        streamDone = true;
                         return fullReply || "";
                     }
                     if (data.token) {
                         fullReply += data.token;
-                        scheduleRender();
+                        enqueueText(data.token);
                     }
                 } catch { continue; }
             }
         }
     } catch (e) { console.warn("Stream read error:", e); }
 
-    if (renderTimer) { clearTimeout(renderTimer); renderTimer = null; }
+    // Signal animator that no more tokens are coming
+    streamDone = true;
+
+    // Wait for the animator to finish draining the queue before returning
+    await new Promise(resolve => {
+        const poll = () => animRunning ? requestAnimationFrame(poll) : resolve();
+        requestAnimationFrame(poll);
+    });
 
     const { wrapper: w, botMsg: bm } = getOrCreateWrapper();
 
