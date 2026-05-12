@@ -102,7 +102,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.79"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.80"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -112,7 +112,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.79", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.80", "timestamp": datetime.utcnow().isoformat()}
 
 
 # ============================================================
@@ -135,6 +135,30 @@ def detect_intent(text: str) -> str:
     ]
     if any(re.search(p, lower) for p in identity_patterns):
         return "general"
+
+    # ── REAL-TIME OVERRIDE — must run BEFORE wikipedia check ───────────────
+    # If the query has real-time signals (now, new, current, latest, today,
+    # currently, recently) combined with an information-seeking phrase,
+    # always force web_search — never Wikipedia.
+    realtime_signals = [
+        r'\bnow\b', r'\bnew\b', r'\bcurrent(ly)?\b', r'\blatest\b',
+        r'\btoday\b', r'\brecent(ly)?\b', r'\bright now\b', r'\bat (the )?moment\b',
+        r'\bthis (year|month|week|day)\b', r'\b2024\b', r'\b2025\b',
+        r'\bjust (happened|announced|elected|appointed|named|won|became)\b',
+        r'\bwho (is|are) (the |now |currently |now the )?(new |current )?(cm|pm|president|minister|governor|ceo|chief|head|leader|director|chairman)\b',
+        r'\bwho (won|became|is leading|got elected|was elected|was appointed|was named)\b',
+        r'\bwho (is|are) (in charge|running|leading|governing|heading)\b',
+        r'\b(cm|chief minister|prime minister|president|governor) of\b',
+        r'\b(current|new|latest|now) (cm|pm|president|minister|governor|ceo|chief|leader|head)\b',
+        r'\belection result\b', r'\belected\b', r'\bappointed\b',
+    ]
+    # If ANY real-time signal is present AND it looks like an info-seeking query → web_search
+    info_seeking = any(re.search(p, lower) for p in [
+        r'\bwho\b', r'\bwhat\b', r'\bwhich\b', r'\bwhere\b', r'\bwhen\b',
+        r'\bwho is\b', r'\bwho are\b', r'\btell me\b', r'\bfind\b',
+    ])
+    if info_seeking and any(re.search(p, lower) for p in realtime_signals):
+        return "web_search"
 
     # ── CLOCK / TIME ────────────────────────────────────────────────────────
     clock_patterns = [
@@ -200,8 +224,8 @@ def detect_intent(text: str) -> str:
     wikipedia_patterns = [
         # Definition / explanation
         r'\bwhat is\b', r'\bwhat are\b', r'\bwhat was\b', r'\bwhat were\b',
-        r'\bwho is\b', r'\bwho was\b', r'\bwho were\b',
-        r'\bwhere is\b', r'\bwhere was\b',
+        r'\bwho was\b', r'\bwho were\b',
+        r'\bwhere was\b',
         r'\bwhen (was|did|were|is) (the|a|an)\b',
         r'\bhow (does|do|did|was|were|is|are)\b',
         r'\bwhy (is|are|was|were|did|does)\b',
@@ -1157,30 +1181,113 @@ def tool_sports(prompt: str) -> dict:
 
 
 # ============================================================
-# ✅ TOOL: WEB SEARCH (DuckDuckGo)
+# ✅ TOOL: WEB SEARCH (DuckDuckGo — Multi-Query Intelligence)
+# Runs 2-3 targeted queries, deduplicates, cross-references,
+# and returns rich context so the AI can reason like ChatGPT.
 # ============================================================
-def tool_web_search(query: str, max_results: int = 5) -> dict:
-    """
-    DuckDuckGo search with structured result output.
-    """
-    print(f"🔍 [TOOL] web_search | query: {query[:80]}")
+def _ddg_search(query: str, max_results: int = 5) -> list:
+    """Single DuckDuckGo search, returns list of result dicts."""
     try:
         with DDGS() as ddgs:
             raw = list(ddgs.text(query, max_results=max_results))
-
-        results = [
+        return [
             {
                 "title": r.get("title", ""),
-                "body": r.get("body", "")[:300],
+                "body": r.get("body", "")[:400],
                 "href": r.get("href", ""),
+                "query_used": query,
             }
             for r in raw if r.get("title")
         ]
-        print(f"✅ [TOOL] web_search success: {len(results)} results")
-        return {"tool": "web_search", "query": query, "results": results}
     except Exception as e:
-        print(f"❌ [TOOL] web_search exception: {e}")
-        return {"tool": "web_search", "query": query, "results": [], "error": str(e)}
+        print(f"❌ [DDG] query='{query}' exception: {e}")
+        return []
+
+
+def _build_smart_queries(original_query: str) -> list[str]:
+    """
+    Generate 2-3 smart, targeted search queries from the original user query.
+    This is the key to ChatGPT-level information quality — multiple angles.
+    """
+    lower = original_query.lower().strip().rstrip("?.,!")
+    queries = [original_query]  # always include the original
+
+    # Political / government positions → add recency + official source queries
+    political_patterns = [
+        r'\b(cm|chief minister|prime minister|president|governor|minister)\b',
+        r'\b(mayor|mla|mp|senator|chancellor|premier|ceo|director|chairman)\b',
+        r'\b(who (is|are|was|won|became|got elected|was elected|was appointed))\b',
+        r'\b(election|elected|appointed|result|winner)\b',
+    ]
+    is_political = any(re.search(p, lower) for p in political_patterns)
+
+    if is_political:
+        # Add a "2024 2025" recency query
+        queries.append(lower + " 2025")
+        # Add a "latest news" angle
+        queries.append("latest " + lower)
+
+    # Current events / news → add date-qualified query
+    elif any(w in lower for w in ["now", "today", "current", "latest", "new", "recent"]):
+        queries.append(lower + " 2025")
+        # Add a news-specific query
+        if not lower.startswith("news"):
+            queries.append("news " + lower)
+
+    # Factual lookups → add Wikipedia + authoritative source query
+    elif any(w in lower for w in ["what is", "who is", "when was", "where is", "how does"]):
+        queries.append(lower + " explained")
+        queries.append(lower + " official")
+
+    # Deduplicate while preserving order
+    seen = set()
+    unique = []
+    for q in queries:
+        q_clean = q.strip().lower()
+        if q_clean not in seen:
+            seen.add(q_clean)
+            unique.append(q.strip())
+
+    return unique[:3]  # max 3 queries
+
+
+def tool_web_search(query: str, max_results: int = 5) -> dict:
+    """
+    Multi-query DuckDuckGo search with cross-referencing.
+    Runs up to 3 targeted queries, deduplicates by URL, and returns
+    a rich result set with source diversity for the AI to reason over.
+    """
+    print(f"🔍 [TOOL] web_search | query: {query[:80]}")
+
+    smart_queries = _build_smart_queries(query)
+    print(f"🧠 [TOOL] web_search | smart queries: {smart_queries}")
+
+    all_results = []
+    seen_urls   = set()
+
+    for q in smart_queries:
+        batch = _ddg_search(q, max_results=max_results)
+        for r in batch:
+            url = r.get("href", "")
+            if url and url not in seen_urls:
+                seen_urls.add(url)
+                all_results.append(r)
+        if len(all_results) >= 10:
+            break  # enough context
+
+    # Sort: prefer results from the primary query first, then supplemental
+    primary_results     = [r for r in all_results if r.get("query_used", "") == query]
+    supplemental        = [r for r in all_results if r.get("query_used", "") != query]
+    final_results       = (primary_results + supplemental)[:10]
+
+    print(f"✅ [TOOL] web_search success: {len(final_results)} unique results from {len(smart_queries)} queries")
+    return {
+        "tool":           "web_search",
+        "query":          query,
+        "queries_run":    smart_queries,
+        "result_count":   len(final_results),
+        "results":        final_results,
+    }
 
 
 def tool_wikipedia(prompt: str) -> dict:
@@ -1337,11 +1444,29 @@ def build_tool_context(tool_result: dict) -> str:
             lines.append(f"   Source: {r['href']}")
 
     elif tool == "web_search":
-        lines.append(f"Search query: {tool_result['query']}")
+        queries_run = tool_result.get("queries_run", [tool_result.get("query", "")])
+        lines.append(f"Primary search: {tool_result['query']}")
+        if len(queries_run) > 1:
+            lines.append(f"Also searched: {' | '.join(queries_run[1:])}")
+        lines.append(f"Total unique results: {tool_result.get('result_count', len(tool_result.get('results', [])))}\n")
+
         for i, r in enumerate(tool_result.get("results", []), 1):
-            lines.append(f"\n{i}. {r['title']}")
+            q_tag = f" [via: {r['query_used']}]" if r.get("query_used") and r["query_used"] != tool_result["query"] else ""
+            lines.append(f"{i}. {r['title']}{q_tag}")
             lines.append(f"   {r['body']}")
-            lines.append(f"   Source: {r['href']}")
+            lines.append(f"   Source: {r['href']}\n")
+
+        lines.append(
+            "\n🧠 CROSS-REFERENCE INSTRUCTIONS:\n"
+            "- Read ALL results above carefully.\n"
+            "- Look for CONSENSUS: if multiple independent sources agree on a fact, it is likely correct.\n"
+            "- Flag CONFLICTS: if sources disagree (e.g. different names, dates), note both and say which seems more reliable.\n"
+            "- Prefer RECENT sources (newer date in URL or snippet wins over older).\n"
+            "- Prefer AUTHORITATIVE sources: official government sites, major newspapers (Times of India, Hindustan Times, NDTV, BBC, Reuters) over blogs or forums.\n"
+            "- Synthesize a clear, confident answer from the evidence — do NOT say 'I don't know' if the data is in the results above.\n"
+            "- If a result is clearly outdated or contradicted by newer results, discard it.\n"
+            "- Always mention where you got the information from (source name, not just URL).\n"
+        )
 
     lines.append(
         "\n\n🚨 CRITICAL RULES FOR ALL LIVE DATA:\n"
