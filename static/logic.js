@@ -348,11 +348,17 @@ function formatMessage(rawText) {
             continue;
         }
 
-        // Ordered list
+        // Ordered list — preserve original numbers via value= attribute
+        // This fixes "1 1 1 1" when list items are separated by paragraph text,
+        // because each isolated item in its own <ol> still shows the correct number.
         if (/^\d+[\.)]\s/.test(trimmed)) {
             const items = [];
             while (i < rawLines.length && /^\d+[\.)]\s/.test(rawLines[i].trim())) {
-                items.push(`<li>${applyInline(rawLines[i].trim().replace(/^\d+[\.)]\s/, ""))}</li>`);
+                const t = rawLines[i].trim();
+                const numMatch = t.match(/^(\d+)[\.)]\s/);
+                const num = numMatch ? parseInt(numMatch[1], 10) : null;
+                const content = applyInline(t.replace(/^\d+[\.)]\s/, ""));
+                items.push(num !== null ? `<li value="${num}">${content}</li>` : `<li>${content}</li>`);
                 i++;
             }
             outputLines.push(`<ol>${items.join("")}</ol>`);
