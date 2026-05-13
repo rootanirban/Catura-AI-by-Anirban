@@ -75,8 +75,15 @@ const FILE_TTL_MS  = 25 * 24 * 60 * 60 * 1000; // 25 days
 // ── Entry point ───────────────────────────────────────────────────────────────
 // Called by <input type="file" onchange="handleFileSelect(event)">
 async function handleFileSelect(event) {
-    const files = Array.from(event.target.files || []);
-    event.target.value = ''; // reset so same file can be re-selected
+    // Support both real <input> events and fake drag-drop events
+    var rawFiles = (event.target && event.target.files)
+        ? event.target.files
+        : (event.files || []);
+    const files = Array.from(rawFiles);
+
+    // Reset real input so same file can be re-selected
+    try { if (event.target && 'value' in event.target) event.target.value = ''; } catch(_) {}
+
     if (!files.length) return;
 
     // Count slots available AFTER current attached files
@@ -319,7 +326,7 @@ function renderAttachedPreview() {
         return;
     }
 
-    preview.style.display = '';
+    preview.style.display = 'flex';
 
     list.innerHTML = attachedFiles.map(function(f, idx) {
         var displayUrl = f.localUrl || f.url;
@@ -591,9 +598,8 @@ function fileIconSVG(type) {
             : [];
         if (!files.length) return;
 
-        // Re-use the existing file-select pipeline
-        var fakeEvent = { target: { files: files, value: '' } };
-        handleFileSelect(fakeEvent);
+        // Pass files directly — handleFileSelect supports both real events and direct arrays
+        handleFileSelect({ files: files });
     }, false);
 
     // Create overlay when DOM ready

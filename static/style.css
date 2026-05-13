@@ -2935,6 +2935,12 @@ html { scroll-behavior: smooth; }
     display: none;
     padding: 10px 14px 8px;
     border-bottom: 1px solid #252525;
+    flex-wrap: wrap;
+}
+/* When JS sets display:flex via style, this is the shown state */
+.attached-files-preview[style*="flex"] {
+    display: flex !important;
+    flex-wrap: wrap;
 }
 .attached-files-list {
     display: flex;

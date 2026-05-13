@@ -15,6 +15,229 @@ from PIL import Image
 from duckduckgo_search import DDGS
 from wiki import search_wikipedia
 
+# ── File content fetcher ──────────────────────────────────────────────────────
+# Extension → broad category map used when Content-Type is missing/wrong
+_CODE_EXTENSIONS = {
+    'py','js','ts','jsx','tsx','html','htm','css','json','java','c','cpp','cs',
+    'go','rs','rb','php','swift','kt','sh','bash','zsh','xml','yaml','yml',
+    'toml','md','markdown','sql','r','lua','dart','scala','hs','txt','csv',
+    'dockerfile','makefile','gitignore','env','ini','cfg','conf','log',
+}
+_IMAGE_EXTENSIONS = {'jpg','jpeg','png','gif','webp','bmp','svg','ico','tiff','tif'}
+_PDF_EXTENSION    = {'pdf'}
+_DOC_EXTENSIONS   = {'doc','docx'}
+
+MAX_TEXT_FILE_BYTES = 200_000   # ~200 KB — enough for large code files
+MAX_IMAGE_B64_BYTES = 4_000_000 # 4 MB base64 limit for vision APIs
+
+
+def _ext(url: str) -> str:
+    """Return lowercase extension from a URL path, no dot."""
+    path = url.split("?")[0].rstrip("/")
+    dot  = path.rfind(".")
+    return path[dot+1:].lower() if dot != -1 else ""
+
+
+def fetch_file_content_for_ai(url: str) -> dict:
+    """
+    Download a file from `url` and return a structured dict:
+
+      For text/code files:
+        { "kind": "text", "ext": str, "content": str, "truncated": bool }
+
+      For images (sent as base64 to vision-capable models):
+        { "kind": "image", "ext": str, "mime": str, "b64": str }
+
+      For PDFs / Word docs (extract text where possible):
+        { "kind": "text", "ext": str, "content": str, "truncated": bool }
+
+      On failure:
+        { "kind": "error", "reason": str }
+    """
+    ext = _ext(url)
+
+    try:
+        resp = requests.get(url, timeout=12, stream=True)
+        if resp.status_code != 200:
+            return {"kind": "error", "reason": f"HTTP {resp.status_code}"}
+
+        content_type = resp.headers.get("Content-Type", "").split(";")[0].strip().lower()
+
+        # ── Images ──────────────────────────────────────────────────────────
+        is_image = ext in _IMAGE_EXTENSIONS or content_type.startswith("image/")
+        if is_image:
+            raw = resp.content
+            if len(raw) > MAX_IMAGE_B64_BYTES:
+                # Compress via Pillow before encoding
+                try:
+                    img = Image.open(io.BytesIO(raw))
+                    img.thumbnail((1280, 1280), Image.LANCZOS)
+                    buf = io.BytesIO()
+                    fmt = "JPEG" if ext in ("jpg","jpeg") else "PNG"
+                    img.save(buf, format=fmt, quality=82)
+                    raw = buf.getvalue()
+                except Exception:
+                    pass  # send original if resize fails
+            mime = content_type if content_type.startswith("image/") else f"image/{ext}"
+            return {
+                "kind": "image",
+                "ext" : ext,
+                "mime": mime,
+                "b64" : base64.b64encode(raw).decode("utf-8"),
+            }
+
+        # ── PDF — extract text ───────────────────────────────────────────────
+        if ext in _PDF_EXTENSION or content_type == "application/pdf":
+            raw = resp.content
+            text = _extract_pdf_text(raw)
+            if not text:
+                return {"kind": "error", "reason": "PDF has no extractable text (scanned/image-only)"}
+            truncated = len(text) > MAX_TEXT_FILE_BYTES
+            return {
+                "kind"     : "text",
+                "ext"      : "pdf",
+                "content"  : text[:MAX_TEXT_FILE_BYTES],
+                "truncated": truncated,
+            }
+
+        # ── Word docx — extract text ─────────────────────────────────────────
+        if ext == "docx" or "wordprocessingml" in content_type:
+            raw = resp.content
+            text = _extract_docx_text(raw)
+            if not text:
+                return {"kind": "error", "reason": "Could not extract text from .docx"}
+            truncated = len(text) > MAX_TEXT_FILE_BYTES
+            return {
+                "kind"     : "text",
+                "ext"      : "docx",
+                "content"  : text[:MAX_TEXT_FILE_BYTES],
+                "truncated": truncated,
+            }
+
+        # ── Text / code files ────────────────────────────────────────────────
+        is_text = (
+            ext in _CODE_EXTENSIONS
+            or content_type.startswith("text/")
+            or content_type in ("application/json", "application/xml",
+                                "application/javascript", "application/x-yaml")
+        )
+        if is_text:
+            raw = resp.content[:MAX_TEXT_FILE_BYTES + 1]
+            try:
+                text = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                try:
+                    text = raw.decode("latin-1")
+                except Exception:
+                    return {"kind": "error", "reason": "File is binary (not text)"}
+            truncated = len(raw) > MAX_TEXT_FILE_BYTES
+            return {
+                "kind"     : "text",
+                "ext"      : ext or "txt",
+                "content"  : text[:MAX_TEXT_FILE_BYTES],
+                "truncated": truncated,
+            }
+
+        # ── Unknown type — try reading as text anyway ────────────────────────
+        raw = resp.content[:MAX_TEXT_FILE_BYTES + 1]
+        try:
+            text = raw.decode("utf-8")
+            return {
+                "kind"     : "text",
+                "ext"      : ext or "bin",
+                "content"  : text[:MAX_TEXT_FILE_BYTES],
+                "truncated": len(raw) > MAX_TEXT_FILE_BYTES,
+            }
+        except Exception:
+            return {"kind": "error", "reason": f"Unsupported binary file type: {ext or content_type}"}
+
+    except requests.exceptions.Timeout:
+        return {"kind": "error", "reason": "Timeout downloading file"}
+    except Exception as exc:
+        return {"kind": "error", "reason": str(exc)}
+
+
+def _extract_pdf_text(raw: bytes) -> str:
+    """Extract plain text from a PDF binary using pypdf (falls back to pdfminer)."""
+    # Try pypdf first (fast, no extra deps beyond what's usually installed)
+    try:
+        import pypdf
+        reader = pypdf.PdfReader(io.BytesIO(raw))
+        parts  = []
+        for page in reader.pages:
+            t = page.extract_text()
+            if t:
+                parts.append(t)
+        return "\n\n".join(parts).strip()
+    except ImportError:
+        pass
+    except Exception:
+        pass
+
+    # Fallback: try pdfminer.six
+    try:
+        from pdfminer.high_level import extract_text as pm_extract
+        return pm_extract(io.BytesIO(raw)).strip()
+    except Exception:
+        pass
+
+    return ""
+
+
+def _extract_docx_text(raw: bytes) -> str:
+    """Extract plain text from a .docx binary using python-docx."""
+    try:
+        import docx
+        doc   = docx.Document(io.BytesIO(raw))
+        lines = [p.text for p in doc.paragraphs if p.text.strip()]
+        return "\n".join(lines).strip()
+    except ImportError:
+        pass
+    except Exception:
+        pass
+    return ""
+
+
+def build_file_context_for_prompt(file_urls: list) -> tuple:
+    """
+    For each URL in file_urls, fetch content and build:
+      - `text_context`  : str  injected into system / user prompt
+      - `vision_images` : list of {"mime":…, "b64":…} for vision-capable models
+
+    Returns (text_context: str, vision_images: list)
+    """
+    if not file_urls:
+        return "", []
+
+    text_parts    = []
+    vision_images = []
+
+    for url in file_urls:
+        if not url:
+            continue
+        result = fetch_file_content_for_ai(url)
+        kind   = result.get("kind")
+        ext    = result.get("ext", "")
+
+        if kind == "image":
+            vision_images.append({"mime": result["mime"], "b64": result["b64"]})
+            text_parts.append(f"[Image attached: {ext.upper()} — analysed via vision]")
+
+        elif kind == "text":
+            content   = result["content"]
+            truncated = result.get("truncated", False)
+            label     = ext.upper() if ext else "FILE"
+            header    = f"=== ATTACHED FILE ({label}) ==="
+            footer    = "[...file truncated — showing first 200 KB...]" if truncated else f"=== END OF {label} ==="
+            text_parts.append(f"{header}\n{content}\n{footer}")
+
+        elif kind == "error":
+            reason = result.get("reason", "unknown error")
+            text_parts.append(f"[File could not be read: {reason}]")
+
+    text_context = "\n\n".join(text_parts)
+    return text_context, vision_images
+
 app = FastAPI()
 
 # ✅ CORS MIDDLEWARE
@@ -103,7 +326,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.84"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.85"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -113,7 +336,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.84", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.85", "timestamp": datetime.utcnow().isoformat()}
 
 
 # ============================================================
@@ -1638,12 +1861,37 @@ async def delete_account(request: Request):
 # ============================================================
 # ✅ HELPER: Call OpenRouter with streaming
 # ============================================================
-def call_openrouter_stream(model_id, messages, api_key, file_urls=None):
+def call_openrouter_stream(model_id, messages, api_key, file_urls=None, vision_images=None):
+    """
+    Call OpenRouter streaming.
+    - Text/code/PDF content is already injected into `messages` by the caller.
+    - vision_images: list of {"mime":…, "b64":…} — appended as vision content blocks
+      to the last user message for image-capable models.
+    """
     try:
-        if file_urls:
-            file_context = f"\n\n[User has shared {len(file_urls)} file(s): {', '.join(file_urls)}]"
-            if messages and messages[0].get('role') == 'system':
-                messages[0]['content'] += file_context
+        if vision_images:
+            # Find last user message and upgrade to multimodal content array
+            last_user_idx = None
+            for i in range(len(messages) - 1, -1, -1):
+                if messages[i].get("role") == "user":
+                    last_user_idx = i
+                    break
+
+            if last_user_idx is not None:
+                original_content = messages[last_user_idx].get("content", "")
+                content_blocks = []
+
+                for img in vision_images:
+                    content_blocks.append({
+                        "type": "image_url",
+                        "image_url": {"url": f"data:{img['mime']};base64,{img['b64']}"}
+                    })
+
+                text_str = original_content if isinstance(original_content, str) else ""
+                if not text_str:
+                    text_str = "Please analyse this image in detail."
+                content_blocks.append({"type": "text", "text": text_str})
+                messages[last_user_idx]["content"] = content_blocks
 
         resp = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
@@ -1830,7 +2078,29 @@ async def chat_post(request: Request):
         if session_id not in user_memory:
             user_memory[session_id] = []
 
-        user_memory[session_id].append({"role": "user", "content": prompt})
+        # ── FILE CONTENT INJECTION ─────────────────────────────────────────
+        # Download and inject file content BEFORE appending to memory so ALL
+        # models (Dagr, Apep, Sambhav, Gemma) actually see file contents —
+        # not just a URL. This enables deep analysis like Claude / ChatGPT do.
+        file_text_context = ""
+        vision_images_for_prompt = []
+        if file_urls:
+            file_text_context, vision_images_for_prompt = build_file_context_for_prompt(file_urls)
+
+        # Compose the full user message that goes into memory + is sent to AI
+        user_message_content = prompt
+        if file_text_context:
+            if user_message_content:
+                user_message_content = user_message_content + "\n\n" + file_text_context
+            else:
+                user_message_content = (
+                    "Please analyse the attached file(s) in depth. "
+                    "Explain what they contain, what they do, identify any issues or "
+                    "interesting aspects, and answer any implicit questions the user may have.\n\n"
+                    + file_text_context
+                )
+
+        user_memory[session_id].append({"role": "user", "content": user_message_content})
 
         # ── MODEL POOLS ────────────────────────────────────────────────────
         # Gemma models → Google AI Studio (GEMINI_API_KEY), NOT OpenRouter
@@ -2203,7 +2473,7 @@ async def chat_post(request: Request):
                     if full_reply.strip() else messages
                 )
 
-                resp, err = call_openrouter_stream(current_model, relay_messages, api_key, file_urls)
+                resp, err = call_openrouter_stream(current_model, relay_messages, api_key, vision_images=vision_images_for_prompt)
 
                 if resp is None:
                     print(f"❌ [{current_model}] connection failed: {err} — switching model")

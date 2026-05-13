@@ -7,3 +7,5 @@ Pillow
 python-multipart
 duckduckgo-search==6.3.7
 tavily-python
+pypdf
+python-docx
