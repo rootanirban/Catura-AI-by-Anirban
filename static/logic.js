@@ -6,6 +6,23 @@ const supabaseKey = "sb_publishable_aIbByN1rFc9V3AH41Kyz6A_e1XppA1Z";
 const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 // ============================
+// ⚡ PERFORMANCE MODE (LOW-END DEVICES)
+// ============================
+let STREAM_CONFIG = { wordsPerTick: 2, renderEvery: 2 };
+
+function initPerformanceMode() {
+    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const lowMemory = typeof navigator.deviceMemory === "number" && navigator.deviceMemory <= 4;
+    const lowCores = typeof navigator.hardwareConcurrency === "number" && navigator.hardwareConcurrency <= 4;
+    const isLowEnd = prefersReduced || lowMemory || lowCores;
+
+    if (isLowEnd) {
+        document.documentElement.classList.add("low-end");
+        STREAM_CONFIG = { wordsPerTick: 4, renderEvery: 4 };
+    }
+}
+
+// ============================
 // ✅ USER AUTH
 // ============================
 let currentUser = null;
@@ -192,7 +209,7 @@ function useSuggestion(el) {
 }
 
 // ============================
-// �� QUERY COMPLEXITY DETECTOR
+// 🧠 QUERY COMPLEXITY DETECTOR
 // ============================
 function isHeavyQuery(text) {
     const lower = text.toLowerCase().trim();
@@ -1487,6 +1504,7 @@ document.addEventListener("click", closeAllMenus);
 // ============================
 document.addEventListener("DOMContentLoaded", async function () {
 
+    initPerformanceMode();
     initTheme();
     initFontSize();
     initWebSearchUI();
@@ -1931,8 +1949,8 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
     // ── Word-queue drain loop ────────────────────────────────────────────────
     // Runs on rAF; emits ~2-3 words per frame (~40-50 ms between renders) for
     // a fast but readable pace — similar to ChatGPT / Claude.
-    const WORDS_PER_TICK = 2;   // words painted per animation frame
-    const RENDER_EVERY   = 2;   // re-parse markdown every N ticks (keeps it smooth)
+    const WORDS_PER_TICK = STREAM_CONFIG.wordsPerTick;
+    const RENDER_EVERY   = STREAM_CONFIG.renderEvery;
     let   tickCount      = 0;
 
     const drainQueue = () => {
