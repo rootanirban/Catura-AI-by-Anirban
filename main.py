@@ -326,7 +326,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.90"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.91"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -336,7 +336,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.90", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.91", "timestamp": datetime.utcnow().isoformat()}
 
 
 # ============================================================
@@ -1765,7 +1765,12 @@ def build_tool_context(tool_result: dict) -> str:
         for i, a in enumerate(tool_result.get("articles", []), 1):
             lines.append(f"\n{i}. {a['title']}")
             if a["summary"]: lines.append(f"   {a['summary']}")
-            if a["source"]:  lines.append(f"   Source: {a['source']} | {a['published']}")
+            if a["published"]: lines.append(f"   Date: {a['published']}")
+        lines.append(
+            "\n📌 INSTRUCTION: Summarize the news above clearly. "
+            "Do NOT mention source names, URLs, or outlet names in your reply. "
+            "The sources are shown separately in the UI."
+        )
 
     elif tool == "sports":
         sport = tool_result.get("sport", "sports")
@@ -1835,18 +1840,21 @@ def build_tool_context(tool_result: dict) -> str:
             "- Flag CONFLICTS: if sources disagree (e.g. different names, dates), note both and say which seems more reliable.\n"
             "- Prefer RECENT sources (newer date in URL or snippet wins over older).\n"
             "- Prefer AUTHORITATIVE sources: official government sites, major newspapers (Times of India, Hindustan Times, NDTV, BBC, Reuters) over blogs or forums.\n"
-            "- Synthesize a clear, confident answer from the evidence — do NOT say 'I don't know' if the data is in the results above.\n"
+            "- Synthesize a clear, confident, detailed answer from the evidence — do NOT say 'I don't know' if the data is in the results above.\n"
             "- If a result is clearly outdated or contradicted by newer results, discard it.\n"
-            "- Always mention where you got the information from (source name, not just URL).\n"
+            "- Give a COMPLETE answer: include relevant context such as when something happened, which election/assembly/event/term, full names, exact dates, and key background — just like a knowledgeable person would explain it naturally.\n"
+            "- DO NOT mention source names, URLs, or website names in your reply. DO NOT write phrases like 'Source:', 'according to [site]', 'as reported by', or 'e.g., [news outlet]'. The sources are shown separately in the UI.\n"
+            "- DO NOT add any source attribution at the end of your answer.\n"
         )
 
     lines.append(
         "\n\n🚨 CRITICAL RULES FOR ALL LIVE DATA:\n"
-        "1. Use ONLY the data shown above — NEVER use numbers from your training memory.\n"
+        "1. Use ONLY the data shown above — NEVER use numbers or facts from your training memory.\n"
         "2. If a value shows 'N/A', tell the user it is unavailable — do NOT invent a number.\n"
         "3. NEVER fabricate prices, temperatures, scores, or headlines.\n"
         "4. Do NOT say 'I don't have real-time data' — you have live data above. Use it.\n"
-        "5. Format the answer clearly and mention the data source."
+        "5. Give a complete, detailed answer with all relevant context (dates, full names, event details).\n"
+        "6. NEVER mention source names, URLs, or outlet names inline in your reply. Do NOT write 'Source:', 'according to [website]', or any attribution. Sources are displayed separately in the UI."
     )
     return "\n".join(lines)
 
@@ -2209,7 +2217,12 @@ async def chat_post(request: Request):
             "Your training data is months old — prices in it are WRONG. "
             "If live data is missing a number, say: 'I could not fetch the live price right now "
             "— please check NSE (nseindia.com) or BSE (bseindia.com) or your broker app.' "
-            "Inventing a price (e.g. saying 1233 for a stock that trades at 28) is a critical error."
+            "Inventing a price (e.g. saying 1233 for a stock that trades at 28) is a critical error.\n"
+            "7. 🚨 NEVER CITE SOURCES INLINE: Do NOT write 'Source:', 'according to [website/outlet]', "
+            "'as reported by', 'e.g., WIONews', 'e.g., The Star', or any similar attribution anywhere "
+            "in your answer. Do NOT add a 'Sources:' section at the end of your reply. "
+            "Sources are already shown to the user in a separate UI element — mentioning them in text "
+            "is redundant and clutters the response. Just give the answer cleanly."
         )
 
         system_prompts = {
@@ -2863,6 +2876,11 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "9. Never mix up cultural references — don't apply Western defaults to Indian questions.\n"
             "10. Always use Indian number formatting when relevant "
             "(e.g., 1,00,000 not 100,000; 'lakh' and 'crore' not 'hundred thousand' or 'million').\n"
+            "11. 🚨 NEVER CITE SOURCES INLINE: Do NOT write 'Source:', 'according to [website]', "
+            "'as reported by', 'e.g., [news outlet]', or any similar attribution anywhere in your answer. "
+            "Do NOT add a 'Sources:' or 'References:' section. "
+            "Sources are already shown separately in the UI — adding them in text clutters the response. "
+            "Just give the answer clearly and completely.\n"
         )
 
         system_prompts = {
