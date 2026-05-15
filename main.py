@@ -326,7 +326,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.89"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.90"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -336,7 +336,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.89", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.90", "timestamp": datetime.utcnow().isoformat()}
 
 
 # ============================================================
@@ -1644,6 +1644,32 @@ def tool_wikipedia(prompt: str) -> dict:
 # ============================================================
 # ✅ TOOL ROUTER — dispatches to the correct tool
 # ============================================================
+def build_sources_payload(tool_result: dict) -> str | None:
+    """
+    Build a JSON-serialised 'sources' SSE payload from a tool result.
+    Returns None if there are no usable sources.
+    """
+    if not tool_result:
+        return None
+    results = tool_result.get("results", [])
+    if not results:
+        return None
+    sources = []
+    for r in results[:5]:  # max 5 sources shown
+        url   = r.get("href", "") or r.get("url", "")
+        title = r.get("title", "") or r.get("name", "")
+        if url:
+            try:
+                from urllib.parse import urlparse
+                domain = urlparse(url).netloc.replace("www.", "")
+            except Exception:
+                domain = url
+            sources.append({"url": url, "title": title or domain, "domain": domain})
+    if not sources:
+        return None
+    return json.dumps({"sources": sources})
+
+
 def run_tool(intent: str, prompt: str) -> dict | None:
     """
     Routes to the appropriate tool based on detected intent.
@@ -2353,6 +2379,9 @@ async def chat_post(request: Request):
                 if tool_result:
                     badge_payload = json.dumps({"tool_used": tool_result.get("tool", ""), "intent": intent})
                     yield f"data: {badge_payload}\n\n"
+                    sp = build_sources_payload(tool_result)
+                    if sp:
+                        yield f"data: {sp}\n\n"
 
                 resp, err = call_gemma_google_stream(user_memory[session_id][-20:], final_system, "gemma-4-e4b-it")
 
@@ -2425,6 +2454,9 @@ async def chat_post(request: Request):
                 if tool_result_g:
                     badge_payload = json.dumps({"tool_used": tool_result_g.get("tool", ""), "intent": intent})
                     yield f"data: {badge_payload}\n\n"
+                    sp = build_sources_payload(tool_result_g)
+                    if sp:
+                        yield f"data: {sp}\n\n"
 
                 resp, err = call_gemma_google_stream(user_memory[session_id][-20:], final_system_g, google_model_id)
                 if resp is None:
@@ -2496,6 +2528,9 @@ async def chat_post(request: Request):
             if tool_result:
                 badge_payload = json.dumps({"tool_used": tool_result.get("tool", ""), "intent": intent})
                 yield f"data: {badge_payload}\n\n"
+                sp = build_sources_payload(tool_result)
+                if sp:
+                    yield f"data: {sp}\n\n"
 
             while handoffs < MAX_HANDOFFS:
                 current_model = model_pool[pool_index % len(model_pool)]
@@ -3075,6 +3110,9 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             if tool_result:
                 yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
+                sp = build_sources_payload(tool_result)
+                if sp:
+                    yield f"data: {sp}\n\n"
 
             while handoffs < MAX_HANDOFFS:
                 current_model = model_pool[pool_index % len(model_pool)]

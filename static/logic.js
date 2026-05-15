@@ -1615,6 +1615,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             let toolUsed = null;
             let wrapper = null;
             let botMsg = null;
+            let pendingSources = null;
 
             const fullReply = await streamWordsWithTools(
                 null, null, reader, decoder, chatbox,
@@ -1636,7 +1637,9 @@ document.addEventListener("DOMContentLoaded", async function () {
                     if (thinkLabelEl) {
                         thinkLabelEl.innerHTML = `<span class="think-icon"></span>${intentLabel}`;
                     }
-                }
+                },
+                // onSources: store sources to render after answer
+                (sources) => { pendingSources = sources; }
             );
 
             // ── Reset streaming state ────────────────────────────────────────
@@ -1660,6 +1663,26 @@ document.addEventListener("DOMContentLoaded", async function () {
                 badgeDiv.setAttribute("data-tool", toolUsed);
                 badgeDiv.innerHTML = `<span class="tool-badge-icon">${badge.icon}</span><span class="tool-badge-label">${badge.label} used</span>`;
                 wrapper.insertBefore(badgeDiv, botMsg);
+            }
+
+            // ── Show sources section below answer ────────────────────────────
+            if (pendingSources && pendingSources.length > 0 && wrapper) {
+                const sourcesDiv = document.createElement("div");
+                sourcesDiv.className = "sources-section";
+                const chips = pendingSources.map(s => {
+                    const favicon = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(s.domain)}&sz=16`;
+                    return `<a class="source-chip" href="${s.url}" target="_blank" rel="noopener noreferrer" title="${s.title}">
+                        <img class="source-favicon" src="${favicon}" onerror="this.style.display='none'" alt="">
+                        <span class="source-domain">${s.domain}</span>
+                    </a>`;
+                }).join("");
+                sourcesDiv.innerHTML = `
+                    <div class="sources-label">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        Sources
+                    </div>
+                    <div class="sources-chips">${chips}</div>`;
+                wrapper.appendChild(sourcesDiv);
             }
 
             if (fullReply) {
@@ -1896,7 +1919,7 @@ async function performWebSearch(query) {
 }
 
 // ── streamWordsWithTools — word-queue streaming animator (ChatGPT/Claude style) ──
-async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decoder, chatbox, onToolUsed, onFirstToken, onToolRunning) {
+async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decoder, chatbox, onToolUsed, onFirstToken, onToolRunning, onSources) {
     let buffer      = "";
     let fullReply   = "";       // complete received text (source of truth)
     let displayed   = "";       // what has been rendered so far
@@ -2010,6 +2033,10 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
 
                     if (data.tool_used !== undefined) {
                         if (typeof onToolUsed === "function") onToolUsed(data.tool_used);
+                        continue;
+                    }
+                    if (data.sources !== undefined) {
+                        if (typeof onSources === "function") onSources(data.sources);
                         continue;
                     }
                     if (data.status === "tool_running") {
