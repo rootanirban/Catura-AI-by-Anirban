@@ -642,30 +642,11 @@ window.logoutUser = async function () {
 // 🧭 MAIN MENU
 // ============================
 window.showMainMenu = function () {
-    const menu = document.querySelector(".sidebar-menu");
-    if (!menu) return;
-    menu.innerHTML = `
-        <div class="sidebar-item" onclick="newChat()">
-            <svg class="sidebar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-            </svg>
-            New Chat
-        </div>
-        <div class="sidebar-item" onclick="showHistory()">
-            <svg class="sidebar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <polyline points="12 6 12 12 16 14"></polyline>
-            </svg>
-            Chat History
-        </div>
-        <div class="sidebar-item" onclick="showSettings()">
-            <svg class="sidebar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="3"></circle>
-                <path d="M12 1v6m0 6v6m10.39-9.39l-4.24 4.24m-8.3 0l-4.24-4.24m12.53 8.53l4.24 4.24m-8.3 0l4.24-4.24"></path>
-            </svg>
-            Settings
-        </div>`;
+    // Close history accordion if open
+    const trigger = document.getElementById("historyAccordionTrigger");
+    const list    = document.getElementById("historyAccordionList");
+    if (trigger) trigger.classList.remove("open");
+    if (list)    { list.classList.remove("open"); list.innerHTML = ""; }
 };
 
 // ============================
@@ -1764,36 +1745,66 @@ document.addEventListener("DOMContentLoaded", async function () {
     // 📜 SHOW HISTORY
     // ============================
     window.showHistory = async function () {
-        const overlay = document.getElementById("settingsOverlay");
-        if (overlay) overlay.classList.remove("active");
+        // Compatibility: called from icon rail / openSidebarTo — just open accordion
+        await openHistoryAccordion();
+    };
+
+    window.toggleHistoryAccordion = async function () {
+        const trigger = document.getElementById("historyAccordionTrigger");
+        const list    = document.getElementById("historyAccordionList");
+        if (!trigger || !list) return;
+
+        const isOpen = trigger.classList.contains("open");
+
+        if (isOpen) {
+            // Close accordion
+            trigger.classList.remove("open");
+            list.classList.remove("open");
+            list.innerHTML = "";
+        } else {
+            // Open accordion — load chats
+            await openHistoryAccordion();
+        }
+    };
+
+    async function openHistoryAccordion() {
+        const trigger = document.getElementById("historyAccordionTrigger");
+        const list    = document.getElementById("historyAccordionList");
+        if (!trigger || !list) return;
+
+        // Mark as open
+        trigger.classList.add("open");
+        list.classList.add("open");
+        list.innerHTML = `<div style="padding:8px 14px;font-size:12px;color:#555;">Loading…</div>`;
+
+        if (!currentUser) {
+            list.innerHTML = `<div style="padding:8px 14px;font-size:12px;color:#666;">Please log in to see history.</div>`;
+            return;
+        }
 
         const { data, error } = await supabaseClient
             .from("chat_sessions").select("*")
             .eq("user_id", currentUser.id)
             .order("created_at", { ascending: false });
 
-        if (error) { console.error("❌ History failed:", error.message); return; }
+        if (error) {
+            list.innerHTML = `<div style="padding:8px 14px;font-size:12px;color:#e06c6c;">Failed to load history.</div>`;
+            console.error("❌ History failed:", error.message);
+            return;
+        }
 
-        const menu = document.querySelector(".sidebar-menu");
-        menu.innerHTML = `
-            <div class="history-header">
-                <button class="back-btn" onclick="showMainMenu()">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-                    Back
-                </button>
-                <span>Chat History</span>
-            </div>`;
+        list.innerHTML = "";
 
         if (data.length === 0) {
-            menu.innerHTML += `<div class="no-history">No chats yet. Start a new chat to see history.</div>`;
+            list.innerHTML = `<div class="no-history">No chats yet. Start a new chat to see history.</div>`;
             return;
         }
 
         data.forEach(session => {
             const item = buildHistoryItem(session, loadSession);
-            menu.appendChild(item);
+            list.appendChild(item);
         });
-    };
+    }
 
 });
 

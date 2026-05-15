@@ -198,6 +198,39 @@ html { scroll-behavior: smooth; }
     gap: 4px;
     overflow-y: auto;
     overflow-x: visible;
+    min-height: 0;
+}
+
+/* ── History Accordion ─────────────────────────────────────── */
+.history-accordion-trigger {
+    justify-content: flex-start;
+}
+.history-accordion-trigger .history-accordion-arrow {
+    margin-left: auto;
+    flex-shrink: 0;
+    transition: transform 0.25s ease;
+    color: #666;
+}
+.history-accordion-trigger.open .history-accordion-arrow {
+    transform: rotate(90deg);
+}
+
+.history-accordion-list {
+    display: none;
+    flex-direction: column;
+    gap: 2px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    padding: 0 0 4px 0;
+}
+.history-accordion-list.open {
+    display: flex;
+}
+
+/* Settings pinned in sidebar-bottom */
+.settings-in-bottom {
+    border-radius: 10px;
 }
 
 .sidebar-item {
