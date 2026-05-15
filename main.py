@@ -326,7 +326,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.103"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.104"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -336,7 +336,22 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.103", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.104", "timestamp": datetime.utcnow().isoformat()}
+
+@app.get("/robots.txt")
+async def serve_robots():
+    p = os.path.join(BASE_DIR, "robots.txt")
+    if not os.path.isfile(p):
+        return JSONResponse({"error": "robots.txt not found"}, status_code=404)
+    return FileResponse(p, media_type="text/plain")
+
+# ✅ ADD THIS ↓
+@app.get("/sitemap.xml")
+async def serve_sitemap():
+    p = os.path.join(BASE_DIR, "sitemap.xml")
+    if not os.path.isfile(p):
+        return JSONResponse({"error": "sitemap.xml not found"}, status_code=404)
+    return FileResponse(p, media_type="application/xml")
 
 
 # ============================================================
