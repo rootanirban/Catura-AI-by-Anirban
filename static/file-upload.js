@@ -250,9 +250,19 @@ async function uploadOneFile(file, placeholder, retryCount) {
         var safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
         var path = currentUser.id + '/' + currentSessionId + '/' + ts + '_' + rand + '_' + safe;
 
+        // Normalise contentType before sending to Supabase.
+        // Browsers mis-report code files (.ts -> video/mp2t, .kt/.rs/.go ->
+        // application/octet-stream). Supabase rejects those, so we force
+        // text/plain for all code/text extensions — the bytes are preserved.
+        var _uploadExt = (file.name.split(".").pop() || "").toLowerCase();
+        var _isImage   = file.type.startsWith("image/");
+        var _isPdf     = file.type === "application/pdf" || _uploadExt === "pdf";
+        var _isDoc     = file.type.includes("word") || file.type.includes("document");
+        var _safeContentType = (_isImage || _isPdf || _isDoc) ? file.type : "text/plain";
+
         // Upload to Supabase Storage
         var upResult = await supabaseClient.storage.from(BUCKET).upload(path, file, {
-            contentType: file.type,
+            contentType: _safeContentType,
             // signal: controller.signal  // uncomment if supabase-js supports AbortSignal
         });
 
