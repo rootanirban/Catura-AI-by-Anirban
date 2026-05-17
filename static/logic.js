@@ -2257,7 +2257,7 @@ function initWebSearchUI() {
 // ============================
 // 🤖 MODEL SELECTOR
 // ============================
-let selectedModel = 'dagr'; // Default model — options: dagr, apep, sambhav, Gemma4
+let selectedModel = 'dagr'; // Default model — options: dagr, apep, sambhav, Gemma4, nivo
 
 window.toggleModelSelector = function (e) {
     e.stopPropagation();
@@ -2278,7 +2278,7 @@ window.toggleModelSelector = function (e) {
             dropdown.classList.add('open');
             btn.classList.add('open');
 
-            const moreModels = ['apep', 'gemma', 'gemma4'];
+            const moreModels = ['apep', 'gemma', 'gemma4', 'nivo'];
             if (moreModels.includes(selectedModel)) {
                 requestAnimationFrame(() => {
                     requestAnimationFrame(() => { toggleMoreModels(null); });
@@ -2318,7 +2318,7 @@ window.toggleModelSelector = function (e) {
             dropdown.classList.add('open');
             btn.classList.add('open');
 
-            const moreModels = ['apep', 'gemma', 'gemma4'];
+            const moreModels = ['apep', 'gemma', 'gemma4', 'nivo'];
             if (moreModels.includes(selectedModel)) {
                 requestAnimationFrame(() => {
                     requestAnimationFrame(() => { toggleMoreModels(null); });

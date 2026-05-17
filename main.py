@@ -273,6 +273,7 @@ ALPHAVANTAGE_KEY    = os.getenv("ALPHAVANTAGE_API_KEY", "")       # https://www.
 CRICAPI_KEY         = os.getenv("CRICAPI_KEY", "")                # https://www.cricapi.com (free)
 GEMINI_API_KEY      = os.getenv("GEMINI_API_KEY", "")               # https://aistudio.google.com (free)
 TAVILY_API_KEY      = os.getenv("TAVILY_API_KEY", "")               # https://tavily.com (free — 1000 searches/month)
+OPENCODE_API_KEY    = os.getenv("OPENCODE_API_KEY", "")             # https://opencode.ai (Zen workspace key)
 
 
 
@@ -326,7 +327,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.105"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.106"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -336,7 +337,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.105", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.106", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -2138,6 +2139,61 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
         return None, str(e)
 
 # ============================================================
+# ✅ HELPER: Call OpenCode (Zen) with streaming — OpenAI-compatible
+# ============================================================
+def call_opencode_stream(messages, api_key):
+    """
+    Calls OpenCode Zen via their OpenAI-compatible API with streaming.
+    Uses OPENCODE_API_KEY set on Render. Completely isolated from all
+    other models — does NOT touch OPENROUTER_API_KEY or GEMINI_API_KEY.
+    """
+    if not api_key:
+        return None, "OPENCODE_API_KEY not set in environment variables"
+    try:
+        # Build payload — strip system role into a leading user turn if needed,
+        # since some OpenCode endpoints may not support system role.
+        payload_messages = []
+        system_content = ""
+        for msg in messages:
+            if msg["role"] == "system":
+                system_content = msg["content"]
+            else:
+                payload_messages.append({"role": msg["role"], "content": msg["content"]})
+
+        # Prepend system content as a hidden system message (standard OpenAI format)
+        if system_content:
+            payload_messages.insert(0, {"role": "system", "content": system_content})
+
+        resp = requests.post(
+            "https://api.opencode.ai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "messages": payload_messages,
+                "stream": True,
+                "temperature": 0.3,
+                "max_tokens": 16000,
+            },
+            stream=True,
+            timeout=(10, 120),
+        )
+        if resp.status_code != 200:
+            try:
+                err_body = resp.json()
+                err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
+            except Exception:
+                err_msg = f"HTTP {resp.status_code}"
+            return None, err_msg
+        return resp, None
+    except requests.exceptions.Timeout:
+        return None, "Request timed out"
+    except Exception as e:
+        return None, str(e)
+
+
+# ============================================================
 # 🏷️ TITLE GENERATION ENDPOINT
 # Generates a short, descriptive chat title from the first message
 # ============================================================
@@ -2262,6 +2318,7 @@ async def chat_post(request: Request):
             "dagr":    ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
             "apep":    ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
             "sambhav": [],  # Routed via Google AI Studio (Gemma 4 E4B) — see GEMMA_GOOGLE_MODELS
+            "nivo":    [],  # Routed via OpenCode Zen API (OPENCODE_API_KEY) — see generate_nivo()
         }
         model_key  = model.strip()
         model_pool = model_pools.get(model_key, model_pools["dagr"])
@@ -2427,6 +2484,42 @@ async def chat_post(request: Request):
                 "always say: 'I am Catura AI Gemma4.' Never mention Dagr, Apep, Sambhav, or Gemma."
                 + NO_TOOL_CALL_RULE
             ),
+            "nivo": (
+                # ── Identity ──
+                "Your name is Catura (pronounced kuh-CHUR-uh). You are a highly capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI Nivo, designed for versatile and high-quality responses. "
+
+                # ── Personality & tone ──
+                "You are thoughtful, clear, and direct. You speak like a knowledgeable friend — "
+                "helpful, intelligent, and never robotic or sycophantic. "
+                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
+                "'Absolutely!', or similar hollow openers. Just answer directly. "
+
+                # ── Language behaviour ──
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+
+                # ── Response style ──
+                "Keep answers concise unless the user explicitly asks for detail or a long explanation. "
+                "Use bullet points, numbered lists, or headers only when they genuinely improve clarity. "
+                "For simple questions, give simple answers. Don't pad responses. "
+
+                # ── Expertise ──
+                "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
+                "For coding questions, write clean, well-commented code. "
+
+                # ── Identity rules ──
+                "If asked what model or AI you are, say you are Catura AI Nivo and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+
+                # ── Hard rules ──
+                "Never make up facts. If you don't know something, say so honestly. "
+                "Never say 'I don't have real-time data' — if live data is provided in context, use it; "
+                "otherwise give your best knowledge-based answer."
+                + NO_TOOL_CALL_RULE
+            ),
         }
         system_prompt = system_prompts.get(model_key, system_prompts["dagr"])
 
@@ -2507,6 +2600,86 @@ async def chat_post(request: Request):
 
             return StreamingResponse(
                 generate_gemini(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000",
+                }
+            )
+
+        # ── NIVO: OpenCode Zen API (OPENCODE_API_KEY) — isolated from all other models ──
+        if model_key == "nivo":
+            opencode_key = os.getenv("OPENCODE_API_KEY", "")
+            nivo_system  = system_prompts.get("nivo", system_prompts["dagr"])
+
+            def generate_nivo():
+                full_reply = ""
+
+                # Run tool INSIDE generator (non-blocking from client POV)
+                tool_result_n = None
+                if intent != "general" and not file_urls:
+                    yield f"data: {json.dumps({'status': 'tool_running', 'intent': intent})}\n\n"
+                    tool_result_n = run_tool(intent, prompt)
+
+                final_system_n = nivo_system
+                tool_context_n = build_tool_context(tool_result_n)
+                if tool_context_n:
+                    final_system_n += "\n\n" + tool_context_n
+
+                if tool_result_n:
+                    badge_payload = json.dumps({"tool_used": tool_result_n.get("tool", ""), "intent": intent})
+                    yield f"data: {badge_payload}\n\n"
+                    sp = build_sources_payload(tool_result_n)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                # Build full messages list for OpenCode
+                nivo_messages = (
+                    [{"role": "system", "content": final_system_n}]
+                    + user_memory[session_id][-20:]
+                )
+
+                resp, err = call_opencode_stream(nivo_messages, opencode_key)
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'Nivo unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+
+                try:
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                print(f"⚠️ [Nivo] mid-stream error: {chunk['error']}")
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            if token:
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, Exception):
+                            continue
+                except Exception as e:
+                    print(f"❌ [Nivo] stream exception: {e}")
+
+                if full_reply.strip():
+                    user_memory[session_id].append({"role": "assistant", "content": full_reply})
+                    if len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_nivo(),
                 media_type="text/event-stream",
                 headers={
                     "Cache-Control": "no-cache",
@@ -2750,6 +2923,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "dagr":    ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
             "apep":    ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
             "sambhav": [],  # Routed via Google AI Studio (Gemma 4 E4B) — see GEMMA_GOOGLE_MODELS
+            "nivo":    [],  # Routed via OpenCode Zen API (OPENCODE_API_KEY)
         }
         model_key  = model.strip()
         model_pool = model_pools.get(model_key, model_pools["dagr"])
@@ -3175,8 +3349,86 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
                 + INDIA_CORE + NO_TOOL_CALL_RULE
             ),
+            # ══════════════════════════════════════════════════════════════════
+            # NIVO — OpenCode Zen powered, versatile high-quality assistant
+            # ══════════════════════════════════════════════════════════════════
+            "nivo": (
+                "Your name is Catura (pronounced kuh-CHUR-uh). You are a highly capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI Nivo, designed for versatile and high-quality responses. "
+                "You are thoughtful, clear, and direct. You speak like a knowledgeable friend — "
+                "helpful, intelligent, and never robotic or sycophantic. "
+                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
+                "'Absolutely!', or similar hollow openers. Just answer directly. "
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+                "Keep answers concise unless the user explicitly asks for detail. "
+                "Use bullet points or headers only when they genuinely improve clarity. "
+                "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
+                "For coding questions, write clean, well-commented code. "
+                "If asked what model or AI you are, say you are Catura AI Nivo and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+                "Never make up facts. If you don't know something, say so honestly."
+                + NO_TOOL_CALL_RULE
+            ),
         }
         system_prompt = system_prompts.get(model_key, system_prompts["dagr"])
+
+        # ── NIVO: OpenCode Zen API — isolated from all other models ──
+        if model_key == "nivo":
+            opencode_key = os.getenv("OPENCODE_API_KEY", "")
+            nivo_messages = [{"role": "system", "content": system_prompt}] + user_memory[session_id][-20:]
+
+            def generate_nivo_get():
+                full_reply = ""
+                if tool_result:
+                    yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
+                    sp = build_sources_payload(tool_result)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                resp, err = call_opencode_stream(nivo_messages, opencode_key)
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'Nivo unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+                try:
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            if token:
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, Exception):
+                            continue
+                except Exception as e:
+                    print(f"❌ [Nivo GET] stream exception: {e}")
+                if full_reply.strip():
+                    user_memory[session_id].append({"role": "assistant", "content": full_reply})
+                    if len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_nivo_get(), media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache",
+                         "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"}
+            )
 
         # Apply tool routing for GET requests too
         intent = detect_intent(prompt)
