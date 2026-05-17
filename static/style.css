@@ -672,14 +672,74 @@ html { scroll-behavior: smooth; }
 
 .skeleton-line {
     height: 12px; border-radius: 6px;
-    background: linear-gradient(90deg, #1a1a1a 25%, #252525 50%, #1a1a1a 75%);
+    background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.09) 50%, rgba(255,255,255,0.04) 75%);
     background-size: 200% 100%; animation: shimmer 1.5s infinite;
 }
 .skeleton-line:nth-child(1) { width: 85%; }
 .skeleton-line:nth-child(2) { width: 70%; }
 .skeleton-line:nth-child(3) { width: 55%; }
 
+/* Width classes for search skeleton (not nth-child so they survive insertion order) */
+.sk-w90 { width: 90%; }
+.sk-w85 { width: 85%; }
+.sk-w75 { width: 75%; }
+.sk-w60 { width: 60%; }
+
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* ── Search skeleton — chat body placeholder while web search runs ─────── */
+.search-skeleton-outer {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px;
+    margin: 4px 0 8px 0;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    max-width: 520px;
+}
+.search-skeleton-label {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.45);
+    letter-spacing: 0.02em;
+    font-weight: 500;
+}
+.search-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+.search-skeleton .skeleton-line {
+    height: 11px;
+    border-radius: 5px;
+    background: linear-gradient(
+        90deg,
+        rgba(255,255,255,0.05) 0%,
+        rgba(255,255,255,0.10) 40%,
+        rgba(255,255,255,0.05) 80%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.6s ease-in-out infinite;
+}
+
+/* Light theme adjustments */
+[data-theme="light"] .search-skeleton-outer {
+    background: rgba(0, 0, 0, 0.03);
+    border-color: rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .search-skeleton-label {
+    color: rgba(0, 0, 0, 0.45);
+}
+[data-theme="light"] .search-skeleton .skeleton-line {
+    background: linear-gradient(
+        90deg,
+        rgba(0,0,0,0.06) 0%,
+        rgba(0,0,0,0.12) 40%,
+        rgba(0,0,0,0.06) 80%
+    );
+    background-size: 200% 100%;
+}
 
 .cursor-blink::after {
     content: '▍'; color: #10a37f; animation: cursorBlink 0.8s step-end infinite;
@@ -2271,7 +2331,8 @@ html { scroll-behavior: smooth; }
 [data-theme="light"] .thinking-label { color: #9aa0b5; }
 [data-theme="light"] .typing-dots span { background: #c8cdd9; }
 [data-theme="light"] .skeleton-line {
-    background: linear-gradient(90deg, #eaecf0 25%, #f4f6fb 50%, #eaecf0 75%);
+    background: linear-gradient(90deg, rgba(0,0,0,0.06) 25%, rgba(0,0,0,0.12) 50%, rgba(0,0,0,0.06) 75%);
+    background-size: 200% 100%;
 }
 
 /* ── Bot message wrapper ── */

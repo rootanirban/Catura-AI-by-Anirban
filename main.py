@@ -343,7 +343,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.110"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.111"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -353,7 +353,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.110", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.111", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -1627,7 +1627,10 @@ def tool_web_search(query: str, max_results: int = 5) -> dict:
     # ── Production engine (Tavily + Serper + Firecrawl + Cohere) ─────────────
     if PRODUCTION_SEARCH_ENABLED:
         try:
-            result = run_production_search(query)
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as _pool:
+                future = _pool.submit(run_production_search, query)
+                result = future.result(timeout=30)   # 30s wall-clock max for whole pipeline
             if result.get("results"):
                 result["tool"] = "web_search"
                 print(f"✅ [TOOL] Production search: {result['result_count']} results")

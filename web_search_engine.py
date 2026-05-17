@@ -32,9 +32,9 @@ FIRECRAWL_KEY = os.getenv("FIRECRAWL_API_KEY", "")
 COHERE_KEY    = os.getenv("COHERE_API_KEY", "")
 
 # ── How many raw results to fetch per engine ─────────────────────────────────
-RESULTS_PER_ENGINE = 6
+RESULTS_PER_ENGINE = 5
 # ── How many results to deep-crawl with Firecrawl (expensive — keep low) ─────
-FIRECRAWL_TOP_N    = 3
+FIRECRAWL_TOP_N    = 2
 # ── Max Cohere rerank candidates ─────────────────────────────────────────────
 RERANK_TOP_N       = 8
 
@@ -323,6 +323,7 @@ def _firecrawl_extract(url: str) -> Optional[str]:
     """
     Call Firecrawl API to extract clean markdown from a URL.
     Returns clean text or None on failure.
+    Hard timeout: 5 seconds (skip slow pages rather than block the pipeline).
     """
     if not FIRECRAWL_KEY:
         return None
@@ -337,9 +338,9 @@ def _firecrawl_extract(url: str) -> Optional[str]:
                 "url":     url,
                 "formats": ["markdown"],
                 "onlyMainContent": True,
-                "timeout": 15000,
+                "timeout": 4000,   # tell Firecrawl server to cap at 4s too
             },
-            timeout=20,
+            timeout=5,             # hard client-side timeout — skip if slow
         )
         if resp.status_code != 200:
             print(f"⚠️ [Firecrawl] HTTP {resp.status_code} for {url[:60]}")
@@ -359,30 +360,53 @@ def _firecrawl_extract(url: str) -> Optional[str]:
         return clean
 
     except Exception as e:
-        print(f"❌ [Firecrawl] {url[:60]}: {e}")
+        print(f"⚠️ [Firecrawl] timeout/skip for {url[:60]}: {e}")
         return None
 
 
 def enrich_with_firecrawl(results: list[dict], top_n: int = FIRECRAWL_TOP_N) -> list[dict]:
     """
     For the top N crawlable results, replace their snippet with full page content.
-    Runs synchronously (acceptable — called before streaming starts).
+    Runs Firecrawl calls IN PARALLEL using ThreadPoolExecutor.
+    Each call has a hard 5-second timeout — slow pages are skipped, not waited on.
     """
-    crawled = 0
-    for r in results:
-        if crawled >= top_n:
+    from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeout
+
+    # Collect crawlable candidates (index, url) pairs
+    candidates = []
+    for i, r in enumerate(results):
+        if len(candidates) >= top_n:
             break
         url = r.get("url", "")
-        if not _should_crawl(url):
-            continue
-        full_content = _firecrawl_extract(url)
-        if full_content:
-            r["body"]           = full_content
-            r["firecrawled"]    = True
-            r["body_truncated"] = len(full_content) >= 2990
-            crawled += 1
+        if _should_crawl(url):
+            candidates.append((i, url))
 
-    print(f"🕷️ [Firecrawl] Enriched {crawled} results")
+    if not candidates:
+        print(f"🕷️ [Firecrawl] No crawlable URLs found")
+        return results
+
+    print(f"🕷️ [Firecrawl] Crawling {len(candidates)} URLs in parallel (5s timeout each)")
+
+    # Submit all Firecrawl calls simultaneously
+    with ThreadPoolExecutor(max_workers=len(candidates)) as executor:
+        future_to_idx = {
+            executor.submit(_firecrawl_extract, url): idx
+            for idx, url in candidates
+        }
+        enriched_count = 0
+        for future in as_completed(future_to_idx, timeout=6):  # 6s overall wall-clock max
+            idx = future_to_idx[future]
+            try:
+                content = future.result(timeout=0.1)  # already done — just collect
+                if content:
+                    results[idx]["body"]           = content
+                    results[idx]["firecrawled"]    = True
+                    results[idx]["body_truncated"] = len(content) >= 2990
+                    enriched_count += 1
+            except Exception:
+                pass  # timeout or error — snippet stays as-is
+
+    print(f"🕷️ [Firecrawl] Enriched {enriched_count} results")
     return results
 
 
@@ -632,7 +656,7 @@ def rerank_with_cohere(query: str, results: list[dict], top_n: int = RERANK_TOP_
                 "top_n":      min(top_n, len(candidates)),
                 "return_documents": False,
             },
-            timeout=12,
+            timeout=6,   # hard 6s timeout — fall back to trust-sort if slow
         )
 
         if resp.status_code != 200:
@@ -762,8 +786,17 @@ def run_production_search(query: str) -> dict:
     deduped = deduplicate_results(all_raw)
     print(f"🔁 [Dedup] {len(all_raw)} → {len(deduped)} unique results")
 
-    # Step 4: Firecrawl enrichment (top crawlable results)
-    enriched = enrich_with_firecrawl(deduped, top_n=FIRECRAWL_TOP_N)
+    # Step 4: Firecrawl enrichment — SKIP if we already have high-confidence direct answers
+    # (Tavily answer + Serper answerBox = we don't need full page crawls)
+    has_tavily_answer = any(r.get("source_engine") == "tavily_answer" for r in deduped)
+    has_serper_answer = any(r.get("source_engine") == "serper_answer" for r in deduped)
+    skip_firecrawl    = has_tavily_answer and has_serper_answer
+
+    if skip_firecrawl:
+        print(f"⚡ [Firecrawl] Skipping — direct answers from both engines available")
+        enriched = deduped
+    else:
+        enriched = enrich_with_firecrawl(deduped, top_n=FIRECRAWL_TOP_N)
 
     # Step 5: Trust scoring
     scored = score_all_results(enriched)

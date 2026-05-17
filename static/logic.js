@@ -2065,8 +2065,10 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
                 requestAnimationFrame(drainQueue);
             } else {
                 // stream finished AND queue empty — do final render
+                // Strip inline citation numbers [1][2] from display; keep fullReply raw for storage
+                const displayReply = fullReply.replace(/\[\d+\](\[\d+\])*/g, '').replace(/\s{2,}/g, ' ').trim();
                 animRunning = false;
-                bm.innerHTML = formatMessage(repairTruncated(fullReply));
+                bm.innerHTML = formatMessage(repairTruncated(displayReply));
                 bm.classList.remove("streaming");
                 if (wrapper) wrapper.dataset.raw = fullReply;
                 chatbox.scrollTop = chatbox.scrollHeight;
@@ -2139,15 +2141,38 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
                     if (data.status === "tool_running") {
                         const label = intentLabels[data.intent] || "🔍 Fetching data…";
                         if (typeof onToolRunning === "function") onToolRunning(label);
+
+                        // Inject search skeleton into chatbox for web_search
+                        if (data.intent === "web_search" && !document.getElementById("search-skeleton-placeholder")) {
+                            const skeletonWrap = document.createElement("div");
+                            skeletonWrap.id = "search-skeleton-placeholder";
+                            skeletonWrap.className = "search-skeleton-outer";
+                            skeletonWrap.innerHTML = `
+                                <div class="search-skeleton-label">🔍 Searching the web…</div>
+                                <div class="search-skeleton">
+                                    <div class="skeleton-line sk-w90"></div>
+                                    <div class="skeleton-line sk-w75"></div>
+                                    <div class="skeleton-line sk-w85"></div>
+                                    <div class="skeleton-line sk-w60"></div>
+                                </div>`;
+                            chatbox.appendChild(skeletonWrap);
+                            chatbox.scrollTop = chatbox.scrollHeight;
+                        }
                         continue;
                     }
                     if (data.error) {
+                        const sk = document.getElementById("search-skeleton-placeholder");
+                        if (sk) sk.remove();
                         const { botMsg: bm } = getOrCreateWrapper();
                         if (!fullReply.trim() && bm) bm.innerHTML = `<p style="color:#e06c6c">⚠️ ${data.error}</p>`;
                         streamDone = true;
                         return fullReply || "";
                     }
                     if (data.token) {
+                        // Remove search skeleton the moment real content arrives
+                        const sk = document.getElementById("search-skeleton-placeholder");
+                        if (sk) sk.remove();
+
                         fullReply += data.token;
                         enqueueText(data.token);
                     }
@@ -2155,6 +2180,10 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
             }
         }
     } catch (e) { console.warn("Stream read error:", e); }
+
+    // Clean up skeleton if somehow still present (no tokens arrived)
+    const skFallback = document.getElementById("search-skeleton-placeholder");
+    if (skFallback) skFallback.remove();
 
     // Signal animator that no more tokens are coming
     streamDone = true;
@@ -2169,7 +2198,8 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
 
     if (fullReply.trim()) {
         if (bm) {
-            bm.innerHTML = formatMessage(repairTruncated(fullReply));
+            const displayReply = fullReply.replace(/\[\d+\](\[\d+\])*/g, '').replace(/\s{2,}/g, ' ').trim();
+            bm.innerHTML = formatMessage(repairTruncated(displayReply));
             if (w) w.dataset.raw = fullReply;
         }
         chatbox.scrollTop = chatbox.scrollHeight;
