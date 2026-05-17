@@ -170,9 +170,16 @@ async function validateFile(file) {
         return { ok: false, reason: 'Extension not allowed' };
     }
 
-    // MIME check — allow text/plain for all text-based extensions (code files)
+    // MIME check — allow text/plain, empty, octet-stream, and video/mp2t for
+    // all text-based extensions.  Browsers report unreliable MIMEs for code files:
+    //   .ts / .tsx → video/mp2t  (misidentified as MPEG-2 transport stream)
+    //   .kt / .rs / .go / .cs / .yml / .toml / .dart / etc. → application/octet-stream
+    // Extension is already verified above, so these fallback MIMEs are safe to accept.
+    var _CODE_FALLBACK_MIMES = new Set([
+        'text/plain', '', 'application/octet-stream', 'video/mp2t'
+    ]);
     var mimeOk = ALLOWED_MIME.has(file.type) ||
-                 (TEXT_CODE_EXTS.has(ext) && (file.type === 'text/plain' || file.type === ''));
+                 (TEXT_CODE_EXTS.has(ext) && _CODE_FALLBACK_MIMES.has(file.type));
     if (!mimeOk) {
         return { ok: false, reason: 'Type not supported' };
     }
