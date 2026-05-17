@@ -327,7 +327,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.107"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.108"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -337,7 +337,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.107", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.108", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():

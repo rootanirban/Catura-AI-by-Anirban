@@ -2378,23 +2378,43 @@ window.toggleMoreModels = function (e) {
     const isMobile = window.innerWidth <= 768;
 
     if (!isMobile) {
-        // Desktop: position panel to the right of the dropdown
+        // Desktop: position panel to the right of the dropdown, always within viewport
         const dropdownEl = document.getElementById('modelDropdown');
         if (!dropdownEl) return;
 
-        const panelW = 230;
-        const gap    = 8;
+        const panelW   = 230;
+        const gap      = 8;
+        const margin   = 8;
         const dropRect = dropdownEl.getBoundingClientRect();
 
+        // Temporarily show panel off-screen to measure its real height
+        panel.style.visibility = 'hidden';
+        panel.style.display    = 'block';
+        panel.style.top        = '-9999px';
+        panel.style.left       = '-9999px';
+        const panelH = panel.scrollHeight || 260;
+        panel.style.display    = '';
+        panel.style.top        = '';
+        panel.style.left       = '';
+        panel.style.visibility = '';
+
+        // Horizontal: prefer right of dropdown, fall back to left
         let left = dropRect.right + gap;
-        if (left + panelW > window.innerWidth - 8) {
+        if (left + panelW > window.innerWidth - margin) {
             left = dropRect.left - panelW - gap;
         }
-        if (left < 8) left = 8;
+        if (left < margin) left = margin;
 
+        // Vertical: try to align top with dropdown top.
+        // If that pushes the panel below the viewport, anchor its BOTTOM
+        // to the dropdown bottom (grows upward) — same as Claude's behaviour.
         let top = dropRect.top;
-        const panelEstH = 210;
-        top = Math.max(8, Math.min(top, window.innerHeight - panelEstH - 8));
+        if (top + panelH > window.innerHeight - margin) {
+            // Anchor bottom of panel to bottom of dropdown
+            top = dropRect.bottom - panelH;
+        }
+        // Never go above the top of the viewport
+        top = Math.max(margin, top);
 
         panel.style.left = left + 'px';
         panel.style.top  = top + 'px';
