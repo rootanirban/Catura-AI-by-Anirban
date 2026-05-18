@@ -14,6 +14,7 @@ import io
 from PIL import Image
 from duckduckgo_search import DDGS
 from wiki import search_wikipedia
+import re
 
 # ── Production Search Engine (Tavily + Serper + Firecrawl + Cohere) ──────────
 try:
@@ -343,7 +344,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.113"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.114"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -353,7 +354,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.113", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.114", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -388,8 +389,8 @@ def detect_intent(text: str) -> str:
     # kamon acho, ki obostha, kemon acho, kem cho, vanakkam, sat sri akal,
     # kya haal, theek ho, wassup, good morning/afternoon/evening/night, etc.
     _GREETING_EXACT = {
-        "hi", "hii", "hiii", "hiiii", "hey", "heya", "hello", "helo", "hellow",
-        "yo", "sup", "wassup", "whatsup", "howdy",
+        "hi", "hii", "hiii", "hiiii", "hiiiii", "hey", "heya", "hello", "helo",
+        "hellow", "yo", "sup", "wassup", "whatsup", "howdy", "hola", "ola",
         # French / Spanish / Portuguese / common global
         "bonjour", "bonsoir", "salut", "hola", "ola", "ciao", "hallo", "hei",
         # Bengali (Roman)
@@ -406,6 +407,13 @@ def detect_intent(text: str) -> str:
         "aadab", "adaab", "assalamualaikum", "salam",
         # Universal
         "namaste", "namaskar", "pranam", "nomoskar",
+        "thanks", "thank you", "thx", "ty", "thnx", "thankyou",
+        "bye", "goodbye", "see ya", "cya", "see you", "alvida",
+        "dhonnobad", "shukriya", "dhanyavaad", "nandri",
+        "ok", "okay", "okk", "okie", "okiee", "k", "kk",
+        "cool", "nice", "great", "awesome", "good", "bad",
+        "yes", "no", "yep", "nope", "yeah", "nah", "sure",
+        "hmm", "hm", "ohh", "oh", "aha", "ah",
     }
 
     # Check exact match first
@@ -418,11 +426,14 @@ def detect_intent(text: str) -> str:
         _GREETING_STARTERS = (
             "hi ", "hii", "hey ", "hello", "good morning", "good afternoon",
             "good evening", "good night", "good day", "greetings",
-            "how are you", "how r u", "how are u", "how ru",
+            "how are you", "how r u", "how are u", "how ru", "how have you",
             "what's up", "whats up", "sup ", "yo ", "hola ", "bonjour",
             "namaste", "namaskar", "nomoskar", "pranam",
             "kamon", "kemon", "kaise ho", "kya haal", "kem cho",
             "sat sri", "vanakkam", "sukha", "ela un",
+            "thanks", "thank ", "thx ", "thnx",
+            "bye", "goodbye", "see ya", "cya",
+            "nice ", "cool ", "great ", "awesome ", "good job",
         )
         if any(lower.startswith(g) for g in _GREETING_STARTERS):
             return "general"
@@ -433,6 +444,7 @@ def detect_intent(text: str) -> str:
         r'which version', r'what version', r'are you', r'who are you',
         r'what are you', r'your model', r'current model', r'using.*model',
         r'model.*right now', r'model.*using', r'what.*running',
+        r'who (made|created|built|developed) you', r'your (creator|developer|maker)',
     ]
     if any(re.search(p, lower) for p in identity_patterns):
         return "general"
@@ -452,6 +464,13 @@ def detect_intent(text: str) -> str:
         r'\b(cm|chief minister|prime minister|president|governor) of\b',
         r'\b(current|new|latest|now) (cm|pm|president|minister|governor|ceo|chief|leader|head)\b',
         r'\belection result\b', r'\belected\b', r'\bappointed\b',
+        r'\blatest\b', r'\bnewest\b', r'\bmost recent\b',
+        r'\btoday\b', r'\btonight\b', r'\bthis (week|month|year|morning|evening)\b',
+        r'\bcurrent(ly)?\b', r'\bright now\b', r'\bat (the )?moment\b',
+        r'\brecently?\b', r'\bjust (announced|launched|happened|released|came out)\b',
+        r'\b(202[4-9])\b', r'\b(203[0-9])\b',
+        r'\bbreaking\b', r'\bupdate(s|d)?\b.*\btoday\b',
+        r'\bnow available\b', r'\bjust released\b',
     ]
     # If ANY real-time signal is present AND it looks like an info-seeking query → web_search
     info_seeking = any(re.search(p, lower) for p in [
@@ -469,6 +488,19 @@ def detect_intent(text: str) -> str:
         r'\bam\b.*\bpm\b', r'\bist\b', r'\butc\b', r'\bgmt\b',
         r'\btimezone\b', r'\btime zone\b',
         r'\b(morning|afternoon|evening|night)\b.*\bthere\b',
+        r'\bwhat\s+(time|hour|day|date)\s+(is\s+it|is\s+it\s+now|now)\b',
+        r'\bcurrent\s+(time|date|day|hour)\b',
+        r'\btime\s+(in|at|of)\s+\w+',
+        r'\bwhat\s+time\b.*\b(now|right now|currently)\b',
+        r"\btoday'?s?\s+date\b",
+        r'\bwhat.{0,8}date.{0,8}(today|now)\b',
+        r'\b(time|clock)\s+(right )?now\b',
+        r'^\s*time\??\s*$',
+        r'^\s*date\??\s*$',
+        r'^\s*what time\??\s*$',
+        r'^\s*what date\??\s*$',
+        r'\bcurrent\s+(ist|utc|gmt|pst|est)\b',
+        r'\btimezone\s+(in|of|for)\b',
     ]
     if any(re.search(p, lower) for p in clock_patterns):
         return "clock"
@@ -478,6 +510,17 @@ def detect_intent(text: str) -> str:
         r'\bsunny\b', r'\bcloudy\b', r'\bhot\b.*\boutside\b',
         r'\bcold\b.*\boutside\b', r'\bwill it rain\b', r'\bfeels like\b',
         r'\bdegrees (celsius|fahrenheit|today)\b',
+        r'\bweather\s+(in|at|of|today|tomorrow|now|right now)\b',
+        r'\btemperature\s+(in|at|of|today|tomorrow|now|right now|outside)\b',
+        r'\bhumidity\s+(in|at|of|today|now)\b',
+        r'\b(will|is)\s+it\s+(rain|snow|hot|cold|sunny|cloudy)\b',
+        r'\bforecast\s+(for|in|today|tomorrow|this week)\b',
+        r'\bfeels\s+like\b.*\b(today|now|outside)\b',
+        r'\bhow\s+(hot|cold|warm)\s+is\s+it\b',
+        r'\bclimate\s+(today|now|in)\b',
+        r'\b(rain|snow|wind|storm)\s+(today|tomorrow|now|in)\b',
+        r"\btoday'?s?\s+weather\b",
+        r'^\s*weather\??\s*$',
     ]
     if any(re.search(p, lower) for p in weather_patterns):
         return "weather"
@@ -505,6 +548,15 @@ def detect_intent(text: str) -> str:
         r'\bmatch score\b', r'\blive score\b', r'\bscore(card)?\b',
         r'\bwho (won|is winning|is playing)\b', r'\bmatch today\b',
         r'\bfinal score\b', r'\btournament\b',
+        r'\b(live|today\'?s?|current)\s+(score|match)\b',
+        r'\bscore\s+(of|today|now|live|right now)\b',
+        r'\b(ipl|test match|odi|t20|world cup|champions league|epl|la liga)\s+(today|score|match|live|now|result)\b',
+        r'\bwho\s+(won|is winning|is playing|is leading)\s+(today|now|the match)\b',
+        r'\bmatch\s+(today|now|live|score|result)\b',
+        r'\bcricket\s+(score|match|live|today|now)\b',
+        r'\bfootball\s+(score|match|live|today|now)\b',
+        r'\bfinal\s+score\b',
+        r'\btournament\s+(today|now|live|result)\b',
     ]
     if any(re.search(p, lower) for p in sports_patterns):
         return "sports"
@@ -514,6 +566,15 @@ def detect_intent(text: str) -> str:
         r'\bnews\b', r'\bheadlines\b', r'\bbreaking\b', r'\blatest (news|update|development)\b',
         r"\bwhat('s| is) happening\b", r'\bwhat happened\b', r'\bcurrent events\b',
         r"\btoday'?s news\b", r'\brecent news\b', r'\bannouncement\b',
+        r'\b(latest|todays?|recent|breaking|current)\s+news\b',
+        r'\bnews\s+(today|now|about|on|regarding)\b',
+        r'\bheadlines\s+(today|now)\b',
+        r'\bbreaking\s+(news|story)\b',
+        r"\bwhat'?s?\s+(happening|in the news)\s+(today|now|currently)\b",
+        r'\bwhat\s+happened\s+(today|yesterday|recently)\b',
+        r'\bcurrent\s+events\b',
+        r'\bnews\s+about\s+\w+',
+        r'^\s*news\??\s*$',
     ]
     if any(re.search(p, lower) for p in news_patterns):
         return "news"
@@ -543,7 +604,7 @@ def detect_intent(text: str) -> str:
         r'\blanguage\b', r'\balphabet\b', r'\bliterature\b', r'\bauthor of\b',
         r'\bmovie\b', r'\bfilm\b', r'\bdirected by\b',
         r'\breligion\b', r'\bphilosophy\b', r'\bmythology\b',
-        r'\bwar\b', r'\bempire\b', r'\bcivilization\b', r'\bdinasty\b',
+        r'\bwar\b', r'\bempire\b', r'\bcivilization\b', r'\bdynasty\b',  # FIX: "dinasty" → "dynasty"
         r'\btechnology\b', r'\binvention\b', r'\bdiscovery\b',
         r'\beconomics?\b', r'\btheory\b', r'\bconcept\b', r'\bprinciple\b',
         r'\bfamous\b', r'\blegendary\b', r'\bnotable\b', r'\bknown for\b',
@@ -556,16 +617,53 @@ def detect_intent(text: str) -> str:
         return "wikipedia"
 
     # ── WEB SEARCH (general real-time lookup) ──────────────────────────────
-    web_search_patterns = [
+    # FIX: was overwriting the initial web_search_patterns list entirely.
+    # Now all pattern groups are combined correctly from the start.
+    currentposition_signals = [
+        r'\bwho is (the )?(current|new|now|present)\s+(cm|chief minister|pm|prime minister|president|governor|mayor|minister|ceo|chairman)\b',
+        r'\b(current|new|now|present)\s+(cm|chief minister|pm|prime minister|president|governor|mayor|minister|ceo|chairman)\b',
+        r'\bwho (won|became|got elected|was elected|was appointed|was named)\b.*\b(202[4-9]|today|this year|recently)\b',
+        r'\bwho is leading\b', r'\bwho is in charge\b',
+    ]
+    techlaunch_signals = [
+        r'\blatest version of\b', r'\bnew(est)? (version|update|release|feature)\b',
+        r'\bjust (launched|released|announced)\b',
+        r'\bthis (week|month).{0,10}(launch|release|announce)\b',
+        r'\bwhat.{0,15}(launched|released|announced).{0,15}(this week|today|recently)\b',
+        r'\b(reddit|twitter|x|hackernews|hn)\s+(saying|discussion|trending)\b',
+        r'\bgithub trending\b', r'\bproducthunt\b',
+        r'\b(hugging\s*face|huggingface)\s+.{0,30}(latest|new|recent|2024|2025|2026)\b',
+        r'\bfind.{0,20}(launched|released|new|latest).{0,20}(202[4-9]|this (week|month|year))\b',
+    ]
+    status_signals = [
+        r'\bis\s+\w+\s+(down|up|working|running|having issues|offline|online)\s+(right now|today|currently)\b',
+        r'\bstatus of\b.*\btoday\b',
+        r'\bwhich (websites?|domains?|sites?).{0,20}(rank|indexed|blocked|currently)\b',
+        r'\bcurrently rank\b', r'\bnow ranking\b',
+        r'\b(seo|search ranking).{0,15}(update|new|latest|today|this (week|month))\b',
+    ]
+    base_web_search_patterns = [
         r'\blatest\b', r'\bcurrently?\b', r'\bright now\b', r'\btoday\b',
         r'\brecently?\b', r'\bwho is\b', r'\bwhen (is|was|did)\b',
         r'\bwhere is\b', r'\bprice of\b', r'\bhow much (is|does|did)\b',
         r'\bwhat is the (current|latest|new)\b', r'\bfind (me|out|information)\b',
         r'\bsearch (for|about)\b', r'\blook up\b', r'\b\d{4}\b',
     ]
-    if any(re.search(p, lower) for p in web_search_patterns):
+    all_web_search_patterns = (
+        base_web_search_patterns
+        + realtime_signals
+        + currentposition_signals
+        + techlaunch_signals
+        + status_signals
+    )
+    if any(re.search(p, lower) for p in all_web_search_patterns):
         return "web_search"
-
+    
+    # ══════════════════════════════════════════════════════════════════════
+    # DEFAULT: GENERAL — trust the LLM's training
+    # Handles: explanations, definitions, code, math, opinions, casual chat,
+    # "what is DNS", "explain quantum computing", "how does X work", etc.
+    # ══════════════════════════════════════════════════════════════════════
     return "general"
 
 

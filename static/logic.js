@@ -1962,20 +1962,25 @@ let webSearchEnabled = false;  // true = force web search on every message
 function detectClientIntent(message) {
     const lower = message.toLowerCase().trim();
 
+    // Identity → general
+    if (/which model|what model|what ai|which ai|are you|who are you|your model|who (made|created|built) you/.test(lower)) return "general";
+
     // ── GREETINGS → always "general", never search ───────────────────────
-    // Covers: hi, hii, hello, hey, bonjour, namaste, kamon acho, kaise ho, etc.
     const GREETING_EXACT = new Set([
         "hi","hii","hiii","hiiii","hey","heya","hello","helo","hellow",
-        "yo","sup","wassup","whatsup","howdy",
-        "bonjour","bonsoir","salut","hola","ola","ciao","hallo","hei",
+        "yo","sup","wassup","whatsup","howdy","hola","ola",
+        "bonjour","bonsoir","salut","ciao","hallo","hei",
         "kamon acho","kemon acho","ki obostha","ki holo",
-        "kamon achho","kemon achho","ki korcho","ki korchen",
-        "kya haal","kya haal hai","kaise ho","kaise hain","kaisa hai",
-        "theek ho","theek hain","sab theek","kya chal raha hai",
-        "vanakkam","namaskaram","hege iddira","sukhamano","ela unnaru",
+        "kya haal","kya haal hai","kaise ho","kaise hain",
+        "theek ho","theek hain","sab theek",
+        "vanakkam","namaskaram","sukhamano","ela unnaru",
         "sat sri akal","kem cho","maja ma",
         "aadab","adaab","assalamualaikum","salam",
         "namaste","namaskar","pranam","nomoskar",
+        "thanks","thank you","thx","ty","thnx","thankyou",
+        "bye","goodbye","see ya","cya","alvida",
+        "ok","okay","okk","k","kk","cool","nice","great","awesome",
+        "yes","no","yep","nope","yeah","nah","sure","hmm","hm","ohh","oh"
     ]);
     if (GREETING_EXACT.has(lower)) return "general";
 
@@ -1989,19 +1994,55 @@ function detectClientIntent(message) {
             "namaste","namaskar","nomoskar","pranam",
             "kamon","kemon","kaise ho","kya haal","kem cho",
             "sat sri","vanakkam",
+            "thanks","thank ","thx","bye","goodbye","nice ","cool ","great ","awesome "
+            // FIX: removed stray comma inside "awesome," string → "awesome "
         ];
         if (GREETING_STARTS.some(g => lower.startsWith(g))) return "general";
     }
 
+    // ── REAL-TIME OVERRIDE — must run BEFORE wikipedia check ─────────────
+    const realtimeSignals = /\bnow\b|\bnew\b|\bcurrent(ly)?\b|\blatest\b|\btoday\b|\brecent(ly)?\b|\bright now\b|\bat (the )?moment\b|\bthis (year|month|week|day)\b|\b2024\b|\b2025\b|\b2026\b|\bjust (happened|announced|elected|appointed|named|won|became)\b/;
+    const infoSeeking = /\bwho\b|\bwhat\b|\bwhich\b|\bwhere\b|\bwhen\b|\btell me\b|\bfind\b/;
+    if (infoSeeking.test(lower) && realtimeSignals.test(lower)) return "web_search";
+
+    // ── CLOCK ─────────────────────────────────────────────────────────────
     if (/\btime\b|\bclock\b|\bwhat time\b|\bcurrent time\b|\btimezone\b|\btime zone\b|\bist\b|\butc\b|\bgmt\b/.test(lower)) return "clock";
+    if (/\bwhat\s+(time|hour|day|date)\s+(is\s+it|now)\b|\bcurrent\s+(time|date|day|hour)\b|\btime\s+(in|at|of)\s+\w+|\btoday'?s?\s+date\b|^\s*(time|date|what time|what date)\??\s*$|\btimezone\b/.test(lower)) return "clock";
+
+    // ── WEATHER ───────────────────────────────────────────────────────────
     if (/weather|temperature|humidity|forecast|sunny|cloudy|will it rain|feels like/.test(lower)) return "weather";
+    if (/\bweather\s+(in|at|of|today|tomorrow|now|right now)\b|\btemperature\s+(in|at|of|today|tomorrow|now|right now|outside)\b|\bhumidity\s+(in|today|now)\b|\b(will|is)\s+it\s+(rain|snow|hot|cold|sunny|cloudy)\b|\bforecast\b|\bfeels\s+like\b|\bhow\s+(hot|cold|warm)\s+is\s+it\b|today'?s?\s+weather|^\s*weather\??\s*$/.test(lower)) return "weather";
+
+    // ── FINANCE ───────────────────────────────────────────────────────────
     if (/share price|stock price|stock market|nse|bse|nifty|sensex|crypto|bitcoin|ethereum|exchange rate|rupee/.test(lower)) return "finance";
     if (/(tata|reliance|infosys|wipro|hdfc|icici|bajaj|sbi).*(price|stock|share)|(price|stock|share).*(tata|reliance|infosys|wipro|hdfc|icici|bajaj|sbi)/.test(lower)) return "finance";
+    if (/\b(share|stock)\s+price\b|\bprice\s+of\s+\w+\s+(share|stock)\b|\b(nifty|sensex|nasdaq)\s+(today|now|live|current)\b|\b(bitcoin|btc|ethereum|eth|crypto)\s+(price|today|now|live|current|rate)\b|\bprice\s+of\s+(bitcoin|btc|ethereum)\b|\b(dollar|usd|inr|rupee|euro)\s+(rate|today|live|current|exchange)\b|\b(tata|reliance|infosys|wipro|hdfc|icici|bajaj|sbi|adani|maruti|tcs|airtel|paytm|zomato|nykaa|irctc)\s+(share|stock|price)\b/.test(lower)) return "finance";
+
+    // ── SPORTS ────────────────────────────────────────────────────────────
     if (/cricket|ipl|test match|\bodi\b|\bt20\b|football|soccer|fifa|premier league|\bnba\b|\bnfl\b|tennis|live score|match today/.test(lower)) return "sports";
+    if (/\b(live|today'?s?|current)\s+(score|match)\b|\bscore\s+(of|today|now|live)\b|\b(ipl|test match|odi|t20|world cup)\s+(today|score|match|live|now|result)\b|\bwho\s+(won|is winning|is playing)\s+(today|now|the match)\b|\bcricket\s+(score|match|live|today)\b|\bfootball\s+(score|match|live|today)\b/.test(lower)) return "sports";
+
+    // ── NEWS ──────────────────────────────────────────────────────────────
     if (/\bnews\b|headlines|breaking|latest news|current events|what happened|recent news/.test(lower)) return "news";
-    if (/latest|currently?|right now|\btoday\b|recently?|who is|price of|how much|find (me|out)|search for|look up/.test(lower)) return "web_search";
+    if (/\b(latest|todays?|recent|breaking|current)\s+news\b|\bnews\s+(today|now|about|on)\b|\bheadlines\b|\bbreaking\s+(news|story)\b|what'?s?\s+happening\s+(today|now)|what\s+happened\s+(today|yesterday|recently)|current\s+events|^\s*news\??\s*$/.test(lower)) return "news";
+
+    // ── WIKIPEDIA (no real-time signals) ──────────────────────────────────
+    const hasRealtime = /\b(latest|today|now|current|recent|2024|2025|2026)\b/.test(lower);
+    if (!hasRealtime) {
+        if (/^tell me about\s+[a-z]|^information (about|on)\s+\w|^facts about\s+\w|^who was\s+[A-Z]|^biography of\s+\w|^history of\s+[A-Z]|\bcapital of\s+\w|\bpopulation of\s+\w|^who is\s+[A-Z][a-z]+\s+[A-Z][a-z]+|\bborn (in|on)\s+\d{4}\b/.test(message)) {
+            return "wikipedia";
+        }
+    }
+
+    // ── WEB SEARCH (real-time / fresh data) ───────────────────────────────
+    if (/\blatest\b|\bnewest\b|\bmost recent\b|\btoday\b|\btonight\b|\bthis (week|month|year)\b|\bcurrent(ly)?\b|\bright now\b|\brecently?\b|\bjust (announced|launched|happened|released)\b|\b(202[4-9])\b|\bbreaking\b/.test(lower)) return "web_search";
+    if (/who is (the )?(current|new|now|present)\s+(cm|chief minister|pm|prime minister|president|governor|mayor|minister|ceo|chairman)|latest version of|new(est)? (version|update|release|feature)|just (launched|released|announced)|github trending|reddit (saying|trending)|huggingface.{0,30}(latest|new|recent)/.test(lower)) return "web_search";
+    if (/\bis\s+\w+\s+(down|up|working|running|having issues|offline)\s+(right now|today|currently)\b|currently rank|now ranking|seo.{0,15}(update|new|latest|this (week|month))/.test(lower)) return "web_search";
+
+    // Default → general
     return "general";
 }
+
 
 // ── performWebSearch (legacy manual toggle) ──────────────────────────────────
 async function performWebSearch(query) {
