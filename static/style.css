@@ -4871,3 +4871,166 @@ html { scroll-behavior: smooth; }
   }
 }
 
+
+/* ============================================================
+   📱 MOBILE FIX PATCH v3 — 4 targeted issues
+   ============================================================ */
+
+/* ── FIX 1: Input box height — slightly taller, less cramped ── */
+@media (max-width: 768px) {
+  #input {
+    min-height: 28px !important;
+    font-size: 16px !important;
+    line-height: 1.5 !important;
+  }
+
+  .input-row-top {
+    min-height: 28px !important;
+  }
+
+  /* Slightly more padding so the input area feels roomier */
+  .input-area,
+  .input-area.center,
+  .input-area.bottom {
+    padding: 12px 14px 14px 14px !important;
+    padding-bottom: max(14px, env(safe-area-inset-bottom, 14px)) !important;
+  }
+}
+
+/* ── FIX 2: Disclaimer — Claude-style inline at bottom of each response ── */
+
+/* Hide the static bottom disclaimer bar entirely */
+.chat-disclaimer {
+  display: none !important;
+}
+
+/* The per-response disclaimer lives inside each bot-msg-wrapper */
+.bot-response-disclaimer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0 10px 0;
+  font-size: 11.5px;
+  color: #444;
+  line-height: 1.4;
+  letter-spacing: -0.005em;
+}
+
+.bot-response-disclaimer svg {
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+.bot-response-disclaimer span {
+  color: #484848;
+}
+
+[data-theme="light"] .bot-response-disclaimer {
+  color: #aab0c0;
+}
+
+[data-theme="light"] .bot-response-disclaimer span {
+  color: #aab0c0;
+}
+
+/* ── FIX 3: Remove border/ring from header logo ── */
+.mobile-header-logo {
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+}
+
+.sidebar-logo {
+  box-shadow: none !important;
+  border: none !important;
+}
+
+/* ── FIX 4: Copy button — small icon-only, user messages flush right ── */
+
+/* Make the Copy button icon-only and compact */
+.bot-copy-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  width: 30px;
+  height: 30px;
+  padding: 0 !important;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid #252525;
+  color: #555;
+  cursor: pointer;
+  font-size: 0 !important;      /* hide "Copy" text */
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+
+/* Show tooltip-style text on hover for desktop */
+.bot-copy-btn:hover {
+  background: #1e1e1e;
+  color: #ccc;
+  border-color: #333;
+}
+
+.bot-copy-btn.copied {
+  color: #10a37f;
+  border-color: #10a37f44;
+}
+
+/* Keep icon visible */
+.bot-copy-btn svg {
+  flex-shrink: 0;
+  width: 13px;
+  height: 13px;
+}
+
+/* Light theme */
+[data-theme="light"] .bot-copy-btn {
+  border-color: #dde1eb;
+  color: #9aa0b5;
+}
+[data-theme="light"] .bot-copy-btn:hover {
+  background: #f4f6fb;
+  color: #3d4455;
+  border-color: #c8cdd9;
+}
+
+/* User messages — always flush right, no left margin waste */
+.user-msg-wrapper {
+  justify-content: flex-end !important;
+  width: 100% !important;
+  padding-left: 0 !important;
+}
+
+.message.user {
+  margin-left: auto !important;
+  margin-right: 0 !important;
+  align-self: flex-end !important;
+}
+
+@media (max-width: 768px) {
+  .message.user {
+    max-width: 80% !important;
+    margin-left: auto !important;
+    margin-right: 0 !important;
+  }
+
+  .bot-copy-btn {
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 8px !important;
+  }
+
+  .bot-actions {
+    padding: 4px 0 8px 0 !important;
+    gap: 6px !important;
+  }
+
+  /* Disclaimer inside each response on mobile */
+  .bot-response-disclaimer {
+    font-size: 11px !important;
+    padding: 4px 0 8px 0 !important;
+    gap: 5px !important;
+  }
+}
