@@ -344,7 +344,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.115"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.116"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -354,7 +354,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.115", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.116", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -2393,38 +2393,57 @@ async def generate_title(request: Request):
             "Given the user's first message, produce a SHORT (2–5 words) descriptive title "
             "that captures the TOPIC — like a Google search query or a chapter heading. "
             "Examples: 'Browser Caching Issue', 'What is DNS', 'Python List Sorting', "
-            "'Resume Writing Tips', 'Photosynthesis Explained'. "
+            "'Resume Writing Tips', 'Photosynthesis Explained', 'Fix FastAPI CORS Error', "
+            "'How Black Holes Form', 'Best Laptops Under 50000'. "
             "Rules: No quotes, no punctuation at the end, Title Case, no filler words like "
-            "'Question about' or 'Help with'. Return ONLY the title, nothing else."
+            "'Question about' or 'Help with'. Return ONLY the title, nothing else. "
+            "Never return the user's message verbatim — always summarise into a topic label."
         )
 
-        messages = [{"role": "user", "parts": [{"text": message}]}]
+        groq_key = os.getenv("GROQ_API_KEY", "")
+        if not groq_key:
+            # Fallback: smart truncation if no API key
+            words = message.split()
+            return JSONResponse({"title": " ".join(words[:5]) if words else "New Chat"})
 
         import requests as req_lib
-        url = (
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"gemma-4-e4b-it:generateContent?key={GEMINI_API_KEY}"
+        resp = req_lib.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {groq_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "llama-3.3-70b-versatile",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user",   "content": message}
+                ],
+                "max_tokens": 30,
+                "temperature": 0.4,
+                "stream": False,
+            },
+            timeout=8,
         )
-        payload = {
-            "system_instruction": {"parts": [{"text": system_prompt}]},
-            "contents": messages,
-            "generationConfig": {"maxOutputTokens": 20, "temperature": 0.4}
-        }
-        resp = req_lib.post(url, json=payload, timeout=8)
+
         if resp.status_code == 200:
             data  = resp.json()
             title = (
-                data.get("candidates", [{}])[0]
-                    .get("content", {})
-                    .get("parts", [{}])[0]
-                    .get("text", "")
+                data.get("choices", [{}])[0]
+                    .get("message", {})
+                    .get("content", "")
                     .strip()
                     .strip('"\'')
             )
+            # Strip any accidental markdown bold/italic
+            title = title.replace("**", "").replace("*", "").strip()
             if title:
+                print(f"✅ [Title] Generated: '{title}' for: '{message[:50]}'")
                 return JSONResponse({"title": title[:60]})
 
-        return JSONResponse({"title": message[:40]})
+        print(f"⚠️ [Title] Groq returned {resp.status_code} — using fallback")
+        words = message.split()
+        return JSONResponse({"title": " ".join(words[:5]) if words else "New Chat"})
 
     except Exception as e:
         print(f"❌ Title generation error: {e}")

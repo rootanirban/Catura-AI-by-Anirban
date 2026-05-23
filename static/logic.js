@@ -1587,7 +1587,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                 .then(r => r.json())
                 .then(data => {
                     const aiTitle = data.title?.trim();
-                    if (aiTitle && aiTitle !== chatTitle) {
+                    if (aiTitle && aiTitle.length > 1) {
                         chatTitle = aiTitle;
                         // Update in Supabase
                         supabaseClient.from("chat_sessions")
