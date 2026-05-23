@@ -2107,7 +2107,9 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
             } else {
                 // stream finished AND queue empty — do final render
                 // Strip inline citation numbers [1][2] from display; keep fullReply raw for storage
-                const displayReply = fullReply.replace(/\[\d+\](\[\d+\])*/g, '').replace(/\s{2,}/g, ' ').trim();
+                // NOTE: Do NOT collapse whitespace (\s{2,} → ' ') here — it destroys newlines
+                // needed for markdown lists, paragraphs, and code blocks.
+                const displayReply = fullReply.replace(/\[\d+\](\[\d+\])*/g, '').trimEnd();
                 animRunning = false;
                 bm.innerHTML = formatMessage(repairTruncated(displayReply));
                 bm.classList.remove("streaming");
@@ -2239,7 +2241,9 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
 
     if (fullReply.trim()) {
         if (bm) {
-            const displayReply = fullReply.replace(/\[\d+\](\[\d+\])*/g, '').replace(/\s{2,}/g, ' ').trim();
+            // Only re-render if the drain loop didn't already do it (animRunning was set false there)
+            // Strip citation numbers but preserve all whitespace/newlines for markdown
+            const displayReply = fullReply.replace(/\[\d+\](\[\d+\])*/g, '').trimEnd();
             bm.innerHTML = formatMessage(repairTruncated(displayReply));
             if (w) w.dataset.raw = fullReply;
         }
