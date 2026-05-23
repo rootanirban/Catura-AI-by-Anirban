@@ -344,7 +344,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.114"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.115"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -354,7 +354,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.114", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.115", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -2334,6 +2334,49 @@ def call_groq_stream(messages, api_key):
 
 
 # ============================================================
+# ✅ HELPER: Call Groq for Sambhav — completely independent of Nivo
+# Uses llama-3.3-70b-versatile via Groq API (GROQ_API_KEY)
+# ============================================================
+def call_sambhav_groq_stream(messages, api_key):
+    """
+    Dedicated Groq streaming function for Sambhav.
+    Completely separate from call_groq_stream — does NOT share state or signature.
+    Uses llama-3.3-70b-versatile via Groq's OpenAI-compatible endpoint.
+    """
+    if not api_key:
+        return None, "GROQ_API_KEY not set in environment variables"
+    try:
+        resp = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "llama-3.3-70b-versatile",
+                "messages": messages,
+                "stream": True,
+                "temperature": 0.4,
+                "max_tokens": 8000,
+            },
+            stream=True,
+            timeout=(10, 120),
+        )
+        if resp.status_code != 200:
+            try:
+                err_body = resp.json()
+                err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
+            except Exception:
+                err_msg = f"HTTP {resp.status_code}"
+            return None, err_msg
+        return resp, None
+    except requests.exceptions.Timeout:
+        return None, "Request timed out"
+    except Exception as e:
+        return None, str(e)
+
+
+# ============================================================
 # 🏷️ TITLE GENERATION ENDPOINT
 # Generates a short, descriptive chat title from the first message
 # ============================================================
@@ -2453,12 +2496,11 @@ async def chat_post(request: Request):
         GEMMA_GOOGLE_MODELS = {
             "Gemma":    "gemma-4-26b-a4b-it",
             "Gemma4":   "gemma-4-31b-it",
-            "sambhav":  "gemma-4-e4b-it",  # Replaced Gemini 2.5 Flash → Gemma 4 E4B (Apache 2.0, no geo-restrictions)
         }
         model_pools = {
             "dagr":    ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
             "apep":    ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
-            "sambhav": [],  # Routed via Google AI Studio (Gemma 4 E4B) — see GEMMA_GOOGLE_MODELS
+            "sambhav": [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
             "nivo":    [],  # Routed via Groq API (GROQ_API_KEY) — see generate_nivo()
         }
         model_key  = model.strip()
@@ -2678,9 +2720,11 @@ async def chat_post(request: Request):
         messages_base = [{"role": "system", "content": system_prompt}] + user_memory[session_id][-20:]
         api_key  = os.getenv("OPENROUTER_API_KEY")
 
-        # ── SAMBHAV: Gemma 4 E4B via Google AI Studio (replaces Gemini 2.5 Flash, no geo-restrictions) ──
+        # ── SAMBHAV: llama-3.3-70b-versatile via Groq API ──
         if model_key == "sambhav":
-            def generate_gemini():
+            sambhav_groq_key = os.getenv("GROQ_API_KEY", "")
+
+            def generate_sambhav():
                 full_reply = ""
 
                 # ── Run tool INSIDE generator (non-blocking from client POV) ──
@@ -2695,7 +2739,6 @@ async def chat_post(request: Request):
                 if tool_context:
                     final_system += "\n\n" + tool_context
 
-
                 if tool_result:
                     badge_payload = json.dumps({"tool_used": tool_result.get("tool", ""), "intent": intent})
                     yield f"data: {badge_payload}\n\n"
@@ -2703,7 +2746,11 @@ async def chat_post(request: Request):
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                resp, err = call_gemma_google_stream(user_memory[session_id][-20:], final_system, "gemma-4-e4b-it")
+                sambhav_messages = (
+                    [{"role": "system", "content": final_system}]
+                    + user_memory[session_id][-20:]
+                )
+                resp, err = call_sambhav_groq_stream(sambhav_messages, sambhav_groq_key)
 
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'Sambhav unavailable: {err}'})}\n\n"
@@ -2722,19 +2769,20 @@ async def chat_post(request: Request):
                             break
                         try:
                             chunk = json.loads(payload)
-                            candidates = chunk.get("candidates", [])
-                            if not candidates:
+                            if "error" in chunk:
+                                print(f"⚠️ [Sambhav] mid-stream error: {chunk['error']}")
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
                                 continue
-                            parts = candidates[0].get("content", {}).get("parts", [])
-                            for part in parts:
-                                token = part.get("text", "")
-                                if token:
-                                    full_reply += token
-                                    yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            if token:
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [Gemini] stream exception: {e}")
+                    print(f"❌ [Sambhav] stream exception: {e}")
 
                 if full_reply.strip():
                     user_memory[session_id].append({"role": "assistant", "content": full_reply})
@@ -2743,7 +2791,7 @@ async def chat_post(request: Request):
                 yield "data: [DONE]\n\n"
 
             return StreamingResponse(
-                generate_gemini(),
+                generate_sambhav(),
                 media_type="text/event-stream",
                 headers={
                     "Cache-Control": "no-cache",
@@ -3061,12 +3109,11 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
         GEMMA_GOOGLE_MODELS = {
             "Gemma":    "gemma-4-26b-a4b-it",
             "Gemma4":   "gemma-4-31b-it",
-            "sambhav":  "gemma-4-e4b-it",  # Replaced Gemini 2.5 Flash → Gemma 4 E4B
         }
         model_pools = {
             "dagr":    ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
             "apep":    ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
-            "sambhav": [],  # Routed via Google AI Studio (Gemma 4 E4B) — see GEMMA_GOOGLE_MODELS
+            "sambhav": [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
             "nivo":    [],  # Routed via Groq API (GROQ_API_KEY)
         }
         model_key  = model.strip()
@@ -3570,6 +3617,61 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_nivo_get(), media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache",
+                         "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"}
+            )
+
+        # ── SAMBHAV: llama-3.3-70b-versatile via Groq API (GET handler) ──
+        if model_key == "sambhav":
+            sambhav_groq_key_get = os.getenv("GROQ_API_KEY", "")
+
+            def generate_sambhav_get():
+                full_reply = ""
+                if tool_result:
+                    yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
+                    sp = build_sources_payload(tool_result)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                sambhav_msgs_get = [{"role": "system", "content": system_prompt}] + user_memory[session_id][-20:]
+                resp, err = call_sambhav_groq_stream(sambhav_msgs_get, sambhav_groq_key_get)
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'Sambhav unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+                try:
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            if token:
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, Exception):
+                            continue
+                except Exception as e:
+                    print(f"❌ [Sambhav GET] stream exception: {e}")
+                if full_reply.strip():
+                    user_memory[session_id].append({"role": "assistant", "content": full_reply})
+                    if len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_sambhav_get(), media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache",
                          "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"}
             )
