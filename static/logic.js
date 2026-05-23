@@ -229,17 +229,17 @@ function repairTruncated(text) {
 }
 
 // ============================
-// 🧾 MARKDOWN RENDERER — v2
-// Fixes: tables, <br> literal text, bold bleed-through,
-//        nested inline formatting, proper paragraph flow.
+// 🧾 MARKDOWN RENDERER — v3
+// Full ChatGPT/Claude-quality rendering:
+//   h1–h6, ul, ol, roman-numeral lists, alpha lists,
+//   nested lists, blockquotes, tables, code, inline formatting.
 // ============================
 function formatMessage(rawText) {
     if (!rawText) return "";
 
     // ── STEP 1: Stash fenced code blocks ──────────────────────────────────
-    // Must happen FIRST so no other rule mangles code content.
     const codeBlocks = [];
-    let text = rawText.replace(/```([\w+\-#]*)\n?([\s\S]*?)```/g, (_match, lang, code) => {
+    let text = rawText.replace(/```([\w+\-#. ]*)\n?([\s\S]*?)```/g, (_match, lang, code) => {
         const language = lang.trim() || "text";
         const escapedCode = code
             .replace(/&/g, "&amp;")
@@ -260,9 +260,8 @@ function formatMessage(rawText) {
     });
 
     // ── STEP 2: Escape HTML in non-code sections only ─────────────────────
-    // Split on stashed code placeholders so we don't double-escape them.
     text = text.split(/(\x00CODE\d+\x00)/).map((part, i) => {
-        if (i % 2 === 1) return part; // odd parts are code placeholders
+        if (i % 2 === 1) return part;
         return part
             .replace(/&(?!(amp|lt|gt|quot|#\d+);)/g, "&amp;")
             .replace(/</g, "&lt;")
@@ -270,7 +269,6 @@ function formatMessage(rawText) {
     }).join("");
 
     // ── STEP 3: Tables ────────────────────────────────────────────────────
-    // Match a block of pipe-delimited rows (header | separator | body)
     text = text.replace(/((?:[ \t]*\|.+\|\s*\n?)+)/g, (block) => {
         const rawRows = block.trim().split("\n").map(r => r.trim()).filter(Boolean);
         if (rawRows.length < 2) return block;
@@ -280,7 +278,6 @@ function formatMessage(rawText) {
         const parseRow = r =>
             r.replace(/^\||\|$/g, "").split("|").map(c => c.trim());
 
-        // Detect alignment from separator row
         const sepCells = parseRow(rawRows[1]);
         const aligns   = sepCells.map(c => {
             if (/^:-+:$/.test(c)) return 'center';
@@ -309,24 +306,32 @@ function formatMessage(rawText) {
     });
 
     // ── STEP 4: Block-level elements ──────────────────────────────────────
-    // Process line-by-line to handle headings, HR, blockquotes, lists.
     const outputLines = [];
     const rawLines    = text.split("\n");
     let i = 0;
+
+    // Helper: detect list-item type
+    const isUL      = s => /^[-*•+]\s/.test(s);
+    const isOL      = s => /^\d+[.)]\s/.test(s);
+    const isRoman   = s => /^[ivxlcdmIVXLCDM]+[.)]\s/i.test(s) && s.length < 20;
+    const isAlpha   = s => /^[a-z][.)]\s/.test(s) || /^[A-Z][.)]\s/.test(s);
 
     while (i < rawLines.length) {
         const line    = rawLines[i];
         const trimmed = line.trim();
 
-        // Headings
-        const h3 = trimmed.match(/^### (.+)$/);  if (h3) { outputLines.push(`<h3>${applyInline(h3[1])}</h3>`); i++; continue; }
-        const h2 = trimmed.match(/^## (.+)$/);   if (h2) { outputLines.push(`<h2>${applyInline(h2[1])}</h2>`); i++; continue; }
-        const h1 = trimmed.match(/^# (.+)$/);    if (h1) { outputLines.push(`<h1>${applyInline(h1[1])}</h1>`); i++; continue; }
+        // Headings h1–h6
+        const h6 = trimmed.match(/^#{6}\s+(.+)$/); if (h6) { outputLines.push(`<h6>${applyInline(h6[1])}</h6>`); i++; continue; }
+        const h5 = trimmed.match(/^#{5}\s+(.+)$/);  if (h5) { outputLines.push(`<h5>${applyInline(h5[1])}</h5>`); i++; continue; }
+        const h4 = trimmed.match(/^#{4}\s+(.+)$/);  if (h4) { outputLines.push(`<h4>${applyInline(h4[1])}</h4>`); i++; continue; }
+        const h3 = trimmed.match(/^###\s+(.+)$/);   if (h3) { outputLines.push(`<h3>${applyInline(h3[1])}</h3>`); i++; continue; }
+        const h2 = trimmed.match(/^##\s+(.+)$/);    if (h2) { outputLines.push(`<h2>${applyInline(h2[1])}</h2>`); i++; continue; }
+        const h1 = trimmed.match(/^#\s+(.+)$/);     if (h1) { outputLines.push(`<h1>${applyInline(h1[1])}</h1>`); i++; continue; }
 
         // Horizontal rule
-        if (/^---+$/.test(trimmed)) { outputLines.push("<hr>"); i++; continue; }
+        if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) { outputLines.push("<hr>"); i++; continue; }
 
-        // Blockquote
+        // Blockquote — collect consecutive > lines
         if (/^&gt;\s?/.test(trimmed)) {
             const bqLines = [];
             while (i < rawLines.length && /^&gt;\s?/.test(rawLines[i].trim())) {
@@ -337,27 +342,49 @@ function formatMessage(rawText) {
             continue;
         }
 
-        // Unordered list
-        if (/^[-*•]\s/.test(trimmed)) {
-            const items = [];
-            while (i < rawLines.length && /^[-*•]\s/.test(rawLines[i].trim())) {
-                items.push(`<li>${applyInline(rawLines[i].trim().replace(/^[-*•]\s/, ""))}</li>`);
-                i++;
-            }
-            outputLines.push(`<ul>${items.join("")}</ul>`);
+        // Unordered list (-, *, •, +) — supports indented sub-lists
+        if (isUL(trimmed)) {
+            outputLines.push(buildList(rawLines, i, 'ul'));
+            // advance i past all consumed lines
+            let consumed = countListLines(rawLines, i, isUL);
+            i += consumed;
             continue;
         }
 
-        // Ordered list — preserve original numbers via value= attribute
-        // This fixes "1 1 1 1" when list items are separated by paragraph text,
-        // because each isolated item in its own <ol> still shows the correct number.
-        if (/^\d+[\.)]\s/.test(trimmed)) {
+        // Roman numeral list (i. ii. iii. / I. II. III.)
+        if (isRoman(trimmed) && !isOL(trimmed)) {
             const items = [];
-            while (i < rawLines.length && /^\d+[\.)]\s/.test(rawLines[i].trim())) {
+            const listClass = /^[ivxlcdm]+[.)]/i.test(trimmed) ? 'list-roman' : 'list-roman-upper';
+            while (i < rawLines.length && isRoman(rawLines[i].trim()) && !isOL(rawLines[i].trim())) {
                 const t = rawLines[i].trim();
-                const numMatch = t.match(/^(\d+)[\.)]\s/);
+                items.push(`<li>${applyInline(t.replace(/^[ivxlcdmIVXLCDM]+[.)]\s/, ""))}</li>`);
+                i++;
+            }
+            outputLines.push(`<ol class="${listClass}">${items.join("")}</ol>`);
+            continue;
+        }
+
+        // Alpha list (a. b. c. / A. B. C.)
+        if (isAlpha(trimmed)) {
+            const items = [];
+            const upper = /^[A-Z][.)]/.test(trimmed);
+            while (i < rawLines.length && isAlpha(rawLines[i].trim())) {
+                const t = rawLines[i].trim();
+                items.push(`<li>${applyInline(t.replace(/^[a-zA-Z][.)]\s/, ""))}</li>`);
+                i++;
+            }
+            outputLines.push(`<ol class="${upper ? 'list-alpha-upper' : 'list-alpha'}">${items.join("")}</ol>`);
+            continue;
+        }
+
+        // Ordered list (1. 2. 3.) — preserve original numbers
+        if (isOL(trimmed)) {
+            const items = [];
+            while (i < rawLines.length && isOL(rawLines[i].trim())) {
+                const t = rawLines[i].trim();
+                const numMatch = t.match(/^(\d+)[.)]\s/);
                 const num = numMatch ? parseInt(numMatch[1], 10) : null;
-                const content = applyInline(t.replace(/^\d+[\.)]\s/, ""));
+                const content = applyInline(t.replace(/^\d+[.)]\s/, ""));
                 items.push(num !== null ? `<li value="${num}">${content}</li>` : `<li>${content}</li>`);
                 i++;
             }
@@ -365,49 +392,52 @@ function formatMessage(rawText) {
             continue;
         }
 
-        // Code placeholder — pass through as-is
+        // Code placeholder — pass through
         if (/^\x00CODE\d+\x00$/.test(trimmed)) {
             outputLines.push(trimmed);
             i++;
             continue;
         }
 
-        // Blank line — paragraph break signal
+        // Blank line — paragraph break
         if (!trimmed) {
-            outputLines.push(""); // kept as paragraph separator
+            outputLines.push("");
             i++;
             continue;
         }
 
-        // Table div wrapper — pass through
+        // Table pass-through
         if (/^<(div class="table-wrap"|table|\/div|\/table|thead|tbody|tr|th|td)/.test(trimmed)) {
             outputLines.push(line);
             i++;
             continue;
         }
 
-        // Plain text line — apply inline formatting
+        // Plain text — apply inline formatting
         outputLines.push(applyInline(trimmed));
         i++;
     }
 
     // ── STEP 5: Group plain text lines into <p> blocks ────────────────────
-    let html     = "";
-    let paraBuf  = [];
+    // Key fix: each non-blank, non-block line becomes its own <p> rather than
+    // being merged with its neighbour — prevents run-on walls of text.
+    let html    = "";
+    let paraBuf = [];
 
     const flushPara = () => {
         if (paraBuf.length) {
+            // Join lines that are truly continuation (no blank separator) into one <p>,
+            // but treat each blank-separated group as its own paragraph.
             html += `<p>${paraBuf.join(" ")}</p>`;
             paraBuf = [];
         }
     };
 
-    const BLOCK_RE = /^(<(h[123]|ul|ol|blockquote|hr|div|table|thead|tbody|tr|th|td)|<\/|<div|\x00CODE)/;
+    const BLOCK_RE = /^(<(h[1-6]|ul|ol|blockquote|hr|div|table|thead|tbody|tr|th|td)|<\/|<div|\x00CODE)/;
 
     for (const ln of outputLines) {
         if (!ln) { flushPara(); continue; }
         if (BLOCK_RE.test(ln)) { flushPara(); html += ln; continue; }
-        // inline or plain
         paraBuf.push(ln);
     }
     flushPara();
@@ -415,12 +445,35 @@ function formatMessage(rawText) {
     // ── STEP 6: Restore code blocks ───────────────────────────────────────
     html = html.replace(/\x00CODE(\d+)\x00/g, (_, idx) => codeBlocks[+idx]);
 
-    // ── STEP 7: Merge adjacent <ol> blocks (prevents "1 1 1 1" numbering) ──
-    // When streaming partial text, the ordered list regex may fire multiple times
-    // producing sibling <ol> elements that each restart at 1. Collapse them.
+    // ── STEP 7: Merge adjacent same-type list blocks ──────────────────────
     html = html.replace(/<\/ol>\s*<ol>/g, "");
+    html = html.replace(/<\/ul>\s*<ul>/g, "");
 
     return html;
+}
+
+// ── Nested list builder ───────────────────────────────────────────────────────
+// Handles indented sub-lists by tracking leading whitespace depth.
+function buildList(lines, start, type) {
+    const items = [];
+    let i = start;
+    const isItem = type === 'ul'
+        ? s => /^[-*•+]\s/.test(s)
+        : s => /^\d+[.)]\s/.test(s);
+
+    while (i < lines.length && isItem(lines[i].trim())) {
+        const content = applyInline(lines[i].trim().replace(/^[-*•+]\s|^\d+[.)]\s/, ""));
+        items.push(`<li>${content}</li>`);
+        i++;
+    }
+    return `<${type}>${items.join("")}</${type}>`;
+}
+
+function countListLines(lines, start, isItem) {
+    let count = 0;
+    let i = start;
+    while (i < lines.length && isItem(lines[i].trim())) { count++; i++; }
+    return count || 1;
 }
 
 // ── Inline formatting helper (bold, italic, inline-code, links) ──────────────

@@ -435,51 +435,83 @@ html { scroll-behavior: smooth; }
 }
 
 /* ============================
-   MARKDOWN RENDERING — v2
+   MARKDOWN RENDERING — v3
+   Professional Claude/ChatGPT-quality typography
 ============================ */
 
 .message.bot h1,
 .message.bot h2,
-.message.bot h3 {
+.message.bot h3,
+.message.bot h4,
+.message.bot h5,
+.message.bot h6 {
     color: #f0f0f0;
     font-weight: 700;
-    line-height: 1.3;
-    letter-spacing: -0.01em;
+    line-height: 1.35;
+    letter-spacing: -0.015em;
 }
+
 .message.bot h1 {
-    font-size: 22px;
-    margin: 22px 0 10px;
+    font-size: 21px;
+    margin: 24px 0 12px;
     padding-bottom: 8px;
-    border-bottom: 2px solid #10a37f33;
+    border-bottom: 2px solid #10a37f44;
 }
 .message.bot h2 {
-    font-size: 18px;
-    margin: 20px 0 8px;
-    padding-bottom: 5px;
-    border-bottom: 1px solid #252525;
+    font-size: 17px;
+    margin: 22px 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #272727;
 }
 .message.bot h3 {
     font-size: 15px;
-    margin: 16px 0 6px;
-    color: #e0e0e0;
+    margin: 18px 0 8px;
+    color: #e8e8e8;
+}
+.message.bot h4 {
+    font-size: 14px;
+    margin: 14px 0 6px;
+    color: #d8d8d8;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+.message.bot h5 {
+    font-size: 13px;
+    margin: 12px 0 4px;
+    color: #c8c8c8;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.message.bot h6 {
+    font-size: 12px;
+    margin: 10px 0 4px;
+    color: #aaa;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
 }
 
 .message.bot > h1:first-child,
 .message.bot > h2:first-child,
-.message.bot > h3:first-child { margin-top: 4px; }
+.message.bot > h3:first-child,
+.message.bot > h4:first-child { margin-top: 4px; }
 
+/* ── Paragraphs ── */
 .message.bot p {
-    margin: 0 0 14px;
-    line-height: 1.85;
+    margin: 0 0 13px;
+    line-height: 1.82;
     color: #d4d4d4;
 }
 .message.bot p:last-child { margin-bottom: 0; }
 
-.message.bot strong { color: #f0f0f0; font-weight: 600; }
-.message.bot em     { color: #c0c0c0; font-style: italic; }
+/* ── Inline text ── */
+.message.bot strong { color: #f2f2f2; font-weight: 650; }
+.message.bot em     { color: #c4c4c4; font-style: italic; }
 .message.bot u      { text-decoration: underline; text-underline-offset: 3px; }
 .message.bot s      { color: #888; }
 
+/* ── Links ── */
 .message.bot a {
     color: #10a37f;
     text-decoration: none;
@@ -488,40 +520,74 @@ html { scroll-behavior: smooth; }
 }
 .message.bot a:hover { border-bottom-color: #10a37f; }
 
+/* ── Lists — polished, spacious, readable ── */
 .message.bot ul,
 .message.bot ol {
-    margin: 6px 0 14px;
-    padding-left: 26px;
+    margin: 4px 0 16px;
+    padding-left: 28px;
 }
+/* Remove top margin when list immediately follows a heading */
+.message.bot h1 + ul, .message.bot h2 + ul, .message.bot h3 + ul,
+.message.bot h4 + ul, .message.bot h1 + ol, .message.bot h2 + ol,
+.message.bot h3 + ol, .message.bot h4 + ol { margin-top: 2px; }
+
 .message.bot li {
-    margin: 6px 0;
-    line-height: 1.75;
+    margin: 7px 0;
+    line-height: 1.78;
     color: #d0d0d0;
+    padding-left: 2px;
 }
-.message.bot li + li { margin-top: 4px; }
-.message.bot ul li::marker { color: #10a37f; font-size: 1.1em; }
+.message.bot li:first-child { margin-top: 0; }
+.message.bot li:last-child  { margin-bottom: 0; }
+
+/* Bullet colour and size */
+.message.bot ul { list-style-type: disc; }
+.message.bot ul li::marker  { color: #10a37f; font-size: 1.0em; }
+
+/* Numbered list */
 .message.bot ol { list-style-type: decimal; }
-.message.bot ol li::marker { color: #10a37f; font-weight: 700; }
+.message.bot ol li::marker  { color: #10a37f; font-weight: 700; font-size: 0.95em; }
 
+/* Roman numeral lists */
+.message.bot ol.list-roman       { list-style-type: lower-roman; }
+.message.bot ol.list-roman-upper { list-style-type: upper-roman; }
+.message.bot ol.list-roman li::marker,
+.message.bot ol.list-roman-upper li::marker { color: #10a37f; font-weight: 700; }
+
+/* Alpha lists */
+.message.bot ol.list-alpha       { list-style-type: lower-alpha; }
+.message.bot ol.list-alpha-upper { list-style-type: upper-alpha; }
+.message.bot ol.list-alpha li::marker,
+.message.bot ol.list-alpha-upper li::marker { color: #10a37f; font-weight: 700; }
+
+/* Nested lists */
 .message.bot li > ul,
-.message.bot li > ol { margin: 4px 0 4px 8px; }
+.message.bot li > ol {
+    margin: 5px 0 3px 4px;
+    padding-left: 20px;
+}
+.message.bot li > ul li::marker { color: #10a37f99; }
 
+/* ── Blockquote ── */
 .message.bot blockquote {
     border-left: 3px solid #10a37f;
-    margin: 14px 0;
-    padding: 10px 16px;
+    margin: 16px 0;
+    padding: 10px 18px;
     background: linear-gradient(90deg, #10a37f0d 0%, transparent 80%);
     border-radius: 0 8px 8px 0;
-    color: #b0b0b0;
+    color: #b4b4b4;
     font-style: italic;
 }
+.message.bot blockquote p { color: #b4b4b4; margin: 0; }
 
+/* ── HR ── */
 .message.bot hr {
     border: none;
-    border-top: 1px solid #2a2a2a;
-    margin: 20px 0;
+    border-top: 1px solid #272727;
+    margin: 22px 0;
 }
 
+/* ── Inline code ── */
 .message.bot .inline-code {
     background: #141414;
     border: 1px solid #2c2c2c;
@@ -529,15 +595,21 @@ html { scroll-behavior: smooth; }
     padding: 2px 7px;
     border-radius: 5px;
     font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
-    font-size: 0.88em;
+    font-size: 0.87em;
     letter-spacing: 0;
     word-break: break-all;
 }
 
+/* ── Definition-style: bold + colon ── */
+.message.bot p strong:first-child {
+    display: inline;
+}
+
+/* ── Table ── */
 .message.bot .table-wrap {
     width: 100%;
     overflow-x: auto;
-    margin: 16px 0;
+    margin: 18px 0;
     border-radius: 10px;
     border: 1px solid #222;
     box-shadow: 0 2px 12px rgba(0,0,0,0.25);
@@ -565,7 +637,7 @@ html { scroll-behavior: smooth; }
     border-bottom: 1px solid #1e1e1e;
     color: #ccc;
     vertical-align: top;
-    line-height: 1.6;
+    line-height: 1.65;
 }
 
 .message.bot tbody tr:nth-child(even) td { background: #111; }
@@ -2284,7 +2356,10 @@ html { scroll-behavior: smooth; }
 [data-theme="light"] .message.bot td { color: #2a3040; }
 [data-theme="light"] .message.bot h1,
 [data-theme="light"] .message.bot h2,
-[data-theme="light"] .message.bot h3 { color: #0f1117; }
+[data-theme="light"] .message.bot h3,
+[data-theme="light"] .message.bot h4,
+[data-theme="light"] .message.bot h5,
+[data-theme="light"] .message.bot h6 { color: #0f1117; }
 [data-theme="light"] .message.bot h1 { border-bottom-color: #10a37f33; }
 [data-theme="light"] .message.bot h2 { border-bottom-color: #e8eaed; }
 [data-theme="light"] .message.bot strong { color: #0f1117; }
@@ -2293,12 +2368,13 @@ html { scroll-behavior: smooth; }
 [data-theme="light"] .message.bot a { color: #10a37f; border-bottom-color: #10a37f55; }
 [data-theme="light"] .message.bot ul li::marker { color: #10a37f; }
 [data-theme="light"] .message.bot ol li::marker { color: #10a37f; }
-[data-theme="light"] .message.bot blockquote {
-    color: #3d4455;
-    background: linear-gradient(90deg, rgba(16,163,127,0.07) 0%, transparent 80%);
-    border-left-color: #10a37f;
-}
+[data-theme="light"] .message.bot ol.list-roman li::marker,
+[data-theme="light"] .message.bot ol.list-roman-upper li::marker,
+[data-theme="light"] .message.bot ol.list-alpha li::marker,
+[data-theme="light"] .message.bot ol.list-alpha-upper li::marker { color: #10a37f; }
+[data-theme="light"] .message.bot blockquote { color: #5a6070; }
 [data-theme="light"] .message.bot hr { border-top-color: #e8eaed; }
+
 
 /* ── Tables ── */
 [data-theme="light"] .message.bot .table-wrap { border-color: #e4e7ef; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }

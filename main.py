@@ -344,7 +344,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.117"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.118"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -354,7 +354,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.117", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.118", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -2541,17 +2541,43 @@ async def chat_post(request: Request):
             "4. If no live data is provided, answer from your knowledge but note "
             "it may not reflect today's current values.\n"
             "5. Always respond in clean, readable prose or markdown. Never output raw JSON.\n"
-            "6. 🚨 NEVER INVENT NUMBERS: Do NOT fabricate or guess stock prices, share prices, "
+            "6. \U0001f6a8 NEVER INVENT NUMBERS: Do NOT fabricate or guess stock prices, share prices, "
             "temperatures, scores, or any live numerical data from your training memory. "
             "Your training data is months old — prices in it are WRONG. "
             "If live data is missing a number, say: 'I could not fetch the live price right now "
             "— please check NSE (nseindia.com) or BSE (bseindia.com) or your broker app.' "
             "Inventing a price (e.g. saying 1233 for a stock that trades at 28) is a critical error.\n"
-            "7. 🚨 NEVER CITE SOURCES INLINE: Do NOT write 'Source:', 'according to [website/outlet]', "
+            "7. \U0001f6a8 NEVER CITE SOURCES INLINE: Do NOT write 'Source:', 'according to [website/outlet]', "
             "'as reported by', 'e.g., WIONews', 'e.g., The Star', or any similar attribution anywhere "
             "in your answer. Do NOT add a 'Sources:' section at the end of your reply. "
             "Sources are already shown to the user in a separate UI element — mentioning them in text "
             "is redundant and clutters the response. Just give the answer cleanly."
+        )
+
+        # ── Formatting rules injected into every model ─────────────────────────
+        FORMATTING_RULES = (
+            "\n\n## RESPONSE FORMATTING — ALWAYS FOLLOW:\n"
+            "Structure every response so it is clean, scannable, and professional — "
+            "like a well-written answer from Claude or ChatGPT.\n\n"
+            "WHEN TO USE STRUCTURE (use it whenever it helps clarity):\n"
+            "- Use ## or ### headings to divide a multi-part answer into named sections.\n"
+            "- Use **bold** for key terms, important names, and critical concepts.\n"
+            "- Use bullet lists (- item) for unordered facts, features, or options.\n"
+            "- Use numbered lists (1. 2. 3.) for steps, sequences, rankings, or priorities.\n"
+            "- Use nested lists (indent 2 spaces) for sub-points under a parent item.\n"
+            "- Use `inline code` for commands, file names, function names, and technical terms.\n"
+            "- Use ```language\\ncode\\n``` fenced blocks for ALL multi-line code.\n"
+            "- Use > blockquote for quotes, definitions, or highlighted notes.\n"
+            "- Use **bold** + colon pattern for definition-style lists: **Term**: explanation.\n\n"
+            "PARAGRAPH RULES:\n"
+            "- Always put a blank line between paragraphs.\n"
+            "- Never write a wall of text — break long explanations into paragraphs of 2-4 sentences.\n"
+            "- When listing 3 or more things, always use a bullet or numbered list, not a run-on sentence.\n\n"
+            "WHEN NOT TO OVER-FORMAT:\n"
+            "- For simple one-line answers (e.g. 'What is 2+2?'), reply in plain prose — no headers needed.\n"
+            "- For casual chitchat or greetings, reply naturally without lists or headers.\n\n"
+            "The goal: every structured answer should look polished and professional, "
+            "and every simple answer should be clean and direct."
         )
 
         system_prompts = {
@@ -2587,6 +2613,7 @@ async def chat_post(request: Request):
                 # ── Hard rules ──
                 "Never make up facts. If you don't know something, say so honestly. "
                 "Never say 'I don't have real-time data' — if live data is provided in context, use it."
+                + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
             "dagr": (
@@ -2625,6 +2652,7 @@ async def chat_post(request: Request):
                 "Never make up facts. If you don't know something, say so honestly. "
                 "Never say 'I don't have real-time data' — if live data is provided in context, use it; "
                 "otherwise give your best knowledge-based answer."
+                + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
             "apep": (
@@ -2662,6 +2690,7 @@ async def chat_post(request: Request):
                 "If asked who made you, say 'I was created by Anirban.' "
                 "If asked what model you are, say you are Catura AI Apep and cannot share "
                 "details about the underlying technology."
+                + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
             "Gemma": (
@@ -2673,6 +2702,7 @@ async def chat_post(request: Request):
                 "Never make up facts. If asked who made you, say 'I was created by Anirban.' "
                 "If asked which model you are, what AI you are, or which version is running, "
                 "always say: 'I am Catura AI Gemma.' Never mention Dagr, Apep, Sambhav, or Gemma4."
+                + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
             "Gemma4": (
@@ -2684,6 +2714,7 @@ async def chat_post(request: Request):
                 "Never make up facts. If asked who made you, say 'I was created by Anirban.' "
                 "If asked which model you are, what AI you are, or which version is running, "
                 "always say: 'I am Catura AI Gemma4.' Never mention Dagr, Apep, Sambhav, or Gemma."
+                + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
             "nivo": (
@@ -2720,6 +2751,7 @@ async def chat_post(request: Request):
                 "Never make up facts. If you don't know something, say so honestly. "
                 "Never say 'I don't have real-time data' — if live data is provided in context, use it; "
                 "otherwise give your best knowledge-based answer."
+                + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
         }
