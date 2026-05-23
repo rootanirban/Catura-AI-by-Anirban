@@ -4301,3 +4301,573 @@ html { scroll-behavior: smooth; }
 [data-theme="light"] .source-chip.trust-high .source-domain {
     color: #0d7a64;
 }
+
+/* ============================================================
+   📱 MOBILE PREMIUM OVERHAUL v2
+   Full polish: typography, spacing, header, input, messages
+   ============================================================ */
+
+/* ── Google Fonts import for premium mobile typography ── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@media (max-width: 768px) {
+
+  /* ── Global font upgrade ── */
+  body, #input, .message.bot, .message.user,
+  .sidebar-item, .model-option, .plus-dropdown-item {
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif !important;
+  }
+
+  /* ── MOBILE HEADER — premium glass effect ── */
+  .mobile-header {
+    height: 56px;
+    background: rgba(10, 10, 10, 0.92) !important;
+    border-bottom: 1px solid rgba(255,255,255,0.07) !important;
+    backdrop-filter: blur(20px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+    padding: 0 16px !important;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.04) !important;
+  }
+
+  .mobile-header-brand {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.02em !important;
+    color: #f0f0f0 !important;
+    gap: 9px !important;
+  }
+
+  .mobile-header-logo {
+    width: 26px !important;
+    height: 26px !important;
+    border-radius: 7px !important;
+    box-shadow: 0 0 0 1.5px rgba(16,163,127,0.4) !important;
+  }
+
+  .mobile-hamburger {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    border-radius: 12px !important;
+    gap: 4.5px !important;
+  }
+
+  .mobile-hamburger span {
+    width: 18px !important;
+    height: 1.5px !important;
+    background: #b0b0b0 !important;
+    border-radius: 2px !important;
+  }
+
+  .mobile-header-new {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    border-radius: 12px !important;
+    color: #888 !important;
+  }
+
+  /* ── CHATBOX ── */
+  #chatbox {
+    top: 56px !important;
+    bottom: 116px !important;
+    padding: 16px 16px 8px 16px !important;
+  }
+
+  /* ── USER MESSAGES ── */
+  .message.user {
+    max-width: 78% !important;
+    font-size: 14px !important;
+    font-weight: 450 !important;
+    line-height: 1.6 !important;
+    padding: 11px 16px !important;
+    border-radius: 18px 18px 4px 18px !important;
+    background: linear-gradient(145deg, #12b58c 0%, #0e9476 100%) !important;
+    box-shadow: 0 2px 16px rgba(16,163,127,0.28) !important;
+    letter-spacing: -0.01em !important;
+  }
+
+  /* ── BOT MESSAGES ── */
+  .message.bot {
+    font-size: 14.5px !important;
+    line-height: 1.75 !important;
+    padding: 14px 0 !important;
+    color: #e0e0e0 !important;
+    letter-spacing: -0.008em !important;
+  }
+
+  .message.bot p {
+    font-size: 14.5px !important;
+    line-height: 1.75 !important;
+    margin-bottom: 12px !important;
+  }
+
+  /* ── APP OFFSET for new header height ── */
+  .app {
+    padding-top: 56px !important;
+  }
+
+  /* ── INPUT AREA — flagship design ── */
+  .input-area,
+  .input-area.center,
+  .input-area.bottom {
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    padding: 10px 14px 14px 14px !important;
+    padding-bottom: max(14px, env(safe-area-inset-bottom, 14px)) !important;
+    border-radius: 20px 20px 0 0 !important;
+    border: none !important;
+    border-top: 1px solid rgba(255,255,255,0.08) !important;
+    background: rgba(18, 18, 18, 0.98) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    box-shadow: 0 -12px 40px rgba(0,0,0,0.5), 0 -1px 0 rgba(255,255,255,0.05) !important;
+    gap: 0 !important;
+    position: fixed !important;
+    z-index: 200 !important;
+  }
+
+  /* Pill handle above input */
+  .input-area::before {
+    content: '';
+    display: block;
+    width: 32px;
+    height: 3px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 2px;
+    margin: 0 auto 10px;
+    flex-shrink: 0;
+  }
+
+  .input-area:focus-within {
+    border-top-color: rgba(16,163,127,0.35) !important;
+    box-shadow: 0 -12px 40px rgba(0,0,0,0.5), 0 -1px 0 rgba(16,163,127,0.2) !important;
+  }
+
+  .input-row-top {
+    margin-bottom: 8px !important;
+  }
+
+  #input {
+    font-size: 15px !important;
+    font-family: 'Inter', system-ui, sans-serif !important;
+    line-height: 1.55 !important;
+    min-height: 22px !important;
+    max-height: 130px !important;
+    letter-spacing: -0.01em !important;
+    color: #efefef !important;
+    caret-color: #10a37f !important;
+  }
+
+  #input::placeholder {
+    color: #555 !important;
+    font-size: 15px !important;
+    font-weight: 400 !important;
+  }
+
+  /* ── BOTTOM ROW of input ── */
+  .input-row-bottom {
+    gap: 6px !important;
+    align-items: center !important;
+  }
+
+  /* ── PLUS BUTTON ── */
+  .plus-btn {
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    min-height: 34px !important;
+    border-radius: 50% !important;
+    background: rgba(255,255,255,0.07) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    color: #888 !important;
+  }
+
+  .plus-btn:active {
+    background: rgba(255,255,255,0.12) !important;
+    transform: scale(0.92) !important;
+  }
+
+  /* ── SEND BUTTON ── */
+  .send-btn {
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    min-height: 36px !important;
+    border-radius: 50% !important;
+    background: linear-gradient(145deg, #12b58c, #0d8f6e) !important;
+    box-shadow: 0 2px 12px rgba(16,163,127,0.45) !important;
+  }
+
+  .send-btn:active {
+    transform: scale(0.9) !important;
+    box-shadow: 0 1px 6px rgba(16,163,127,0.3) !important;
+  }
+
+  /* ── MODEL SELECTOR BUTTON ── */
+  .model-selector-btn {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.01em !important;
+    color: #777 !important;
+    padding: 6px 8px !important;
+    min-height: 34px !important;
+    min-width: unset !important;
+    border-radius: 10px !important;
+    transition: color 0.2s, background 0.2s !important;
+  }
+
+  .model-selector-btn:active {
+    background: rgba(255,255,255,0.06) !important;
+  }
+
+  .model-name {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.01em !important;
+  }
+
+  /* ── MODEL BOTTOM SHEET ── */
+  .model-dropdown {
+    background: #111111 !important;
+    border-color: rgba(255,255,255,0.08) !important;
+    border-radius: 24px 24px 0 0 !important;
+    padding-bottom: max(8px, env(safe-area-inset-bottom)) !important;
+  }
+
+  .model-dropdown::before {
+    background: rgba(255,255,255,0.18) !important;
+    margin: 12px auto 8px !important;
+  }
+
+  .model-option {
+    padding: 14px 18px !important;
+    min-height: 62px !important;
+    border-left: 3px solid transparent !important;
+  }
+
+  .model-option-name {
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.01em !important;
+  }
+
+  .model-option-desc {
+    font-size: 12px !important;
+    color: #555 !important;
+    margin-top: 3px !important;
+  }
+
+  .model-option.active .model-option-desc {
+    color: #0d9c79 !important;
+  }
+
+  .model-more-row {
+    padding: 15px 18px !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+  }
+
+  /* ── MORE MODELS PANEL (also bottom sheet) ── */
+  .model-more-panel {
+    background: #111111 !important;
+    border-radius: 24px 24px 0 0 !important;
+    border-color: rgba(255,255,255,0.08) !important;
+  }
+
+  .model-more-panel::before {
+    background: rgba(255,255,255,0.18) !important;
+    margin: 12px auto 8px !important;
+  }
+
+  .model-more-panel .model-option {
+    padding: 14px 18px !important;
+    min-height: 62px !important;
+  }
+
+  .model-more-back-btn {
+    font-size: 14px !important;
+    padding: 15px 18px !important;
+    letter-spacing: -0.01em !important;
+    font-weight: 500 !important;
+    border-bottom: 1px solid rgba(255,255,255,0.07) !important;
+  }
+
+  /* ── PLUS DROPDOWN ── */
+  .plus-dropdown {
+    background: #161616 !important;
+    border-color: rgba(255,255,255,0.09) !important;
+    border-radius: 16px !important;
+    padding: 8px !important;
+    min-width: 210px !important;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.7) !important;
+    bottom: 46px !important;
+  }
+
+  .plus-dropdown-item {
+    padding: 11px 12px !important;
+    font-size: 14px !important;
+    border-radius: 10px !important;
+    letter-spacing: -0.01em !important;
+    min-height: unset !important;
+  }
+
+  .plus-item-icon {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 9px !important;
+    background: rgba(255,255,255,0.07) !important;
+  }
+
+  /* ── SIDEBAR MOBILE ── */
+  .sidebar {
+    left: -290px !important;
+    width: 280px !important;
+    background: linear-gradient(160deg, #0e0e0e 0%, #111 100%) !important;
+  }
+
+  .sidebar.open {
+    left: 0 !important;
+    box-shadow: 4px 0 32px rgba(0,0,0,0.7) !important;
+  }
+
+  .sidebar-header {
+    padding: 14px 12px 14px 10px !important;
+    background: rgba(12,12,12,0.6) !important;
+    border-bottom: 1px solid rgba(255,255,255,0.07) !important;
+  }
+
+  .sidebar-brand {
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.02em !important;
+  }
+
+  .sidebar-item {
+    padding: 12px 14px !important;
+    font-size: 14px !important;
+    letter-spacing: -0.01em !important;
+    border-radius: 12px !important;
+    min-height: unset !important;
+    min-width: unset !important;
+  }
+
+  .sidebar-overlay {
+    background: rgba(0,0,0,0.7) !important;
+    backdrop-filter: blur(6px) !important;
+    -webkit-backdrop-filter: blur(6px) !important;
+  }
+
+  /* ── HISTORY ITEMS ── */
+  .history-title {
+    font-size: 13.5px !important;
+    letter-spacing: -0.01em !important;
+  }
+
+  .history-date {
+    font-size: 11px !important;
+  }
+
+  /* ── TOAST ── */
+  #toastNotif {
+    bottom: 130px !important;
+    border-radius: 14px !important;
+    font-size: 13px !important;
+    padding: 11px 18px !important;
+    font-weight: 500 !important;
+    letter-spacing: -0.01em !important;
+    background: rgba(28,28,28,0.95) !important;
+    border-color: rgba(255,255,255,0.1) !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+  }
+
+  /* ── COPY BUTTON ── */
+  .bot-copy-btn {
+    font-size: 11.5px !important;
+    padding: 5px 12px !important;
+    border-radius: 9px !important;
+    letter-spacing: -0.01em !important;
+    font-weight: 500 !important;
+    min-width: unset !important;
+    min-height: unset !important;
+    height: auto !important;
+  }
+
+  /* ── CODE BLOCKS ── */
+  .code-block {
+    border-radius: 14px !important;
+    margin: 12px 0 !important;
+  }
+
+  .code-header {
+    padding: 9px 14px !important;
+  }
+
+  .code-block pre {
+    padding: 14px !important;
+    font-size: 12.5px !important;
+  }
+
+  /* ── SETTINGS PANEL MOBILE ── */
+  .settings-panel-wrap {
+    padding: 56px 16px 24px !important;
+  }
+
+  .settings-nav-item {
+    font-size: 13px !important;
+    padding: 8px 14px !important;
+    border-radius: 10px !important;
+    letter-spacing: -0.01em !important;
+    min-height: unset !important;
+    min-width: unset !important;
+  }
+
+  /* ── DISCLAIMER ── */
+  .chat-disclaimer {
+    font-size: 11px !important;
+    padding: 4px 16px 8px !important;
+    letter-spacing: -0.005em !important;
+  }
+
+  /* ── CHAT BOTTOM SAFE AREA ── */
+  #chatbox {
+    bottom: 118px !important;
+  }
+
+  /* ── WELCOME SCREEN ── */
+  .welcome {
+    width: 88% !important;
+    top: 26% !important;
+  }
+
+  .welcome h1 {
+    font-size: 24px !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.04em !important;
+  }
+
+  .welcome p {
+    font-size: 14px !important;
+    color: #666 !important;
+    letter-spacing: -0.01em !important;
+  }
+
+  .suggestions {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+
+  .card {
+    font-size: 12.5px !important;
+    padding: 12px 13px !important;
+    border-radius: 14px !important;
+    letter-spacing: -0.01em !important;
+    line-height: 1.45 !important;
+    border-color: rgba(255,255,255,0.08) !important;
+    background: rgba(255,255,255,0.04) !important;
+    min-height: unset !important;
+    min-width: unset !important;
+  }
+
+  .card:active {
+    transform: scale(0.97) !important;
+    background: rgba(16,163,127,0.08) !important;
+    border-color: rgba(16,163,127,0.3) !important;
+  }
+
+  /* ── USER MESSAGE WRAPPER ── */
+  .user-msg-wrapper {
+    margin-bottom: 6px !important;
+  }
+
+  /* ── SOURCE CHIPS ── */
+  .source-chip {
+    font-size: 11px !important;
+    padding: 3px 8px !important;
+  }
+
+  /* ── TOOL BADGE ── */
+  .tool-badge {
+    font-size: 11px !important;
+    padding: 3px 9px 3px 6px !important;
+  }
+
+  /* ── BOT ACTIONS ── */
+  .bot-actions {
+    padding: 4px 0 10px 0 !important;
+    gap: 6px !important;
+  }
+
+  /* ── FILE UPLOAD CARDS ── */
+  .af-card--image {
+    width: 72px !important;
+  }
+  .af-card-img-wrap, .af-card-img {
+    width: 72px !important;
+    height: 56px !important;
+  }
+
+  /* ── TOUCH TARGETS — only for actual buttons ── */
+  .send-btn,
+  .plus-btn,
+  .mobile-hamburger,
+  .mobile-header-new,
+  .model-selector-btn {
+    min-width: 34px;
+    min-height: 34px;
+  }
+}
+
+/* ── Light theme mobile tweaks ── */
+@media (max-width: 768px) {
+  [data-theme="light"] .mobile-header {
+    background: rgba(253,253,253,0.94) !important;
+    border-bottom: 1px solid rgba(0,0,0,0.08) !important;
+  }
+
+  [data-theme="light"] .input-area,
+  [data-theme="light"] .input-area.center,
+  [data-theme="light"] .input-area.bottom {
+    background: rgba(255,255,255,0.98) !important;
+    border-top-color: rgba(0,0,0,0.08) !important;
+    box-shadow: 0 -12px 40px rgba(0,0,0,0.08), 0 -1px 0 rgba(0,0,0,0.06) !important;
+  }
+
+  [data-theme="light"] .input-area::before {
+    background: rgba(0,0,0,0.12);
+  }
+
+  [data-theme="light"] .input-area:focus-within {
+    border-top-color: rgba(16,163,127,0.4) !important;
+  }
+
+  [data-theme="light"] .plus-btn {
+    background: rgba(0,0,0,0.05) !important;
+    border-color: rgba(0,0,0,0.1) !important;
+    color: #888 !important;
+  }
+
+  [data-theme="light"] .card {
+    background: rgba(0,0,0,0.03) !important;
+    border-color: rgba(0,0,0,0.08) !important;
+  }
+
+  [data-theme="light"] .model-dropdown {
+    background: #fafafa !important;
+  }
+
+  [data-theme="light"] .model-more-panel {
+    background: #fafafa !important;
+  }
+
+  [data-theme="light"] #toastNotif {
+    background: rgba(255,255,255,0.97) !important;
+    border-color: rgba(0,0,0,0.1) !important;
+    color: #111 !important;
+  }
+}
+
