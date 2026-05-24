@@ -5060,6 +5060,36 @@ html { scroll-behavior: smooth; }
     padding: 4px 0 8px 0 !important;
     gap: 5px !important;
   }
+
+  /* ── User message copy button — mobile redesign ── */
+  /* Wrapper becomes column so button sits BELOW the bubble, not beside it */
+  .user-msg-wrapper {
+    flex-direction: column !important;
+    align-items: flex-end !important;
+  }
+
+  /* The copy button: small, below-right, always slightly visible on mobile */
+  .user-copy-btn {
+    width: 22px !important;
+    height: 22px !important;
+    border-radius: 6px !important;
+    opacity: 0.45 !important;
+    margin-bottom: 0 !important;
+    margin-top: 2px !important;
+    align-self: flex-end !important;
+  }
+
+  /* Tap to make fully visible */
+  .user-copy-btn:active,
+  .user-copy-btn.copied {
+    opacity: 1 !important;
+  }
+
+  /* SVG icon slightly smaller */
+  .user-copy-btn svg {
+    width: 11px !important;
+    height: 11px !important;
+  }
 }
 
 /* ── Disclaimer visibility: desktop vs mobile ── */
