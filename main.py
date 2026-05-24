@@ -345,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.131"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.132"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +355,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.131", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.132", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -2427,6 +2427,7 @@ def call_sambhav_groq_stream(messages, api_key):
 def call_minimax_stream(messages, api_key):
     """
     Calls MiniMax API with streaming using MiniMax M2.5 model.
+    Uses the OpenAI-compatible endpoint: https://api.minimaxi.com/v1/chat/completions
     Uses MINIMAX_API_KEY set on Render. Completely isolated from all
     other models — does NOT touch any other API key.
     """
@@ -2434,7 +2435,7 @@ def call_minimax_stream(messages, api_key):
         return None, "MINIMAX_API_KEY not set in environment variables"
     try:
         resp = requests.post(
-            "https://api.minimaxi.chat/v1/text/chatcompletion_v2",
+            "https://api.minimaxi.com/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
@@ -2452,9 +2453,15 @@ def call_minimax_stream(messages, api_key):
         if resp.status_code != 200:
             try:
                 err_body = resp.json()
-                err_msg = err_body.get("base_resp", {}).get("status_msg", f"HTTP {resp.status_code}")
+                # OpenAI-compatible error shape
+                err_msg = (
+                    err_body.get("error", {}).get("message")
+                    or err_body.get("message")
+                    or f"HTTP {resp.status_code}"
+                )
             except Exception:
                 err_msg = f"HTTP {resp.status_code}"
+            print(f"❌ [MiniMax] API error {resp.status_code}: {err_msg}")
             return None, err_msg
         return resp, None
     except requests.exceptions.Timeout:
