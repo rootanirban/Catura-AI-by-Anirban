@@ -291,6 +291,7 @@ GROQ_API_KEY        = os.getenv("GROQ_API_KEY", "")                 # https://co
 SERPER_API_KEY      = os.getenv("SERPER_API_KEY", "")               # https://serper.dev (2500 free searches)
 FIRECRAWL_API_KEY   = os.getenv("FIRECRAWL_API_KEY", "")            # https://firecrawl.dev (free tier)
 COHERE_API_KEY      = os.getenv("COHERE_API_KEY", "")               # https://cohere.com (1000 free reranks/month)
+MINIMAX_API_KEY     = os.getenv("MINIMAX_API_KEY", "")              # https://minimaxi.com — MiniMax M2.5
 
 
 
@@ -344,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.130"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.131"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -354,7 +355,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.130", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.131", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -2420,6 +2421,49 @@ def call_sambhav_groq_stream(messages, api_key):
 
 
 # ============================================================
+# ✅ HELPER: Call MiniMax API for MiniMax M2.5
+# Uses MINIMAX_API_KEY — completely isolated from all other models
+# ============================================================
+def call_minimax_stream(messages, api_key):
+    """
+    Calls MiniMax API with streaming using MiniMax M2.5 model.
+    Uses MINIMAX_API_KEY set on Render. Completely isolated from all
+    other models — does NOT touch any other API key.
+    """
+    if not api_key:
+        return None, "MINIMAX_API_KEY not set in environment variables"
+    try:
+        resp = requests.post(
+            "https://api.minimaxi.chat/v1/text/chatcompletion_v2",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "MiniMax-M2.5",
+                "messages": messages,
+                "stream": True,
+                "temperature": 0.4,
+                "max_tokens": 8000,
+            },
+            stream=True,
+            timeout=(10, 120),
+        )
+        if resp.status_code != 200:
+            try:
+                err_body = resp.json()
+                err_msg = err_body.get("base_resp", {}).get("status_msg", f"HTTP {resp.status_code}")
+            except Exception:
+                err_msg = f"HTTP {resp.status_code}"
+            return None, err_msg
+        return resp, None
+    except requests.exceptions.Timeout:
+        return None, "Request timed out"
+    except Exception as e:
+        return None, str(e)
+
+
+# ============================================================
 # 🏷️ TITLE GENERATION ENDPOINT
 # Generates a short, descriptive chat title from the first message
 # ============================================================
@@ -2565,7 +2609,7 @@ async def chat_post(request: Request):
             "sambhav": [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
             "nivo":    [],  # Routed via Groq API (GROQ_API_KEY) — see generate_nivo()
             "laguna":  [],  # Routed via Poolside API (POOLSIDE_API_KEY)
-            "deepseek": ["deepseek/deepseek-v4-flash:free"],  # Routed via OpenRouter (OPENROUTER_API_KEY)
+            "minimax": [],  # Routed via MiniMax API (MINIMAX_API_KEY) — MiniMax M2.5
         }
         model_key  = model.strip()
         model_pool = model_pools.get(model_key, model_pools["dagr"])
@@ -2832,11 +2876,11 @@ async def chat_post(request: Request):
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
-            "deepseek": (
+            "minimax": (
                 # ── Identity ──
                 "Your name is Catura (pronounced kuh-CHUR-uh). You are a fast, capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI DeepSeek, optimised for speed and everyday intelligence. "
+                "You are Catura AI MiniMax, optimised for speed and everyday intelligence. "
 
                 # ── Personality & tone ──
                 "You are sharp, concise, and direct. Speak like a knowledgeable friend — "
@@ -2854,7 +2898,7 @@ async def chat_post(request: Request):
                 "For simple questions, give simple answers. Don't pad responses. "
 
                 # ── Identity rules ──
-                "If asked what model or AI you are, say you are Catura AI DeepSeek and cannot share "
+                "If asked what model or AI you are, say you are Catura AI MiniMax and cannot share "
                 "details about the underlying technology. "
                 "If asked who made you, say 'I was created by Anirban.' "
 
@@ -3119,6 +3163,84 @@ async def chat_post(request: Request):
                 }
             )
 
+        # ── MINIMAX: MiniMax API (MINIMAX_API_KEY) — isolated from all other models ──
+        if model_key == "minimax":
+            minimax_key    = os.getenv("MINIMAX_API_KEY", "")
+            minimax_system = system_prompts.get("minimax", system_prompts["dagr"])
+
+            def generate_minimax():
+                full_reply = ""
+
+                tool_result_mm = None
+                if intent != "general" and not file_urls:
+                    yield f"data: {json.dumps({'status': 'tool_running', 'intent': intent})}\n\n"
+                    tool_result_mm = run_tool(intent, prompt)
+
+                final_system_mm = minimax_system
+                tool_context_mm = build_tool_context(tool_result_mm)
+                if tool_context_mm:
+                    final_system_mm += "\n\n" + tool_context_mm
+
+                if tool_result_mm:
+                    badge_payload = json.dumps({"tool_used": tool_result_mm.get("tool", ""), "intent": intent})
+                    yield f"data: {badge_payload}\n\n"
+                    sp = build_sources_payload(tool_result_mm)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                minimax_messages = (
+                    [{"role": "system", "content": final_system_mm}]
+                    + user_memory[session_id][-20:]
+                )
+
+                resp, err = call_minimax_stream(minimax_messages, minimax_key)
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'MiniMax unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+
+                try:
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                print(f"⚠️ [MiniMax] mid-stream error: {chunk['error']}")
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            if token:
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, Exception):
+                            continue
+                except Exception as e:
+                    print(f"❌ [MiniMax] stream exception: {e}")
+
+                if full_reply.strip():
+                    user_memory[session_id].append({"role": "assistant", "content": full_reply})
+                    if len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_minimax(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000",
+                }
+            )
+
         # ── GEMMA: Google AI Studio direct streaming (bypass OpenRouter) ──
         if model_key in GEMMA_GOOGLE_MODELS:
             google_model_id = GEMMA_GOOGLE_MODELS[model_key]
@@ -3356,7 +3478,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "sambhav": [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
             "nivo":    [],  # Routed via Groq API (GROQ_API_KEY)
             "laguna":  [],  # Routed via Poolside API (POOLSIDE_API_KEY)
-            "deepseek": ["deepseek/deepseek-v4-flash:free"],  # Routed via OpenRouter (OPENROUTER_API_KEY)
+            "minimax": [],  # Routed via MiniMax API (MINIMAX_API_KEY) — MiniMax M2.5
         }
         model_key  = model.strip()
         model_pool = model_pools.get(model_key, model_pools["dagr"])
@@ -3821,6 +3943,28 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "Never make up facts. If you don't know something, say so honestly."
                 + NO_TOOL_CALL_RULE
             ),
+            "minimax": (
+                # ── Identity ──
+                "Your name is Catura (pronounced kuh-CHUR-uh). You are a fast, capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI MiniMax, optimised for speed and everyday intelligence. "
+                "You are sharp, concise, and direct. Speak like a knowledgeable friend — "
+                "helpful, never robotic, never sycophantic. "
+                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
+                "'Absolutely!', or similar hollow openers. Just answer directly. "
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+                "Keep answers concise unless the user explicitly asks for detail or a long explanation. "
+                "Use bullet points, numbered lists, or headers only when they genuinely improve clarity. "
+                "For simple questions, give simple answers. Don't pad responses. "
+                "If asked what model or AI you are, say you are Catura AI MiniMax and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+                "Never make up facts. If you don't know something, say so honestly. "
+                "Never say 'I don't have real-time data' — if live data is provided in context, use it; "
+                "otherwise give your best knowledge-based answer."
+                + NO_TOOL_CALL_RULE
+            ),
         }
         system_prompt = system_prompts.get(model_key, system_prompts["dagr"])
 
@@ -3986,6 +4130,62 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_sambhav_get(), media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache",
+                         "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"}
+            )
+
+        # ── MINIMAX: MiniMax API (MINIMAX_API_KEY) — GET handler ──
+        if model_key == "minimax":
+            minimax_key_get    = os.getenv("MINIMAX_API_KEY", "")
+            minimax_system_get = system_prompts.get("minimax", system_prompts["dagr"])
+            minimax_msgs_get   = [{"role": "system", "content": minimax_system_get}] + user_memory[session_id][-20:]
+
+            def generate_minimax_get():
+                full_reply = ""
+                if tool_result:
+                    yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
+                    sp = build_sources_payload(tool_result)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                resp, err = call_minimax_stream(minimax_msgs_get, minimax_key_get)
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'MiniMax unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+                try:
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            if token:
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, Exception):
+                            continue
+                except Exception as e:
+                    print(f"❌ [MiniMax GET] stream exception: {e}")
+                if full_reply.strip():
+                    user_memory[session_id].append({"role": "assistant", "content": full_reply})
+                    if len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_minimax_get(), media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache",
                          "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"}
             )
