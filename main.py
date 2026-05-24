@@ -344,7 +344,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.124"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.125"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -354,7 +354,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.124", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.125", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -2347,13 +2347,13 @@ def call_poolside_stream(messages, api_key):
         return None, "POOLSIDE_API_KEY not set in environment variables"
     try:
         resp = requests.post(
-            "https://api.poolside.ai/v1/chat/completions",
+            "https://inference.poolside.ai/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
             },
             json={
-                "model": "laguna-m-1",
+                "model": "poolside/laguna-m.1",
                 "messages": messages,
                 "stream": True,
                 "temperature": 0.3,
