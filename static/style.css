@@ -4906,7 +4906,7 @@ html { scroll-behavior: smooth; }
 
 /* ── Static input disclaimer — desktop only ── */
 .input-static-disclaimer {
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   gap: 5px;
@@ -4915,6 +4915,11 @@ html { scroll-behavior: smooth; }
   color: #555;
   letter-spacing: -0.005em;
   line-height: 1.4;
+}
+
+/* Only show after first message — when input-area has .bottom class */
+.input-area.bottom ~ .input-static-disclaimer {
+  display: flex;
 }
 
 .input-static-disclaimer span {
