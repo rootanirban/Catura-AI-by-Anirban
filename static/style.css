@@ -2841,6 +2841,9 @@ html { scroll-behavior: smooth; }
     border: 1px solid #2e2e2e;
     border-radius: 12px;
     width: 230px;
+    max-height: 360px;
+    overflow-y: auto;
+    overflow-x: hidden;
     box-shadow: 0 8px 32px rgba(0,0,0,0.75), 0 2px 8px rgba(0,0,0,0.4);
     z-index: 99999;
     padding: 4px 0;
@@ -2849,6 +2852,8 @@ html { scroll-behavior: smooth; }
     transform: translateX(-6px) scale(0.97);
     transition: opacity 0.18s ease, visibility 0.18s ease, transform 0.18s ease;
     pointer-events: none;
+    scrollbar-width: thin;
+    scrollbar-color: #333 transparent;
 }
 
 .model-more-panel.open {
@@ -2856,6 +2861,20 @@ html { scroll-behavior: smooth; }
     visibility: visible;
     transform: translateX(0) scale(1);
     pointer-events: all;
+}
+
+.model-more-panel::-webkit-scrollbar {
+    width: 4px;
+}
+.model-more-panel::-webkit-scrollbar-track {
+    background: transparent;
+}
+.model-more-panel::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 4px;
+}
+.model-more-panel::-webkit-scrollbar-thumb:hover {
+    background: #444;
 }
 
 .model-more-panel-title {
@@ -3086,6 +3105,7 @@ html { scroll-behavior: smooth; }
         max-width: 100% !important;
         max-height: 60vh;
         overflow-y: auto;
+        overflow-x: hidden;
         border-radius: 18px 18px 0 0 !important;
         border-bottom: none !important;
         transform: translateY(100%) !important;
@@ -3095,6 +3115,19 @@ html { scroll-behavior: smooth; }
         box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.8) !important;
         z-index: 10001 !important;
         padding-bottom: env(safe-area-inset-bottom, 12px);
+        scrollbar-width: thin;
+        scrollbar-color: #333 transparent;
+    }
+
+    .model-more-panel::-webkit-scrollbar {
+        width: 3px;
+    }
+    .model-more-panel::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .model-more-panel::-webkit-scrollbar-thumb {
+        background: #404040;
+        border-radius: 3px;
     }
 
     .model-more-panel::before {
