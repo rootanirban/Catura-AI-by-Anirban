@@ -646,16 +646,24 @@ function createBotWrapper() {
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         </button>`;
 
-    // Per-response disclaimer like Claude/ChatGPT inline footer
-    const disclaimer = document.createElement("div");
-    disclaimer.classList.add("bot-response-disclaimer");
-    disclaimer.innerHTML = `
-        <img src="static/logo.png" alt="" style="width:14px;height:14px;border-radius:3px;opacity:0.45;flex-shrink:0;">
-        <span>Catura can make mistakes. Double-check responses.</span>`;
+    // Per-response disclaimer — mobile only, always moves to latest response
+    const isMobileDisclaimer = window.innerWidth <= 768;
+    if (isMobileDisclaimer) {
+        // Remove disclaimer from all previous bot wrappers so it only shows on latest
+        document.querySelectorAll(".bot-response-disclaimer").forEach(el => el.remove());
 
-    wrapper.appendChild(botMsg);
-    wrapper.appendChild(actionsRow);
-    wrapper.appendChild(disclaimer);
+        const disclaimer = document.createElement("div");
+        disclaimer.classList.add("bot-response-disclaimer");
+        disclaimer.innerHTML = `
+            <img src="static/logo.png" alt="" style="width:14px;height:14px;border-radius:3px;opacity:0.45;flex-shrink:0;">
+            <span>Catura can make mistakes. Double-check responses.</span>`;
+        wrapper.appendChild(botMsg);
+        wrapper.appendChild(actionsRow);
+        wrapper.appendChild(disclaimer);
+    } else {
+        wrapper.appendChild(botMsg);
+        wrapper.appendChild(actionsRow);
+    }
     return { wrapper, botMsg };
 }
 

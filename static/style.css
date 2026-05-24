@@ -4904,6 +4904,28 @@ html { scroll-behavior: smooth; }
   display: none !important;
 }
 
+/* ── Static input disclaimer — desktop only ── */
+.input-static-disclaimer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 8px 0 4px 0;
+  font-size: 11.5px;
+  color: #555;
+  letter-spacing: -0.005em;
+  line-height: 1.4;
+}
+
+.input-static-disclaimer span {
+  color: #555;
+}
+
+[data-theme="light"] .input-static-disclaimer,
+[data-theme="light"] .input-static-disclaimer span {
+  color: #aab0c0;
+}
+
 /* The per-response disclaimer lives inside each bot-msg-wrapper */
 .bot-response-disclaimer {
   display: flex;
@@ -5032,5 +5054,20 @@ html { scroll-behavior: smooth; }
     font-size: 11px !important;
     padding: 4px 0 8px 0 !important;
     gap: 5px !important;
+  }
+}
+
+/* ── Disclaimer visibility: desktop vs mobile ── */
+/* On desktop: hide per-response disclaimers, show static input one */
+@media (min-width: 769px) {
+  .bot-response-disclaimer {
+    display: none !important;
+  }
+}
+
+/* On mobile: hide static input disclaimer, show per-response one */
+@media (max-width: 768px) {
+  .input-static-disclaimer {
+    display: none !important;
   }
 }
