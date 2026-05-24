@@ -344,7 +344,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.129"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.130"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -354,7 +354,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.129", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.130", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -3248,10 +3248,7 @@ async def chat_post(request: Request):
                         if not decoded.startswith("data: "): continue
                         payload = decoded[6:]
                         if payload.strip() == "[DONE]":
-                            # Treat [DONE] as clean finish regardless of finish_reason
-                            # (DeepSeek V4 Flash sends [DONE] without a prior "stop" finish_reason)
-                            if leg_tokens > 0 or full_reply.strip():
-                                finished_cleanly = True
+                            finished_cleanly = True
                             break
                         try:
                             chunk = json.loads(payload)
@@ -3263,9 +3260,7 @@ async def chat_post(request: Request):
                             choices = chunk.get("choices")
                             if not choices: continue
                             choice = choices[0]
-                            delta  = choice.get("delta") or {}
-                            # Skip reasoning-only chunks (DeepSeek reasoning tokens — not display content)
-                            token  = delta.get("content") or ""
+                            token  = (choice.get("delta") or {}).get("content") or ""
                             finish = choice.get("finish_reason")
                             if token:
                                 full_reply += token
@@ -3273,7 +3268,7 @@ async def chat_post(request: Request):
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                                 if leg_tokens % 50 == 0:
                                     yield ": heartbeat\n\n"
-                            if finish in ("stop", "eos", "end_turn"):
+                            if finish == "stop":
                                 finished_cleanly = True
                                 break
                             if finish == "length":
@@ -3826,36 +3821,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "Never make up facts. If you don't know something, say so honestly."
                 + NO_TOOL_CALL_RULE
             ),
-            # ══════════════════════════════════════════════════════════════════
-            # DEEPSEEK — DeepSeek V4 Flash via OpenRouter, fast & free
-            # ══════════════════════════════════════════════════════════════════
-            "deepseek": (
-                "Your name is Catura (pronounced kuh-CHUR-uh). "
-                "You are Catura AI DeepSeek — a fast, efficient AI assistant created by Anirban, "
-                "an independent developer and builder based in India. "
-                "You are optimised for speed and everyday intelligence. "
-
-                "\n\n=== DEEPSEEK PERSONALITY ===\n"
-                "You are sharp, concise, and direct. Speak like a knowledgeable friend — "
-                "helpful, never robotic, never sycophantic. "
-                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
-                "'Absolutely!', or similar hollow openers. Just answer directly. "
-
-                "\n\n=== RESPONSE STYLE ===\n"
-                "Keep answers concise unless the user explicitly asks for detail. "
-                "Use bullet points or headers only when they genuinely improve clarity. "
-                "For simple questions, give simple answers. Do not pad responses. "
-                "When writing code: always use fenced code blocks with the correct language tag. "
-
-                "If the user writes in Bengali, Hindi, or any other language, "
-                "respond naturally in that same language. Match the user's language automatically. "
-                "If asked what model or AI you are, say you are Catura AI DeepSeek and cannot share "
-                "details about the underlying technology. "
-                "If asked who made you, say 'I was created by Anirban.' "
-                "Never make up facts. If you don't know something, say so honestly. "
-                "Never say 'I don't have real-time data' — if live data is provided in context, use it."
-                + INDIA_CORE + NO_TOOL_CALL_RULE
-            ),
         }
         system_prompt = system_prompts.get(model_key, system_prompts["dagr"])
 
@@ -4072,21 +4037,18 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         if not decoded.startswith("data: "): continue
                         payload = decoded[6:]
                         if payload.strip() == "[DONE]":
-                            if leg_tokens > 0 or full_reply.strip():
-                                finished_cleanly = True
-                            break
+                            finished_cleanly = True; break
                         try:
                             chunk  = json.loads(payload)
                             if "error" in chunk: stream_broke = True; break
                             choices = chunk.get("choices")
                             if not choices: continue
-                            delta  = choices[0].get("delta") or {}
-                            token  = delta.get("content") or ""
+                            token  = (choices[0].get("delta") or {}).get("content") or ""
                             finish = choices[0].get("finish_reason")
                             if token:
                                 full_reply += token; leg_tokens += 1
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                            if finish in ("stop", "eos", "end_turn"): finished_cleanly = True; break
+                            if finish == "stop": finished_cleanly = True; break
                             if finish == "length": stream_broke = True; break
                         except: continue
                 except Exception as e:
