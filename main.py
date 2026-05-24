@@ -344,7 +344,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.127"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.128"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -354,7 +354,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.127", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.128", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -2565,6 +2565,7 @@ async def chat_post(request: Request):
             "sambhav": [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
             "nivo":    [],  # Routed via Groq API (GROQ_API_KEY) — see generate_nivo()
             "laguna":  [],  # Routed via Poolside API (POOLSIDE_API_KEY)
+            "deepseek": ["deepseek/deepseek-v4-flash:free"],  # Routed via OpenRouter (OPENROUTER_API_KEY)
         }
         model_key  = model.strip()
         model_pool = model_pools.get(model_key, model_pools["dagr"])
@@ -2821,6 +2822,39 @@ async def chat_post(request: Request):
 
                 # ── Identity rules ──
                 "If asked what model or AI you are, say you are Catura AI Laguna and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+
+                # ── Hard rules ──
+                "Never make up facts. If you don't know something, say so honestly. "
+                "Never say 'I don't have real-time data' — if live data is provided in context, use it; "
+                "otherwise give your best knowledge-based answer."
+                + FORMATTING_RULES
+                + NO_TOOL_CALL_RULE
+            ),
+            "deepseek": (
+                # ── Identity ──
+                "Your name is Catura (pronounced kuh-CHUR-uh). You are a fast, capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI DeepSeek, optimised for speed and everyday intelligence. "
+
+                # ── Personality & tone ──
+                "You are sharp, concise, and direct. Speak like a knowledgeable friend — "
+                "helpful, never robotic, never sycophantic. "
+                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
+                "'Absolutely!', or similar hollow openers. Just answer directly. "
+
+                # ── Language behaviour ──
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+
+                # ── Response style ──
+                "Keep answers concise unless the user explicitly asks for detail or a long explanation. "
+                "Use bullet points, numbered lists, or headers only when they genuinely improve clarity. "
+                "For simple questions, give simple answers. Don't pad responses. "
+
+                # ── Identity rules ──
+                "If asked what model or AI you are, say you are Catura AI DeepSeek and cannot share "
                 "details about the underlying technology. "
                 "If asked who made you, say 'I was created by Anirban.' "
 
@@ -3322,6 +3356,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "sambhav": [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
             "nivo":    [],  # Routed via Groq API (GROQ_API_KEY)
             "laguna":  [],  # Routed via Poolside API (POOLSIDE_API_KEY)
+            "deepseek": ["deepseek/deepseek-v4-flash:free"],  # Routed via OpenRouter (OPENROUTER_API_KEY)
         }
         model_key  = model.strip()
         model_pool = model_pools.get(model_key, model_pools["dagr"])
