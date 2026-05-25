@@ -291,6 +291,7 @@ GROQ_API_KEY        = os.getenv("GROQ_API_KEY", "")                 # https://co
 SERPER_API_KEY      = os.getenv("SERPER_API_KEY", "")               # https://serper.dev (2500 free searches)
 FIRECRAWL_API_KEY   = os.getenv("FIRECRAWL_API_KEY", "")            # https://firecrawl.dev (free tier)
 COHERE_API_KEY      = os.getenv("COHERE_API_KEY", "")               # https://cohere.com (1000 free reranks/month)
+ZAI_API_KEY         = os.getenv("ZAI_API_KEY", "")                   # https://bigmodel.cn (Z AI / GLM-4.7-Flash)
 
 
 
@@ -345,7 +346,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.134"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.135"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +356,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.134", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.135", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -2420,6 +2421,50 @@ def call_sambhav_groq_stream(messages, api_key):
         return None, str(e)
 
 
+# ============================================================
+# ✅ HELPER: Call Z AI (GLM-4.7-Flash) with streaming — OpenAI-compatible
+# Uses ZAI_API_KEY set in Render environment variables.
+# Completely isolated — does NOT touch any other model's API key.
+# ============================================================
+def call_glm_zai_stream(messages, api_key):
+    """
+    Calls Z AI's GLM-4.7-Flash model via their OpenAI-compatible API endpoint.
+    Uses ZAI_API_KEY exclusively — does NOT use OPENROUTER_API_KEY, GEMINI_API_KEY,
+    GROQ_API_KEY, or any other key.
+    Endpoint: https://open.bigmodel.cn/api/paas/v4/chat/completions
+    Model: glm-4-flash (GLM-4.7 Flash)
+    """
+    if not api_key:
+        return None, "ZAI_API_KEY not set in environment variables"
+    try:
+        resp = requests.post(
+            "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "glm-4-flash",
+                "messages": messages,
+                "stream": True,
+                "temperature": 0.3,
+                "max_tokens": 8000,
+            },
+            stream=True,
+            timeout=(10, 120),
+        )
+        if resp.status_code != 200:
+            try:
+                err_body = resp.json()
+                err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
+            except Exception:
+                err_msg = f"HTTP {resp.status_code}"
+            return None, err_msg
+        return resp, None
+    except requests.exceptions.Timeout:
+        return None, "Request timed out"
+    except Exception as e:
+        return None, str(e)
 
 
 # ============================================================
@@ -2568,6 +2613,7 @@ async def chat_post(request: Request):
             "sambhav": [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
             "nivo":    [],  # Routed via Groq API (GROQ_API_KEY) — see generate_nivo()
             "laguna":  [],  # Routed via Poolside API (POOLSIDE_API_KEY)
+            "glm":     [],  # Routed via Z AI API (ZAI_API_KEY) — GLM-4.7-Flash
         }
         model_key  = model.strip()
         model_pool = model_pools.get(model_key, model_pools["dagr"])
@@ -2834,10 +2880,41 @@ async def chat_post(request: Request):
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
-        }
-        system_prompt = system_prompts.get(model_key, system_prompts["dagr"])
+            "glm": (
+                # ── Identity ──
+                "Your name is Catura (pronounced kuh-CHUR-uh). You are a highly capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI GLM, designed for fast and intelligent responses. "
 
-        # ── TOOL ROUTING PIPELINE ──────────────────────────────────────────
+                # ── Personality & tone ──
+                "You are thoughtful, clear, and direct. You speak like a knowledgeable friend — "
+                "helpful, intelligent, and never robotic or sycophantic. "
+                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
+                "'Absolutely!', or similar hollow openers. Just answer directly. "
+
+                # ── Language behaviour ──
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+
+                # ── Response style ──
+                "Keep answers concise unless the user explicitly asks for detail or a long explanation. "
+                "Use bullet points, numbered lists, or headers only when they genuinely improve clarity. "
+                "For simple questions, give simple answers. Don't pad responses. "
+
+                # ── Identity rules ──
+                "If asked what model or AI you are, say you are Catura AI GLM and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+                "Never mention GLM, Z AI, ZhipuAI, or any other underlying provider in your answers. "
+
+                # ── Hard rules ──
+                "Never make up facts. If you don't know something, say so honestly. "
+                "Never say 'I don't have real-time data' — if live data is provided in context, use it; "
+                "otherwise give your best knowledge-based answer."
+                + FORMATTING_RULES
+                + NO_TOOL_CALL_RULE
+            ),
+        }
         # Step 1: detect intent ONLY — tool execution moved INSIDE generators
         # so the StreamingResponse starts immediately without blocking.
         intent = detect_intent(prompt)
@@ -3088,6 +3165,84 @@ async def chat_post(request: Request):
                 }
             )
 
+        # ── GLM: Z AI API (ZAI_API_KEY) — GLM-4.7-Flash, fully isolated ──
+        if model_key == "glm":
+            zai_key = os.getenv("ZAI_API_KEY", "")
+            glm_system = system_prompts.get("glm", system_prompts["dagr"])
+
+            def generate_glm():
+                full_reply = ""
+
+                # Run tool INSIDE generator (non-blocking from client POV)
+                tool_result_glm = None
+                if intent != "general" and not file_urls:
+                    yield f"data: {json.dumps({'status': 'tool_running', 'intent': intent})}\n\n"
+                    tool_result_glm = run_tool(intent, prompt)
+
+                final_system_glm = glm_system
+                tool_context_glm = build_tool_context(tool_result_glm)
+                if tool_context_glm:
+                    final_system_glm += "\n\n" + tool_context_glm
+
+                if tool_result_glm:
+                    badge_payload = json.dumps({"tool_used": tool_result_glm.get("tool", ""), "intent": intent})
+                    yield f"data: {badge_payload}\n\n"
+                    sp = build_sources_payload(tool_result_glm)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                glm_messages = (
+                    [{"role": "system", "content": final_system_glm}]
+                    + user_memory[session_id][-20:]
+                )
+                resp, err = call_glm_zai_stream(glm_messages, zai_key)
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'GLM unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+
+                try:
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                print(f"⚠️ [GLM] mid-stream error: {chunk['error']}")
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            if token:
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, Exception):
+                            continue
+                except Exception as e:
+                    print(f"❌ [GLM] stream exception: {e}")
+
+                if full_reply.strip():
+                    user_memory[session_id].append({"role": "assistant", "content": full_reply})
+                    if len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_glm(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000",
+                }
+            )
+
         # ── GEMMA: Google AI Studio direct streaming (bypass OpenRouter) ──
         if model_key in GEMMA_GOOGLE_MODELS:
             google_model_id = GEMMA_GOOGLE_MODELS[model_key]
@@ -3325,6 +3480,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "sambhav": [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
             "nivo":    [],  # Routed via Groq API (GROQ_API_KEY)
             "laguna":  [],  # Routed via Poolside API (POOLSIDE_API_KEY)
+            "glm":     [],  # Routed via Z AI API (ZAI_API_KEY) — GLM-4.7-Flash
         }
         model_key  = model.strip()
         model_pool = model_pools.get(model_key, model_pools["dagr"])
@@ -3789,6 +3945,23 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "Never make up facts. If you don't know something, say so honestly."
                 + NO_TOOL_CALL_RULE
             ),
+            "glm": (
+                # ── Identity ──
+                "Your name is Catura (pronounced kuh-CHUR-uh). You are a highly capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI GLM, designed for fast and intelligent responses. "
+                "You are thoughtful, clear, and direct. Never start with 'Certainly!', 'Of course!', "
+                "'Great question!', 'Absolutely!', or similar hollow openers. Just answer directly. "
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+                "Keep answers concise unless the user explicitly asks for detail. "
+                "If asked what model or AI you are, say you are Catura AI GLM and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+                "Never mention GLM, Z AI, ZhipuAI, or any underlying provider. "
+                "Never make up facts. If you don't know something, say so honestly."
+                + NO_TOOL_CALL_RULE
+            ),
         }
         system_prompt = system_prompts.get(model_key, system_prompts["dagr"])
 
@@ -3954,6 +4127,62 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_sambhav_get(), media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache",
+                         "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"}
+            )
+
+        # ── GLM: Z AI API (ZAI_API_KEY) — GET handler ──
+        if model_key == "glm":
+            zai_key_get = os.getenv("ZAI_API_KEY", "")
+            glm_system_get = system_prompts.get("glm", system_prompts["dagr"])
+            glm_messages_get = [{"role": "system", "content": glm_system_get}] + user_memory[session_id][-20:]
+
+            def generate_glm_get():
+                full_reply = ""
+                if tool_result:
+                    yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
+                    sp = build_sources_payload(tool_result)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                resp, err = call_glm_zai_stream(glm_messages_get, zai_key_get)
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'GLM unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+                try:
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            if token:
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, Exception):
+                            continue
+                except Exception as e:
+                    print(f"❌ [GLM GET] stream exception: {e}")
+                if full_reply.strip():
+                    user_memory[session_id].append({"role": "assistant", "content": full_reply})
+                    if len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_glm_get(), media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache",
                          "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"}
             )
