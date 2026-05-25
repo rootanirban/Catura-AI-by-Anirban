@@ -346,7 +346,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.136"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.137"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -356,7 +356,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.136", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.137", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -2430,13 +2430,14 @@ def call_glm_zai_stream(messages, api_key):
     """
     Calls Z AI GLM-4.7-Flash via their OpenAI-compatible streaming API.
     Uses ZAI_API_KEY exclusively.
-    Endpoint: https://open.bigmodel.cn/api/paas/v4/chat/completions
-    Model: glm-4-flash-250414 (GLM-4.7 Flash — correct model ID per Z AI official docs)
+    Correct base URL : https://api.z.ai/api/paas/v4/
+    Correct model ID : glm-4.7-flash   (dots, not dashes)
+    Reference        : https://docs.z.ai/guides/llm/glm-4.7
     """
     if not api_key:
         return None, "ZAI_API_KEY not set in environment variables"
     try:
-        # Filter out empty messages that may cause API rejection
+        # Filter empty messages — Z AI rejects them
         clean_messages = [
             m for m in messages
             if isinstance(m.get("content"), str) and m["content"].strip()
@@ -2444,16 +2445,16 @@ def call_glm_zai_stream(messages, api_key):
         if not clean_messages:
             return None, "No messages to send"
 
-        print(f"[GLM] Calling Z AI | msgs={len(clean_messages)}")
+        print(f"[GLM] Calling Z AI | model=glm-4.7-flash | msgs={len(clean_messages)}")
 
         resp = requests.post(
-            "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+            "https://api.z.ai/api/paas/v4/chat/completions",
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
             },
             json={
-                "model": "glm-4-flash-250414",
+                "model": "glm-4.7-flash",
                 "messages": clean_messages,
                 "stream": True,
                 "temperature": 0.3,
