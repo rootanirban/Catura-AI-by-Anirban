@@ -346,7 +346,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.135"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.136"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -356,7 +356,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.135", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.136", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -2428,15 +2428,24 @@ def call_sambhav_groq_stream(messages, api_key):
 # ============================================================
 def call_glm_zai_stream(messages, api_key):
     """
-    Calls Z AI's GLM-4.7-Flash model via their OpenAI-compatible API endpoint.
-    Uses ZAI_API_KEY exclusively — does NOT use OPENROUTER_API_KEY, GEMINI_API_KEY,
-    GROQ_API_KEY, or any other key.
+    Calls Z AI GLM-4.7-Flash via their OpenAI-compatible streaming API.
+    Uses ZAI_API_KEY exclusively.
     Endpoint: https://open.bigmodel.cn/api/paas/v4/chat/completions
-    Model: glm-4-flash (GLM-4.7 Flash)
+    Model: glm-4-flash-250414 (GLM-4.7 Flash — correct model ID per Z AI official docs)
     """
     if not api_key:
         return None, "ZAI_API_KEY not set in environment variables"
     try:
+        # Filter out empty messages that may cause API rejection
+        clean_messages = [
+            m for m in messages
+            if isinstance(m.get("content"), str) and m["content"].strip()
+        ]
+        if not clean_messages:
+            return None, "No messages to send"
+
+        print(f"[GLM] Calling Z AI | msgs={len(clean_messages)}")
+
         resp = requests.post(
             "https://open.bigmodel.cn/api/paas/v4/chat/completions",
             headers={
@@ -2444,22 +2453,24 @@ def call_glm_zai_stream(messages, api_key):
                 "Content-Type": "application/json",
             },
             json={
-                "model": "glm-4-flash",
-                "messages": messages,
+                "model": "glm-4-flash-250414",
+                "messages": clean_messages,
                 "stream": True,
                 "temperature": 0.3,
                 "max_tokens": 8000,
             },
             stream=True,
-            timeout=(10, 120),
+            timeout=(15, 120),
         )
         if resp.status_code != 200:
             try:
                 err_body = resp.json()
                 err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
             except Exception:
-                err_msg = f"HTTP {resp.status_code}"
+                err_msg = f"HTTP {resp.status_code} — {resp.text[:300]}"
+            print(f"[GLM] API error: {err_msg}")
             return None, err_msg
+        print(f"[GLM] Stream opened OK")
         return resp, None
     except requests.exceptions.Timeout:
         return None, "Request timed out"
@@ -3197,7 +3208,8 @@ async def chat_post(request: Request):
                 )
                 resp, err = call_glm_zai_stream(glm_messages, zai_key)
                 if resp is None:
-                    yield f"data: {json.dumps({'error': f'GLM unavailable: {err}'})}\n\n"
+                    err_token = f"Sorry, GLM-4.7-Flash is currently unavailable: {err}. Please try again or switch to another model."
+                    yield f"data: {json.dumps({'token': err_token})}\n\n"
                     yield "data: [DONE]\n\n"
                     return
 
@@ -3214,19 +3226,25 @@ async def chat_post(request: Request):
                         try:
                             chunk = json.loads(payload)
                             if "error" in chunk:
-                                print(f"⚠️ [GLM] mid-stream error: {chunk['error']}")
+                                err_detail = chunk["error"]
+                                print(f"[GLM] mid-stream error: {err_detail}")
+                                err_token = f"GLM error: {err_detail}. Please try again."
+                                yield f"data: {json.dumps({'token': err_token})}\n\n"
                                 break
                             choices = chunk.get("choices")
                             if not choices:
                                 continue
                             token = (choices[0].get("delta") or {}).get("content") or ""
+                            finish = choices[0].get("finish_reason")
                             if token:
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                            if finish == "stop":
+                                break
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [GLM] stream exception: {e}")
+                    print(f"[GLM] stream exception: {e}")
 
                 if full_reply.strip():
                     user_memory[session_id].append({"role": "assistant", "content": full_reply})
@@ -4147,7 +4165,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
                 resp, err = call_glm_zai_stream(glm_messages_get, zai_key_get)
                 if resp is None:
-                    yield f"data: {json.dumps({'error': f'GLM unavailable: {err}'})}\n\n"
+                    err_token = f"Sorry, GLM-4.7-Flash is currently unavailable: {err}. Please try again or switch to another model."
+                    yield f"data: {json.dumps({'token': err_token})}\n\n"
                     yield "data: [DONE]\n\n"
                     return
                 try:
@@ -4163,18 +4182,25 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         try:
                             chunk = json.loads(payload)
                             if "error" in chunk:
+                                err_detail = chunk["error"]
+                                print(f"[GLM GET] mid-stream error: {err_detail}")
+                                err_token = f"GLM error: {err_detail}. Please try again."
+                                yield f"data: {json.dumps({'token': err_token})}\n\n"
                                 break
                             choices = chunk.get("choices")
                             if not choices:
                                 continue
                             token = (choices[0].get("delta") or {}).get("content") or ""
+                            finish = choices[0].get("finish_reason")
                             if token:
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                            if finish == "stop":
+                                break
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [GLM GET] stream exception: {e}")
+                    print(f"[GLM GET] stream exception: {e}")
                 if full_reply.strip():
                     user_memory[session_id].append({"role": "assistant", "content": full_reply})
                     if len(user_memory[session_id]) > 40:
