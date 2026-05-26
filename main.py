@@ -345,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.147"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.148"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +355,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.147", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.148", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -2245,10 +2245,13 @@ def _strip_thinking_tags(text: str) -> str:
     """
     Strip Gemma 4 chain-of-thought leakage from a completed response string.
     Used for memory storage after full response is assembled.
+    Handles all known Gemma thinking tag variants and leaked preamble lines.
     """
     import re as _re
-    text = _re.sub(r'<think>.*?</think>', '', text, flags=_re.DOTALL | _re.IGNORECASE)
-    text = _re.sub(r'<thinking>.*?</thinking>', '', text, flags=_re.DOTALL | _re.IGNORECASE)
+    # Remove all <think>...</think> and <thinking>...</thinking> blocks (greedy-safe)
+    text = _re.sub(r'<think(?:ing)?>.*?</think(?:ing)?>', '', text, flags=_re.DOTALL | _re.IGNORECASE)
+    # Remove any orphaned opening/closing tags
+    text = _re.sub(r'</?think(?:ing)?>', '', text, flags=_re.IGNORECASE)
     lines = text.split('\n')
     clean_lines = []
     in_preamble = True
@@ -2300,6 +2303,11 @@ _LEAK_KEYWORDS = re.compile(
 )
 _LEAK_COLON_LINE = re.compile(r'^[\*\-\•]?\s*[A-Za-z][A-Za-z /]{1,30}:\s+\S')
 
+# Partial-tag sentinel: if the buffer ends with a possible start of a <think tag,
+# we must NOT flush yet (the rest of the tag may arrive in the next token).
+_PARTIAL_OPEN_TAG  = re.compile(r'<(?:t(?:h(?:i(?:n(?:k(?:i(?:n(?:g?)?)?)?)?)?)?)?)?$', re.IGNORECASE)
+_PARTIAL_CLOSE_TAG = re.compile(r'</(?:t(?:h(?:i(?:n(?:k(?:i(?:n(?:g?)?)?)?)?)?)?)?)?$', re.IGNORECASE)
+
 
 def _is_thinking_leak_line(stripped: str) -> bool:
     """Return True if this line looks like leaked internal reasoning."""
@@ -2317,70 +2325,108 @@ def _is_thinking_leak_line(stripped: str) -> bool:
 
 class _GemmaStreamGuard:
     """
-    Buffers tokens from a Gemma stream and suppresses thinking-leak lines
-    BEFORE they reach the client.
+    Buffers tokens from a Gemma stream and suppresses ALL thinking leakage
+    BEFORE tokens reach the client.
 
-    Strategy:
-    - Buffer tokens until we see a newline (or accumulate > 300 chars without one).
-    - Once a complete line is in the buffer, decide: leak → discard; real → flush.
-    - If the model outputs a <think>…</think> block we swallow it entirely.
-    - Once we have confirmed real content has started, all subsequent tokens are
-      passed through immediately (no more buffering).
+    Fixes vs previous version:
+    - Partial-tag awareness: never flushes a buffer that ends mid-tag so
+      cross-token <think> splits are always caught.
+    - Unified think-block tracking across both preamble and passthrough phases.
+    - Buffer flush threshold raised to 600 chars to survive long think blocks
+      that omit newlines (Gemma 4 sometimes does this on first message).
+    - Orphaned closing tags are stripped in passthrough phase.
+    - flush() always does a final tag-strip on whatever remains.
     """
+    # Matches a complete opening think tag anywhere in a string
+    _RE_OPEN  = re.compile(r'<think(?:ing)?>', re.IGNORECASE)
+    # Matches a complete closing think tag anywhere in a string
+    _RE_CLOSE = re.compile(r'</think(?:ing)?>', re.IGNORECASE)
+    # Stray orphaned tags (no partner)
+    _RE_STRAY = re.compile(r'</?think(?:ing)?>', re.IGNORECASE)
+
     def __init__(self):
-        self._buf = ""            # token accumulator (partial line)
-        self._preamble_done = False  # True once real content has started
-        self._in_think_block = False  # True while inside <think>...</think>
-        self._think_buf = ""      # accumulates content of think block
+        self._buf = ""               # token accumulator
+        self._preamble_done = False  # True once real content confirmed
+        self._in_think_block = False # True while inside a think block
 
-    def feed(self, token: str):
-        """
-        Feed a new token.  Returns a (possibly empty) string that should be
-        sent to the client.
-        """
-        if self._preamble_done:
-            # Fast path: preamble already cleared, pass through immediately.
-            # But still watch for stray <think> blocks mid-response.
-            return self._passthrough_filter(token)
-
-        out = ""
+    # ------------------------------------------------------------------ #
+    def feed(self, token: str) -> str:
+        """Feed one token; return what (if anything) should go to client."""
         self._buf += token
 
-        # Handle <think>…</think> blocks anywhere in the preamble
-        if not self._in_think_block and re.search(r'<think(?:ing)?>', self._buf, re.IGNORECASE):
-            self._in_think_block = True
-            # strip everything up to and including the opening tag
-            self._buf = re.sub(r'.*?<think(?:ing)?>', '', self._buf, flags=re.IGNORECASE | re.DOTALL)
+        # ── Phase 1: still in preamble / think-block suppression ──────────
+        if not self._preamble_done:
+            return self._process_preamble()
 
+        # ── Phase 2: preamble cleared, passthrough with tag-watch ─────────
+        return self._passthrough_filter()
+
+    # ------------------------------------------------------------------ #
+    def flush(self) -> str:
+        """Call once at end of stream to release any remaining buffer."""
+        remaining = self._buf
+        self._buf = ""
         if self._in_think_block:
-            # Look for closing tag
-            m = re.search(r'</think(?:ing)?>', self._buf, re.IGNORECASE)
-            if m:
-                self._buf = self._buf[m.end():]
-                self._in_think_block = False
-            else:
-                self._buf = ""  # discard mid-block content
-                return ""
+            # Stream ended inside a think block — discard it all
+            return ""
+        if not remaining:
+            return ""
+        # Strip any orphaned tags and check for leak lines
+        remaining = self._RE_STRAY.sub('', remaining).strip()
+        if _is_thinking_leak_line(remaining):
+            return ""
+        return remaining
 
-        # Process complete lines in the buffer
+    # ------------------------------------------------------------------ #
+    def _process_preamble(self) -> str:
+        """
+        Work through self._buf while we haven't yet confirmed real content.
+        Returns text safe to send to the client (possibly empty).
+        """
+        out = ""
+
+        # ── Detect & remove complete think blocks ─────────────────────────
+        while True:
+            if self._in_think_block:
+                m = self._RE_CLOSE.search(self._buf)
+                if m:
+                    # Found closing tag — discard everything up to and including it
+                    self._buf = self._buf[m.end():]
+                    self._in_think_block = False
+                else:
+                    # Still inside block; keep buffering, but don't let buffer
+                    # grow without bound — discard the safe prefix, keep only
+                    # the last 50 chars (enough to catch a split closing tag)
+                    if len(self._buf) > 50:
+                        self._buf = self._buf[-50:]
+                    return ""
+            else:
+                m = self._RE_OPEN.search(self._buf)
+                if m:
+                    # Opening tag found — discard everything up to & including it
+                    self._buf = self._buf[m.end():]
+                    self._in_think_block = True
+                    # Loop back to look for the closing tag
+                else:
+                    break  # No open tag in buffer, continue below
+
+        # ── Don't flush if the buffer might be mid-tag ────────────────────
+        if _PARTIAL_OPEN_TAG.search(self._buf) or _PARTIAL_CLOSE_TAG.search(self._buf):
+            return ""
+
+        # ── Process complete lines ─────────────────────────────────────────
         while '\n' in self._buf:
             line, self._buf = self._buf.split('\n', 1)
             if _is_thinking_leak_line(line.strip()):
-                # Discard leaked line entirely
-                continue
-            else:
-                # Real content line — flush it
-                self._preamble_done = True
-                out += line + '\n'
-                # Flush the rest of the buffer too (preamble done)
-                out += self._buf
-                self._buf = ""
-                return out
+                continue  # discard leaked line
+            # Real content line found — preamble is over
+            self._preamble_done = True
+            out += line + '\n' + self._buf
+            self._buf = ""
+            return out
 
-        # No newline yet — check if the buffer is growing large without
-        # emitting (means the model skipped preamble and went straight to prose)
-        if len(self._buf) > 280:
-            # Treat current buffer as real content
+        # ── No newline yet — flush if buffer is large enough to be real prose
+        if len(self._buf) > 600:
             self._preamble_done = True
             out = self._buf
             self._buf = ""
@@ -2388,35 +2434,55 @@ class _GemmaStreamGuard:
 
         return ""  # still buffering
 
-    def flush(self) -> str:
-        """Call at end of stream to release any remaining buffered content."""
-        remaining = self._buf
-        self._buf = ""
-        if self._in_think_block:
-            return ""
-        if remaining and not _is_thinking_leak_line(remaining.strip()):
-            return remaining
-        return ""
+    # ------------------------------------------------------------------ #
+    def _passthrough_filter(self) -> str:
+        """
+        Preamble is done. Pass tokens through but still watch for stray
+        <think> blocks that occasionally appear mid-response.
+        """
+        # Fast path: no think tags present at all
+        if '<' not in self._buf:
+            out = self._buf
+            self._buf = ""
+            return out
 
-    def _passthrough_filter(self, token: str) -> str:
-        """After preamble is done, still strip stray <think> blocks."""
-        self._think_buf += token
+        # Could be a partial tag forming at the end — hold the tail
+        if _PARTIAL_OPEN_TAG.search(self._buf) or _PARTIAL_CLOSE_TAG.search(self._buf):
+            # Keep the last few chars in buffer; flush the rest
+            safe_end = max(0, len(self._buf) - 10)
+            out = self._buf[:safe_end]
+            self._buf = self._buf[safe_end:]
+            return out
+
         if self._in_think_block:
-            m = re.search(r'</think(?:ing)?>', self._think_buf, re.IGNORECASE)
+            m = self._RE_CLOSE.search(self._buf)
             if m:
-                after = self._think_buf[m.end():]
-                self._think_buf = ""
+                after = self._buf[m.end():]
+                self._buf = ""
                 self._in_think_block = False
-                return after
-            self._think_buf = ""
-            return ""
-        if re.search(r'<think(?:ing)?>', self._think_buf, re.IGNORECASE):
+                # Recurse with whatever came after the closing tag
+                self._buf = after
+                return self._passthrough_filter()
+            else:
+                # Still inside block — discard buffer (keep tail for split tag)
+                if len(self._buf) > 50:
+                    self._buf = self._buf[-50:]
+                else:
+                    self._buf = ""
+                return ""
+
+        m = self._RE_OPEN.search(self._buf)
+        if m:
+            before = self._buf[:m.start()]
+            self._buf = self._buf[m.end():]
             self._in_think_block = True
-            before = re.sub(r'<think(?:ing)?>.*', '', self._think_buf, flags=re.IGNORECASE | re.DOTALL)
-            self._think_buf = ""
+            # Strip any orphaned stray tags from the clean part
+            before = self._RE_STRAY.sub('', before)
             return before
-        out = self._think_buf
-        self._think_buf = ""
+
+        # No active think block, no partial tag — strip orphaned stray tags and flush
+        out = self._RE_STRAY.sub('', self._buf)
+        self._buf = ""
         return out
 
 def call_gemma_google_stream(messages, system_prompt, model_id):
