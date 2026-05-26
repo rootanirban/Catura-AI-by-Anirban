@@ -78,7 +78,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-    <link rel="stylesheet" href="static/style.css?v=0.0.140">   <!-- this is CSS linking section -->
+    <link rel="stylesheet" href="static/style.css?v=0.0.141">   <!-- this is CSS linking section -->
     
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#000000" />
@@ -377,16 +377,16 @@
                         </div>
                         <div class="model-option-check">✓</div>
                     </div>
-                    <div class="model-option" data-model="gemma core" data-name="Gemma Core" onclick="selectModel('gemma core', 'Gemma Core', event)">
+                    <div class="model-option" data-model="gemma" data-name="Gemma" onclick="selectModel('gemma', 'Gemma', event)">
                         <div class="model-option-info">
-                            <div class="model-option-name">Gemma Core</div>
+                            <div class="model-option-name">Gemma</div>
                             <div class="model-option-desc">Fast & efficient · Google Gemma 4 26B</div>
                         </div>
                         <div class="model-option-check">✓</div>
                     </div>
-                    <div class="model-option" data-model="gemma max" data-name="Gemma Max" onclick="selectModel('gemma max', 'Gemma Max', event)">
+                    <div class="model-option" data-model="gemma4" data-name="Gemma4" onclick="selectModel('gemma4', 'Gemma4', event)">
                         <div class="model-option-info">
-                            <div class="model-option-name">Gemma Max</div>
+                            <div class="model-option-name">Gemma4</div>
                             <div class="model-option-desc">Most capable · Google Gemma 4 31B</div>
                         </div>
                         <div class="model-option-check">✓</div>
@@ -500,17 +500,17 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
     
     <!-- ✅ CACHE BUSTING - VERSION PARAMETER -->
-    <script src="static/firebase-config.js?v=0.0.140"></script>
-    <script src="static/logic.js?v=0.0.140"></script>
-    <script src="static/feedback.js?v=0.0.140"></script>
-    <script src="static/file-upload.js?v=0.0.140"></script>
+    <script src="static/firebase-config.js?v=0.0.141"></script>
+    <script src="static/logic.js?v=0.0.141"></script>
+    <script src="static/feedback.js?v=0.0.141"></script>
+    <script src="static/file-upload.js?v=0.0.141"></script>
 
     <script>
         console.log('🚀 Catura AI v27.0.5 loaded');
         
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js?v=0.0.140')
+                navigator.serviceWorker.register('/service-worker.js?v=0.0.141')
                     .then(() => console.log('✅ Catura AI PWA Ready - v27.0.5'))
                     .catch((err) => console.log('❌ SW Error:', err));
             });

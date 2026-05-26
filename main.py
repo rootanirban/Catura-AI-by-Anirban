@@ -345,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.140"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.141"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +355,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.140", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.141", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -2559,8 +2559,8 @@ async def chat_post(request: Request):
         # ── MODEL POOLS ────────────────────────────────────────────────────
         # Gemma models → Google AI Studio (GEMINI_API_KEY), NOT OpenRouter
         GEMMA_GOOGLE_MODELS = {
-            "gemma core":    "gemma-4-26b-a4b-it",
-            "gemma max":   "gemma-4-31b-it",
+            "Gemma":    "gemma-4-26b-a4b-it",
+            "Gemma4":   "gemma-4-31b-it",
         }
         model_pools = {
             "dagr":    ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
@@ -2740,7 +2740,7 @@ async def chat_post(request: Request):
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
-            "Gemma Core": (
+            "Gemma": (
                 "Your name is Catura (pronounced kuh-CHUR-uh). You are a powerful and efficient "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Gemma, built for fast and capable everyday tasks. "
@@ -2748,19 +2748,19 @@ async def chat_post(request: Request):
                 "Match the user's language automatically. "
                 "Never make up facts. If asked who made you, say 'I was created by Anirban.' "
                 "If asked which model you are, what AI you are, or which version is running, "
-                "always say: 'I am Catura AI Gemma Core model.' Never mention Dagr, Apep, Sambhav, or Gemma Max."
+                "always say: 'I am Catura AI Gemma.' Never mention Dagr, Apep, Sambhav, or Gemma4."
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
-            "Gemma Max": (
+            "Gemma4": (
                 "Your name is Catura (pronounced kuh-CHUR-uh). You are a powerful and efficient "
                 "AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI Gemma Max, built for fast and capable everyday tasks. "
+                "You are Catura AI Gemma4, built for fast and capable everyday tasks. "
                 "Speak clearly and helpfully. Never start with 'Certainly!', 'Great question!', or similar openers. "
                 "Match the user's language automatically. "
                 "Never make up facts. If asked who made you, say 'I was created by Anirban.' "
                 "If asked which model you are, what AI you are, or which version is running, "
-                "always say: 'I am Catura AI Gemma Max.' Never mention Dagr, Apep, Sambhav, or Gemma Core."
+                "always say: 'I am Catura AI Gemma4.' Never mention Dagr, Apep, Sambhav, or Gemma."
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
@@ -3316,8 +3316,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
         # Gemma models → Google AI Studio (GEMINI_API_KEY), NOT OpenRouter
         GEMMA_GOOGLE_MODELS = {
-            "Gemma Core":    "gemma-4-26b-a4b-it",
-            "Gemma Max":   "gemma-4-31b-it",
+            "Gemma":    "gemma-4-26b-a4b-it",
+            "Gemma4":   "gemma-4-31b-it",
         }
         model_pools = {
             "dagr":    ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
