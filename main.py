@@ -345,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.142"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.143"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +355,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.142", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.143", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -2559,8 +2559,8 @@ async def chat_post(request: Request):
         # ── MODEL POOLS ────────────────────────────────────────────────────
         # Gemma models → Google AI Studio (GEMINI_API_KEY), NOT OpenRouter
         GEMMA_GOOGLE_MODELS = {
-            "Gemma":    "gemma-4-26b-a4b-it",
-            "Gemma4":   "gemma-4-31b-it",
+            "gemma":    "gemma-4-26b-a4b-it",
+            "gemma4":   "gemma-4-31b-it",
         }
         model_pools = {
             "dagr":    ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
@@ -2740,7 +2740,7 @@ async def chat_post(request: Request):
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
-            "Gemma": (
+            "gemma": (
                 "Your name is Catura (pronounced kuh-CHUR-uh). You are a powerful and efficient "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Gemma, built for fast and capable everyday tasks. "
@@ -2752,7 +2752,7 @@ async def chat_post(request: Request):
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
-            "Gemma4": (
+            "gemma4": (
                 "Your name is Catura (pronounced kuh-CHUR-uh). You are a powerful and efficient "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Gemma4, built for fast and capable everyday tasks. "
@@ -3316,8 +3316,8 @@ def chat_get(request: Request, prompt: str, model: str = "sambhav"):
 
         # Gemma models → Google AI Studio (GEMINI_API_KEY), NOT OpenRouter
         GEMMA_GOOGLE_MODELS = {
-            "Gemma":    "gemma-4-26b-a4b-it",
-            "Gemma4":   "gemma-4-31b-it",
+            "gemma":    "gemma-4-26b-a4b-it",
+            "gemma4":   "gemma-4-31b-it",
         }
         model_pools = {
             "dagr":    ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
@@ -3954,6 +3954,63 @@ def chat_get(request: Request, prompt: str, model: str = "sambhav"):
 
             return StreamingResponse(
                 generate_sambhav_get(), media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache",
+                         "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"}
+            )
+
+        # ── GEMMA / GEMMA4: Google AI Studio via GEMINI_API_KEY (GET handler) ──
+        if model_key in GEMMA_GOOGLE_MODELS:
+            google_model_id_get = GEMMA_GOOGLE_MODELS[model_key]
+            print(f"🟢 [Gemma GET] Routing '{model_key}' → Google AI Studio model: {google_model_id_get}")
+
+            def generate_gemma_get():
+                full_reply = ""
+                if tool_result:
+                    yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
+                    sp = build_sources_payload(tool_result)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                gemma_messages_get = user_memory[session_id][-20:]
+                resp, err = call_gemma_google_stream(gemma_messages_get, system_prompt, google_model_id_get)
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'{model_key} unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+                try:
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                break
+                            candidates = chunk.get("candidates", [])
+                            if not candidates:
+                                continue
+                            parts = candidates[0].get("content", {}).get("parts", [])
+                            token = "".join(p.get("text", "") for p in parts)
+                            if token:
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, Exception):
+                            continue
+                except Exception as e:
+                    print(f"❌ [Gemma GET] stream exception: {e}")
+                if full_reply.strip():
+                    user_memory[session_id].append({"role": "assistant", "content": full_reply})
+                    if len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_gemma_get(), media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache",
                          "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"}
             )
