@@ -345,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.143"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.144"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +355,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.143", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.144", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -2240,10 +2240,26 @@ def call_gemini_stream(messages, system_prompt):
 # ============================================================
 # ✅ HELPER: Call Google Gemma via Google AI Studio (same key as Gemini)
 # ============================================================
+
+def _strip_thinking_tags(text: str) -> str:
+    """
+    Strip Gemma 4 chain-of-thought leakage.
+    Removes <think>...</think> blocks and any reasoning preamble that
+    starts with 'User says:' or bullet-list analysis before the actual answer.
+    """
+    import re as _re
+    # Remove <think>...</think> blocks (including multiline)
+    text = _re.sub(r'<think>.*?</think>', '', text, flags=_re.DOTALL | _re.IGNORECASE)
+    # Remove <thinking>...</thinking> blocks
+    text = _re.sub(r'<thinking>.*?</thinking>', '', text, flags=_re.DOTALL | _re.IGNORECASE)
+    return text.strip()
+
 def call_gemma_google_stream(messages, system_prompt, model_id):
     """
     Calls Gemma 4 models via Google AI Studio REST API —
     same GEMINI_API_KEY and endpoint pattern as Gemini 2.5 Flash.
+    thinkingConfig is set to budgetTokens=0 to disable chain-of-thought
+    leaking into the response output.
     """
     if not GEMINI_API_KEY:
         return None, "GEMINI_API_KEY not set in environment variables"
@@ -2264,6 +2280,10 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
             "generationConfig": {
                 "temperature": 0.3,
                 "maxOutputTokens": 16000,
+                "thinkingConfig": {
+                    "thinkingBudget": 8192,   # Allow deep internal reasoning (up to 8K tokens)
+                    "includeThoughts": False,  # NEVER send thought text to the output stream
+                },
             }
         }
         url = (
@@ -2559,15 +2579,15 @@ async def chat_post(request: Request):
         # ── MODEL POOLS ────────────────────────────────────────────────────
         # Gemma models → Google AI Studio (GEMINI_API_KEY), NOT OpenRouter
         GEMMA_GOOGLE_MODELS = {
-            "gemma":    "gemma-4-26b-a4b-it",
-            "gemma4":   "gemma-4-31b-it",
+            "gemma_core": "gemma-4-26b-a4b-it",
+            "gemma_max":  "gemma-4-31b-it",
         }
         model_pools = {
-            "dagr":    ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
-            "apep":    ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
-            "sambhav": [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
-            "nivo":    [],  # Routed via Groq API (GROQ_API_KEY) — see generate_nivo()
-            "laguna":  [],  # Routed via Poolside API (POOLSIDE_API_KEY)
+            "dagr":      ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
+            "apep":      ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
+            "sambhav":   [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
+            "nivo":      [],  # Routed via Groq API (GROQ_API_KEY) — see generate_nivo()
+            "laguna":    [],  # Routed via Poolside API (POOLSIDE_API_KEY)
         }
         model_key  = model.strip()
         model_pool = model_pools.get(model_key, model_pools["sambhav"])
@@ -2740,27 +2760,27 @@ async def chat_post(request: Request):
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
-            "gemma": (
+            "gemma_core": (
                 "Your name is Catura (pronounced kuh-CHUR-uh). You are a powerful and efficient "
                 "AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI Gemma, built for fast and capable everyday tasks. "
+                "You are Catura AI Gemma Core, built for fast and capable everyday tasks. "
                 "Speak clearly and helpfully. Never start with 'Certainly!', 'Great question!', or similar openers. "
                 "Match the user's language automatically. "
                 "Never make up facts. If asked who made you, say 'I was created by Anirban.' "
                 "If asked which model you are, what AI you are, or which version is running, "
-                "always say: 'I am Catura AI Gemma.' Never mention Dagr, Apep, Sambhav, or Gemma4."
+                "always say: 'I am Catura AI Gemma Core.' Never mention Dagr, Apep, Sambhav, or Gemma Max."
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
-            "gemma4": (
+            "gemma_max": (
                 "Your name is Catura (pronounced kuh-CHUR-uh). You are a powerful and efficient "
                 "AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI Gemma4, built for fast and capable everyday tasks. "
+                "You are Catura AI Gemma Max, built for fast and capable everyday tasks. "
                 "Speak clearly and helpfully. Never start with 'Certainly!', 'Great question!', or similar openers. "
                 "Match the user's language automatically. "
                 "Never make up facts. If asked who made you, say 'I was created by Anirban.' "
                 "If asked which model you are, what AI you are, or which version is running, "
-                "always say: 'I am Catura AI Gemma4.' Never mention Dagr, Apep, Sambhav, or Gemma."
+                "always say: 'I am Catura AI Gemma Max.' Never mention Dagr, Apep, Sambhav, or Gemma Core."
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
@@ -3146,7 +3166,8 @@ async def chat_post(request: Request):
                 except Exception as e:
                     print(f"❌ [Gemma POST] stream exception: {e}")
                 if full_reply.strip():
-                    user_memory[session_id].append({"role": "assistant", "content": full_reply})
+                    clean_reply = _strip_thinking_tags(full_reply)
+                    user_memory[session_id].append({"role": "assistant", "content": clean_reply})
                     if len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
                 yield "data: [DONE]\n\n"
@@ -3316,15 +3337,15 @@ def chat_get(request: Request, prompt: str, model: str = "sambhav"):
 
         # Gemma models → Google AI Studio (GEMINI_API_KEY), NOT OpenRouter
         GEMMA_GOOGLE_MODELS = {
-            "gemma":    "gemma-4-26b-a4b-it",
-            "gemma4":   "gemma-4-31b-it",
+            "gemma_core": "gemma-4-26b-a4b-it",
+            "gemma_max":  "gemma-4-31b-it",
         }
         model_pools = {
-            "dagr":    ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
-            "apep":    ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
-            "sambhav": [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
-            "nivo":    [],  # Routed via Groq API (GROQ_API_KEY)
-            "laguna":  [],  # Routed via Poolside API (POOLSIDE_API_KEY)
+            "dagr":      ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
+            "apep":      ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
+            "sambhav":   [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
+            "nivo":      [],  # Routed via Groq API (GROQ_API_KEY)
+            "laguna":    [],  # Routed via Poolside API (POOLSIDE_API_KEY)
         }
         model_key  = model.strip()
         model_pool = model_pools.get(model_key, model_pools["sambhav"])
@@ -4004,7 +4025,8 @@ def chat_get(request: Request, prompt: str, model: str = "sambhav"):
                 except Exception as e:
                     print(f"❌ [Gemma GET] stream exception: {e}")
                 if full_reply.strip():
-                    user_memory[session_id].append({"role": "assistant", "content": full_reply})
+                    clean_reply = _strip_thinking_tags(full_reply)
+                    user_memory[session_id].append({"role": "assistant", "content": clean_reply})
                     if len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
                 yield "data: [DONE]\n\n"
