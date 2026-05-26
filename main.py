@@ -345,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.144"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.145"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +355,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.144", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.145", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -2244,22 +2244,33 @@ def call_gemini_stream(messages, system_prompt):
 def _strip_thinking_tags(text: str) -> str:
     """
     Strip Gemma 4 chain-of-thought leakage.
-    Removes <think>...</think> blocks and any reasoning preamble that
-    starts with 'User says:' or bullet-list analysis before the actual answer.
+    Removes <think>...</think> and <thinking>...</thinking> blocks,
+    plus raw bullet-point reasoning preambles that appear before the
+    actual answer (e.g. 'User says:', 'Intent:', 'Constraints:' lines).
     """
     import re as _re
     # Remove <think>...</think> blocks (including multiline)
     text = _re.sub(r'<think>.*?</think>', '', text, flags=_re.DOTALL | _re.IGNORECASE)
     # Remove <thinking>...</thinking> blocks
     text = _re.sub(r'<thinking>.*?</thinking>', '', text, flags=_re.DOTALL | _re.IGNORECASE)
+    # Remove raw reasoning preamble: bullet-point analysis before the answer.
+    # Pattern: lines starting with known reasoning keywords get stripped.
+    preamble_pattern = _re.compile(
+        r'^(?:[\*\-\•]?\s*(?:user says|intent|constraints?|context|analysis|'
+        r'response plan|my response|plan|note|task|goal|thinking)[\s\:\-].*\n?)+',
+        _re.IGNORECASE | _re.MULTILINE,
+    )
+    text = preamble_pattern.sub('', text)
     return text.strip()
 
 def call_gemma_google_stream(messages, system_prompt, model_id):
     """
     Calls Gemma 4 models via Google AI Studio REST API —
     same GEMINI_API_KEY and endpoint pattern as Gemini 2.5 Flash.
-    thinkingConfig is set to budgetTokens=0 to disable chain-of-thought
-    leaking into the response output.
+    NOTE: thinkingConfig is NOT used here — Gemma 4 models (gemma-4-26b-a4b-it,
+    gemma-4-31b-it) do NOT support thinkingConfig. Only Gemini 2.5 thinking
+    models support that field. Thinking-leak is handled via _strip_thinking_tags()
+    and system prompt instructions instead.
     """
     if not GEMINI_API_KEY:
         return None, "GEMINI_API_KEY not set in environment variables"
@@ -2280,10 +2291,6 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
             "generationConfig": {
                 "temperature": 0.3,
                 "maxOutputTokens": 16000,
-                "thinkingConfig": {
-                    "thinkingBudget": 8192,   # Allow deep internal reasoning (up to 8K tokens)
-                    "includeThoughts": False,  # NEVER send thought text to the output stream
-                },
             }
         }
         url = (
