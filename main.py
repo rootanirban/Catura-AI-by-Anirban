@@ -345,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.146"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.147"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +355,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.146", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.147", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -2243,48 +2243,181 @@ def call_gemini_stream(messages, system_prompt):
 
 def _strip_thinking_tags(text: str) -> str:
     """
-    Strip Gemma 4 chain-of-thought leakage.
-    Removes <think>...</think> and <thinking>...</thinking> blocks,
-    plus raw bullet-point reasoning preambles that appear before the
-    actual answer (e.g. 'User says:', 'Intent:', 'Constraints:' lines).
-    This is a safety net — the system prompt is the primary fix.
+    Strip Gemma 4 chain-of-thought leakage from a completed response string.
+    Used for memory storage after full response is assembled.
     """
     import re as _re
-    # Remove <think>...</think> blocks (including multiline)
     text = _re.sub(r'<think>.*?</think>', '', text, flags=_re.DOTALL | _re.IGNORECASE)
-    # Remove <thinking>...</thinking> blocks
     text = _re.sub(r'<thinking>.*?</thinking>', '', text, flags=_re.DOTALL | _re.IGNORECASE)
-    # Remove raw reasoning preamble: any leading block of bullet/label lines
-    preamble_pattern = _re.compile(
-        r'^(?:[\*\-\•]?\s*(?:'
-        r'user says?|intent|constraints?|context|analysis|'
-        r'response plan|my response|plan|note|task|goal|thinking|'
-        r'tone|style|name|identity|creator|greeting|'
-        r'no headers?|no lists?|no bullet|match language|'
-        r'constraint|casual|format|output'
-        r')[\s\:\-].*\n?)+',
-        _re.IGNORECASE | _re.MULTILINE,
-    )
-    text = preamble_pattern.sub('', text)
-    # Also strip any leading lines that are purely "Key: Value" style (colon-separated labels)
-    # which are hallmarks of reasoning leakage, as long as they appear at the very top.
     lines = text.split('\n')
     clean_lines = []
     in_preamble = True
     for line in lines:
         stripped = line.strip()
         if in_preamble:
-            is_leak = bool(_re.match(
-                r'^[\*\-\•]?\s*[A-Za-z ]{2,25}:\s+\S',
-                stripped
-            ))
-            if is_leak and len(stripped) < 120:
-                continue  # skip this leaked reasoning line
+            if _is_thinking_leak_line(stripped):
+                continue
             else:
-                in_preamble = False  # real content starts here
+                in_preamble = False
         clean_lines.append(line)
-    text = '\n'.join(clean_lines)
-    return text.strip()
+    return '\n'.join(clean_lines).strip()
+
+
+# ── Thinking-leak line detector (shared by stripper and streaming guard) ──────
+_LEAK_KEYWORDS = re.compile(
+    r'^[\*\-\•]?\s*('
+    r'user says?|user ask|user request|user query|user input|user message|'
+    r'intent|constraints?|context|analysis|response plan|my response|'
+    r'plan|note|task|goal|thinking|thought|reasoning|'
+    r'tone|style|name|identity|creator|greeting|'
+    r'no headers?|no lists?|no bullet|match language|'
+    r'constraint|casual|format|output|summary|key point|'
+    r'system prompt|requirements?|approach|strategy|'
+    r'search results?|direct answers?|biography|'
+    r'political history|political career|ideology|profile|'
+    r'translation|current role|current position|opposition role|'
+    r'party shift|party transition|election \d|key message|'
+    r'model version|model name|assistant name|'
+    r'previous message|follow.?up|clarif'
+    r')[\s:\-]?$|'
+    # Same keywords but allowing trailing colon or content
+    r'^[\*\-\•]?\s*('
+    r'user says?|user ask|user request|user query|user input|user message|'
+    r'intent|constraints?|context|analysis|response plan|my response|'
+    r'plan|note|task|goal|thinking|thought|reasoning|'
+    r'tone|style|name|identity|creator|greeting|'
+    r'no headers?|no lists?|no bullet|match language|'
+    r'constraint|casual|format|output|summary|key point|'
+    r'system prompt|requirements?|approach|strategy|'
+    r'search results?|direct answers?|biography|'
+    r'political history|political career|ideology|profile|'
+    r'translation|current role|current position|opposition role|'
+    r'party shift|party transition|election \d|key message|'
+    r'model version|model name|assistant name|'
+    r'previous message|follow.?up|clarif'
+    r')[\s:\-].+',
+    re.IGNORECASE
+)
+_LEAK_COLON_LINE = re.compile(r'^[\*\-\•]?\s*[A-Za-z][A-Za-z /]{1,30}:\s+\S')
+
+
+def _is_thinking_leak_line(stripped: str) -> bool:
+    """Return True if this line looks like leaked internal reasoning."""
+    if not stripped:
+        return False
+    if len(stripped) > 200:
+        return False  # real prose is rarely a short label
+    if _LEAK_KEYWORDS.match(stripped):
+        return True
+    # Generic "Key: value" bullet — heuristic, only for short lines
+    if len(stripped) < 120 and _LEAK_COLON_LINE.match(stripped):
+        return True
+    return False
+
+
+class _GemmaStreamGuard:
+    """
+    Buffers tokens from a Gemma stream and suppresses thinking-leak lines
+    BEFORE they reach the client.
+
+    Strategy:
+    - Buffer tokens until we see a newline (or accumulate > 300 chars without one).
+    - Once a complete line is in the buffer, decide: leak → discard; real → flush.
+    - If the model outputs a <think>…</think> block we swallow it entirely.
+    - Once we have confirmed real content has started, all subsequent tokens are
+      passed through immediately (no more buffering).
+    """
+    def __init__(self):
+        self._buf = ""            # token accumulator (partial line)
+        self._preamble_done = False  # True once real content has started
+        self._in_think_block = False  # True while inside <think>...</think>
+        self._think_buf = ""      # accumulates content of think block
+
+    def feed(self, token: str):
+        """
+        Feed a new token.  Returns a (possibly empty) string that should be
+        sent to the client.
+        """
+        if self._preamble_done:
+            # Fast path: preamble already cleared, pass through immediately.
+            # But still watch for stray <think> blocks mid-response.
+            return self._passthrough_filter(token)
+
+        out = ""
+        self._buf += token
+
+        # Handle <think>…</think> blocks anywhere in the preamble
+        if not self._in_think_block and re.search(r'<think(?:ing)?>', self._buf, re.IGNORECASE):
+            self._in_think_block = True
+            # strip everything up to and including the opening tag
+            self._buf = re.sub(r'.*?<think(?:ing)?>', '', self._buf, flags=re.IGNORECASE | re.DOTALL)
+
+        if self._in_think_block:
+            # Look for closing tag
+            m = re.search(r'</think(?:ing)?>', self._buf, re.IGNORECASE)
+            if m:
+                self._buf = self._buf[m.end():]
+                self._in_think_block = False
+            else:
+                self._buf = ""  # discard mid-block content
+                return ""
+
+        # Process complete lines in the buffer
+        while '\n' in self._buf:
+            line, self._buf = self._buf.split('\n', 1)
+            if _is_thinking_leak_line(line.strip()):
+                # Discard leaked line entirely
+                continue
+            else:
+                # Real content line — flush it
+                self._preamble_done = True
+                out += line + '\n'
+                # Flush the rest of the buffer too (preamble done)
+                out += self._buf
+                self._buf = ""
+                return out
+
+        # No newline yet — check if the buffer is growing large without
+        # emitting (means the model skipped preamble and went straight to prose)
+        if len(self._buf) > 280:
+            # Treat current buffer as real content
+            self._preamble_done = True
+            out = self._buf
+            self._buf = ""
+            return out
+
+        return ""  # still buffering
+
+    def flush(self) -> str:
+        """Call at end of stream to release any remaining buffered content."""
+        remaining = self._buf
+        self._buf = ""
+        if self._in_think_block:
+            return ""
+        if remaining and not _is_thinking_leak_line(remaining.strip()):
+            return remaining
+        return ""
+
+    def _passthrough_filter(self, token: str) -> str:
+        """After preamble is done, still strip stray <think> blocks."""
+        self._think_buf += token
+        if self._in_think_block:
+            m = re.search(r'</think(?:ing)?>', self._think_buf, re.IGNORECASE)
+            if m:
+                after = self._think_buf[m.end():]
+                self._think_buf = ""
+                self._in_think_block = False
+                return after
+            self._think_buf = ""
+            return ""
+        if re.search(r'<think(?:ing)?>', self._think_buf, re.IGNORECASE):
+            self._in_think_block = True
+            before = re.sub(r'<think(?:ing)?>.*', '', self._think_buf, flags=re.IGNORECASE | re.DOTALL)
+            self._think_buf = ""
+            return before
+        out = self._think_buf
+        self._think_buf = ""
+        return out
 
 def call_gemma_google_stream(messages, system_prompt, model_id):
     """
@@ -3198,6 +3331,7 @@ async def chat_post(request: Request):
                     yield f"data: {json.dumps({'error': f'{model_key} unavailable: {err}'})}\n\n"
                     yield "data: [DONE]\n\n"
                     return
+                guard = _GemmaStreamGuard()
                 try:
                     for line in resp.iter_lines():
                         if not line:
@@ -3218,11 +3352,17 @@ async def chat_post(request: Request):
                                 token = part.get("text", "")
                                 if token:
                                     full_reply += token
-                                    yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                                    clean_token = guard.feed(token)
+                                    if clean_token:
+                                        yield f"data: {json.dumps({'token': clean_token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
                     print(f"❌ [Gemma POST] stream exception: {e}")
+                # Flush any remaining buffered content
+                leftover = guard.flush()
+                if leftover:
+                    yield f"data: {json.dumps({'token': leftover}, ensure_ascii=False)}\n\n"
                 if full_reply.strip():
                     clean_reply = _strip_thinking_tags(full_reply)
                     user_memory[session_id].append({"role": "assistant", "content": clean_reply})
@@ -4106,6 +4246,7 @@ def chat_get(request: Request, prompt: str, model: str = "sambhav"):
                     yield f"data: {json.dumps({'error': f'{model_key} unavailable: {err}'})}\n\n"
                     yield "data: [DONE]\n\n"
                     return
+                guard = _GemmaStreamGuard()
                 try:
                     for line in resp.iter_lines():
                         if not line:
@@ -4127,11 +4268,17 @@ def chat_get(request: Request, prompt: str, model: str = "sambhav"):
                             token = "".join(p.get("text", "") for p in parts)
                             if token:
                                 full_reply += token
-                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                                clean_token = guard.feed(token)
+                                if clean_token:
+                                    yield f"data: {json.dumps({'token': clean_token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
                     print(f"❌ [Gemma GET] stream exception: {e}")
+                # Flush any remaining buffered content
+                leftover = guard.flush()
+                if leftover:
+                    yield f"data: {json.dumps({'token': leftover}, ensure_ascii=False)}\n\n"
                 if full_reply.strip():
                     clean_reply = _strip_thinking_tags(full_reply)
                     user_memory[session_id].append({"role": "assistant", "content": clean_reply})
