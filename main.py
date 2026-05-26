@@ -345,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.141"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.142"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +355,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.141", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.142", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -2505,7 +2505,7 @@ async def chat_post(request: Request):
     try:
         body = await request.json()
         prompt     = body.get("prompt", "")
-        model      = body.get("model", "dagr")
+        model      = body.get("model", "sambhav")
         file_urls  = body.get("file_urls", [])
         web_search_forced = body.get("web_search_enabled", False)
         # Legacy web_results from frontend removed — backend handles all search internally
@@ -2570,7 +2570,7 @@ async def chat_post(request: Request):
             "laguna":  [],  # Routed via Poolside API (POOLSIDE_API_KEY)
         }
         model_key  = model.strip()
-        model_pool = model_pools.get(model_key, model_pools["dagr"])
+        model_pool = model_pools.get(model_key, model_pools["sambhav"])
 
         # ── BASE SYSTEM PROMPTS ────────────────────────────────────────────
         # CRITICAL: forbid the model from emitting function-call JSON.
@@ -2835,7 +2835,7 @@ async def chat_post(request: Request):
                 + NO_TOOL_CALL_RULE
             ),
         }
-        system_prompt = system_prompts.get(model_key, system_prompts["dagr"])
+        system_prompt = system_prompts.get(model_key, system_prompts["sambhav"])
 
         # ── TOOL ROUTING PIPELINE ──────────────────────────────────────────
         # Step 1: detect intent ONLY — tool execution moved INSIDE generators
@@ -2933,7 +2933,7 @@ async def chat_post(request: Request):
         # ── LAGUNA: Poolside API (POOLSIDE_API_KEY) — isolated from all other models ──
         if model_key == "laguna":
             poolside_key = os.getenv("POOLSIDE_API_KEY", "")
-            laguna_system = system_prompts.get("laguna", system_prompts["dagr"])
+            laguna_system = system_prompts.get("laguna", system_prompts["sambhav"])
 
             def generate_laguna():
                 full_reply = ""
@@ -3011,7 +3011,7 @@ async def chat_post(request: Request):
         # ── NIVO: Groq API (GROQ_API_KEY) — isolated from all other models ──
         if model_key == "nivo":
             groq_key    = os.getenv("GROQ_API_KEY", "")
-            nivo_system = system_prompts.get("nivo", system_prompts["dagr"])
+            nivo_system = system_prompts.get("nivo", system_prompts["sambhav"])
 
             def generate_nivo():
                 full_reply = ""
@@ -3290,7 +3290,7 @@ async def chat_post(request: Request):
 # ✅ LEGACY GET /chat (backward compatibility)
 # ============================================================
 @app.get("/chat")
-def chat_get(request: Request, prompt: str, model: str = "dagr"):
+def chat_get(request: Request, prompt: str, model: str = "sambhav"):
     try:
         session_id = request.cookies.get("session_id")
         if not session_id:
@@ -3327,7 +3327,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "laguna":  [],  # Routed via Poolside API (POOLSIDE_API_KEY)
         }
         model_key  = model.strip()
-        model_pool = model_pools.get(model_key, model_pools["dagr"])
+        model_pool = model_pools.get(model_key, model_pools["sambhav"])
 
         NO_TOOL_CALL_RULE = (
             "\n\nCRITICAL RULES — FOLLOW THESE WITHOUT EXCEPTION:\n"
@@ -3790,12 +3790,12 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 + NO_TOOL_CALL_RULE
             ),
         }
-        system_prompt = system_prompts.get(model_key, system_prompts["dagr"])
+        system_prompt = system_prompts.get(model_key, system_prompts["sambhav"])
 
         # ── LAGUNA: Poolside API (POOLSIDE_API_KEY) — GET handler ──
         if model_key == "laguna":
             poolside_key_get = os.getenv("POOLSIDE_API_KEY", "")
-            laguna_system_get = system_prompts.get("laguna", system_prompts["dagr"])
+            laguna_system_get = system_prompts.get("laguna", system_prompts["sambhav"])
             laguna_messages_get = [{"role": "system", "content": laguna_system_get}] + user_memory[session_id][-20:]
 
             def generate_laguna_get():

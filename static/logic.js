@@ -1338,7 +1338,7 @@ window.showSettingsTab = function (tab, clickedEl) {
                     </svg>
                     <div class="sc-row-body">
                         <p class="sc-row-label">Current plan: Free</p>
-                        <p class="sc-row-sub">Unlimited chats with Dagr & Apep</p>
+                        <p class="sc-row-sub">Unlimited chats with Sambhav & Apep</p>
                     </div>
                 </div>
             </div>
@@ -2426,7 +2426,7 @@ function initWebSearchUI() {
 // ============================
 // 🤖 MODEL SELECTOR
 // ============================
-let selectedModel = 'dagr'; // Default model — options: dagr, apep, sambhav, Gemma4, nivo, Laguna
+let selectedModel = 'sambhav'; // Default model — options: sambhav, dagr, apep, Gemma4, nivo, Laguna
 
 window.toggleModelSelector = function (e) {
     e.stopPropagation();
