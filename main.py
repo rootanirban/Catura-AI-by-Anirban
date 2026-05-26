@@ -345,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.139"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.140"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +355,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.139", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.140", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -3316,8 +3316,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
         # Gemma models → Google AI Studio (GEMINI_API_KEY), NOT OpenRouter
         GEMMA_GOOGLE_MODELS = {
-            "gemma core":    "gemma-4-26b-a4b-it",
-            "gemma max":   "gemma-4-31b-it",
+            "Gemma Core":    "gemma-4-26b-a4b-it",
+            "Gemma Max":   "gemma-4-31b-it",
         }
         model_pools = {
             "dagr":    ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
