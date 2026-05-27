@@ -2879,7 +2879,7 @@ window.openPlansModal = function () {
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;">
             <div style="background:#111;border:1px solid #2a2a2a;border-radius:12px;padding:24px 20px;display:flex;flex-direction:column;gap:12px;">
                 <div style="font-size:12px;color:#888;font-weight:600;letter-spacing:.06em;text-transform:uppercase;">Free</div>
-                <div style="font-size:32px;font-weight:800;color:#fff;">$0<span style="font-size:14px;font-weight:400;color:#666;">/mo</span></div>
+                <div style="font-size:32px;font-weight:800;color:#fff;">₹0<span style="font-size:14px;font-weight:400;color:#666;">/mo</span></div>
                 <p style="font-size:13px;color:#999;margin:0;">Get started with core AI features, no credit card required.</p>
                 <hr style="border:none;border-top:1px solid #222;margin:4px 0;">
                 <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;">${makeList(freeFeatures,'#10a37f')}</ul>
@@ -2888,7 +2888,7 @@ window.openPlansModal = function () {
             <div style="background:#111;border:1px solid rgba(16,163,127,0.35);border-radius:12px;padding:24px 20px;display:flex;flex-direction:column;gap:12px;position:relative;">
                 <div style="position:absolute;top:-1px;right:16px;background:#10a37f;color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:0 0 8px 8px;letter-spacing:.04em;text-transform:uppercase;">Popular</div>
                 <div style="font-size:12px;color:#10a37f;font-weight:600;letter-spacing:.06em;text-transform:uppercase;">Pro</div>
-                <div style="font-size:32px;font-weight:800;color:#fff;">$18<span style="font-size:14px;font-weight:400;color:#666;">/mo</span></div>
+                <div style="font-size:32px;font-weight:800;color:#fff;">₹199<span style="font-size:14px;font-weight:400;color:#666;">/mo</span></div>
                 <p style="font-size:13px;color:#999;margin:0;">Everything in Free, plus priority access and advanced models.</p>
                 <hr style="border:none;border-top:1px solid #222;margin:4px 0;">
                 <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;">${makeList(proFeatures,'#10a37f')}</ul>
@@ -2896,7 +2896,7 @@ window.openPlansModal = function () {
             </div>
             <div style="background:linear-gradient(145deg,#1a1a1a,#121212);border:1px solid rgba(124,58,237,0.4);border-radius:12px;padding:24px 20px;display:flex;flex-direction:column;gap:12px;">
                 <div style="font-size:12px;color:#a78bfa;font-weight:600;letter-spacing:.06em;text-transform:uppercase;">Max</div>
-                <div style="font-size:32px;font-weight:800;color:#fff;">$35<span style="font-size:14px;font-weight:400;color:#666;">/mo</span></div>
+                <div style="font-size:32px;font-weight:800;color:#fff;">₹349<span style="font-size:14px;font-weight:400;color:#666;">/mo</span></div>
                 <p style="font-size:13px;color:#999;margin:0;">Full access to every model and the highest usage limits.</p>
                 <hr style="border:none;border-top:1px solid #222;margin:4px 0;">
                 <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;">${makeList(maxFeatures,'#a78bfa')}</ul>
