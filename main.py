@@ -345,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.153"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.154"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +355,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.153", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.154", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -2234,7 +2234,7 @@ def call_gemini_stream(messages, system_prompt):
             "contents": contents,
             "generationConfig": {
                 "temperature": 0.3,
-                "maxOutputTokens": 16000,
+                "maxOutputTokens": 8192,  # gemma-4-31b-it max is 8192; 16000 caused HTTP 500
             }
         }
 
@@ -2654,7 +2654,7 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
             "contents": contents,
             "generationConfig": {
                 "temperature": 0.3,
-                "maxOutputTokens": 16000,
+                "maxOutputTokens": 8192,  # gemma-4-31b-it max is 8192; 16000 caused HTTP 500
             }
         }
         url = (
