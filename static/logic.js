@@ -1136,7 +1136,7 @@ window.showSettingsTab = function (tab, clickedEl) {
             <div class="sc-section">
                 <div class="sc-section-title">Data preferences</div>
 
-                <!-- Toggle 1: Location metadata — coming soon -->
+                <!-- Toggle 1: Location metadata -->
                 <div class="sc-row-block">
                     <div class="sc-row-top">
                         <div class="sc-row-icon-wrap">
@@ -1147,10 +1147,10 @@ window.showSettingsTab = function (tab, clickedEl) {
                         </div>
                         <div class="sc-row-body">
                             <p class="sc-row-label">Location metadata</p>
-                            <p class="sc-row-sub">Allow approximate location to improve responses <span class="badge-soon">Coming soon</span></p>
+                            <p class="sc-row-sub">Allow approximate location to improve nearby, regional, and timezone-aware responses.</p>
                         </div>
-                        <label class="toggle-switch disabled-toggle" title="Coming soon">
-                            <input type="checkbox" disabled>
+                        <label class="toggle-switch" title="Enable location metadata">
+                            <input type="checkbox" id="locationMetadataToggle" onchange="handleLocationToggle(this.checked)">
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
@@ -3344,6 +3344,160 @@ window.chpwVerifyAndUpdate = async function () {
         btn.disabled = false;
         btn.innerHTML = saveBtnHTML;
     }
+};
+
+// ============================
+// 📍 LOCATION METADATA SYSTEM
+// Privacy-safe: city/region/timezone only.
+// No GPS history. No continuous tracking.
+// Raw coordinates deleted immediately after reverse-geocoding.
+// ============================
+
+// Keys for localStorage (toggle preference + cached metadata)
+const LOC_TOGGLE_KEY  = 'catura_location_enabled';
+const LOC_CACHE_KEY   = 'catura_location_meta';
+const LOC_CACHE_TTL   = 60 * 60 * 1000; // 1 hour in ms
+
+/**
+ * Called when user flips the location toggle.
+ * If turning ON: request location once → extract city/region/timezone → cache 1 hr.
+ * If turning OFF: clear cache, never call geolocation API again.
+ */
+window.handleLocationToggle = async function (enabled) {
+    localStorage.setItem(LOC_TOGGLE_KEY, enabled ? '1' : '0');
+
+    if (!enabled) {
+        // Wipe any cached location — user opted out
+        localStorage.removeItem(LOC_CACHE_KEY);
+        console.log('[Location] Toggle OFF — cache cleared.');
+        return;
+    }
+
+    // Toggle is ON — request location once
+    await requestLocationOnce();
+};
+
+/**
+ * Request the user's approximate location ONCE.
+ * Uses low accuracy (no GPS) → sends to backend for reverse geocoding →
+ * stores only { country, region, city, timezone, locale } locally.
+ * Raw coordinates are NEVER persisted.
+ */
+async function requestLocationOnce() {
+    if (!('geolocation' in navigator)) {
+        // Fallback: derive from IP via backend
+        await fetchLocationFromIP();
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+            // Round to 2 decimal places — city-level precision only
+            const coarse_lat = Math.round(pos.coords.latitude  * 100) / 100;
+            const coarse_lng = Math.round(pos.coords.longitude * 100) / 100;
+
+            // Send coarse coords to backend → get city/region/timezone back
+            // Backend immediately discards raw coordinates
+            try {
+                const res = await fetch('/api/location-metadata', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ coarse_lat, coarse_lng })
+                });
+                if (res.ok) {
+                    const meta = await res.json();
+                    cacheLocationMeta(meta);
+                    console.log('[Location] Metadata stored:', meta.city, meta.region);
+                } else {
+                    // Backend failed — fallback to browser timezone + IP
+                    await fetchLocationFromIP();
+                }
+            } catch (_) {
+                await fetchLocationFromIP();
+            }
+            // Raw coords are now out of scope — never stored
+        },
+        async () => {
+            // User denied or geolocation unavailable — try IP fallback
+            await fetchLocationFromIP();
+        },
+        {
+            enableHighAccuracy: false, // no GPS — approximate network position only
+            timeout: 5000,
+            maximumAge: 3600000        // reuse a cached browser position up to 1 hr old
+        }
+    );
+}
+
+/**
+ * Fallback 1: Ask backend to derive location from IP.
+ * Fallback 2: Use browser's timezone string.
+ * Fallback 3: Nothing stored — AI works without location context.
+ */
+async function fetchLocationFromIP() {
+    try {
+        const res = await fetch('/api/location-metadata/ip');
+        if (res.ok) {
+            const meta = await res.json();
+            cacheLocationMeta(meta);
+            console.log('[Location] IP-derived metadata stored:', meta.city);
+            return;
+        }
+    } catch (_) {}
+
+    // Final fallback: timezone from browser only
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    if (tz) {
+        cacheLocationMeta({ timezone: tz, locale: navigator.language || 'en' });
+        console.log('[Location] Timezone-only fallback stored:', tz);
+    }
+}
+
+/** Persist metadata with a 1-hour expiry. */
+function cacheLocationMeta(meta) {
+    const record = { ...meta, cached_at: Date.now() };
+    localStorage.setItem(LOC_CACHE_KEY, JSON.stringify(record));
+}
+
+/**
+ * Returns the current location metadata if the toggle is ON and cache is fresh.
+ * Returns null if toggle is OFF or cache has expired.
+ * Called by the chat send handler to enrich the request context.
+ */
+window.getLocationMeta = function () {
+    if (localStorage.getItem(LOC_TOGGLE_KEY) !== '1') return null;
+    try {
+        const raw = localStorage.getItem(LOC_CACHE_KEY);
+        if (!raw) return null;
+        const record = JSON.parse(raw);
+        if (Date.now() - record.cached_at > LOC_CACHE_TTL) {
+            // Cache expired — refresh silently in background
+            localStorage.removeItem(LOC_CACHE_KEY);
+            requestLocationOnce();
+            return null;
+        }
+        // Return only the safe fields — never include raw coords
+        const { country, region, city, timezone, locale } = record;
+        return { country, region, city, timezone, locale };
+    } catch (_) {
+        return null;
+    }
+};
+
+/** On settings open: restore toggle state from localStorage. */
+function restoreLocationToggle() {
+    const toggle = document.getElementById('locationMetadataToggle');
+    if (toggle) {
+        toggle.checked = localStorage.getItem(LOC_TOGGLE_KEY) === '1';
+    }
+}
+
+// Patch showSettings to restore toggle state after the panel renders
+const _origShowSettings = window.showSettings;
+window.showSettings = function (...args) {
+    if (_origShowSettings) _origShowSettings(...args);
+    // Small delay to let the settings HTML inject into DOM
+    setTimeout(restoreLocationToggle, 50);
 };
 
 // ── PLANS MODAL ───────────────────────────────────────────────────────────────

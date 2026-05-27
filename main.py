@@ -345,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.168"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.169"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +355,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.168", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.169", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -373,8 +373,141 @@ async def serve_sitemap():
     return FileResponse(p, media_type="application/xml")
 
 
+
 # ============================================================
-# ✅ INTENT DETECTOR — keyword-based (fast, zero-latency)
+# 📍 LOCATION METADATA ENDPOINTS
+# Privacy-safe: accepts coarse coords (2 d.p.), reverse-geocodes
+# to city/region/timezone, returns ONLY those fields.
+# Raw coordinates are NEVER stored or logged.
+# ============================================================
+
+from pydantic import BaseModel as _BaseModel
+from typing import Optional as _Optional
+
+class _CoarseCoords(_BaseModel):
+    coarse_lat: float
+    coarse_lng: float
+
+def _reverse_geocode(lat: float, lng: float) -> dict:
+    """
+    Convert rounded coordinates to city/region/country/timezone.
+    Uses the free Open-Meteo geocoding + timezone API — no key needed.
+    Raw coords are discarded after this call completes.
+    """
+    try:
+        # Step 1: Get timezone from coordinates (Open-Meteo)
+        tz_url = (
+            f"https://api.open-meteo.com/v1/forecast"
+            f"?latitude={lat}&longitude={lng}&timezone=auto&forecast_days=0"
+        )
+        tz_resp = requests.get(tz_url, timeout=5)
+        timezone = "UTC"
+        if tz_resp.status_code == 200:
+            tz_data = tz_resp.json()
+            timezone = tz_data.get("timezone", "UTC")
+
+        # Step 2: Reverse geocode to city/region/country (Nominatim)
+        nominatim_url = (
+            f"https://nominatim.openstreetmap.org/reverse"
+            f"?lat={lat}&lon={lng}&format=json&zoom=10&addressdetails=1"
+        )
+        headers = {"User-Agent": "CaturaAI/1.0 (privacy-safe location metadata)"}
+        geo_resp = requests.get(nominatim_url, timeout=5, headers=headers)
+
+        country, region, city = "", "", ""
+        if geo_resp.status_code == 200:
+            geo = geo_resp.json()
+            addr = geo.get("address", {})
+            country = addr.get("country", "")
+            region  = addr.get("state", addr.get("region", ""))
+            city    = (
+                addr.get("city")
+                or addr.get("town")
+                or addr.get("village")
+                or addr.get("municipality")
+                or ""
+            )
+
+        # Derive locale from country code (simple mapping for common cases)
+        country_code = geo_resp.json().get("address", {}).get("country_code", "").upper() if geo_resp.status_code == 200 else ""
+        locale_map = {
+            "IN": "en-IN", "US": "en-US", "GB": "en-GB", "AU": "en-AU",
+            "CA": "en-CA", "DE": "de-DE", "FR": "fr-FR", "JP": "ja-JP",
+            "CN": "zh-CN", "BR": "pt-BR", "ES": "es-ES", "IT": "it-IT",
+        }
+        locale = locale_map.get(country_code, f"en-{country_code}" if country_code else "en")
+
+        # Return ONLY the safe fields — raw coords never leave this function
+        return {
+            "country":  country,
+            "region":   region,
+            "city":     city,
+            "timezone": timezone,
+            "locale":   locale,
+        }
+    except Exception as e:
+        print(f"[Location] Reverse geocode failed: {e}")
+        return {"timezone": "UTC", "locale": "en"}
+
+
+@app.post("/api/location-metadata")
+async def location_metadata_from_coords(body: _CoarseCoords):
+    """
+    Accepts coarse (2 d.p.) coordinates from the frontend.
+    Returns city/region/timezone. Raw coords are NEVER stored.
+    Only called when the user has enabled the location toggle.
+    """
+    # Clamp to valid ranges just in case
+    lat = max(-90.0,  min(90.0,  round(body.coarse_lat, 2)))
+    lng = max(-180.0, min(180.0, round(body.coarse_lng, 2)))
+
+    meta = _reverse_geocode(lat, lng)
+    # lat/lng are now local variables going out of scope — not persisted
+    return JSONResponse(content=meta)
+
+
+@app.get("/api/location-metadata/ip")
+async def location_metadata_from_ip(request: Request):
+    """
+    Fallback: derive approximate location from client IP using ip-api.com (free tier).
+    Returns city/region/timezone only. No coordinates returned.
+    """
+    try:
+        # Get client IP (respects X-Forwarded-For from reverse proxy)
+        client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+        if not client_ip:
+            client_ip = request.client.host if request.client else ""
+
+        # Skip for loopback / private IPs
+        if not client_ip or client_ip in ("127.0.0.1", "::1") or client_ip.startswith("192.168.") or client_ip.startswith("10."):
+            tz = "Asia/Kolkata"  # safe default for Catura's primary user base
+            return JSONResponse(content={"timezone": tz, "locale": "en-IN", "country": "India", "region": "", "city": ""})
+
+        ip_resp = requests.get(
+            f"http://ip-api.com/json/{client_ip}?fields=country,regionName,city,timezone",
+            timeout=5
+        )
+        if ip_resp.status_code == 200:
+            d = ip_resp.json()
+            country_code_map = {"India": "IN", "United States": "US", "United Kingdom": "GB"}
+            country = d.get("country", "")
+            cc = country_code_map.get(country, "")
+            locale_map = {"IN": "en-IN", "US": "en-US", "GB": "en-GB"}
+            locale = locale_map.get(cc, "en")
+            return JSONResponse(content={
+                "country":  country,
+                "region":   d.get("regionName", ""),
+                "city":     d.get("city", ""),
+                "timezone": d.get("timezone", "UTC"),
+                "locale":   locale,
+            })
+    except Exception as e:
+        print(f"[Location] IP fallback failed: {e}")
+
+    return JSONResponse(content={"timezone": "UTC", "locale": "en"})
+
+
+
 # Returns: weather | finance | sports | news | web_search | general
 # ============================================================
 def detect_intent(text: str) -> str:
