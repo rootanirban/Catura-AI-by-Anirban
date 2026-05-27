@@ -345,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.155"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.156"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +355,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.155", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.156", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -579,48 +579,6 @@ def detect_intent(text: str) -> str:
     ]
     if any(re.search(p, lower) for p in news_patterns):
         return "news"
-
-    # ── CODING / PROGRAMMING — always general (LLM handles these natively) ──
-    # MUST come BEFORE the wikipedia block so queries like
-    # "write a program in Rust", "how do I sort a list in Python",
-    # "explain recursion", "debug this code" etc. never hit Wikipedia,
-    # which has no runnable code examples and gives useless answers.
-    _CODING_PATTERNS = [
-        # "write / create / build / implement X in <language>"
-        r'\b(write|create|make|build|implement|code|program|develop|generate)\b.{0,60}\b(in|using|with)\b.{0,30}\b(python|javascript|js|typescript|ts|rust|go|golang|java|c\+\+|cpp|c#|csharp|ruby|php|swift|kotlin|dart|r\b|lua|scala|bash|shell|powershell|sql|html|css|react|vue|angular|node|nodejs|flask|django|fastapi|spring|rails)\b',
-        # "<language> code / program / script / function / class / snippet"
-        r'\b(python|javascript|js|typescript|rust|go|golang|java|c\+\+|cpp|c#|ruby|php|swift|kotlin|dart|bash|sql|html|css)\b.{0,40}\b(code|program|script|function|class|snippet|example|solution|algorithm)\b',
-        # "write / create a function / class / algorithm / script"
-        r'\b(write|create|make|build)\b.{0,30}\b(function|class|method|algorithm|script|program|code|snippet|module|api|endpoint)\b',
-        # debugging / fixing code
-        r'\b(debug|fix|refactor|optimize|review|improve|correct)\b.{0,40}\b(code|function|script|program|error|bug|issue|exception|traceback)\b',
-        # "explain / what is <programming concept>" — narrow to CS terms only
-        r'\b(what is|explain|how does|how do|describe)\b.{0,40}\b(recursion|iteration|inheritance|polymorphism|encapsulation|abstraction|algorithm|data structure|sorting|searching|hashing|caching|memoization|concurrency|threading|async|await|callback|promise|closure|decorator|generator|iterator|pointer|reference|stack overflow|heap|linked list|binary tree|graph|queue|deque|trie|hashmap|hashset|regex|orm|mvc|rest api|graphql|websocket|jwt|oauth|docker|kubernetes|ci cd|devops|git|version control|compiler|interpreter|runtime|garbage collection|memory management|api|sdk|framework|library|package|dependency|npm|pip|maven|gradle)\b',
-        # pattern printing (your exact use-case from image 1)
-        r'\b(triangle|pyramid|diamond|star|number|alphabet|hourglass|rhombus)\b.{0,30}\b(pattern|print|program|code|output|series|sequence)\b',
-        # classic CS problems
-        r'\b(fibonacci|factorial|palindrome|anagram|prime number|armstrong|binary search|bubble sort|merge sort|quick sort|selection sort|insertion sort|tower of hanoi|knapsack|dynamic programming|breadth.?first|depth.?first|dijkstra|kruskal|prim)\b',
-        # "how to / how do I <programming action>"
-        r'\b(how to|how do i|how can i)\b.{0,50}\b(code|program|write|implement|create|build|use|call|run|execute|install|import|export|parse|serialize|deserialize|convert|sort|filter|map|reduce|fetch|request|connect|query|insert|update|delete|migrate|deploy|test|mock|debug|compile|lint|format)\b',
-        # common print statements as signal
-        r'\b(print|printf|console\.log|cout|system\.out|writeln|puts|echo)\b.{0,20}\b(pattern|output|result|number|star|triangle)\b',
-        # programming language mentions + task words
-        r'\bprogramming\b.{0,20}\b(language|concept|paradigm|pattern|problem|challenge|exercise|task|assignment)\b',
-        # "in <language> language" pattern
-        # ── Web/tech/CS concepts that Wikipedia handles badly ───────────────
-        # 'what is server side scripting language', 'what is client side scripting',
-        # 'what is a scripting language', 'what is REST/HTTP/API/frontend/backend'
-        # All hit r'\blanguage\b' or r'\bwhat is\b' in wikipedia_patterns
-        # but Wikipedia gives useless answers — LLM handles these natively.
-        r'\b(server.?side|client.?side|front.?end|back.?end|full.?stack)\b',
-        r'\b(scripting language|programming language|markup language|query language|compiled language|interpreted language|high.level language|low.level language|object.oriented|functional programming|procedural programming)\b',
-        r'\b(web (server|framework|application|development|technology|protocol|service|socket|hook|component|request|response|hosting|deployment|architecture))\b',
-        r'\b(what is|what are|explain|describe|define)\b.{0,30}\b(api|sdk|ide|cli|gui|oop|mvc|mvvm|crud|orm|cdn|vcs|cors|xss|csrf|nosql|rdbms|dbms|database|cloud computing|microservices|serverless|containerization|virtualization|load balancing|pub.?sub|message queue|event.driven|middleware|proxy|reverse proxy)\b',
-        r'\b(what is|what are|explain|describe)\b.{0,25}\b(variable|function|class|object|array|list|dictionary|tuple|set|string|integer|float|boolean|null|pointer|reference|scope|closure|callback|promise|thread|process|stack|queue|heap|tree|graph|hash|loop|condition|recursion|inheritance|interface|abstract|static|dynamic|mutable|immutable)\b',
-        r'\bin\b.{0,10}\b(python|javascript|rust|go|java|c\+\+|cpp|c#|ruby|php|swift|kotlin|dart|bash|sql)\b.{0,20}\b(language|programming)\b',
-    ]
-    if any(re.search(p, lower, re.IGNORECASE) for p in _CODING_PATTERNS):
-        return "general"
 
     # ── WIKIPEDIA (educational / informational / GK / concept / biography) ──
     # Triggered when the question is clearly knowledge-based and NOT real-time.
@@ -2244,7 +2202,7 @@ def call_gemini_stream(messages, system_prompt):
             "contents": contents,
             "generationConfig": {
                 "temperature": 0.3,
-                "maxOutputTokens": 8192,  # gemma-4-31b-it max is 8192; 16000 caused HTTP 500
+                "maxOutputTokens": 16000,
             }
         }
 
@@ -2282,372 +2240,10 @@ def call_gemini_stream(messages, system_prompt):
 # ============================================================
 # ✅ HELPER: Call Google Gemma via Google AI Studio (same key as Gemini)
 # ============================================================
-
-def _strip_thinking_tags(text: str) -> str:
-    """
-    Strip Gemma 4 chain-of-thought leakage from a completed response string.
-    Used for memory storage after full response is assembled.
-    Handles all known Gemma thinking tag variants and leaked preamble lines,
-    including Gemma Max long paragraph-form reasoning output.
-    """
-    import re as _re
-    # Remove all <think>...</think> and <thinking>...</thinking> blocks (greedy-safe)
-    text = _re.sub(r'<think(?:ing)?>.*?</think(?:ing)?>', '', text, flags=_re.DOTALL | _re.IGNORECASE)
-    # Remove any orphaned opening/closing tags
-    text = _re.sub(r'</?think(?:ing)?>', '', text, flags=_re.IGNORECASE)
-    lines = text.split('\n')
-    clean_lines = []
-    in_preamble = True
-    suppressed = 0
-    for line in lines:
-        stripped = line.strip()
-        if in_preamble:
-            if not stripped:
-                continue
-            if _is_thinking_leak_line(stripped):
-                suppressed += 1
-                continue
-            if _is_real_answer_start(stripped):
-                in_preamble = False
-            else:
-                suppressed += 1
-                if suppressed < 60:
-                    continue
-                else:
-                    in_preamble = False
-        clean_lines.append(line)
-    return '\n'.join(clean_lines).strip()
-
-
-# ── Partial-tag sentinel: if the buffer ends with a possible start of a <think tag,
-# we must NOT flush yet (the rest of the tag may arrive in the next token).
-_PARTIAL_OPEN_TAG  = re.compile(r'<(?:t(?:h(?:i(?:n(?:k(?:i(?:n(?:g?)?)?)?)?)?)?)?)?$', re.IGNORECASE)
-_PARTIAL_CLOSE_TAG = re.compile(r'</(?:t(?:h(?:i(?:n(?:k(?:i(?:n(?:g?)?)?)?)?)?)?)?)?$', re.IGNORECASE)
-
-# ── Positive "real answer start" patterns ──────────────────────────────────────
-# A line matches this if it is DEFINITELY part of a real answer (not reasoning).
-# Strategy: detect what IS real content rather than guessing what IS a leak.
-# Real answers start with markdown structure, code, or a direct response opener.
-_REAL_ANSWER_START = re.compile(
-    r'^('
-    # Markdown headings
-    r'#{1,6}\s+\S|'
-    # Code fence
-    r'```|'
-    # Horizontal rule / divider
-    r'---+|'
-    # Numbered list item with substance (>15 chars of content)
-    r'\d+\.\s+\S.{15,}|'
-    # Bold heading like **DNS** or **Definition:**
-    r'\*\*[A-Z][^\*]{2,40}\*\*|'
-    # Direct answer opener: any capital letter followed by 30+ more chars,
-    # NOT starting with a known reasoning/planning keyword.
-    # Previous version required [A-Z][a-zA-Z] (second char must be letter) —
-    # this broke single-letter starters like "A server-side..." where char[1]=' '.
-    # Also lowered threshold from 60 to 30 chars — short direct answers like
-    # "Server-side scripting refers to..." were getting suppressed.
-    r'(?!(?:user|intent|context|plan|note|task|goal|think|reason|analys|tone|'
-    r'style|format|output|summary|constraint|approach|strategy|response plan|'
-    r'my response|search|wikipedia|direct|biograph|translat|current role|'
-    r'model|assistant|previous|follow|clarif|needs? to|this implies?|'
-    r'this means?|this is an? |i (?:need|will|should|must|can)|'
-    r'let me |i\'ll |i\'m going|here\'s what|here is what|'
-    r'the user (?:wants?|needs?|asks?|is asking|said|wrote|mentions?)'
-    r'))[A-Z].{30,}'
-    r')',
-    re.IGNORECASE
-)
-
-# ── Hard reasoning-leak patterns that match even long lines ───────────────────
-# These catch the paragraph-form reasoning Gemma Max outputs (not just labels).
-_REASONING_PARAGRAPH = re.compile(
-    r'^[\*\-\•]?\s*('
-    # Classic label patterns (any length)
-    r'user (?:says?|asks?|wants?|needs?|is asking|wrote|mentioned|request|query|input|message)\b|'
-    r'(?:the )?(?:user\'?s? )?intent(?:ion)?\b|'
-    r'context(?:ual information)?\b|'
-    r'(?:my |the )?(?:response )?plan\b|'
-    r'(?:my )?(?:response|answer) (?:plan|approach|strategy|format|style)\b|'
-    r'(?:key )?(?:constraints?|requirements?|rules?)\b|'
-    r'(?:analysis|analysing|analyzing)\b|'
-    r'(?:thinking|thought process|reasoning)\b|'
-    r'(?:tone|style|format|output format)\b|'
-    r'(?:task|goal|objective)\b|'
-    r'system prompt\b|'
-    r'no (?:headers?|lists?|bullets?|markdown)\b|'
-    r'match (?:language|tone|style)\b|'
-    r'approach(?:ing)?\b|strategy\b|'
-    r'summary|key points?\b|'
-    # Long-form reasoning sentence starters that Gemma uses
-    r'this implies?\b|'
-    r'this means?\b|'
-    r'this (?:is|looks like|appears to be) an? \b|'
-    r'(?:i|the model) (?:need|will|should|must|can|have to)\b|'
-    r'let me \b|'
-    r'i\'ll \b|'
-    r'i\'m (?:going|about|planning)\b|'
-    r'here\'?s? (?:what|my|the|how)\b|'
-    r'the user (?:wants?|needs?|asked?|is asking|said|wrote|mention)\b|'
-    r'(?:needs? to be|needs? to cover|needs? to include)\b|'
-    r'(?:should|must|will) (?:be|include|cover|mention|explain)\b|'
-    r'(?:i should|i must|i will|i need to)\b|'
-    r'(?:for this|in this case|given that|since the user)\b|'
-    r'(?:step \d|phase \d|first,? i|next,? i|then,? i|finally,? i)\b'
-    r')',
-    re.IGNORECASE
-)
-
-
-def _is_thinking_leak_line(stripped: str) -> bool:
-    """
-    Return True if this line looks like leaked internal reasoning.
-    Works on lines of ANY length — the old 200-char bailout was the
-    primary cause of Gemma Max thought-leaking (long prose reasoning
-    lines were let through unconditionally).
-    """
-    if not stripped:
-        return False
-    # Check hard reasoning paragraph patterns first (these catch long lines too)
-    if _REASONING_PARAGRAPH.match(stripped):
-        return True
-    # Short lines: also check generic "Key: value" colon pattern
-    if len(stripped) < 200:
-        colon_line = re.match(r'^[\*\-\•]?\s*[A-Za-z][A-Za-z /]{1,30}:\s+\S', stripped)
-        if colon_line:
-            return True
-    return False
-
-
-class _GemmaStreamGuard:
-    """
-    Buffers tokens from a Gemma stream and suppresses ALL thinking leakage
-    BEFORE tokens reach the client.
-
-    V3 — Root-cause fix for Gemma Max long-form reasoning leaks:
-
-    Previous versions tried to detect what IS a leak line, but Gemma Max
-    outputs reasoning as full English paragraphs (e.g. "This implies a
-    structured, detailed academic answer suitable for an exam...") that
-    look exactly like real content. The 200-char bailout in the old
-    _is_thinking_leak_line let ALL of these through.
-
-    New strategy: in preamble phase, HOLD EVERYTHING until we positively
-    confirm a "real answer start" line (markdown heading, code fence,
-    numbered list item with substance, or a long direct-answer sentence
-    that does NOT start with a reasoning opener). Only then do we switch
-    to passthrough mode and release content to the client.
-
-    This is far more reliable because it asks "is this definitely real
-    answer content?" rather than "is this definitely a leak?" — the former
-    is much easier to answer correctly.
-    """
-    # Matches a complete opening think tag anywhere in a string
-    _RE_OPEN  = re.compile(r'<think(?:ing)?>', re.IGNORECASE)
-    # Matches a complete closing think tag anywhere in a string
-    _RE_CLOSE = re.compile(r'</think(?:ing)?>', re.IGNORECASE)
-    # Stray orphaned tags (no partner)
-    _RE_STRAY = re.compile(r'</?think(?:ing)?>', re.IGNORECASE)
-
-    def __init__(self):
-        self._buf = ""               # token accumulator
-        self._preamble_done = False  # True once real content confirmed
-        self._in_think_block = False # True while inside a think block
-        self._suppressed_lines = 0   # count of lines suppressed in preamble
-        self._MAX_SUPPRESSED = 60    # safety valve: after 60 discarded lines,
-                                     # force passthrough regardless
-
-    # ------------------------------------------------------------------ #
-    def feed(self, token: str) -> str:
-        """Feed one token; return what (if anything) should go to client."""
-        self._buf += token
-
-        # ── Phase 1: still in preamble / think-block suppression ──────────
-        if not self._preamble_done:
-            return self._process_preamble()
-
-        # ── Phase 2: preamble cleared, passthrough with tag-watch ─────────
-        return self._passthrough_filter()
-
-    # ------------------------------------------------------------------ #
-    def flush(self) -> str:
-        """Call once at end of stream to release any remaining buffer."""
-        remaining = self._buf
-        self._buf = ""
-        if self._in_think_block:
-            return ""
-        if not remaining:
-            return ""
-        # Strip any orphaned tags
-        remaining = self._RE_STRAY.sub('', remaining).strip()
-        # If we never left preamble phase, the remaining buffer is ALL suspect.
-        # Only release it if it passes the real-answer-start check.
-        if not self._preamble_done:
-            lines = remaining.split('\n')
-            for i, line in enumerate(lines):
-                stripped = line.strip()
-                if _is_real_answer_start(stripped):
-                    return '\n'.join(lines[i:]).strip()
-                if _is_thinking_leak_line(stripped):
-                    continue
-                # Ambiguous non-empty line at flush time — release it
-                # (better to show than to silently drop the entire answer)
-                if stripped:
-                    return '\n'.join(lines[i:]).strip()
-            return ""
-        return remaining
-
-    # ------------------------------------------------------------------ #
-    def _process_preamble(self) -> str:
-        """
-        Hold ALL content until we positively confirm a real answer start.
-        Returns text safe to send to the client (possibly empty string).
-        """
-        out = ""
-
-        # ── Step 1: Drain any complete <think>...</think> blocks ──────────
-        while True:
-            if self._in_think_block:
-                m = self._RE_CLOSE.search(self._buf)
-                if m:
-                    self._buf = self._buf[m.end():]
-                    self._in_think_block = False
-                else:
-                    # Still inside block — trim the buffer to prevent unbounded growth
-                    if len(self._buf) > 50:
-                        self._buf = self._buf[-50:]
-                    return ""
-            else:
-                m = self._RE_OPEN.search(self._buf)
-                if m:
-                    self._buf = self._buf[m.end():]
-                    self._in_think_block = True
-                else:
-                    break
-
-        # ── Step 2: Don't flush if we might be mid-tag ────────────────────
-        if _PARTIAL_OPEN_TAG.search(self._buf) or _PARTIAL_CLOSE_TAG.search(self._buf):
-            return ""
-
-        # ── Step 3: Process complete lines looking for real answer start ───
-        while '\n' in self._buf:
-            line, self._buf = self._buf.split('\n', 1)
-            stripped = line.strip()
-
-            # Empty lines in preamble: skip silently
-            if not stripped:
-                continue
-
-            # Confirmed reasoning/leak line: discard
-            if _is_thinking_leak_line(stripped):
-                self._suppressed_lines += 1
-                continue
-
-            # Confirmed real answer start: preamble is over — release this
-            # line plus everything remaining in the buffer
-            if _is_real_answer_start(stripped):
-                self._preamble_done = True
-                out = line + '\n' + self._buf
-                self._buf = ""
-                return out
-
-            # Ambiguous line (not a known leak, not a confirmed answer start).
-            # This is the tricky case. Strategy: keep suppressing until we've
-            # seen enough suppressed lines to be confident we're past reasoning,
-            # OR until we hit a confirmed answer start above.
-            # After _MAX_SUPPRESSED lines of ambiguous content, force passthrough
-            # to prevent the safety valve from eating a real answer.
-            self._suppressed_lines += 1
-            if self._suppressed_lines >= self._MAX_SUPPRESSED:
-                self._preamble_done = True
-                out = line + '\n' + self._buf
-                self._buf = ""
-                return out
-
-        # ── Step 4: No newline yet — only flush if buffer is very large ────
-        # Raise threshold to 1200 chars (was 600) to handle Gemma Max's
-        # long reasoning paragraphs that sometimes have no newlines at all.
-        if len(self._buf) > 1200:
-            stripped_buf = self._buf.strip()
-            # Check if this no-newline blob looks like a real answer start
-            if _is_real_answer_start(stripped_buf[:200]):
-                self._preamble_done = True
-                out = self._buf
-                self._buf = ""
-                return out
-            # It's a big blob of no-newline text — could be reasoning.
-            # Discard it and reset buffer; the real answer will come after.
-            self._buf = ""
-            self._suppressed_lines += 1
-
-        return ""  # still buffering
-
-    # ------------------------------------------------------------------ #
-    def _passthrough_filter(self) -> str:
-        """
-        Preamble is done. Pass tokens through but still catch stray
-        <think> blocks that occasionally appear mid-response.
-        """
-        # Fast path: no think tags at all
-        if '<' not in self._buf:
-            out = self._buf
-            self._buf = ""
-            return out
-
-        # Possible partial tag at end — hold the tail
-        if _PARTIAL_OPEN_TAG.search(self._buf) or _PARTIAL_CLOSE_TAG.search(self._buf):
-            safe_end = max(0, len(self._buf) - 10)
-            out = self._buf[:safe_end]
-            self._buf = self._buf[safe_end:]
-            return out
-
-        if self._in_think_block:
-            m = self._RE_CLOSE.search(self._buf)
-            if m:
-                after = self._buf[m.end():]
-                self._buf = after
-                self._in_think_block = False
-                return self._passthrough_filter()
-            else:
-                if len(self._buf) > 50:
-                    self._buf = self._buf[-50:]
-                else:
-                    self._buf = ""
-                return ""
-
-        m = self._RE_OPEN.search(self._buf)
-        if m:
-            before = self._RE_STRAY.sub('', self._buf[:m.start()])
-            self._buf = self._buf[m.end():]
-            self._in_think_block = True
-            return before
-
-        # No think block — strip stray orphaned tags and flush
-        out = self._RE_STRAY.sub('', self._buf)
-        self._buf = ""
-        return out
-
-
-def _is_real_answer_start(stripped: str) -> bool:
-    """
-    Return True if this line is DEFINITELY the start of a real answer
-    (not reasoning/thinking preamble).
-
-    This is the key function for the V3 guard: we only unlock the stream
-    when we POSITIVELY identify real answer content, rather than trying
-    to identify what's a leak (which is much harder for long prose).
-    """
-    if not stripped:
-        return False
-    return bool(_REAL_ANSWER_START.match(stripped))
-
 def call_gemma_google_stream(messages, system_prompt, model_id):
     """
     Calls Gemma 4 models via Google AI Studio REST API —
     same GEMINI_API_KEY and endpoint pattern as Gemini 2.5 Flash.
-    NOTE: thinkingConfig is NOT used here — Gemma 4 models (gemma-4-26b-a4b-it,
-    gemma-4-31b-it) do NOT support thinkingConfig. Only Gemini 2.5 thinking
-    models support that field. Thinking-leak is handled via _strip_thinking_tags()
-    and system prompt instructions instead.
     """
     if not GEMINI_API_KEY:
         return None, "GEMINI_API_KEY not set in environment variables"
@@ -2667,7 +2263,7 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
             "contents": contents,
             "generationConfig": {
                 "temperature": 0.3,
-                "maxOutputTokens": 8192,  # gemma-4-31b-it max is 8192; 16000 caused HTTP 500
+                "maxOutputTokens": 16000,
             }
         }
         url = (
@@ -2909,7 +2505,7 @@ async def chat_post(request: Request):
     try:
         body = await request.json()
         prompt     = body.get("prompt", "")
-        model      = body.get("model", "sambhav")
+        model      = body.get("model", "dagr")
         file_urls  = body.get("file_urls", [])
         web_search_forced = body.get("web_search_enabled", False)
         # Legacy web_results from frontend removed — backend handles all search internally
@@ -2963,18 +2559,18 @@ async def chat_post(request: Request):
         # ── MODEL POOLS ────────────────────────────────────────────────────
         # Gemma models → Google AI Studio (GEMINI_API_KEY), NOT OpenRouter
         GEMMA_GOOGLE_MODELS = {
-            "gemma_core": "gemma-4-26b-a4b-it",
-            "gemma_max":  "gemma-4-31b-it",
+            "Gemma":    "gemma-4-26b-a4b-it",
+            "Gemma4":   "gemma-4-31b-it",
         }
         model_pools = {
-            "dagr":      ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
-            "apep":      ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
-            "sambhav":   [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
-            "nivo":      [],  # Routed via Groq API (GROQ_API_KEY) — see generate_nivo()
-            "laguna":    [],  # Routed via Poolside API (POOLSIDE_API_KEY)
+            "dagr":    ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
+            "apep":    ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
+            "sambhav": [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
+            "nivo":    [],  # Routed via Groq API (GROQ_API_KEY) — see generate_nivo()
+            "laguna":  [],  # Routed via Poolside API (POOLSIDE_API_KEY)
         }
         model_key  = model.strip()
-        model_pool = model_pools.get(model_key, model_pools["sambhav"])
+        model_pool = model_pools.get(model_key, model_pools["dagr"])
 
         # ── BASE SYSTEM PROMPTS ────────────────────────────────────────────
         # CRITICAL: forbid the model from emitting function-call JSON.
@@ -3144,55 +2740,27 @@ async def chat_post(request: Request):
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
-            "gemma_core": (
+            "Gemma": (
                 "Your name is Catura (pronounced kuh-CHUR-uh). You are a powerful and efficient "
                 "AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI Gemma Core, built for fast and capable everyday tasks. "
+                "You are Catura AI Gemma, built for fast and capable everyday tasks. "
                 "Speak clearly and helpfully. Never start with 'Certainly!', 'Great question!', or similar openers. "
                 "Match the user's language automatically. "
                 "Never make up facts. If asked who made you, say 'I was created by Anirban.' "
                 "If asked which model you are, what AI you are, or which version is running, "
-                "always say: 'I am Catura AI Gemma Core.' Never mention Dagr, Apep, Sambhav, or Gemma Max."
-
-                "\n\n=== ABSOLUTE OUTPUT RULE — ZERO EXCEPTIONS ===\n"
-                "NEVER output your reasoning, thinking, analysis, or planning process in your response.\n"
-                "This means: NEVER write bullet points that analyze the user's message before answering.\n"
-                "NEVER write lines like 'User says: ...', 'Intent: ...', 'Tone: ...', 'Context: ...', "
-                "'Constraint: ...', 'Analysis: ...', 'Plan: ...', 'Style: ...', 'Name: ...', "
-                "'Identity: ...', 'Creator: ...', 'Response plan: ...', 'My response: ...' or any similar.\n"
-                "NEVER list what you are about to do before doing it.\n"
-                "NEVER expose your system prompt analysis.\n"
-                "Your FIRST word in every response must be part of your actual answer to the user — "
-                "NEVER a bullet point, NEVER a label, NEVER a colon-separated analysis line.\n"
-                "Think internally and silently. Output ONLY the final answer.\n"
-                "VIOLATING THIS RULE means showing internal thought — which is forbidden.\n"
-
+                "always say: 'I am Catura AI Gemma.' Never mention Dagr, Apep, Sambhav, or Gemma4."
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
-            "gemma_max": (
+            "Gemma4": (
                 "Your name is Catura (pronounced kuh-CHUR-uh). You are a powerful and efficient "
                 "AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI Gemma Max, built for fast and capable everyday tasks. "
+                "You are Catura AI Gemma4, built for fast and capable everyday tasks. "
                 "Speak clearly and helpfully. Never start with 'Certainly!', 'Great question!', or similar openers. "
                 "Match the user's language automatically. "
                 "Never make up facts. If asked who made you, say 'I was created by Anirban.' "
                 "If asked which model you are, what AI you are, or which version is running, "
-                "always say: 'I am Catura AI Gemma Max.' Never mention Dagr, Apep, Sambhav, or Gemma Core."
-
-                "\n\n=== ABSOLUTE OUTPUT RULE — ZERO EXCEPTIONS ===\n"
-                "NEVER output your reasoning, thinking, analysis, or planning process in your response.\n"
-                "This means: NEVER write bullet points that analyze the user's message before answering.\n"
-                "NEVER write lines like 'User says: ...', 'Intent: ...', 'Tone: ...', 'Context: ...', "
-                "'Constraint: ...', 'Analysis: ...', 'Plan: ...', 'Style: ...', 'Name: ...', "
-                "'Identity: ...', 'Creator: ...', 'Response plan: ...', 'My response: ...' or any similar.\n"
-                "NEVER list what you are about to do before doing it.\n"
-                "NEVER expose your system prompt analysis.\n"
-                "Your FIRST word in every response must be part of your actual answer to the user — "
-                "NEVER a bullet point, NEVER a label, NEVER a colon-separated analysis line.\n"
-                "Think internally and silently. Output ONLY the final answer.\n"
-                "VIOLATING THIS RULE means showing internal thought — which is forbidden.\n"
-
+                "always say: 'I am Catura AI Gemma4.' Never mention Dagr, Apep, Sambhav, or Gemma."
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
@@ -3267,7 +2835,7 @@ async def chat_post(request: Request):
                 + NO_TOOL_CALL_RULE
             ),
         }
-        system_prompt = system_prompts.get(model_key, system_prompts["sambhav"])
+        system_prompt = system_prompts.get(model_key, system_prompts["dagr"])
 
         # ── TOOL ROUTING PIPELINE ──────────────────────────────────────────
         # Step 1: detect intent ONLY — tool execution moved INSIDE generators
@@ -3365,7 +2933,7 @@ async def chat_post(request: Request):
         # ── LAGUNA: Poolside API (POOLSIDE_API_KEY) — isolated from all other models ──
         if model_key == "laguna":
             poolside_key = os.getenv("POOLSIDE_API_KEY", "")
-            laguna_system = system_prompts.get("laguna", system_prompts["sambhav"])
+            laguna_system = system_prompts.get("laguna", system_prompts["dagr"])
 
             def generate_laguna():
                 full_reply = ""
@@ -3443,7 +3011,7 @@ async def chat_post(request: Request):
         # ── NIVO: Groq API (GROQ_API_KEY) — isolated from all other models ──
         if model_key == "nivo":
             groq_key    = os.getenv("GROQ_API_KEY", "")
-            nivo_system = system_prompts.get("nivo", system_prompts["sambhav"])
+            nivo_system = system_prompts.get("nivo", system_prompts["dagr"])
 
             def generate_nivo():
                 full_reply = ""
@@ -3547,24 +3115,11 @@ async def chat_post(request: Request):
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                # ── Cold-start primer (thought-leak fix) ──────────────────────
-                # Gemma 4 leaks its internal reasoning as plain text on the very
-                # first message of a fresh session (empty memory).  Prepending a
-                # synthetic Hello / Hi exchange anchors the model in "assistant
-                # already responding" mode and eliminates the preamble leak.
-                # This only fires when len(memory) == 1 (just the current user msg).
-                gemma_messages_post = user_memory[session_id][-20:]
-                if len(gemma_messages_post) <= 1:
-                    gemma_messages_post = [
-                        {"role": "user",      "content": "Hello"},
-                        {"role": "assistant", "content": "Hi! How can I help you today?"},
-                    ] + gemma_messages_post
-                resp, err = call_gemma_google_stream(gemma_messages_post, final_system_g, google_model_id)
+                resp, err = call_gemma_google_stream(user_memory[session_id][-20:], final_system_g, google_model_id)
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'{model_key} unavailable: {err}'})}\n\n"
                     yield "data: [DONE]\n\n"
                     return
-                guard = _GemmaStreamGuard()
                 try:
                     for line in resp.iter_lines():
                         if not line:
@@ -3585,20 +3140,13 @@ async def chat_post(request: Request):
                                 token = part.get("text", "")
                                 if token:
                                     full_reply += token
-                                    clean_token = guard.feed(token)
-                                    if clean_token:
-                                        yield f"data: {json.dumps({'token': clean_token}, ensure_ascii=False)}\n\n"
+                                    yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
                     print(f"❌ [Gemma POST] stream exception: {e}")
-                # Flush any remaining buffered content
-                leftover = guard.flush()
-                if leftover:
-                    yield f"data: {json.dumps({'token': leftover}, ensure_ascii=False)}\n\n"
                 if full_reply.strip():
-                    clean_reply = _strip_thinking_tags(full_reply)
-                    user_memory[session_id].append({"role": "assistant", "content": clean_reply})
+                    user_memory[session_id].append({"role": "assistant", "content": full_reply})
                     if len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
                 yield "data: [DONE]\n\n"
@@ -3742,7 +3290,7 @@ async def chat_post(request: Request):
 # ✅ LEGACY GET /chat (backward compatibility)
 # ============================================================
 @app.get("/chat")
-def chat_get(request: Request, prompt: str, model: str = "sambhav"):
+def chat_get(request: Request, prompt: str, model: str = "dagr"):
     try:
         session_id = request.cookies.get("session_id")
         if not session_id:
@@ -3768,18 +3316,18 @@ def chat_get(request: Request, prompt: str, model: str = "sambhav"):
 
         # Gemma models → Google AI Studio (GEMINI_API_KEY), NOT OpenRouter
         GEMMA_GOOGLE_MODELS = {
-            "gemma_core": "gemma-4-26b-a4b-it",
-            "gemma_max":  "gemma-4-31b-it",
+            "Gemma":    "gemma-4-26b-a4b-it",
+            "Gemma4":   "gemma-4-31b-it",
         }
         model_pools = {
-            "dagr":      ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
-            "apep":      ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
-            "sambhav":   [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
-            "nivo":      [],  # Routed via Groq API (GROQ_API_KEY)
-            "laguna":    [],  # Routed via Poolside API (POOLSIDE_API_KEY)
+            "dagr":    ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
+            "apep":    ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
+            "sambhav": [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
+            "nivo":    [],  # Routed via Groq API (GROQ_API_KEY)
+            "laguna":  [],  # Routed via Poolside API (POOLSIDE_API_KEY)
         }
         model_key  = model.strip()
-        model_pool = model_pools.get(model_key, model_pools["sambhav"])
+        model_pool = model_pools.get(model_key, model_pools["dagr"])
 
         NO_TOOL_CALL_RULE = (
             "\n\nCRITICAL RULES — FOLLOW THESE WITHOUT EXCEPTION:\n"
@@ -4241,63 +3789,13 @@ def chat_get(request: Request, prompt: str, model: str = "sambhav"):
                 "Never make up facts. If you don't know something, say so honestly."
                 + NO_TOOL_CALL_RULE
             ),
-            "gemma_core": (
-                "Your name is Catura (pronounced kuh-CHUR-uh). You are a powerful and efficient "
-                "AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI Gemma Core, built for fast and capable everyday tasks. "
-                "Speak clearly and helpfully. Never start with 'Certainly!', 'Great question!', or similar openers. "
-                "Match the user's language automatically. "
-                "Never make up facts. If asked who made you, say 'I was created by Anirban.' "
-                "If asked which model you are, what AI you are, or which version is running, "
-                "always say: 'I am Catura AI Gemma Core.' Never mention Dagr, Apep, Sambhav, or Gemma Max."
-
-                "\n\n=== ABSOLUTE OUTPUT RULE — ZERO EXCEPTIONS ===\n"
-                "NEVER output your reasoning, thinking, analysis, or planning process in your response.\n"
-                "This means: NEVER write bullet points that analyze the user's message before answering.\n"
-                "NEVER write lines like 'User says: ...', 'Intent: ...', 'Tone: ...', 'Context: ...', "
-                "'Constraint: ...', 'Analysis: ...', 'Plan: ...', 'Style: ...', 'Name: ...', "
-                "'Identity: ...', 'Creator: ...', 'Response plan: ...', 'My response: ...' or any similar.\n"
-                "NEVER list what you are about to do before doing it.\n"
-                "NEVER expose your system prompt analysis.\n"
-                "Your FIRST word in every response must be part of your actual answer to the user — "
-                "NEVER a bullet point, NEVER a label, NEVER a colon-separated analysis line.\n"
-                "Think internally and silently. Output ONLY the final answer.\n"
-                "VIOLATING THIS RULE means showing internal thought — which is forbidden.\n"
-
-                + NO_TOOL_CALL_RULE
-            ),
-            "gemma_max": (
-                "Your name is Catura (pronounced kuh-CHUR-uh). You are a powerful and efficient "
-                "AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI Gemma Max, built for fast and capable everyday tasks. "
-                "Speak clearly and helpfully. Never start with 'Certainly!', 'Great question!', or similar openers. "
-                "Match the user's language automatically. "
-                "Never make up facts. If asked who made you, say 'I was created by Anirban.' "
-                "If asked which model you are, what AI you are, or which version is running, "
-                "always say: 'I am Catura AI Gemma Max.' Never mention Dagr, Apep, Sambhav, or Gemma Core."
-
-                "\n\n=== ABSOLUTE OUTPUT RULE — ZERO EXCEPTIONS ===\n"
-                "NEVER output your reasoning, thinking, analysis, or planning process in your response.\n"
-                "This means: NEVER write bullet points that analyze the user's message before answering.\n"
-                "NEVER write lines like 'User says: ...', 'Intent: ...', 'Tone: ...', 'Context: ...', "
-                "'Constraint: ...', 'Analysis: ...', 'Plan: ...', 'Style: ...', 'Name: ...', "
-                "'Identity: ...', 'Creator: ...', 'Response plan: ...', 'My response: ...' or any similar.\n"
-                "NEVER list what you are about to do before doing it.\n"
-                "NEVER expose your system prompt analysis.\n"
-                "Your FIRST word in every response must be part of your actual answer to the user — "
-                "NEVER a bullet point, NEVER a label, NEVER a colon-separated analysis line.\n"
-                "Think internally and silently. Output ONLY the final answer.\n"
-                "VIOLATING THIS RULE means showing internal thought — which is forbidden.\n"
-
-                + NO_TOOL_CALL_RULE
-            ),
         }
-        system_prompt = system_prompts.get(model_key, system_prompts["sambhav"])
+        system_prompt = system_prompts.get(model_key, system_prompts["dagr"])
 
         # ── LAGUNA: Poolside API (POOLSIDE_API_KEY) — GET handler ──
         if model_key == "laguna":
             poolside_key_get = os.getenv("POOLSIDE_API_KEY", "")
-            laguna_system_get = system_prompts.get("laguna", system_prompts["sambhav"])
+            laguna_system_get = system_prompts.get("laguna", system_prompts["dagr"])
             laguna_messages_get = [{"role": "system", "content": laguna_system_get}] + user_memory[session_id][-20:]
 
             def generate_laguna_get():
@@ -4456,79 +3954,6 @@ def chat_get(request: Request, prompt: str, model: str = "sambhav"):
 
             return StreamingResponse(
                 generate_sambhav_get(), media_type="text/event-stream",
-                headers={"Cache-Control": "no-cache",
-                         "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"}
-            )
-
-        # ── GEMMA / GEMMA4: Google AI Studio via GEMINI_API_KEY (GET handler) ──
-        if model_key in GEMMA_GOOGLE_MODELS:
-            google_model_id_get = GEMMA_GOOGLE_MODELS[model_key]
-            print(f"🟢 [Gemma GET] Routing '{model_key}' → Google AI Studio model: {google_model_id_get}")
-
-            def generate_gemma_get():
-                full_reply = ""
-                if tool_result:
-                    yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
-                    sp = build_sources_payload(tool_result)
-                    if sp:
-                        yield f"data: {sp}\n\n"
-
-                # ── Cold-start primer (thought-leak fix) ──────────────────────
-                # Same fix as POST handler: prepend a synthetic exchange so Gemma
-                # is never cold-started with an empty conversation history.
-                gemma_messages_get = user_memory[session_id][-20:]
-                if len(gemma_messages_get) <= 1:
-                    gemma_messages_get = [
-                        {"role": "user",      "content": "Hello"},
-                        {"role": "assistant", "content": "Hi! How can I help you today?"},
-                    ] + gemma_messages_get
-                resp, err = call_gemma_google_stream(gemma_messages_get, system_prompt, google_model_id_get)
-                if resp is None:
-                    yield f"data: {json.dumps({'error': f'{model_key} unavailable: {err}'})}\n\n"
-                    yield "data: [DONE]\n\n"
-                    return
-                guard = _GemmaStreamGuard()
-                try:
-                    for line in resp.iter_lines():
-                        if not line:
-                            continue
-                        decoded = line.decode("utf-8")
-                        if not decoded.startswith("data: "):
-                            continue
-                        payload = decoded[6:]
-                        if payload.strip() == "[DONE]":
-                            break
-                        try:
-                            chunk = json.loads(payload)
-                            if "error" in chunk:
-                                break
-                            candidates = chunk.get("candidates", [])
-                            if not candidates:
-                                continue
-                            parts = candidates[0].get("content", {}).get("parts", [])
-                            token = "".join(p.get("text", "") for p in parts)
-                            if token:
-                                full_reply += token
-                                clean_token = guard.feed(token)
-                                if clean_token:
-                                    yield f"data: {json.dumps({'token': clean_token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
-                            continue
-                except Exception as e:
-                    print(f"❌ [Gemma GET] stream exception: {e}")
-                # Flush any remaining buffered content
-                leftover = guard.flush()
-                if leftover:
-                    yield f"data: {json.dumps({'token': leftover}, ensure_ascii=False)}\n\n"
-                if full_reply.strip():
-                    clean_reply = _strip_thinking_tags(full_reply)
-                    user_memory[session_id].append({"role": "assistant", "content": clean_reply})
-                    if len(user_memory[session_id]) > 40:
-                        user_memory[session_id] = user_memory[session_id][-40:]
-                yield "data: [DONE]\n\n"
-
-            return StreamingResponse(
-                generate_gemma_get(), media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache",
                          "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"}
             )
