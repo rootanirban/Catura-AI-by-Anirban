@@ -3305,39 +3305,30 @@ window.chpwVerifyAndUpdate = async function () {
     const pw  = document.getElementById('chpwNewInput')?.value        || '';
     const btn = document.getElementById('chpwStep2Btn');
     const err = document.getElementById('chpwStep2Error');
-    const email = currentUser?.email || '';
 
     if (otp.length !== 6 || pw.length < 8) return;
 
     const saveBtnHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Verify &amp; update password';
 
     btn.disabled = true;
-    btn.innerHTML = '⏳ Verifying…';
+    btn.innerHTML = '⏳ Updating…';
 
     try {
-        // Step A — verify the OTP (this re-auths the session)
-        const { error: otpErr } = await supabaseClient.auth.verifyOtp({
-            email,
-            token: otp,
-            type: 'reauthentication'
-        });
-
-        if (otpErr) {
-            err.textContent = otpErr.code === 'otp_expired'
-                ? 'Code expired. Click "Resend code" to get a new one.'
-                : 'Invalid code. Please check your email and try again.';
-            err.style.display = 'block';
-            btn.disabled = false;
-            btn.innerHTML = saveBtnHTML;
-            return;
-        }
-
-        // Step B — now session is freshly re-authed, update the password
-        btn.innerHTML = '⏳ Updating…';
-        const { error: updateErr } = await supabaseClient.auth.updateUser({ password: pw });
+        // ✅ FIXED: Supabase reauthenticate() sends a nonce-based OTP.
+        // The correct flow is to pass the OTP directly as the `nonce` inside
+        // updateUser() — NOT via verifyOtp() which is for a different flow.
+        const { error: updateErr } = await supabaseClient.auth.updateUser(
+            { password: pw },
+            { nonce: otp }
+        );
 
         if (updateErr) {
-            err.textContent = updateErr.message || 'Failed to update password.';
+            const isNonceErr = updateErr.message?.toLowerCase().includes('nonce') ||
+                               updateErr.message?.toLowerCase().includes('expired') ||
+                               updateErr.message?.toLowerCase().includes('invalid');
+            err.textContent = isNonceErr
+                ? 'Code expired or invalid. Click "Resend code" to get a new one.'
+                : (updateErr.message || 'Failed to update password. Please try again.');
             err.style.display = 'block';
             btn.disabled = false;
             btn.innerHTML = saveBtnHTML;
