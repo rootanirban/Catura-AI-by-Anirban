@@ -345,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.152"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.153"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +355,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.152", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.153", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -2277,7 +2277,8 @@ def _strip_thinking_tags(text: str) -> str:
     """
     Strip Gemma 4 chain-of-thought leakage from a completed response string.
     Used for memory storage after full response is assembled.
-    Handles all known Gemma thinking tag variants and leaked preamble lines.
+    Handles all known Gemma thinking tag variants and leaked preamble lines,
+    including Gemma Max long paragraph-form reasoning output.
     """
     import re as _re
     # Remove all <think>...</think> and <thinking>...</thinking> blocks (greedy-safe)
@@ -2287,71 +2288,120 @@ def _strip_thinking_tags(text: str) -> str:
     lines = text.split('\n')
     clean_lines = []
     in_preamble = True
+    suppressed = 0
     for line in lines:
         stripped = line.strip()
         if in_preamble:
-            if _is_thinking_leak_line(stripped):
+            if not stripped:
                 continue
-            else:
+            if _is_thinking_leak_line(stripped):
+                suppressed += 1
+                continue
+            if _is_real_answer_start(stripped):
                 in_preamble = False
+            else:
+                suppressed += 1
+                if suppressed < 60:
+                    continue
+                else:
+                    in_preamble = False
         clean_lines.append(line)
     return '\n'.join(clean_lines).strip()
 
 
-# ── Thinking-leak line detector (shared by stripper and streaming guard) ──────
-_LEAK_KEYWORDS = re.compile(
-    r'^[\*\-\•]?\s*('
-    r'user says?|user ask|user request|user query|user input|user message|'
-    r'intent|constraints?|context|analysis|response plan|my response|'
-    r'plan|note|task|goal|thinking|thought|reasoning|'
-    r'tone|style|name|identity|creator|greeting|'
-    r'no headers?|no lists?|no bullet|match language|'
-    r'constraint|casual|format|output|summary|key point|'
-    r'system prompt|requirements?|approach|strategy|'
-    r'search results?|direct answers?|biography|'
-    r'political history|political career|ideology|profile|'
-    r'translation|current role|current position|opposition role|'
-    r'party shift|party transition|election \d|key message|'
-    r'model version|model name|assistant name|'
-    r'previous message|follow.?up|clarif'
-    r')[\s:\-]?$|'
-    # Same keywords but allowing trailing colon or content
-    r'^[\*\-\•]?\s*('
-    r'user says?|user ask|user request|user query|user input|user message|'
-    r'intent|constraints?|context|analysis|response plan|my response|'
-    r'plan|note|task|goal|thinking|thought|reasoning|'
-    r'tone|style|name|identity|creator|greeting|'
-    r'no headers?|no lists?|no bullet|match language|'
-    r'constraint|casual|format|output|summary|key point|'
-    r'system prompt|requirements?|approach|strategy|'
-    r'search results?|direct answers?|biography|'
-    r'political history|political career|ideology|profile|'
-    r'translation|current role|current position|opposition role|'
-    r'party shift|party transition|election \d|key message|'
-    r'model version|model name|assistant name|'
-    r'previous message|follow.?up|clarif'
-    r')[\s:\-].+',
-    re.IGNORECASE
-)
-_LEAK_COLON_LINE = re.compile(r'^[\*\-\•]?\s*[A-Za-z][A-Za-z /]{1,30}:\s+\S')
-
-# Partial-tag sentinel: if the buffer ends with a possible start of a <think tag,
+# ── Partial-tag sentinel: if the buffer ends with a possible start of a <think tag,
 # we must NOT flush yet (the rest of the tag may arrive in the next token).
 _PARTIAL_OPEN_TAG  = re.compile(r'<(?:t(?:h(?:i(?:n(?:k(?:i(?:n(?:g?)?)?)?)?)?)?)?)?$', re.IGNORECASE)
 _PARTIAL_CLOSE_TAG = re.compile(r'</(?:t(?:h(?:i(?:n(?:k(?:i(?:n(?:g?)?)?)?)?)?)?)?)?$', re.IGNORECASE)
 
+# ── Positive "real answer start" patterns ──────────────────────────────────────
+# A line matches this if it is DEFINITELY part of a real answer (not reasoning).
+# Strategy: detect what IS real content rather than guessing what IS a leak.
+# Real answers start with markdown structure, code, or a direct response opener.
+_REAL_ANSWER_START = re.compile(
+    r'^('
+    # Markdown headings
+    r'#{1,6}\s+\S|'
+    # Code fence
+    r'```|'
+    # Horizontal rule / divider (often starts structured answers)
+    r'---+|'
+    # Numbered list that is answering (e.g. "1. DNS stands for...")
+    # Only trust if the content after the number is substantive (>20 chars)
+    r'\d+\.\s+\S.{20,}|'
+    # Bold heading like **DNS** or **Definition:**
+    r'\*\*[A-Z][^\*]{2,40}\*\*|'
+    # Direct answer openers — sentence that starts with a capital and is long
+    # enough to be prose (>60 chars) AND does NOT start with a reasoning keyword
+    r'(?!(?:user|intent|context|plan|note|task|goal|think|reason|analys|tone|'
+    r'style|format|output|summary|constraint|approach|strategy|response plan|'
+    r'my response|search|wikipedia|direct|biograph|translat|current role|'
+    r'model|assistant|previous|follow|clarif|needs? to|this implies?|'
+    r'this means?|this is an? |i (?:need|will|should|must|can)|'
+    r'let me |i\'ll |i\'m going|here\'s what|here is what|'
+    r'the user (?:wants?|needs?|asks?|is asking|said|wrote|mentions?)'
+    r'))[A-Z][a-zA-Z].{60,}'
+    r')',
+    re.IGNORECASE
+)
+
+# ── Hard reasoning-leak patterns that match even long lines ───────────────────
+# These catch the paragraph-form reasoning Gemma Max outputs (not just labels).
+_REASONING_PARAGRAPH = re.compile(
+    r'^[\*\-\•]?\s*('
+    # Classic label patterns (any length)
+    r'user (?:says?|asks?|wants?|needs?|is asking|wrote|mentioned|request|query|input|message)\b|'
+    r'(?:the )?(?:user\'?s? )?intent(?:ion)?\b|'
+    r'context(?:ual information)?\b|'
+    r'(?:my |the )?(?:response )?plan\b|'
+    r'(?:my )?(?:response|answer) (?:plan|approach|strategy|format|style)\b|'
+    r'(?:key )?(?:constraints?|requirements?|rules?)\b|'
+    r'(?:analysis|analysing|analyzing)\b|'
+    r'(?:thinking|thought process|reasoning)\b|'
+    r'(?:tone|style|format|output format)\b|'
+    r'(?:task|goal|objective)\b|'
+    r'system prompt\b|'
+    r'no (?:headers?|lists?|bullets?|markdown)\b|'
+    r'match (?:language|tone|style)\b|'
+    r'approach(?:ing)?\b|strategy\b|'
+    r'summary|key points?\b|'
+    # Long-form reasoning sentence starters that Gemma uses
+    r'this implies?\b|'
+    r'this means?\b|'
+    r'this (?:is|looks like|appears to be) an? \b|'
+    r'(?:i|the model) (?:need|will|should|must|can|have to)\b|'
+    r'let me \b|'
+    r'i\'ll \b|'
+    r'i\'m (?:going|about|planning)\b|'
+    r'here\'?s? (?:what|my|the|how)\b|'
+    r'the user (?:wants?|needs?|asked?|is asking|said|wrote|mention)\b|'
+    r'(?:needs? to be|needs? to cover|needs? to include)\b|'
+    r'(?:should|must|will) (?:be|include|cover|mention|explain)\b|'
+    r'(?:i should|i must|i will|i need to)\b|'
+    r'(?:for this|in this case|given that|since the user)\b|'
+    r'(?:step \d|phase \d|first,? i|next,? i|then,? i|finally,? i)\b'
+    r')',
+    re.IGNORECASE
+)
+
 
 def _is_thinking_leak_line(stripped: str) -> bool:
-    """Return True if this line looks like leaked internal reasoning."""
+    """
+    Return True if this line looks like leaked internal reasoning.
+    Works on lines of ANY length — the old 200-char bailout was the
+    primary cause of Gemma Max thought-leaking (long prose reasoning
+    lines were let through unconditionally).
+    """
     if not stripped:
         return False
-    if len(stripped) > 200:
-        return False  # real prose is rarely a short label
-    if _LEAK_KEYWORDS.match(stripped):
+    # Check hard reasoning paragraph patterns first (these catch long lines too)
+    if _REASONING_PARAGRAPH.match(stripped):
         return True
-    # Generic "Key: value" bullet — heuristic, only for short lines
-    if len(stripped) < 120 and _LEAK_COLON_LINE.match(stripped):
-        return True
+    # Short lines: also check generic "Key: value" colon pattern
+    if len(stripped) < 200:
+        colon_line = re.match(r'^[\*\-\•]?\s*[A-Za-z][A-Za-z /]{1,30}:\s+\S', stripped)
+        if colon_line:
+            return True
     return False
 
 
@@ -2360,14 +2410,23 @@ class _GemmaStreamGuard:
     Buffers tokens from a Gemma stream and suppresses ALL thinking leakage
     BEFORE tokens reach the client.
 
-    Fixes vs previous version:
-    - Partial-tag awareness: never flushes a buffer that ends mid-tag so
-      cross-token <think> splits are always caught.
-    - Unified think-block tracking across both preamble and passthrough phases.
-    - Buffer flush threshold raised to 600 chars to survive long think blocks
-      that omit newlines (Gemma 4 sometimes does this on first message).
-    - Orphaned closing tags are stripped in passthrough phase.
-    - flush() always does a final tag-strip on whatever remains.
+    V3 — Root-cause fix for Gemma Max long-form reasoning leaks:
+
+    Previous versions tried to detect what IS a leak line, but Gemma Max
+    outputs reasoning as full English paragraphs (e.g. "This implies a
+    structured, detailed academic answer suitable for an exam...") that
+    look exactly like real content. The 200-char bailout in the old
+    _is_thinking_leak_line let ALL of these through.
+
+    New strategy: in preamble phase, HOLD EVERYTHING until we positively
+    confirm a "real answer start" line (markdown heading, code fence,
+    numbered list item with substance, or a long direct-answer sentence
+    that does NOT start with a reasoning opener). Only then do we switch
+    to passthrough mode and release content to the client.
+
+    This is far more reliable because it asks "is this definitely real
+    answer content?" rather than "is this definitely a leak?" — the former
+    is much easier to answer correctly.
     """
     # Matches a complete opening think tag anywhere in a string
     _RE_OPEN  = re.compile(r'<think(?:ing)?>', re.IGNORECASE)
@@ -2380,6 +2439,9 @@ class _GemmaStreamGuard:
         self._buf = ""               # token accumulator
         self._preamble_done = False  # True once real content confirmed
         self._in_think_block = False # True while inside a think block
+        self._suppressed_lines = 0   # count of lines suppressed in preamble
+        self._MAX_SUPPRESSED = 60    # safety valve: after 60 discarded lines,
+                                     # force passthrough regardless
 
     # ------------------------------------------------------------------ #
     def feed(self, token: str) -> str:
@@ -2399,88 +2461,127 @@ class _GemmaStreamGuard:
         remaining = self._buf
         self._buf = ""
         if self._in_think_block:
-            # Stream ended inside a think block — discard it all
             return ""
         if not remaining:
             return ""
-        # Strip any orphaned tags and check for leak lines
+        # Strip any orphaned tags
         remaining = self._RE_STRAY.sub('', remaining).strip()
-        if _is_thinking_leak_line(remaining):
+        # If we never left preamble phase, the remaining buffer is ALL suspect.
+        # Only release it if it passes the real-answer-start check.
+        if not self._preamble_done:
+            lines = remaining.split('\n')
+            for i, line in enumerate(lines):
+                stripped = line.strip()
+                if _is_real_answer_start(stripped):
+                    return '\n'.join(lines[i:]).strip()
+                if _is_thinking_leak_line(stripped):
+                    continue
+                # Ambiguous non-empty line at flush time — release it
+                # (better to show than to silently drop the entire answer)
+                if stripped:
+                    return '\n'.join(lines[i:]).strip()
             return ""
         return remaining
 
     # ------------------------------------------------------------------ #
     def _process_preamble(self) -> str:
         """
-        Work through self._buf while we haven't yet confirmed real content.
-        Returns text safe to send to the client (possibly empty).
+        Hold ALL content until we positively confirm a real answer start.
+        Returns text safe to send to the client (possibly empty string).
         """
         out = ""
 
-        # ── Detect & remove complete think blocks ─────────────────────────
+        # ── Step 1: Drain any complete <think>...</think> blocks ──────────
         while True:
             if self._in_think_block:
                 m = self._RE_CLOSE.search(self._buf)
                 if m:
-                    # Found closing tag — discard everything up to and including it
                     self._buf = self._buf[m.end():]
                     self._in_think_block = False
                 else:
-                    # Still inside block; keep buffering, but don't let buffer
-                    # grow without bound — discard the safe prefix, keep only
-                    # the last 50 chars (enough to catch a split closing tag)
+                    # Still inside block — trim the buffer to prevent unbounded growth
                     if len(self._buf) > 50:
                         self._buf = self._buf[-50:]
                     return ""
             else:
                 m = self._RE_OPEN.search(self._buf)
                 if m:
-                    # Opening tag found — discard everything up to & including it
                     self._buf = self._buf[m.end():]
                     self._in_think_block = True
-                    # Loop back to look for the closing tag
                 else:
-                    break  # No open tag in buffer, continue below
+                    break
 
-        # ── Don't flush if the buffer might be mid-tag ────────────────────
+        # ── Step 2: Don't flush if we might be mid-tag ────────────────────
         if _PARTIAL_OPEN_TAG.search(self._buf) or _PARTIAL_CLOSE_TAG.search(self._buf):
             return ""
 
-        # ── Process complete lines ─────────────────────────────────────────
+        # ── Step 3: Process complete lines looking for real answer start ───
         while '\n' in self._buf:
             line, self._buf = self._buf.split('\n', 1)
-            if _is_thinking_leak_line(line.strip()):
-                continue  # discard leaked line
-            # Real content line found — preamble is over
-            self._preamble_done = True
-            out += line + '\n' + self._buf
-            self._buf = ""
-            return out
+            stripped = line.strip()
 
-        # ── No newline yet — flush if buffer is large enough to be real prose
-        if len(self._buf) > 600:
-            self._preamble_done = True
-            out = self._buf
+            # Empty lines in preamble: skip silently
+            if not stripped:
+                continue
+
+            # Confirmed reasoning/leak line: discard
+            if _is_thinking_leak_line(stripped):
+                self._suppressed_lines += 1
+                continue
+
+            # Confirmed real answer start: preamble is over — release this
+            # line plus everything remaining in the buffer
+            if _is_real_answer_start(stripped):
+                self._preamble_done = True
+                out = line + '\n' + self._buf
+                self._buf = ""
+                return out
+
+            # Ambiguous line (not a known leak, not a confirmed answer start).
+            # This is the tricky case. Strategy: keep suppressing until we've
+            # seen enough suppressed lines to be confident we're past reasoning,
+            # OR until we hit a confirmed answer start above.
+            # After _MAX_SUPPRESSED lines of ambiguous content, force passthrough
+            # to prevent the safety valve from eating a real answer.
+            self._suppressed_lines += 1
+            if self._suppressed_lines >= self._MAX_SUPPRESSED:
+                self._preamble_done = True
+                out = line + '\n' + self._buf
+                self._buf = ""
+                return out
+
+        # ── Step 4: No newline yet — only flush if buffer is very large ────
+        # Raise threshold to 1200 chars (was 600) to handle Gemma Max's
+        # long reasoning paragraphs that sometimes have no newlines at all.
+        if len(self._buf) > 1200:
+            stripped_buf = self._buf.strip()
+            # Check if this no-newline blob looks like a real answer start
+            if _is_real_answer_start(stripped_buf[:200]):
+                self._preamble_done = True
+                out = self._buf
+                self._buf = ""
+                return out
+            # It's a big blob of no-newline text — could be reasoning.
+            # Discard it and reset buffer; the real answer will come after.
             self._buf = ""
-            return out
+            self._suppressed_lines += 1
 
         return ""  # still buffering
 
     # ------------------------------------------------------------------ #
     def _passthrough_filter(self) -> str:
         """
-        Preamble is done. Pass tokens through but still watch for stray
+        Preamble is done. Pass tokens through but still catch stray
         <think> blocks that occasionally appear mid-response.
         """
-        # Fast path: no think tags present at all
+        # Fast path: no think tags at all
         if '<' not in self._buf:
             out = self._buf
             self._buf = ""
             return out
 
-        # Could be a partial tag forming at the end — hold the tail
+        # Possible partial tag at end — hold the tail
         if _PARTIAL_OPEN_TAG.search(self._buf) or _PARTIAL_CLOSE_TAG.search(self._buf):
-            # Keep the last few chars in buffer; flush the rest
             safe_end = max(0, len(self._buf) - 10)
             out = self._buf[:safe_end]
             self._buf = self._buf[safe_end:]
@@ -2490,13 +2591,10 @@ class _GemmaStreamGuard:
             m = self._RE_CLOSE.search(self._buf)
             if m:
                 after = self._buf[m.end():]
-                self._buf = ""
-                self._in_think_block = False
-                # Recurse with whatever came after the closing tag
                 self._buf = after
+                self._in_think_block = False
                 return self._passthrough_filter()
             else:
-                # Still inside block — discard buffer (keep tail for split tag)
                 if len(self._buf) > 50:
                     self._buf = self._buf[-50:]
                 else:
@@ -2505,17 +2603,29 @@ class _GemmaStreamGuard:
 
         m = self._RE_OPEN.search(self._buf)
         if m:
-            before = self._buf[:m.start()]
+            before = self._RE_STRAY.sub('', self._buf[:m.start()])
             self._buf = self._buf[m.end():]
             self._in_think_block = True
-            # Strip any orphaned stray tags from the clean part
-            before = self._RE_STRAY.sub('', before)
             return before
 
-        # No active think block, no partial tag — strip orphaned stray tags and flush
+        # No think block — strip stray orphaned tags and flush
         out = self._RE_STRAY.sub('', self._buf)
         self._buf = ""
         return out
+
+
+def _is_real_answer_start(stripped: str) -> bool:
+    """
+    Return True if this line is DEFINITELY the start of a real answer
+    (not reasoning/thinking preamble).
+
+    This is the key function for the V3 guard: we only unlock the stream
+    when we POSITIVELY identify real answer content, rather than trying
+    to identify what's a leak (which is much harder for long prose).
+    """
+    if not stripped:
+        return False
+    return bool(_REAL_ANSWER_START.match(stripped))
 
 def call_gemma_google_stream(messages, system_prompt, model_id):
     """
