@@ -345,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.150"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.151"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +355,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.150", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.151", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -579,6 +579,38 @@ def detect_intent(text: str) -> str:
     ]
     if any(re.search(p, lower) for p in news_patterns):
         return "news"
+
+    # ── CODING / PROGRAMMING — always general (LLM handles these natively) ──
+    # MUST come BEFORE the wikipedia block so queries like
+    # "write a program in Rust", "how do I sort a list in Python",
+    # "explain recursion", "debug this code" etc. never hit Wikipedia,
+    # which has no runnable code examples and gives useless answers.
+    _CODING_PATTERNS = [
+        # "write / create / build / implement X in <language>"
+        r'\b(write|create|make|build|implement|code|program|develop|generate)\b.{0,60}\b(in|using|with)\b.{0,30}\b(python|javascript|js|typescript|ts|rust|go|golang|java|c\+\+|cpp|c#|csharp|ruby|php|swift|kotlin|dart|r\b|lua|scala|bash|shell|powershell|sql|html|css|react|vue|angular|node|nodejs|flask|django|fastapi|spring|rails)\b',
+        # "<language> code / program / script / function / class / snippet"
+        r'\b(python|javascript|js|typescript|rust|go|golang|java|c\+\+|cpp|c#|ruby|php|swift|kotlin|dart|bash|sql|html|css)\b.{0,40}\b(code|program|script|function|class|snippet|example|solution|algorithm)\b',
+        # "write / create a function / class / algorithm / script"
+        r'\b(write|create|make|build)\b.{0,30}\b(function|class|method|algorithm|script|program|code|snippet|module|api|endpoint)\b',
+        # debugging / fixing code
+        r'\b(debug|fix|refactor|optimize|review|improve|correct)\b.{0,40}\b(code|function|script|program|error|bug|issue|exception|traceback)\b',
+        # "explain / what is <programming concept>" — narrow to CS terms only
+        r'\b(what is|explain|how does|how do|describe)\b.{0,40}\b(recursion|iteration|inheritance|polymorphism|encapsulation|abstraction|algorithm|data structure|sorting|searching|hashing|caching|memoization|concurrency|threading|async|await|callback|promise|closure|decorator|generator|iterator|pointer|reference|stack overflow|heap|linked list|binary tree|graph|queue|deque|trie|hashmap|hashset|regex|orm|mvc|rest api|graphql|websocket|jwt|oauth|docker|kubernetes|ci cd|devops|git|version control|compiler|interpreter|runtime|garbage collection|memory management|api|sdk|framework|library|package|dependency|npm|pip|maven|gradle)\b',
+        # pattern printing (your exact use-case from image 1)
+        r'\b(triangle|pyramid|diamond|star|number|alphabet|hourglass|rhombus)\b.{0,30}\b(pattern|print|program|code|output|series|sequence)\b',
+        # classic CS problems
+        r'\b(fibonacci|factorial|palindrome|anagram|prime number|armstrong|binary search|bubble sort|merge sort|quick sort|selection sort|insertion sort|tower of hanoi|knapsack|dynamic programming|breadth.?first|depth.?first|dijkstra|kruskal|prim)\b',
+        # "how to / how do I <programming action>"
+        r'\b(how to|how do i|how can i)\b.{0,50}\b(code|program|write|implement|create|build|use|call|run|execute|install|import|export|parse|serialize|deserialize|convert|sort|filter|map|reduce|fetch|request|connect|query|insert|update|delete|migrate|deploy|test|mock|debug|compile|lint|format)\b',
+        # common print statements as signal
+        r'\b(print|printf|console\.log|cout|system\.out|writeln|puts|echo)\b.{0,20}\b(pattern|output|result|number|star|triangle)\b',
+        # programming language mentions + task words
+        r'\bprogramming\b.{0,20}\b(language|concept|paradigm|pattern|problem|challenge|exercise|task|assignment)\b',
+        # "in <language> language" pattern
+        r'\bin\b.{0,10}\b(python|javascript|rust|go|java|c\+\+|cpp|c#|ruby|php|swift|kotlin|dart|bash|sql)\b.{0,20}\b(language|programming)\b',
+    ]
+    if any(re.search(p, lower, re.IGNORECASE) for p in _CODING_PATTERNS):
+        return "general"
 
     # ── WIKIPEDIA (educational / informational / GK / concept / biography) ──
     # Triggered when the question is clearly knowledge-based and NOT real-time.
@@ -3392,7 +3424,19 @@ async def chat_post(request: Request):
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                resp, err = call_gemma_google_stream(user_memory[session_id][-20:], final_system_g, google_model_id)
+                # ── Cold-start primer (thought-leak fix) ──────────────────────
+                # Gemma 4 leaks its internal reasoning as plain text on the very
+                # first message of a fresh session (empty memory).  Prepending a
+                # synthetic Hello / Hi exchange anchors the model in "assistant
+                # already responding" mode and eliminates the preamble leak.
+                # This only fires when len(memory) == 1 (just the current user msg).
+                gemma_messages_post = user_memory[session_id][-20:]
+                if len(gemma_messages_post) <= 1:
+                    gemma_messages_post = [
+                        {"role": "user",      "content": "Hello"},
+                        {"role": "assistant", "content": "Hi! How can I help you today?"},
+                    ] + gemma_messages_post
+                resp, err = call_gemma_google_stream(gemma_messages_post, final_system_g, google_model_id)
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'{model_key} unavailable: {err}'})}\n\n"
                     yield "data: [DONE]\n\n"
@@ -4306,7 +4350,15 @@ def chat_get(request: Request, prompt: str, model: str = "sambhav"):
                     if sp:
                         yield f"data: {sp}\n\n"
 
+                # ── Cold-start primer (thought-leak fix) ──────────────────────
+                # Same fix as POST handler: prepend a synthetic exchange so Gemma
+                # is never cold-started with an empty conversation history.
                 gemma_messages_get = user_memory[session_id][-20:]
+                if len(gemma_messages_get) <= 1:
+                    gemma_messages_get = [
+                        {"role": "user",      "content": "Hello"},
+                        {"role": "assistant", "content": "Hi! How can I help you today?"},
+                    ] + gemma_messages_get
                 resp, err = call_gemma_google_stream(gemma_messages_get, system_prompt, google_model_id_get)
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'{model_key} unavailable: {err}'})}\n\n"
