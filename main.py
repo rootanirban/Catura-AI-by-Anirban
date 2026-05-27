@@ -345,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.154"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.155"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +355,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.154", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.155", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -607,6 +607,16 @@ def detect_intent(text: str) -> str:
         # programming language mentions + task words
         r'\bprogramming\b.{0,20}\b(language|concept|paradigm|pattern|problem|challenge|exercise|task|assignment)\b',
         # "in <language> language" pattern
+        # ── Web/tech/CS concepts that Wikipedia handles badly ───────────────
+        # 'what is server side scripting language', 'what is client side scripting',
+        # 'what is a scripting language', 'what is REST/HTTP/API/frontend/backend'
+        # All hit r'\blanguage\b' or r'\bwhat is\b' in wikipedia_patterns
+        # but Wikipedia gives useless answers — LLM handles these natively.
+        r'\b(server.?side|client.?side|front.?end|back.?end|full.?stack)\b',
+        r'\b(scripting language|programming language|markup language|query language|compiled language|interpreted language|high.level language|low.level language|object.oriented|functional programming|procedural programming)\b',
+        r'\b(web (server|framework|application|development|technology|protocol|service|socket|hook|component|request|response|hosting|deployment|architecture))\b',
+        r'\b(what is|what are|explain|describe|define)\b.{0,30}\b(api|sdk|ide|cli|gui|oop|mvc|mvvm|crud|orm|cdn|vcs|cors|xss|csrf|nosql|rdbms|dbms|database|cloud computing|microservices|serverless|containerization|virtualization|load balancing|pub.?sub|message queue|event.driven|middleware|proxy|reverse proxy)\b',
+        r'\b(what is|what are|explain|describe)\b.{0,25}\b(variable|function|class|object|array|list|dictionary|tuple|set|string|integer|float|boolean|null|pointer|reference|scope|closure|callback|promise|thread|process|stack|queue|heap|tree|graph|hash|loop|condition|recursion|inheritance|interface|abstract|static|dynamic|mutable|immutable)\b',
         r'\bin\b.{0,10}\b(python|javascript|rust|go|java|c\+\+|cpp|c#|ruby|php|swift|kotlin|dart|bash|sql)\b.{0,20}\b(language|programming)\b',
     ]
     if any(re.search(p, lower, re.IGNORECASE) for p in _CODING_PATTERNS):
@@ -2324,15 +2334,18 @@ _REAL_ANSWER_START = re.compile(
     r'#{1,6}\s+\S|'
     # Code fence
     r'```|'
-    # Horizontal rule / divider (often starts structured answers)
+    # Horizontal rule / divider
     r'---+|'
-    # Numbered list that is answering (e.g. "1. DNS stands for...")
-    # Only trust if the content after the number is substantive (>20 chars)
-    r'\d+\.\s+\S.{20,}|'
+    # Numbered list item with substance (>15 chars of content)
+    r'\d+\.\s+\S.{15,}|'
     # Bold heading like **DNS** or **Definition:**
     r'\*\*[A-Z][^\*]{2,40}\*\*|'
-    # Direct answer openers — sentence that starts with a capital and is long
-    # enough to be prose (>60 chars) AND does NOT start with a reasoning keyword
+    # Direct answer opener: any capital letter followed by 30+ more chars,
+    # NOT starting with a known reasoning/planning keyword.
+    # Previous version required [A-Z][a-zA-Z] (second char must be letter) —
+    # this broke single-letter starters like "A server-side..." where char[1]=' '.
+    # Also lowered threshold from 60 to 30 chars — short direct answers like
+    # "Server-side scripting refers to..." were getting suppressed.
     r'(?!(?:user|intent|context|plan|note|task|goal|think|reason|analys|tone|'
     r'style|format|output|summary|constraint|approach|strategy|response plan|'
     r'my response|search|wikipedia|direct|biograph|translat|current role|'
@@ -2340,7 +2353,7 @@ _REAL_ANSWER_START = re.compile(
     r'this means?|this is an? |i (?:need|will|should|must|can)|'
     r'let me |i\'ll |i\'m going|here\'s what|here is what|'
     r'the user (?:wants?|needs?|asks?|is asking|said|wrote|mentions?)'
-    r'))[A-Z][a-zA-Z].{60,}'
+    r'))[A-Z].{30,}'
     r')',
     re.IGNORECASE
 )
