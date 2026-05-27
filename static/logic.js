@@ -825,6 +825,12 @@ window.showSettings = function () {
                         <path d="M5.5 21a9 9 0 0 1 13 0"></path>
                     </svg> Account
                 </div>
+                <div class="settings-nav-item" onclick="showSettingsTab('shortcuts', this)">
+                    <svg class="sn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="6" width="20" height="12" rx="2"></rect>
+                        <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"></path>
+                    </svg> Shortcuts
+                </div>
             </div>
             <div class="settings-content" id="settingsContent"></div>
         </div>`;
@@ -1369,11 +1375,151 @@ window.showSettingsTab = function (tab, clickedEl) {
                         <polyline points="9 18 15 12 9 6"></polyline>
                     </svg>
                 </div>
-            </div>`
+            </div>`,
+
+        // ============================
+        // ⌨️ SHORTCUTS TAB
+        // ============================
+        shortcuts: (() => {
+            const sc = JSON.parse(localStorage.getItem('catura-shortcuts') || '{"darkMode":true,"newChat":true,"voice":false,"addFiles":true}');
+            return `
+            <div class="sc-section">
+                <div class="sc-section-title">Keyboard Shortcuts</div>
+                <p class="sc-section-desc">Enable or disable keyboard shortcuts for quick actions.</p>
+
+                <!-- Dark Mode -->
+                <div class="sc-row-block">
+                    <div class="sc-row-top">
+                        <div class="sc-row-icon-wrap">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                            </svg>
+                        </div>
+                        <div class="sc-row-body">
+                            <p class="sc-row-label">Dark mode</p>
+                            <p class="sc-row-sub">Toggle dark/light theme <kbd class="shortcut-key">Ctrl</kbd>+<kbd class="shortcut-key">D</kbd></p>
+                        </div>
+                        <label class="toggle-switch" title="Toggle Dark Mode shortcut">
+                            <input type="checkbox" id="sc-toggle-darkMode" ${sc.darkMode ? 'checked' : ''} onchange="saveShortcutToggle('darkMode', this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- New Chat -->
+                <div class="sc-row-block">
+                    <div class="sc-row-top">
+                        <div class="sc-row-icon-wrap">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                        </div>
+                        <div class="sc-row-body">
+                            <p class="sc-row-label">New chat</p>
+                            <p class="sc-row-sub">Start a new conversation <kbd class="shortcut-key">Ctrl</kbd>+<kbd class="shortcut-key">Shift</kbd>+<kbd class="shortcut-key">N</kbd></p>
+                        </div>
+                        <label class="toggle-switch" title="Toggle New Chat shortcut">
+                            <input type="checkbox" id="sc-toggle-newChat" ${sc.newChat ? 'checked' : ''} onchange="saveShortcutToggle('newChat', this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Voice -->
+                <div class="sc-row-block">
+                    <div class="sc-row-top">
+                        <div class="sc-row-icon-wrap">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                <line x1="12" y1="19" x2="12" y2="23"></line>
+                                <line x1="8" y1="23" x2="16" y2="23"></line>
+                            </svg>
+                        </div>
+                        <div class="sc-row-body">
+                            <p class="sc-row-label">Voice input</p>
+                            <p class="sc-row-sub">Activate voice input <kbd class="shortcut-key">Ctrl</kbd>+<kbd class="shortcut-key">Shift</kbd>+<kbd class="shortcut-key">V</kbd> <span class="badge-soon">Coming soon</span></p>
+                        </div>
+                        <label class="toggle-switch disabled-toggle" title="Coming soon">
+                            <input type="checkbox" disabled>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Add Files -->
+                <div class="sc-row-block">
+                    <div class="sc-row-top">
+                        <div class="sc-row-icon-wrap">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                            </svg>
+                        </div>
+                        <div class="sc-row-body">
+                            <p class="sc-row-label">Add files</p>
+                            <p class="sc-row-sub">Open file picker <kbd class="shortcut-key">Ctrl</kbd>+<kbd class="shortcut-key">U</kbd></p>
+                        </div>
+                        <label class="toggle-switch" title="Toggle Add Files shortcut">
+                            <input type="checkbox" id="sc-toggle-addFiles" ${sc.addFiles ? 'checked' : ''} onchange="saveShortcutToggle('addFiles', this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+            </div>`;
+        })()
     };
 
     content.innerHTML = tabs[tab] || tabs.general;
 };
+
+// ============================
+// ⌨️ KEYBOARD SHORTCUTS
+// ============================
+window.saveShortcutToggle = function(key, value) {
+    const sc = JSON.parse(localStorage.getItem('catura-shortcuts') || '{"darkMode":true,"newChat":true,"voice":false,"addFiles":true}');
+    sc[key] = value;
+    localStorage.setItem('catura-shortcuts', JSON.stringify(sc));
+    showToast(value ? `✓ Shortcut enabled` : `Shortcut disabled`);
+};
+
+function getShortcuts() {
+    return JSON.parse(localStorage.getItem('catura-shortcuts') || '{"darkMode":true,"newChat":true,"voice":false,"addFiles":true}');
+}
+
+document.addEventListener('keydown', function(e) {
+    const sc = getShortcuts();
+    const tag = document.activeElement?.tagName;
+    const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable;
+
+    // Ctrl+D — Dark mode toggle
+    if (sc.darkMode && e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'd') {
+        if (isInput) return;
+        e.preventDefault();
+        const current = localStorage.getItem('catura-theme') || 'dark';
+        const next = current === 'dark' ? 'light' : 'dark';
+        if (typeof setTheme === 'function') setTheme(next);
+        else document.documentElement.setAttribute('data-theme', next);
+        showToast(`Theme: ${next.charAt(0).toUpperCase() + next.slice(1)}`);
+        return;
+    }
+
+    // Ctrl+Shift+N — New chat
+    if (sc.newChat && e.ctrlKey && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        if (typeof newChat === 'function') newChat();
+        return;
+    }
+
+    // Ctrl+U — Add files
+    if (sc.addFiles && e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'u') {
+        e.preventDefault();
+        const fi = document.getElementById('fileInput');
+        if (fi) fi.click();
+        return;
+    }
+});
 
 // ============================
 // 📥 EXPORT CHAT HISTORY

@@ -4188,6 +4188,39 @@ html { scroll-behavior: smooth; }
     font-weight: 500;
 }
 
+/* ⌨️ Shortcut key pills */
+kbd.shortcut-key {
+    display: inline-block;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-bottom-width: 2px;
+    color: #c8cdd9;
+    font-family: inherit;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 4px;
+    margin: 0 1px;
+    vertical-align: middle;
+    letter-spacing: 0.02em;
+}
+[data-theme="light"] kbd.shortcut-key {
+    background: rgba(0,0,0,0.05);
+    border-color: rgba(0,0,0,0.15);
+    border-bottom-color: rgba(0,0,0,0.25);
+    color: #555;
+}
+
+.sc-section-desc {
+    font-size: 12.5px;
+    color: #666;
+    margin: -4px 0 12px;
+    padding: 0 2px;
+    line-height: 1.5;
+}
+[data-theme="light"] .sc-section-desc { color: #888; }
+
+
 .sc-row-icon-wrap {
     display: flex;
     align-items: center;
