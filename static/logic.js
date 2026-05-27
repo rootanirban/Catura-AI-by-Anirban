@@ -2858,6 +2858,8 @@ window.executeDeleteAccount = async function () {
 window.openChangePasswordModal = function () {
     document.getElementById('changePasswordModal')?.remove();
 
+    const eyeSVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+
     const modal = document.createElement('div');
     modal.id = 'changePasswordModal';
     modal.className = 'priv-modal-overlay';
@@ -2870,18 +2872,21 @@ window.openChangePasswordModal = function () {
                 </svg>
             </div>
             <h2 class="chpw-modal-title">Change Password</h2>
-            <p class="chpw-modal-desc">Enter your new password below. It must be at least 8 characters.</p>
+            <p class="chpw-modal-desc">Verify your current password, then enter a new one (min 8 characters).</p>
+
+            <div class="chpw-field-wrap">
+                <label class="chpw-label">Current Password</label>
+                <div class="chpw-input-wrap">
+                    <input type="password" id="chpwCurrentInput" class="chpw-input" placeholder="Your current password" autocomplete="current-password" oninput="chpwValidate()">
+                    <button class="chpw-eye-btn" type="button" onclick="chpwToggleEye('chpwCurrentInput', this)" tabindex="-1">${eyeSVG}</button>
+                </div>
+            </div>
 
             <div class="chpw-field-wrap">
                 <label class="chpw-label">New Password</label>
                 <div class="chpw-input-wrap">
                     <input type="password" id="chpwNewInput" class="chpw-input" placeholder="New password" autocomplete="new-password" oninput="chpwValidate()">
-                    <button class="chpw-eye-btn" type="button" onclick="chpwToggleEye('chpwNewInput', this)" tabindex="-1">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                            <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                    </button>
+                    <button class="chpw-eye-btn" type="button" onclick="chpwToggleEye('chpwNewInput', this)" tabindex="-1">${eyeSVG}</button>
                 </div>
             </div>
 
@@ -2889,12 +2894,7 @@ window.openChangePasswordModal = function () {
                 <label class="chpw-label">Confirm New Password</label>
                 <div class="chpw-input-wrap">
                     <input type="password" id="chpwConfirmInput" class="chpw-input" placeholder="Confirm new password" autocomplete="new-password" oninput="chpwValidate()">
-                    <button class="chpw-eye-btn" type="button" onclick="chpwToggleEye('chpwConfirmInput', this)" tabindex="-1">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                            <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                    </button>
+                    <button class="chpw-eye-btn" type="button" onclick="chpwToggleEye('chpwConfirmInput', this)" tabindex="-1">${eyeSVG}</button>
                 </div>
             </div>
 
@@ -2918,7 +2918,7 @@ window.openChangePasswordModal = function () {
 
     document.body.appendChild(modal);
     requestAnimationFrame(() => modal.classList.add('priv-modal-open'));
-    setTimeout(() => document.getElementById('chpwNewInput')?.focus(), 100);
+    setTimeout(() => document.getElementById('chpwCurrentInput')?.focus(), 100);
 };
 
 window.chpwToggleEye = function (inputId, btn) {
@@ -2932,7 +2932,8 @@ window.chpwToggleEye = function (inputId, btn) {
 };
 
 window.chpwValidate = function () {
-    const pw  = document.getElementById('chpwNewInput')?.value  || '';
+    const cur = document.getElementById('chpwCurrentInput')?.value || '';
+    const pw  = document.getElementById('chpwNewInput')?.value    || '';
     const cpw = document.getElementById('chpwConfirmInput')?.value || '';
     const btn = document.getElementById('chpwSaveBtn');
     const err = document.getElementById('chpwError');
@@ -2940,7 +2941,13 @@ window.chpwValidate = function () {
     if (!btn || !err) return;
 
     if (pw.length > 0 && pw.length < 8) {
-        err.textContent = 'Password must be at least 8 characters.';
+        err.textContent = 'New password must be at least 8 characters.';
+        err.style.display = 'block';
+        btn.disabled = true;
+        return;
+    }
+    if (pw.length > 0 && cur.length > 0 && pw === cur) {
+        err.textContent = 'New password must be different from your current password.';
         err.style.display = 'block';
         btn.disabled = true;
         return;
@@ -2952,24 +2959,41 @@ window.chpwValidate = function () {
         return;
     }
     err.style.display = 'none';
-    btn.disabled = !(pw.length >= 8 && pw === cpw);
+    btn.disabled = !(cur.length > 0 && pw.length >= 8 && pw === cpw);
 };
 
 window.executeChangePassword = async function () {
-    const pw  = document.getElementById('chpwNewInput')?.value || '';
+    const cur = document.getElementById('chpwCurrentInput')?.value || '';
+    const pw  = document.getElementById('chpwNewInput')?.value    || '';
     const btn = document.getElementById('chpwSaveBtn');
     const err = document.getElementById('chpwError');
 
-    if (pw.length < 8) return;
+    if (!cur || pw.length < 8) return;
 
-    if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Updating…'; }
+    const saveBtnHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Update password';
+
+    if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Verifying…'; }
 
     try {
-        const { error } = await supabaseClient.auth.updateUser({ password: pw });
+        // Step 1 — re-authenticate with current password (required by Supabase)
+        const email = currentUser?.email;
+        if (!email) throw new Error('No user session found. Please log in again.');
 
-        if (error) {
-            if (err) { err.textContent = error.message || 'Failed to update password.'; err.style.display = 'block'; }
-            if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Update password'; }
+        const { error: signInErr } = await supabaseClient.auth.signInWithPassword({ email, password: cur });
+
+        if (signInErr) {
+            if (err) { err.textContent = 'Current password is incorrect.'; err.style.display = 'block'; }
+            if (btn) { btn.disabled = false; btn.innerHTML = saveBtnHTML; }
+            return;
+        }
+
+        // Step 2 — update to the new password
+        if (btn) btn.innerHTML = '⏳ Updating…';
+        const { error: updateErr } = await supabaseClient.auth.updateUser({ password: pw });
+
+        if (updateErr) {
+            if (err) { err.textContent = updateErr.message || 'Failed to update password.'; err.style.display = 'block'; }
+            if (btn) { btn.disabled = false; btn.innerHTML = saveBtnHTML; }
             return;
         }
 
@@ -2977,8 +3001,8 @@ window.executeChangePassword = async function () {
         showToast('✓ Password updated successfully');
 
     } catch (e) {
-        if (err) { err.textContent = 'Network error. Please try again.'; err.style.display = 'block'; }
-        if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Update password'; }
+        if (err) { err.textContent = e.message || 'Network error. Please try again.'; err.style.display = 'block'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = saveBtnHTML; }
     }
 };
 
