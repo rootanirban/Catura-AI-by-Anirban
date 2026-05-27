@@ -1322,14 +1322,14 @@ window.showSettingsTab = function (tab, clickedEl) {
             </div>
             <div class="sc-section">
                 <div class="sc-section-title">Subscription</div>
-                <div class="sc-row disabled">
+                <div class="sc-row" onclick="openPlansModal()" style="cursor:pointer;">
                     <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
                         <line x1="1" y1="10" x2="23" y2="10"></line>
                     </svg>
                     <div class="sc-row-body">
                         <p class="sc-row-label">Upgrade plan</p>
-                        <p class="sc-row-sub soon">Pro features — coming soon</p>
+                        <p class="sc-row-sub soon">View all plans</p>
                     </div>
                 </div>
                 <div class="sc-row disabled">
@@ -1337,8 +1337,8 @@ window.showSettingsTab = function (tab, clickedEl) {
                         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
                     </svg>
                     <div class="sc-row-body">
-                        <p class="sc-row-label">Current plan: Free</p>
-                        <p class="sc-row-sub">Unlimited chats with Dagr & Apep</p>
+                        <p class="sc-row-label">Current plan: Max</p>
+                        <p class="sc-row-sub">Access to all models with higher limits</p>
                     </div>
                 </div>
             </div>
@@ -2853,4 +2853,58 @@ window.executeDeleteAccount = async function () {
         alert('Network error. Please try again.');
         if (btn) { btn.disabled = false; btn.textContent = 'Delete my account'; }
     }
+};
+// ── PLANS MODAL ──────────────────────────────────────────────────────────────
+window.openPlansModal = function () {
+    const existing = document.getElementById('plansModal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'plansModal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);';
+
+    const freeFeatures = ['Unlimited chats with Dagr & Apep','Access to Sambhav model','Standard response speed','Basic file uploads'];
+    const proFeatures = ['Everything in Free','Access to Gemma & Gemma4 models','Priority response speed','Larger file uploads','Extended context window','Early access to new features'];
+    const maxFeatures = ['Everything in Pro','Access to Nivo & Laguna models','Fastest response speed','Unlimited file uploads','Maximum context window','Dedicated support'];
+
+    const check = (color) => `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+
+    const makeList = (items, color) => items.map(f => `<li style="display:flex;align-items:center;gap:8px;font-size:13px;color:#bbb;">${check(color)}${f}</li>`).join('');
+
+    modal.innerHTML = `
+    <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;width:min(860px,95vw);max-height:90vh;overflow-y:auto;padding:32px 28px;position:relative;box-shadow:0 24px 80px rgba(0,0,0,0.6);">
+        <button onclick="document.getElementById('plansModal').remove()" style="position:absolute;top:16px;right:18px;background:none;border:none;color:#888;font-size:20px;cursor:pointer;line-height:1;padding:4px 8px;border-radius:6px;">&#x2715;</button>
+        <h2 style="margin:0 0 6px;font-size:22px;color:#fff;font-weight:700;">Choose your plan</h2>
+        <p style="margin:0 0 28px;color:#888;font-size:14px;">Simple, transparent pricing. Upgrade or downgrade anytime.</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;">
+            <div style="background:#111;border:1px solid #2a2a2a;border-radius:12px;padding:24px 20px;display:flex;flex-direction:column;gap:12px;">
+                <div style="font-size:12px;color:#888;font-weight:600;letter-spacing:.06em;text-transform:uppercase;">Free</div>
+                <div style="font-size:32px;font-weight:800;color:#fff;">$0<span style="font-size:14px;font-weight:400;color:#666;">/mo</span></div>
+                <p style="font-size:13px;color:#999;margin:0;">Get started with core AI features, no credit card required.</p>
+                <hr style="border:none;border-top:1px solid #222;margin:4px 0;">
+                <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;">${makeList(freeFeatures,'#10a37f')}</ul>
+                <button disabled style="margin-top:auto;padding:10px;border-radius:8px;border:1px solid #333;background:#222;color:#666;font-size:13px;font-weight:600;cursor:default;">Current plan</button>
+            </div>
+            <div style="background:#111;border:1px solid rgba(16,163,127,0.35);border-radius:12px;padding:24px 20px;display:flex;flex-direction:column;gap:12px;position:relative;">
+                <div style="position:absolute;top:-1px;right:16px;background:#10a37f;color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:0 0 8px 8px;letter-spacing:.04em;text-transform:uppercase;">Popular</div>
+                <div style="font-size:12px;color:#10a37f;font-weight:600;letter-spacing:.06em;text-transform:uppercase;">Pro</div>
+                <div style="font-size:32px;font-weight:800;color:#fff;">$18<span style="font-size:14px;font-weight:400;color:#666;">/mo</span></div>
+                <p style="font-size:13px;color:#999;margin:0;">Everything in Free, plus priority access and advanced models.</p>
+                <hr style="border:none;border-top:1px solid #222;margin:4px 0;">
+                <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;">${makeList(proFeatures,'#10a37f')}</ul>
+                <button onclick="alert('Pro plan \u2014 coming soon! Stay tuned.')" style="margin-top:auto;padding:10px;border-radius:8px;border:none;background:#10a37f;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Upgrade to Pro</button>
+            </div>
+            <div style="background:linear-gradient(145deg,#1a1a1a,#121212);border:1px solid rgba(124,58,237,0.4);border-radius:12px;padding:24px 20px;display:flex;flex-direction:column;gap:12px;">
+                <div style="font-size:12px;color:#a78bfa;font-weight:600;letter-spacing:.06em;text-transform:uppercase;">Max</div>
+                <div style="font-size:32px;font-weight:800;color:#fff;">$35<span style="font-size:14px;font-weight:400;color:#666;">/mo</span></div>
+                <p style="font-size:13px;color:#999;margin:0;">Full access to every model and the highest usage limits.</p>
+                <hr style="border:none;border-top:1px solid #222;margin:4px 0;">
+                <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;">${makeList(maxFeatures,'#a78bfa')}</ul>
+                <button onclick="alert('Max plan \u2014 coming soon! Stay tuned.')" style="margin-top:auto;padding:10px;border-radius:8px;border:none;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Upgrade to Max</button>
+            </div>
+        </div>
+    </div>`;
+
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+    document.body.appendChild(modal);
 };
