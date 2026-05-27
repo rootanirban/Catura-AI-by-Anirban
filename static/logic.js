@@ -1087,7 +1087,7 @@ window.showSettingsTab = function (tab, clickedEl) {
             </div>
             <div class="sc-section">
                 <div class="sc-section-title">Preferences</div>
-                <div class="sc-row disabled">
+                <div class="sc-row" onclick="exportChatHistory()" style="cursor:pointer;">
                     <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
                         <polyline points="17 21 17 13 7 13 7 21"></polyline>
@@ -1095,8 +1095,13 @@ window.showSettingsTab = function (tab, clickedEl) {
                     </svg>
                     <div class="sc-row-body">
                         <p class="sc-row-label">Export chat history</p>
-                        <p class="sc-row-sub soon">Coming soon</p>
+                        <p class="sc-row-sub">Download all your chats as a JSON file</p>
                     </div>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-left:8px;">
+                        <polyline points="8 17 12 21 16 17"></polyline>
+                        <line x1="12" y1="12" x2="12" y2="21"></line>
+                        <path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"></path>
+                    </svg>
                 </div>
             </div>`,
 
@@ -1368,6 +1373,83 @@ window.showSettingsTab = function (tab, clickedEl) {
     };
 
     content.innerHTML = tabs[tab] || tabs.general;
+};
+
+// ============================
+// 📥 EXPORT CHAT HISTORY
+// ============================
+window.exportChatHistory = async function () {
+    if (!currentUser) { showToast('❌ Not logged in'); return; }
+
+    showToast('⏳ Preparing export…');
+
+    try {
+        // 1. Fetch all sessions
+        const { data: sessions, error: sessErr } = await supabaseClient
+            .from('chat_sessions')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .order('created_at', { ascending: true });
+
+        if (sessErr) throw sessErr;
+
+        // 2. Fetch all messages
+        const { data: messages, error: msgErr } = await supabaseClient
+            .from('messages')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .order('created_at', { ascending: true });
+
+        if (msgErr) throw msgErr;
+
+        // 3. Group messages under their sessions
+        const sessionMap = {};
+        (sessions || []).forEach(s => {
+            sessionMap[s.session_id || s.id] = {
+                title: s.title || 'Untitled chat',
+                created_at: s.created_at,
+                messages: []
+            };
+        });
+
+        (messages || []).forEach(m => {
+            const key = m.session_id;
+            if (sessionMap[key]) {
+                sessionMap[key].messages.push({
+                    role: m.role,
+                    content: m.content,
+                    created_at: m.created_at
+                });
+            }
+        });
+
+        // 4. Build export object
+        const exportData = {
+            exported_at: new Date().toISOString(),
+            user_email: currentUser.email,
+            total_chats: Object.keys(sessionMap).length,
+            total_messages: (messages || []).length,
+            chats: Object.values(sessionMap)
+        };
+
+        // 5. Download as JSON file
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const dateStr = new Date().toISOString().slice(0, 10);
+        a.download = `catura-chats-${dateStr}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showToast(`✓ Exported ${exportData.total_chats} chats successfully`);
+
+    } catch (err) {
+        console.error('Export error:', err);
+        showToast('❌ Export failed. Please try again.');
+    }
 };
 
 // ============================
