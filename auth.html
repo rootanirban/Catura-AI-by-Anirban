@@ -222,6 +222,73 @@
         .captcha-status.loading     { color: #888; }
         .captcha-status.error-state { color: #ff6b6b; }
 
+        /* ── Password visibility toggle ── */
+        .pw-wrap {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .pw-wrap input {
+            width: 100%;
+            padding-right: 40px !important;
+        }
+        .pw-toggle {
+            position: absolute;
+            right: 10px;
+            background: none;
+            border: none;
+            padding: 4px;
+            cursor: pointer;
+            color: #555;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: color 0.2s, opacity 0.2s;
+            flex-shrink: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .pw-toggle.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .pw-toggle:hover { color: #aaa; }
+        .pw-toggle:focus-visible {
+            outline: 2px solid #10a37f;
+            outline-offset: 2px;
+        }
+
+        /* ── Confirm password status icon ── */
+        .confirm-status {
+            position: absolute;
+            right: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .confirm-status.show { opacity: 1; }
+        .confirm-status .icon-match    { display: none; color: #10a37f; }
+        .confirm-status .icon-mismatch { display: none; color: #ff6b6b; }
+        .confirm-status .icon-required {
+            display: none;
+            width: 18px; height: 18px;
+            background: #ff6b6b;
+            border-radius: 50%;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+            color: #fff;
+            line-height: 1;
+        }
+        .confirm-status.state-match    .icon-match    { display: flex; }
+        .confirm-status.state-mismatch .icon-mismatch { display: flex; }
+        .confirm-status.state-required .icon-required { display: flex; }
+
         /* ── Password strength meter ── */
         .pw-strength {
             height: 4px; border-radius: 2px;
@@ -353,16 +420,21 @@
                             aria-label="Send password reset email"
                         >I forgot my password</button>
                     </div>
-                    <input
-                        type="password"
-                        id="password"
-                        name="password"
-                        placeholder="••••••••"
-                        autocomplete="current-password"
-                        required
-                        aria-required="true"
-                        oninput="checkSignupStrength(this.value)"
-                    >
+                    <div class="pw-wrap">
+                        <input
+                            type="password"
+                            id="password"
+                            name="password"
+                            placeholder="••••••••"
+                            autocomplete="current-password"
+                            required
+                            aria-required="true"
+                            oninput="onPasswordInput(this.value)"
+                        >
+                        <button type="button" class="pw-toggle" id="pwToggleBtn" onclick="togglePw('password', this)" aria-label="Show password">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
                     <div
                         class="pw-strength"
                         id="signupPwStrength"
@@ -376,18 +448,31 @@
                         <div class="pw-strength-bar" id="signupPwBar"></div>
                     </div>
                     <p class="pw-hint" id="signupPwHint" aria-live="polite" hidden></p>
-                </div>
+                </div><!-- /field password -->
 
                 <!-- Confirm password (sign-up only) -->
                 <div class="field" id="confirmField" hidden>
                     <label for="confirm">Confirm password</label>
-                    <input
-                        type="password"
-                        id="confirm"
-                        name="confirm"
-                        placeholder="Repeat password"
-                        autocomplete="new-password"
-                    >
+                    <div class="pw-wrap">
+                        <input
+                            type="password"
+                            id="confirm"
+                            name="confirm"
+                            placeholder="Repeat password"
+                            autocomplete="new-password"
+                            oninput="onConfirmInput(this.value)"
+                            onblur="onConfirmBlur()"
+                        >
+                        <!-- Status icon: shown instead of eye button -->
+                        <span class="confirm-status" id="confirmStatus" aria-live="polite" aria-label="">
+                            <!-- green tick: passwords match -->
+                            <svg class="icon-match" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                            <!-- red cross: passwords don't match -->
+                            <svg class="icon-mismatch" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            <!-- red ! badge: confirm empty but password has value -->
+                            <span class="icon-required" aria-hidden="true">!</span>
+                        </span>
+                    </div>
                 </div>
 
                 <!--
@@ -447,16 +532,21 @@
 
             <div class="field">
                 <label for="newPassword">New password</label>
-                <input
-                    type="password"
-                    id="newPassword"
-                    name="newPassword"
-                    placeholder="••••••••"
-                    autocomplete="new-password"
-                    required
-                    aria-required="true"
-                    oninput="checkStrength(this.value)"
-                >
+                <div class="pw-wrap">
+                    <input
+                        type="password"
+                        id="newPassword"
+                        name="newPassword"
+                        placeholder="••••••••"
+                        autocomplete="new-password"
+                        required
+                        aria-required="true"
+                        oninput="checkStrength(this.value)"
+                    >
+                    <button type="button" class="pw-toggle" onclick="togglePw('newPassword', this)" aria-label="Show new password">
+                        <svg id="eye-newPassword" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
+                </div>
                 <div
                     class="pw-strength"
                     role="progressbar"
@@ -473,15 +563,20 @@
 
             <div class="field">
                 <label for="newConfirm">Confirm new password</label>
-                <input
-                    type="password"
-                    id="newConfirm"
-                    name="newConfirm"
-                    placeholder="Repeat password"
-                    autocomplete="new-password"
-                    required
-                    aria-required="true"
-                >
+                <div class="pw-wrap">
+                    <input
+                        type="password"
+                        id="newConfirm"
+                        name="newConfirm"
+                        placeholder="Repeat password"
+                        autocomplete="new-password"
+                        required
+                        aria-required="true"
+                    >
+                    <button type="button" class="pw-toggle" onclick="togglePw('newConfirm', this)" aria-label="Show confirm new password">
+                        <svg id="eye-newConfirm" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
+                </div>
             </div>
 
             <button
@@ -666,6 +761,23 @@
 
             clearMsg('msg');
 
+            // Reset eye button state
+            const pwInput = document.getElementById('password');
+            const pwToggle = document.getElementById('pwToggleBtn');
+            pwInput.value = '';
+            pwInput.type  = 'password';
+            pwToggle.classList.remove('visible');
+            pwToggle.querySelector('svg').innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+
+            // Reset confirm field and its status
+            const confirmInput = document.getElementById('confirm');
+            confirmInput.value = '';
+            const confirmStatus = document.getElementById('confirmStatus');
+            confirmStatus.classList.remove('show', 'state-match', 'state-mismatch', 'state-required');
+
+            // Reset strength meter + identifier panel
+            checkSignupStrength('');
+
             // Tokens are single-use — reset on tab switch
             if (turnstileWidgetId !== null) {
                 window.turnstile.reset(turnstileWidgetId);
@@ -799,6 +911,81 @@
             else showMsg('msg', '✅ Reset email sent! Check your inbox.', 'success');
         }
 
+        // ═══════════════════════════════════════════════════════
+        // PASSWORD VISIBILITY TOGGLE
+        // ═══════════════════════════════════════════════════════
+        function togglePw(inputId, btn) {
+            const input = document.getElementById(inputId);
+            const isHidden = input.type === 'password';
+            input.type = isHidden ? 'text' : 'password';
+            btn.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+            const svg = btn.querySelector('svg');
+            if (isHidden) {
+                svg.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+            } else {
+                svg.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+            }
+        }
+
+        // Called on every keystroke in #password
+        function onPasswordInput(pw) {
+            // Show/hide eye button based on whether there's any value
+            const btn = document.getElementById('pwToggleBtn');
+            if (pw.length > 0) {
+                btn.classList.add('visible');
+            } else {
+                btn.classList.remove('visible');
+                // Reset eye to closed state when cleared
+                const input = document.getElementById('password');
+                input.type = 'password';
+                const svg = btn.querySelector('svg');
+                svg.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+            }
+            // Run strength meter (only relevant in signup mode)
+            checkSignupStrength(pw);
+            // Update confirm status if confirm has a value
+            const confirmVal = document.getElementById('confirm').value;
+            if (currentTab === 'signup') updateConfirmStatus(pw, confirmVal, false);
+        }
+
+        // Called on every keystroke in #confirm
+        function onConfirmInput(confirmVal) {
+            const pw = document.getElementById('password').value;
+            updateConfirmStatus(pw, confirmVal, false);
+        }
+
+        // Called when #confirm loses focus
+        function onConfirmBlur() {
+            const pw      = document.getElementById('password').value;
+            const confirm = document.getElementById('confirm').value;
+            updateConfirmStatus(pw, confirm, true);
+        }
+
+        // Updates the confirm status icon
+        // showRequired=true means: show ! only when confirm is empty (on blur)
+        function updateConfirmStatus(pw, confirmVal, showRequired) {
+            const status = document.getElementById('confirmStatus');
+            // Remove all state classes
+            status.classList.remove('show', 'state-match', 'state-mismatch', 'state-required');
+
+            if (!pw) return; // no main password typed yet — hide everything
+
+            if (confirmVal.length > 0) {
+                // User is typing in confirm field
+                if (confirmVal === pw) {
+                    status.classList.add('show', 'state-match');
+                    status.setAttribute('aria-label', 'Passwords match');
+                } else {
+                    status.classList.add('show', 'state-mismatch');
+                    status.setAttribute('aria-label', 'Passwords do not match');
+                }
+            } else if (showRequired) {
+                // Confirm is empty and user blurred — show required !
+                status.classList.add('show', 'state-required');
+                status.setAttribute('aria-label', 'Confirm password is required');
+            }
+        }
+
         // Enter key support
         document.addEventListener('keydown', e => {
             if (e.key === 'Enter') {
@@ -808,37 +995,119 @@
         });
 
         // ═══════════════════════════════════════════════════════
-        // PASSWORD STRENGTH METER (signup / password field)
+        // PASSWORD STRENGTH + IDENTIFIER ENGINE (signup)
         // ═══════════════════════════════════════════════════════
+
+        // Top-200 most common passwords (abbreviated representative set)
+        const COMMON_PASSWORDS = new Set([
+            'password','password1','password123','123456','1234567','12345678','123456789',
+            '1234567890','qwerty','qwerty123','qwertyuiop','abc123','letmein','monkey',
+            'dragon','master','sunshine','princess','welcome','shadow','superman','batman',
+            'football','baseball','soccer','iloveyou','trustno1','admin','login','pass',
+            'hello','hello123','test','test123','111111','222222','333333','444444',
+            '555555','666666','777777','888888','999999','000000','123123','321321',
+            '112233','445566','654321','987654','1q2w3e','zxcvbn','asdfgh','qazwsx',
+            'pass123','mypass','changeme','secret','access','michael','jessica','ashley',
+            '696969','batman1','passw0rd','p@ssword','pa$$word','p@$$w0rd','password!',
+            'Pa$sw0rd','admin123','welcome1','welcome123','abc12345','qwerty1','qwerty12',
+            'qwerty1234','1q2w3e4r','1q2w3e4r5','1q2w3e4r5t','1234abcd','12345abcde',
+            '123456abcde','password1234','password12345','password123456','letmein123',
+            'letmein1234','letmein12345','letmein123456','monkey123','monkey1234',
+            'monkey12345','monkey123456','dragon123','dragon1234',
+            'dragon12345','dragon123456','sunshine123','sunshine1234','sunshine12345',
+            'sunshine123456','princess123','princess1234','princess12345','princess123456','welcome1234','welcome12345','welcome123456',
+            'shadow123','shadow1234','shadow12345','shadow123456','superman123','superman1234',
+            'superman12345','superman123456','batman123','batman1234','batman12345','batman123456','football123','football1234','football12345','football123456','baseball123','baseball1234','baseball12345',
+            'baseball123456','soccer123','soccer1234','soccer12345','soccer123456','iloveyou123','iloveyou1234','iloveyou12345','iloveyou123456','trustno1123','admin1234','admin12345','admin123456','login123',
+            'login1234','login12345','login123456','pass1234','pass12345','pass123456',
+            'hello1234','hello12345','hello123456','test1234','test12345','test123456',
+            '11111111','22222222','33333333','44444444','55555555','66666666','77777777',
+            '88888888','99999999','00000000','12341234','43214321','1234512345','5432154321','123456123456','654321654321',
+            
+        ]);
+
+        // Common keyboard row patterns
+        const KEYBOARD_ROWS = ['qwertyuiop','asdfghjkl','zxcvbnm','1234567890'];
+
+        function isKeyboardPattern(pw) {
+            const lower = pw.toLowerCase();
+            for (const row of KEYBOARD_ROWS) {
+                // Check for any 4+ consecutive chars from a keyboard row (forward or backward)
+                for (let len = 4; len <= row.length; len++) {
+                    for (let i = 0; i <= row.length - len; i++) {
+                        const chunk = row.substring(i, i + len);
+                        if (lower.includes(chunk) || lower.includes(chunk.split('').reverse().join(''))) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function isSequential(pw) {
+            // Detects runs like abcde, 12345, zyxwv, 54321
+            const lower = pw.toLowerCase();
+            for (let i = 0; i < lower.length - 3; i++) {
+                const codes = [lower.charCodeAt(i), lower.charCodeAt(i+1), lower.charCodeAt(i+2), lower.charCodeAt(i+3)];
+                const diffs = [codes[1]-codes[0], codes[2]-codes[1], codes[3]-codes[2]];
+                if (diffs.every(d => d === 1) || diffs.every(d => d === -1)) return true;
+            }
+            return false;
+        }
+
+        function hasRepeatedChars(pw) {
+            // 3+ same char in a row, or >40% identical chars
+            if (/(.)\1{2,}/.test(pw)) return true;
+            const freq = {};
+            for (const c of pw) freq[c] = (freq[c] || 0) + 1;
+            const maxFreq = Math.max(...Object.values(freq));
+            return pw.length >= 6 && maxFreq / pw.length > 0.45;
+        }
+
         function checkSignupStrength(pw) {
-            const bar       = document.getElementById('signupPwBar');
-            const hint      = document.getElementById('signupPwHint');
-            const wrap      = document.getElementById('signupPwStrength');
-            const wrapEl    = document.getElementById('pwStrengthBar'); // reset screen fallback
+            const bar    = document.getElementById('signupPwBar');
+            const hint   = document.getElementById('signupPwHint');
+            const wrap   = document.getElementById('signupPwStrength');
+
             if (!pw) {
-                wrap.hidden  = true;
-                hint.hidden  = true;
+                wrap.hidden = true;
+                hint.hidden = true;
                 wrap.setAttribute('aria-valuenow', '0');
                 return;
             }
-            wrap.hidden  = false;
-            hint.hidden  = false;
 
+            wrap.hidden = false;
+            hint.hidden = false;
+
+            // ── Score calculation (weighted) ──
             let score = 0;
-            if (pw.length >= 6)           score++;
-            if (pw.length >= 10)          score++;
-            if (/[A-Z]/.test(pw))         score++;
-            if (/[0-9]/.test(pw))         score++;
-            if (/[^A-Za-z0-9]/.test(pw))  score++;
+
+            if (pw.length >= 6)  score += 1;
+            if (pw.length >= 10) score += 1;
+            if (pw.length >= 14) score += 1;
+
+            if (/[A-Z]/.test(pw))        score += 1;
+            if (/[0-9]/.test(pw))        score += 1;
+            if (/[^A-Za-z0-9]/.test(pw)) score += 1;
+
+            // Penalties
+            const lower = pw.toLowerCase();
+            if (COMMON_PASSWORDS.has(lower))  score = Math.max(0, score - 3);
+            if (isSequential(pw))             score = Math.max(0, score - 2);
+            if (hasRepeatedChars(pw))         score = Math.max(0, score - 1);
+            if (isKeyboardPattern(pw))        score = Math.max(0, score - 1);
+            if (/^[0-9]+$/.test(pw))          score = Math.max(0, score - 1);
+            if (/^[a-zA-Z]+$/.test(pw))       score = Math.max(0, score - 1);
 
             const levels = [
-                { pct: '10%',  color: '#e06c6c', label: 'Too short' },
-                { pct: '25%',  color: '#e06c6c', label: 'Weak' },
-                { pct: '50%',  color: '#e0a46c', label: 'Fair' },
-                { pct: '75%',  color: '#d4e06c', label: 'Good' },
-                { pct: '100%', color: '#10a37f', label: 'Strong' },
+                { pct: '8%',   color: '#e03030', label: 'Very Poor — easily guessed' },
+                { pct: '20%',  color: '#e06c6c', label: 'Poor — try adding variety' },
+                { pct: '45%',  color: '#e0a46c', label: 'Fair — could be stronger' },
+                { pct: '72%',  color: '#d4e06c', label: 'Good — almost there' },
+                { pct: '88%',  color: '#7ec87e', label: 'Strong — well done!' },
+                { pct: '100%', color: '#10a37f', label: 'Very Strong 🔒' },
             ];
-            const lvl = levels[Math.min(score, 4)];
+            const lvl = levels[Math.min(score, 5)];
+
             bar.style.width      = lvl.pct;
             bar.style.background = lvl.color;
             hint.textContent     = lvl.label;
