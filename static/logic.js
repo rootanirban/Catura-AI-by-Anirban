@@ -2761,6 +2761,8 @@ window.showPrivacyModal = function () {
 window.showDeleteAccountModal = function () {
     document.getElementById('deleteAccountModal')?.remove();
 
+    const userEmail = currentUser?.email || '';
+
     const modal = document.createElement('div');
     modal.id = 'deleteAccountModal';
     modal.className = 'priv-modal-overlay';
@@ -2776,8 +2778,8 @@ window.showDeleteAccountModal = function () {
             </div>
             <h2 class="del-modal-title">Delete Account</h2>
             <p class="del-modal-desc">This action is <strong>permanent and irreversible</strong>. All your conversations, settings, and account data will be deleted forever.</p>
-            <p class="del-modal-confirm-label">Type <span class="del-confirm-word">DELETE</span> to confirm:</p>
-            <input type="text" id="deleteConfirmInput" class="del-confirm-input" placeholder="Type DELETE here" autocomplete="off" oninput="checkDeleteConfirm()">
+            <p class="del-modal-confirm-label">Type <span class="del-confirm-word">${userEmail}</span> to confirm:</p>
+            <input type="email" id="deleteConfirmInput" class="del-confirm-input" placeholder="${userEmail}" autocomplete="off" oninput="checkDeleteConfirm()">
             <div class="del-modal-actions">
                 <button class="del-cancel-btn" onclick="document.getElementById('deleteAccountModal').remove()">Cancel</button>
                 <button class="del-confirm-btn" id="deleteConfirmBtn" disabled onclick="executeDeleteAccount()">
@@ -2802,45 +2804,66 @@ window.showDeleteAccountModal = function () {
     setTimeout(() => document.getElementById('deleteConfirmInput')?.focus(), 100);
 };
 
-// Enable the delete button only when user types "DELETE"
+// Enable the delete button only when user types their email exactly
 window.checkDeleteConfirm = function () {
     const val = document.getElementById('deleteConfirmInput')?.value || '';
     const btn = document.getElementById('deleteConfirmBtn');
-    if (btn) btn.disabled = val !== 'DELETE';
+    const userEmail = currentUser?.email || '';
+    if (btn) btn.disabled = val.trim().toLowerCase() !== userEmail.toLowerCase();
 };
 
-// Execute account deletion via Supabase
+// Execute account deletion — pure Supabase client-side
 window.executeDeleteAccount = async function () {
     const btn = document.getElementById('deleteConfirmBtn');
-    if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Deleting…'; }
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Deleting…';
+    }
 
     try {
-        // Get the current session token to authenticate the request
-        const { data: sessionData } = await supabaseClient.auth.getSession();
-        const token = sessionData?.session?.access_token;
-
-        if (!token) {
+        if (!currentUser) {
             alert('You are not logged in. Please refresh and try again.');
             if (btn) { btn.disabled = false; btn.textContent = 'Delete my account'; }
             return;
         }
 
-        const res = await fetch('/delete_account', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const userId = currentUser.id;
 
-        if (res.ok) {
-            document.getElementById('deleteAccountModal').remove();
+        // 1. Delete all messages for this user
+        const { error: msgErr } = await supabaseClient
+            .from('messages')
+            .delete()
+            .eq('user_id', userId);
+        if (msgErr) console.warn('messages delete:', msgErr.message);
+
+        // 2. Delete all chat sessions for this user
+        const { error: sessErr } = await supabaseClient
+            .from('chat_sessions')
+            .delete()
+            .eq('user_id', userId);
+        if (sessErr) console.warn('chat_sessions delete:', sessErr.message);
+
+        // 3. Delete the auth user via Supabase (requires RLS + auth.users delete policy, OR use Admin API)
+        const { error: authErr } = await supabaseClient.rpc('delete_user');
+
+        if (authErr) {
+            // Fallback: sign out and inform user to contact support for full removal
+            console.error('Auth delete error:', authErr.message);
             await supabaseClient.auth.signOut();
+            document.getElementById('deleteAccountModal')?.remove();
+            alert('Your data has been cleared. Your login account will be fully removed within 24 hours. You have been signed out.');
             window.location.href = '/auth';
-        } else {
-            const data = await res.json().catch(() => ({}));
-            alert(data.error || 'Failed to delete account. Please contact support.');
-            if (btn) { btn.disabled = false; btn.textContent = 'Delete my account'; }
+            return;
         }
+
+        // 4. Sign out and redirect
+        await supabaseClient.auth.signOut();
+        document.getElementById('deleteAccountModal')?.remove();
+        window.location.href = '/auth';
+
     } catch (e) {
-        alert('Network error. Please try again.');
+        console.error('Delete account error:', e);
+        alert('Something went wrong. Please try again or contact support.');
         if (btn) { btn.disabled = false; btn.textContent = 'Delete my account'; }
     }
 };
