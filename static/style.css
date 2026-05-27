@@ -5255,3 +5255,31 @@ html { scroll-behavior: smooth; }
 @media (max-width: 480px) {
     .chpw-modal-box { padding: 24px 18px 20px; }
 }
+
+/* ── CHANGE PASSWORD — OTP step additions ──────────────────────────────────── */
+.chpw-otp-input {
+    letter-spacing: 8px;
+    font-size: 22px !important;
+    font-weight: 700;
+    text-align: center;
+    padding: 14px 12px !important;
+}
+.chpw-resend-row {
+    margin: 12px 0 0;
+    font-size: 13px;
+    color: #666;
+    text-align: center;
+}
+.chpw-resend-btn {
+    background: none;
+    border: none;
+    color: #10a37f;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 0;
+    font-family: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.chpw-resend-btn:hover { color: #0d8f6f; }
+.chpw-resend-btn:disabled { color: #555; cursor: default; text-decoration: none; }

@@ -2855,70 +2855,119 @@ window.executeDeleteAccount = async function () {
     }
 };
 // ── CHANGE PASSWORD MODAL ─────────────────────────────────────────────────────
+// ── CHANGE PASSWORD — Supabase reauthenticate() OTP flow ─────────────────────
+//
+//  STEP 1 (chpw-step-1): User enters new password + confirm
+//         → clicks "Send verification code"
+//         → we call supabaseClient.auth.reauthenticate()
+//         → Supabase emails a 6-digit OTP using the Reauthentication template
+//
+//  STEP 2 (chpw-step-2): User enters the 6-digit OTP from email
+//         → clicks "Verify & update password"
+//         → we call supabaseClient.auth.verifyOtp({ type:'reauthentication', token })
+//           which re-auths the session, then immediately call updateUser({ password })
+//
+// ─────────────────────────────────────────────────────────────────────────────
+
+const eyeSVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+const eyeOffSVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+
 window.openChangePasswordModal = function () {
     document.getElementById('changePasswordModal')?.remove();
-
-    const eyeSVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
 
     const modal = document.createElement('div');
     modal.id = 'changePasswordModal';
     modal.className = 'priv-modal-overlay';
     modal.innerHTML = `
         <div class="priv-modal-box chpw-modal-box" role="dialog" aria-modal="true" aria-label="Change Password">
-            <div class="chpw-modal-icon-wrap">
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#10a37f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                </svg>
-            </div>
-            <h2 class="chpw-modal-title">Change Password</h2>
-            <p class="chpw-modal-desc">Verify your current password, then enter a new one (min 8 characters).</p>
 
-            <div class="chpw-field-wrap">
-                <label class="chpw-label">Current Password</label>
-                <div class="chpw-input-wrap">
-                    <input type="password" id="chpwCurrentInput" class="chpw-input" placeholder="Your current password" autocomplete="current-password" oninput="chpwValidate()">
-                    <button class="chpw-eye-btn" type="button" onclick="chpwToggleEye('chpwCurrentInput', this)" tabindex="-1">${eyeSVG}</button>
-                </div>
-            </div>
-
-            <div class="chpw-field-wrap">
-                <label class="chpw-label">New Password</label>
-                <div class="chpw-input-wrap">
-                    <input type="password" id="chpwNewInput" class="chpw-input" placeholder="New password" autocomplete="new-password" oninput="chpwValidate()">
-                    <button class="chpw-eye-btn" type="button" onclick="chpwToggleEye('chpwNewInput', this)" tabindex="-1">${eyeSVG}</button>
-                </div>
-            </div>
-
-            <div class="chpw-field-wrap">
-                <label class="chpw-label">Confirm New Password</label>
-                <div class="chpw-input-wrap">
-                    <input type="password" id="chpwConfirmInput" class="chpw-input" placeholder="Confirm new password" autocomplete="new-password" oninput="chpwValidate()">
-                    <button class="chpw-eye-btn" type="button" onclick="chpwToggleEye('chpwConfirmInput', this)" tabindex="-1">${eyeSVG}</button>
-                </div>
-            </div>
-
-            <p id="chpwError" class="chpw-error" style="display:none;"></p>
-
-            <div class="del-modal-actions" style="margin-top:20px;">
-                <button class="del-cancel-btn" onclick="document.getElementById('changePasswordModal').remove()">Cancel</button>
-                <button class="chpw-save-btn" id="chpwSaveBtn" disabled onclick="executeChangePassword()">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="20 6 9 17 4 12"/>
+            <!-- ── STEP 1: New password fields ── -->
+            <div id="chpw-step-1">
+                <div class="chpw-modal-icon-wrap">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#10a37f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                     </svg>
-                    Update password
-                </button>
+                </div>
+                <h2 class="chpw-modal-title">Change Password</h2>
+                <p class="chpw-modal-desc">Enter your new password. We'll send a verification code to <strong id="chpwEmailDisplay" style="color:#e8eaf0;"></strong> to confirm it's you.</p>
+
+                <div class="chpw-field-wrap">
+                    <label class="chpw-label">New Password</label>
+                    <div class="chpw-input-wrap">
+                        <input type="password" id="chpwNewInput" class="chpw-input" placeholder="New password (min 8 characters)" autocomplete="new-password" oninput="chpwValidateStep1()">
+                        <button class="chpw-eye-btn" type="button" onclick="chpwToggleEye('chpwNewInput',this)" tabindex="-1">${eyeSVG}</button>
+                    </div>
+                </div>
+
+                <div class="chpw-field-wrap">
+                    <label class="chpw-label">Confirm New Password</label>
+                    <div class="chpw-input-wrap">
+                        <input type="password" id="chpwConfirmInput" class="chpw-input" placeholder="Confirm new password" autocomplete="new-password" oninput="chpwValidateStep1()">
+                        <button class="chpw-eye-btn" type="button" onclick="chpwToggleEye('chpwConfirmInput',this)" tabindex="-1">${eyeSVG}</button>
+                    </div>
+                </div>
+
+                <p id="chpwStep1Error" class="chpw-error" style="display:none;"></p>
+
+                <div class="del-modal-actions" style="margin-top:20px;">
+                    <button class="del-cancel-btn" onclick="document.getElementById('changePasswordModal').remove()">Cancel</button>
+                    <button class="chpw-save-btn" id="chpwStep1Btn" disabled onclick="chpwSendOtp()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.15 3.4 2 2 0 0 1 3.12 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 8.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 16z"/>
+                        </svg>
+                        Send verification code
+                    </button>
+                </div>
             </div>
+
+            <!-- ── STEP 2: OTP entry ── -->
+            <div id="chpw-step-2" style="display:none;">
+                <div class="chpw-modal-icon-wrap" style="background:rgba(16,163,127,0.12); border-color:rgba(16,163,127,0.3);">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#10a37f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                        <polyline points="22,6 12,13 2,6"></polyline>
+                    </svg>
+                </div>
+                <h2 class="chpw-modal-title">Check your email</h2>
+                <p class="chpw-modal-desc">We sent a 6-digit verification code to <strong id="chpwEmailDisplay2" style="color:#e8eaf0;"></strong>. Enter it below to update your password.</p>
+
+                <div class="chpw-field-wrap">
+                    <label class="chpw-label">Verification Code</label>
+                    <input type="text" id="chpwOtpInput" class="chpw-input chpw-otp-input" placeholder="000000" maxlength="6" autocomplete="one-time-code" oninput="chpwValidateStep2()" style="letter-spacing:8px; font-size:22px; font-weight:700; text-align:center;">
+                </div>
+
+                <p id="chpwStep2Error" class="chpw-error" style="display:none;"></p>
+
+                <p class="chpw-resend-row">
+                    Didn't receive it? 
+                    <button class="chpw-resend-btn" id="chpwResendBtn" onclick="chpwResendOtp()">Resend code</button>
+                </p>
+
+                <div class="del-modal-actions" style="margin-top:20px;">
+                    <button class="del-cancel-btn" onclick="chpwBackToStep1()">← Back</button>
+                    <button class="chpw-save-btn" id="chpwStep2Btn" disabled onclick="chpwVerifyAndUpdate()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        Verify &amp; update password
+                    </button>
+                </div>
+            </div>
+
         </div>
     `;
 
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) modal.remove();
-    });
-
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
     document.body.appendChild(modal);
     requestAnimationFrame(() => modal.classList.add('priv-modal-open'));
-    setTimeout(() => document.getElementById('chpwCurrentInput')?.focus(), 100);
+
+    // Show user's email in the description
+    const email = currentUser?.email || '';
+    document.getElementById('chpwEmailDisplay').textContent  = email;
+    document.getElementById('chpwEmailDisplay2').textContent = email;
+
+    setTimeout(() => document.getElementById('chpwNewInput')?.focus(), 100);
 };
 
 window.chpwToggleEye = function (inputId, btn) {
@@ -2926,74 +2975,131 @@ window.chpwToggleEye = function (inputId, btn) {
     if (!input) return;
     const isHidden = input.type === 'password';
     input.type = isHidden ? 'text' : 'password';
-    btn.innerHTML = isHidden
-        ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`
-        : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+    btn.innerHTML = isHidden ? eyeOffSVG : eyeSVG;
 };
 
-window.chpwValidate = function () {
-    const cur = document.getElementById('chpwCurrentInput')?.value || '';
+window.chpwValidateStep1 = function () {
     const pw  = document.getElementById('chpwNewInput')?.value    || '';
     const cpw = document.getElementById('chpwConfirmInput')?.value || '';
-    const btn = document.getElementById('chpwSaveBtn');
-    const err = document.getElementById('chpwError');
-
+    const btn = document.getElementById('chpwStep1Btn');
+    const err = document.getElementById('chpwStep1Error');
     if (!btn || !err) return;
 
     if (pw.length > 0 && pw.length < 8) {
-        err.textContent = 'New password must be at least 8 characters.';
-        err.style.display = 'block';
-        btn.disabled = true;
-        return;
-    }
-    if (pw.length > 0 && cur.length > 0 && pw === cur) {
-        err.textContent = 'New password must be different from your current password.';
-        err.style.display = 'block';
-        btn.disabled = true;
-        return;
+        err.textContent = 'Password must be at least 8 characters.';
+        err.style.display = 'block'; btn.disabled = true; return;
     }
     if (cpw.length > 0 && pw !== cpw) {
         err.textContent = 'Passwords do not match.';
-        err.style.display = 'block';
-        btn.disabled = true;
-        return;
+        err.style.display = 'block'; btn.disabled = true; return;
     }
     err.style.display = 'none';
-    btn.disabled = !(cur.length > 0 && pw.length >= 8 && pw === cpw);
+    btn.disabled = !(pw.length >= 8 && pw === cpw);
 };
 
-window.executeChangePassword = async function () {
-    const cur = document.getElementById('chpwCurrentInput')?.value || '';
-    const pw  = document.getElementById('chpwNewInput')?.value    || '';
-    const btn = document.getElementById('chpwSaveBtn');
-    const err = document.getElementById('chpwError');
+window.chpwValidateStep2 = function () {
+    const otp = document.getElementById('chpwOtpInput')?.value.replace(/\D/g,'') || '';
+    // keep only digits
+    if (document.getElementById('chpwOtpInput'))
+        document.getElementById('chpwOtpInput').value = otp;
+    const btn = document.getElementById('chpwStep2Btn');
+    if (btn) btn.disabled = otp.length !== 6;
+};
 
-    if (!cur || pw.length < 8) return;
+window.chpwSendOtp = async function () {
+    const btn = document.getElementById('chpwStep1Btn');
+    const err = document.getElementById('chpwStep1Error');
+    const origHTML = btn.innerHTML;
 
-    const saveBtnHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Update password';
-
-    if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Verifying…'; }
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Sending…';
 
     try {
-        // Step 1 — re-authenticate with current password (required by Supabase)
-        const email = currentUser?.email;
-        if (!email) throw new Error('No user session found. Please log in again.');
+        const { error } = await supabaseClient.auth.reauthenticate();
+        if (error) throw error;
 
-        const { error: signInErr } = await supabaseClient.auth.signInWithPassword({ email, password: cur });
+        // Switch to step 2
+        document.getElementById('chpw-step-1').style.display = 'none';
+        document.getElementById('chpw-step-2').style.display = 'block';
+        setTimeout(() => document.getElementById('chpwOtpInput')?.focus(), 100);
 
-        if (signInErr) {
-            if (err) { err.textContent = 'Current password is incorrect.'; err.style.display = 'block'; }
-            if (btn) { btn.disabled = false; btn.innerHTML = saveBtnHTML; }
+    } catch (e) {
+        err.textContent = e.message || 'Failed to send code. Please try again.';
+        err.style.display = 'block';
+        btn.disabled = false;
+        btn.innerHTML = origHTML;
+    }
+};
+
+window.chpwResendOtp = async function () {
+    const btn   = document.getElementById('chpwResendBtn');
+    const err   = document.getElementById('chpwStep2Error');
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+
+    try {
+        const { error } = await supabaseClient.auth.reauthenticate();
+        if (error) throw error;
+        btn.textContent = '✓ Sent!';
+        if (err) err.style.display = 'none';
+        setTimeout(() => { btn.disabled = false; btn.textContent = 'Resend code'; }, 30000);
+    } catch (e) {
+        err.textContent = e.message || 'Failed to resend. Try again.';
+        err.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Resend code';
+    }
+};
+
+window.chpwBackToStep1 = function () {
+    document.getElementById('chpw-step-2').style.display = 'none';
+    document.getElementById('chpw-step-1').style.display = 'block';
+    document.getElementById('chpwStep2Error').style.display = 'none';
+    document.getElementById('chpwOtpInput').value = '';
+    document.getElementById('chpwStep2Btn').disabled = true;
+};
+
+window.chpwVerifyAndUpdate = async function () {
+    const otp = document.getElementById('chpwOtpInput')?.value.trim() || '';
+    const pw  = document.getElementById('chpwNewInput')?.value        || '';
+    const btn = document.getElementById('chpwStep2Btn');
+    const err = document.getElementById('chpwStep2Error');
+    const email = currentUser?.email || '';
+
+    if (otp.length !== 6 || pw.length < 8) return;
+
+    const saveBtnHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Verify &amp; update password';
+
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Verifying…';
+
+    try {
+        // Step A — verify the OTP (this re-auths the session)
+        const { error: otpErr } = await supabaseClient.auth.verifyOtp({
+            email,
+            token: otp,
+            type: 'reauthentication'
+        });
+
+        if (otpErr) {
+            err.textContent = otpErr.code === 'otp_expired'
+                ? 'Code expired. Click "Resend code" to get a new one.'
+                : 'Invalid code. Please check your email and try again.';
+            err.style.display = 'block';
+            btn.disabled = false;
+            btn.innerHTML = saveBtnHTML;
             return;
         }
 
-        // Step 2 — update to the new password
-        if (btn) btn.innerHTML = '⏳ Updating…';
+        // Step B — now session is freshly re-authed, update the password
+        btn.innerHTML = '⏳ Updating…';
         const { error: updateErr } = await supabaseClient.auth.updateUser({ password: pw });
 
         if (updateErr) {
-            if (err) { err.textContent = updateErr.message || 'Failed to update password.'; err.style.display = 'block'; }
-            if (btn) { btn.disabled = false; btn.innerHTML = saveBtnHTML; }
+            err.textContent = updateErr.message || 'Failed to update password.';
+            err.style.display = 'block';
+            btn.disabled = false;
+            btn.innerHTML = saveBtnHTML;
             return;
         }
 
@@ -3001,8 +3107,10 @@ window.executeChangePassword = async function () {
         showToast('✓ Password updated successfully');
 
     } catch (e) {
-        if (err) { err.textContent = e.message || 'Network error. Please try again.'; err.style.display = 'block'; }
-        if (btn) { btn.disabled = false; btn.innerHTML = saveBtnHTML; }
+        err.textContent = e.message || 'Network error. Please try again.';
+        err.style.display = 'block';
+        btn.disabled = false;
+        btn.innerHTML = saveBtnHTML;
     }
 };
 
