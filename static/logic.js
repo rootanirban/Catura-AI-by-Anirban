@@ -1344,14 +1344,14 @@ window.showSettingsTab = function (tab, clickedEl) {
             </div>
             <div class="sc-section">
                 <div class="sc-section-title">Security</div>
-                <div class="sc-row disabled">
+                <div class="sc-row" onclick="openChangePasswordModal()" style="cursor:pointer;">
                     <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                         <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                     </svg>
                     <div class="sc-row-body">
                         <p class="sc-row-label">Change password</p>
-                        <p class="sc-row-sub soon">Coming soon</p>
+                        <p class="sc-row-sub">Update your account password</p>
                     </div>
                 </div>
                 <div class="sc-row disabled">
@@ -2854,7 +2854,135 @@ window.executeDeleteAccount = async function () {
         if (btn) { btn.disabled = false; btn.textContent = 'Delete my account'; }
     }
 };
-// ── PLANS MODAL ──────────────────────────────────────────────────────────────
+// ── CHANGE PASSWORD MODAL ─────────────────────────────────────────────────────
+window.openChangePasswordModal = function () {
+    document.getElementById('changePasswordModal')?.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'changePasswordModal';
+    modal.className = 'priv-modal-overlay';
+    modal.innerHTML = `
+        <div class="priv-modal-box chpw-modal-box" role="dialog" aria-modal="true" aria-label="Change Password">
+            <div class="chpw-modal-icon-wrap">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#10a37f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+            </div>
+            <h2 class="chpw-modal-title">Change Password</h2>
+            <p class="chpw-modal-desc">Enter your new password below. It must be at least 8 characters.</p>
+
+            <div class="chpw-field-wrap">
+                <label class="chpw-label">New Password</label>
+                <div class="chpw-input-wrap">
+                    <input type="password" id="chpwNewInput" class="chpw-input" placeholder="New password" autocomplete="new-password" oninput="chpwValidate()">
+                    <button class="chpw-eye-btn" type="button" onclick="chpwToggleEye('chpwNewInput', this)" tabindex="-1">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="chpw-field-wrap">
+                <label class="chpw-label">Confirm New Password</label>
+                <div class="chpw-input-wrap">
+                    <input type="password" id="chpwConfirmInput" class="chpw-input" placeholder="Confirm new password" autocomplete="new-password" oninput="chpwValidate()">
+                    <button class="chpw-eye-btn" type="button" onclick="chpwToggleEye('chpwConfirmInput', this)" tabindex="-1">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <p id="chpwError" class="chpw-error" style="display:none;"></p>
+
+            <div class="del-modal-actions" style="margin-top:20px;">
+                <button class="del-cancel-btn" onclick="document.getElementById('changePasswordModal').remove()">Cancel</button>
+                <button class="chpw-save-btn" id="chpwSaveBtn" disabled onclick="executeChangePassword()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Update password
+                </button>
+            </div>
+        </div>
+    `;
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+
+    document.body.appendChild(modal);
+    requestAnimationFrame(() => modal.classList.add('priv-modal-open'));
+    setTimeout(() => document.getElementById('chpwNewInput')?.focus(), 100);
+};
+
+window.chpwToggleEye = function (inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const isHidden = input.type === 'password';
+    input.type = isHidden ? 'text' : 'password';
+    btn.innerHTML = isHidden
+        ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`
+        : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+};
+
+window.chpwValidate = function () {
+    const pw  = document.getElementById('chpwNewInput')?.value  || '';
+    const cpw = document.getElementById('chpwConfirmInput')?.value || '';
+    const btn = document.getElementById('chpwSaveBtn');
+    const err = document.getElementById('chpwError');
+
+    if (!btn || !err) return;
+
+    if (pw.length > 0 && pw.length < 8) {
+        err.textContent = 'Password must be at least 8 characters.';
+        err.style.display = 'block';
+        btn.disabled = true;
+        return;
+    }
+    if (cpw.length > 0 && pw !== cpw) {
+        err.textContent = 'Passwords do not match.';
+        err.style.display = 'block';
+        btn.disabled = true;
+        return;
+    }
+    err.style.display = 'none';
+    btn.disabled = !(pw.length >= 8 && pw === cpw);
+};
+
+window.executeChangePassword = async function () {
+    const pw  = document.getElementById('chpwNewInput')?.value || '';
+    const btn = document.getElementById('chpwSaveBtn');
+    const err = document.getElementById('chpwError');
+
+    if (pw.length < 8) return;
+
+    if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Updating…'; }
+
+    try {
+        const { error } = await supabaseClient.auth.updateUser({ password: pw });
+
+        if (error) {
+            if (err) { err.textContent = error.message || 'Failed to update password.'; err.style.display = 'block'; }
+            if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Update password'; }
+            return;
+        }
+
+        document.getElementById('changePasswordModal')?.remove();
+        showToast('✓ Password updated successfully');
+
+    } catch (e) {
+        if (err) { err.textContent = 'Network error. Please try again.'; err.style.display = 'block'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Update password'; }
+    }
+};
+
+// ── PLANS MODAL ───────────────────────────────────────────────────────────────
 window.openPlansModal = function () {
     const existing = document.getElementById('plansModal');
     if (existing) existing.remove();
