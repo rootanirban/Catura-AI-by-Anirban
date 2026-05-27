@@ -78,7 +78,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-    <link rel="stylesheet" href="static/style.css?v=0.0.167">   <!-- this is CSS linking section -->
+    <link rel="stylesheet" href="static/style.css?v=0.0.168">   <!-- this is CSS linking section -->
     
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#000000" />
@@ -138,9 +138,8 @@
         </button>
 
         <button class="rail-btn" onclick="showSettings()" title="Settings">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="3"></circle>
-                <path d="M12 1v6m0 6v6m10.39-9.39l-4.24 4.24m-8.3 0l-4.24-4.24m12.53 8.53l4.24 4.24m-8.3 0l4.24-4.24"></path>
+            <svg width="18" height="18" viewBox="0 0 100 100" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M50 0 C47 0 44 2 44 5 L44 12 C40 13 36 15 33 17 L27 11 C25 9 22 9 20 11 L11 20 C9 22 9 25 11 27 L17 33 C15 36 13 40 12 44 L5 44 C2 44 0 47 0 50 C0 53 2 56 5 56 L12 56 C13 60 15 64 17 67 L11 73 C9 75 9 78 11 80 L20 89 C22 91 25 91 27 89 L33 83 C36 85 40 87 44 88 L44 95 C44 98 47 100 50 100 C53 100 56 98 56 95 L56 88 C60 87 64 85 67 83 L73 89 C75 91 78 91 80 89 L89 80 C91 78 91 75 89 73 L83 67 C85 64 87 60 88 56 L95 56 C98 56 100 53 100 50 C100 47 98 44 95 44 L88 44 C87 40 85 36 83 33 L89 27 C91 25 91 22 89 20 L80 11 C78 9 75 9 73 11 L67 17 C64 15 60 13 56 12 L56 5 C56 2 53 0 50 0 Z M50 15 L53 15 L53 23 C57 24 61 25 64 28 L71 21 L73 23 L66 30 C69 33 71 37 72 41 L80 41 L80 43 L80 50 L72 50 C71 54 69 58 66 61 L73 68 L71 70 L64 63 C61 66 57 68 53 69 L53 77 L50 77 L47 77 L47 69 C43 68 39 66 36 63 L29 70 L27 68 L34 61 C31 58 29 54 28 50 L20 50 L20 41 L28 41 C29 37 31 33 34 30 L27 23 L29 21 L36 28 C39 25 43 24 47 23 L47 15 Z M50 35 C42 35 35 42 35 50 C35 58 42 65 50 65 C58 65 65 58 65 50 C65 42 58 35 50 35 Z M50 40 C55 40 60 45 60 50 C60 55 55 60 50 60 C45 60 40 55 40 50 C40 45 45 40 50 40 Z"/>
             </svg>
         </button>
 
@@ -213,9 +212,8 @@
                         Profile
                     </div>
                     <div class="user-dropdown-item" onclick="showSettings(); closeUserDropdown()">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="3"></circle>
-                            <path d="M12 1v6m0 6v6m10.39-9.39l-4.24 4.24m-8.3 0l-4.24-4.24m12.53 8.53l4.24 4.24m-8.3 0l4.24-4.24"></path>
+                        <svg width="16" height="16" viewBox="0 0 100 100" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M50 0 C47 0 44 2 44 5 L44 12 C40 13 36 15 33 17 L27 11 C25 9 22 9 20 11 L11 20 C9 22 9 25 11 27 L17 33 C15 36 13 40 12 44 L5 44 C2 44 0 47 0 50 C0 53 2 56 5 56 L12 56 C13 60 15 64 17 67 L11 73 C9 75 9 78 11 80 L20 89 C22 91 25 91 27 89 L33 83 C36 85 40 87 44 88 L44 95 C44 98 47 100 50 100 C53 100 56 98 56 95 L56 88 C60 87 64 85 67 83 L73 89 C75 91 78 91 80 89 L89 80 C91 78 91 75 89 73 L83 67 C85 64 87 60 88 56 L95 56 C98 56 100 53 100 50 C100 47 98 44 95 44 L88 44 C87 40 85 36 83 33 L89 27 C91 25 91 22 89 20 L80 11 C78 9 75 9 73 11 L67 17 C64 15 60 13 56 12 L56 5 C56 2 53 0 50 0 Z M50 15 L53 15 L53 23 C57 24 61 25 64 28 L71 21 L73 23 L66 30 C69 33 71 37 72 41 L80 41 L80 43 L80 50 L72 50 C71 54 69 58 66 61 L73 68 L71 70 L64 63 C61 66 57 68 53 69 L53 77 L50 77 L47 77 L47 69 C43 68 39 66 36 63 L29 70 L27 68 L34 61 C31 58 29 54 28 50 L20 50 L20 41 L28 41 C29 37 31 33 34 30 L27 23 L29 21 L36 28 C39 25 43 24 47 23 L47 15 Z M50 35 C42 35 35 42 35 50 C35 58 42 65 50 65 C58 65 65 58 65 50 C65 42 58 35 50 35 Z M50 40 C55 40 60 45 60 50 C60 55 55 60 50 60 C45 60 40 55 40 50 C40 45 45 40 50 40 Z"/>
                         </svg>
                         Settings
                     </div>
@@ -500,17 +498,17 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
     
     <!-- ✅ CACHE BUSTING - VERSION PARAMETER -->
-    <script src="static/firebase-config.js?v=0.0.167"></script>
-    <script src="static/logic.js?v=0.0.167"></script>
-    <script src="static/feedback.js?v=0.0.167"></script>
-    <script src="static/file-upload.js?v=0.0.167"></script>
+    <script src="static/firebase-config.js?v=0.0.168"></script>
+    <script src="static/logic.js?v=0.0.168"></script>
+    <script src="static/feedback.js?v=0.0.168"></script>
+    <script src="static/file-upload.js?v=0.0.168"></script>
 
     <script>
         console.log('🚀 Catura AI v27.0.5 loaded');
         
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js?v=0.0.167')
+                navigator.serviceWorker.register('/service-worker.js?v=0.0.168')
                     .then(() => console.log('✅ Catura AI PWA Ready - v27.0.5'))
                     .catch((err) => console.log('❌ SW Error:', err));
             });
