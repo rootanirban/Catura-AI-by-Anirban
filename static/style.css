@@ -5316,3 +5316,138 @@ kbd.shortcut-key {
 }
 .chpw-resend-btn:hover { color: #0d8f6f; }
 .chpw-resend-btn:disabled { color: #555; cursor: default; text-decoration: none; }
+
+/* ============================
+   👻 GHOST CHAT BUTTON & MODE
+   ============================ */
+
+/* Ghost button — top right of chat area */
+.ghost-chat-btn {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    z-index: 120;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px 7px 10px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+    color: #666;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
+    letter-spacing: 0.01em;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+.ghost-chat-btn:hover {
+    background: rgba(160,190,255,0.08);
+    border-color: rgba(160,190,255,0.2);
+    color: #aac4ff;
+}
+.ghost-chat-btn.ghost-active {
+    background: rgba(100,140,255,0.14);
+    border-color: rgba(120,160,255,0.4);
+    color: #a8c4ff;
+    box-shadow: 0 0 12px rgba(100,140,255,0.2), inset 0 0 8px rgba(100,140,255,0.06);
+}
+.ghost-chat-btn.ghost-active .ghost-icon-svg {
+    filter: drop-shadow(0 0 5px rgba(120,160,255,0.6));
+    animation: ghostFloat 3s ease-in-out infinite;
+}
+.ghost-label {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* Floating ghost icon animation */
+@keyframes ghostFloat {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-2px); }
+}
+
+/* Ghost mode banner — below the button */
+.ghost-banner {
+    position: absolute;
+    top: 52px;
+    right: 16px;
+    z-index: 119;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 12px;
+    background: rgba(80,110,220,0.12);
+    border: 1px solid rgba(120,160,255,0.22);
+    border-radius: 20px;
+    font-size: 11px;
+    color: #8aaeff;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    animation: ghostBannerIn 0.3s cubic-bezier(0.34,1.2,0.64,1);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+@keyframes ghostBannerIn {
+    from { opacity: 0; transform: translateY(-6px) scale(0.95); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Ghost mode — tint the chat area slightly */
+.app.ghost-mode #chatbox {
+    background: transparent;
+}
+/* Subtle ghostly overlay on input area when ghost mode is ON */
+.app.ghost-mode .input-area {
+    border-color: rgba(100,140,255,0.18) !important;
+}
+.app.ghost-mode .input-area textarea::placeholder {
+    color: #5a6aaa;
+}
+
+/* Light theme adjustments */
+[data-theme="light"] .ghost-chat-btn {
+    background: rgba(0,0,0,0.04);
+    border-color: rgba(0,0,0,0.1);
+    color: #888;
+}
+[data-theme="light"] .ghost-chat-btn:hover {
+    background: rgba(80,120,240,0.07);
+    border-color: rgba(80,120,240,0.2);
+    color: #4a6fd8;
+}
+[data-theme="light"] .ghost-chat-btn.ghost-active {
+    background: rgba(80,120,240,0.1);
+    border-color: rgba(80,120,240,0.35);
+    color: #4a6fd8;
+}
+[data-theme="light"] .ghost-banner {
+    background: rgba(80,120,240,0.07);
+    border-color: rgba(80,120,240,0.2);
+    color: #4a6fd8;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+    .ghost-chat-btn {
+        top: 10px;
+        right: 10px;
+        padding: 6px 10px 6px 8px;
+    }
+    .ghost-label {
+        display: none;
+    }
+    .ghost-chat-btn {
+        border-radius: 50%;
+        padding: 8px;
+    }
+    .ghost-banner {
+        top: 48px;
+        right: 10px;
+        font-size: 10px;
+        padding: 4px 10px;
+    }
+}

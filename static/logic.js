@@ -50,8 +50,39 @@ let chatTitle = "New Chat";
 let firstMessage = true;
 
 // ============================
-// ⏰ TIME-BASED GREETING SYSTEM
+// 👻 GHOST CHAT STATE
 // ============================
+let ghostChatEnabled = false;
+let ghostMemory = [];          // sliding window — max 12 exchanges (24 messages)
+const GHOST_WINDOW = 24;       // 12 user + 12 bot = 24 messages kept
+
+window.toggleGhostChat = function () {
+    ghostChatEnabled = !ghostChatEnabled;
+    const btn    = document.getElementById('ghostChatBtn');
+    const banner = document.getElementById('ghostBanner');
+
+    if (ghostChatEnabled) {
+        // Activate ghost mode
+        ghostMemory = [];
+        btn?.classList.add('ghost-active');
+        if (banner) banner.style.display = 'flex';
+        document.getElementById('app')?.classList.add('ghost-mode');
+        // Start a fresh ghost session (clear screen)
+        newChat();
+        showToast('👻 Ghost Chat ON — nothing will be saved');
+    } else {
+        // Deactivate — wipe ghost memory, return to normal
+        ghostMemory = [];
+        btn?.classList.remove('ghost-active');
+        if (banner) banner.style.display = 'none';
+        document.getElementById('app')?.classList.remove('ghost-mode');
+        // Clear the ghost chat from screen and start fresh normal chat
+        newChat();
+        showToast('Ghost Chat OFF — back to normal');
+    }
+};
+
+
 function getTimeOfDay() {
     const hour = new Date().getHours();
     
@@ -1925,6 +1956,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         if (firstMessage) {
             firstMessage = false;
 
+            if (!ghostChatEnabled) {
             // Immediately insert with a placeholder title, then update with AI-generated one
             chatTitle = (message || (filesToSend.length ? filesToSend[0].name : 'File Chat')).substring(0, 40);
             const { error } = await supabaseClient.from("chat_sessions").insert([{
@@ -1970,10 +2002,11 @@ document.addEventListener("DOMContentLoaded", async function () {
                 })
                 .catch(err => console.warn("Title gen failed:", err));
             }
+            } // end !ghostChatEnabled
         }
 
         // ── Save user message to DB ──────────────────────────────────────────
-        const fileUrls = filesToSend.map(function(f) { return f.url; });
+        if (!ghostChatEnabled) {
         const { error: userError } = await supabaseClient.from("messages").insert([{
             role      : "user",
             content   : message,
@@ -1982,11 +2015,15 @@ document.addEventListener("DOMContentLoaded", async function () {
             file_urls : fileUrls.length > 0 ? fileUrls : null
         }]);
         if (userError) console.error("❌ User message save failed:", userError.message);
+        }
 
         // ── Clear input ──────────────────────────────────────────────────────
         input.value = "";
         input.style.height = "auto";
         chatbox.scrollTop = chatbox.scrollHeight;
+
+        // ── File URLs (needed for fetch payload) ─────────────────────────────
+        const fileUrls = filesToSend.map(function(f) { return f.url; });
 
         // ── Thinking indicator ───────────────────────────────────────────────
         const heavy   = isHeavyQuery(message || (filesToSend.length ? filesToSend[0].name : ''));
@@ -2013,6 +2050,15 @@ document.addEventListener("DOMContentLoaded", async function () {
 
         try {
             const model = getSelectedModel();
+
+            // ── Build ghost history payload (sliding window) ─────────────────
+            if (ghostChatEnabled) {
+                ghostMemory.push({ role: "user", content: promptText });
+                if (ghostMemory.length > GHOST_WINDOW) {
+                    ghostMemory = ghostMemory.slice(ghostMemory.length - GHOST_WINDOW);
+                }
+            }
+
             const res = await fetch("/chat", {
                 method : "POST",
                 headers: { "Content-Type": "application/json" },
@@ -2020,9 +2066,11 @@ document.addEventListener("DOMContentLoaded", async function () {
                 body   : JSON.stringify({
                     prompt    : promptText,
                     model     : model,
-                    file_urls : fileUrls,
+                    file_urls : ghostChatEnabled ? [] : fileUrls,
                     web_results: webResults,
-                    web_search_enabled: webSearchEnabled
+                    web_search_enabled: ghostChatEnabled ? false : webSearchEnabled,
+                    ghost_mode : ghostChatEnabled,
+                    ghost_history: ghostChatEnabled ? ghostMemory.slice(0, -1) : []
                 })
             });
             if (!res.ok) throw new Error("Server error " + res.status);
@@ -2111,6 +2159,13 @@ document.addEventListener("DOMContentLoaded", async function () {
             }
 
             if (fullReply) {
+                if (ghostChatEnabled) {
+                    // Append bot reply to ghost memory (sliding window)
+                    ghostMemory.push({ role: "assistant", content: fullReply });
+                    if (ghostMemory.length > GHOST_WINDOW) {
+                        ghostMemory = ghostMemory.slice(ghostMemory.length - GHOST_WINDOW);
+                    }
+                } else {
                 const { error: botError } = await supabaseClient.from("messages").insert([{
                     role      : "bot",
                     content   : fullReply,
@@ -2118,6 +2173,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                     user_id   : currentUser.id
                 }]);
                 if (botError) console.error("❌ Bot message save failed:", botError.message);
+                }
             }
 
         } catch (err) {

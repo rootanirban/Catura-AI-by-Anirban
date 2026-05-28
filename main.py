@@ -345,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.170"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.171"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +355,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.170", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.171", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -2641,6 +2641,8 @@ async def chat_post(request: Request):
         model      = body.get("model", "dagr")
         file_urls  = body.get("file_urls", [])
         web_search_forced = body.get("web_search_enabled", False)
+        ghost_mode    = body.get("ghost_mode", False)
+        ghost_history = body.get("ghost_history", [])   # list of {role, content}
         # Legacy web_results from frontend removed — backend handles all search internally
         web_results = []
 
@@ -2665,6 +2667,14 @@ async def chat_post(request: Request):
         if session_id not in user_memory:
             user_memory[session_id] = []
 
+        # ── GHOST MODE: use ephemeral history from frontend; never persist ─────
+        # In ghost mode the frontend owns the sliding window (max 12 exchanges).
+        # We rebuild a temporary list just for this request and never write it back.
+        if ghost_mode:
+            active_memory = list(ghost_history)   # previous turns sent by frontend
+        else:
+            active_memory = user_memory[session_id]
+
         # ── FILE CONTENT INJECTION ─────────────────────────────────────────
         # Download and inject file content BEFORE appending to memory so ALL
         # models (Dagr, Apep, Sambhav, Gemma) actually see file contents —
@@ -2687,7 +2697,12 @@ async def chat_post(request: Request):
                     + file_text_context
                 )
 
-        user_memory[session_id].append({"role": "user", "content": user_message_content})
+        # Add current user turn to the working memory list
+        # (ghost: this mutates our local copy only; normal: mutates the server store)
+        active_memory.append({"role": "user", "content": user_message_content})
+        if not ghost_mode:
+            # Keep server-side memory in sync (it IS active_memory, same reference)
+            pass  # already appended above via reference
 
         # ── MODEL POOLS ────────────────────────────────────────────────────
         # Gemma models → Google AI Studio (GEMINI_API_KEY), NOT OpenRouter
@@ -2981,7 +2996,7 @@ async def chat_post(request: Request):
 
         # Step 2: build final messages list (tool context added inside generator)
         base_system_prompt = system_prompt  # save before tool injection
-        messages_base = [{"role": "system", "content": system_prompt}] + user_memory[session_id][-20:]
+        messages_base = [{"role": "system", "content": system_prompt}] + active_memory[-20:]
         api_key  = os.getenv("OPENROUTER_API_KEY")
 
         # ── SAMBHAV: llama-3.3-70b-versatile via Groq API ──
@@ -3012,7 +3027,7 @@ async def chat_post(request: Request):
 
                 sambhav_messages = (
                     [{"role": "system", "content": final_system}]
-                    + user_memory[session_id][-20:]
+                    + active_memory[-20:]
                 )
                 resp, err = call_sambhav_groq_stream(sambhav_messages, sambhav_groq_key)
 
@@ -3049,8 +3064,8 @@ async def chat_post(request: Request):
                     print(f"❌ [Sambhav] stream exception: {e}")
 
                 if full_reply.strip():
-                    user_memory[session_id].append({"role": "assistant", "content": full_reply})
-                    if len(user_memory[session_id]) > 40:
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
                 yield "data: [DONE]\n\n"
 
@@ -3090,7 +3105,7 @@ async def chat_post(request: Request):
 
                 laguna_messages = (
                     [{"role": "system", "content": final_system_l}]
-                    + user_memory[session_id][-20:]
+                    + active_memory[-20:]
                 )
 
                 resp, err = call_poolside_stream(laguna_messages, poolside_key)
@@ -3127,8 +3142,8 @@ async def chat_post(request: Request):
                     print(f"❌ [Laguna] stream exception: {e}")
 
                 if full_reply.strip():
-                    user_memory[session_id].append({"role": "assistant", "content": full_reply})
-                    if len(user_memory[session_id]) > 40:
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
                 yield "data: [DONE]\n\n"
 
@@ -3170,7 +3185,7 @@ async def chat_post(request: Request):
                 # Build full messages list for Groq
                 nivo_messages = (
                     [{"role": "system", "content": final_system_n}]
-                    + user_memory[session_id][-20:]
+                    + active_memory[-20:]
                 )
 
                 resp, err = call_groq_stream(nivo_messages, groq_key)
@@ -3207,8 +3222,8 @@ async def chat_post(request: Request):
                     print(f"❌ [Nivo] stream exception: {e}")
 
                 if full_reply.strip():
-                    user_memory[session_id].append({"role": "assistant", "content": full_reply})
-                    if len(user_memory[session_id]) > 40:
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
                 yield "data: [DONE]\n\n"
 
@@ -3248,7 +3263,7 @@ async def chat_post(request: Request):
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                resp, err = call_gemma_google_stream(user_memory[session_id][-20:], final_system_g, google_model_id)
+                resp, err = call_gemma_google_stream(active_memory[-20:], final_system_g, google_model_id)
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'{model_key} unavailable: {err}'})}\n\n"
                     yield "data: [DONE]\n\n"
@@ -3279,8 +3294,8 @@ async def chat_post(request: Request):
                 except Exception as e:
                     print(f"❌ [Gemma POST] stream exception: {e}")
                 if full_reply.strip():
-                    user_memory[session_id].append({"role": "assistant", "content": full_reply})
-                    if len(user_memory[session_id]) > 40:
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
                 yield "data: [DONE]\n\n"
 
@@ -3312,7 +3327,7 @@ async def chat_post(request: Request):
                 final_system += "\n\n" + tool_context
 
 
-            messages = [{"role": "system", "content": final_system}] + user_memory[session_id][-20:]
+            messages = [{"role": "system", "content": final_system}] + active_memory[-20:]
 
             # Emit tool badge to frontend
             if tool_result:
@@ -3384,8 +3399,8 @@ async def chat_post(request: Request):
 
                 if finished_cleanly and full_reply.strip():
                     print(f"✅ [{current_model}] finished. Total: {len(full_reply)} chars")
-                    user_memory[session_id].append({"role": "assistant", "content": full_reply})
-                    if len(user_memory[session_id]) > 40:
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
                     yield "data: [DONE]\n\n"
                     return
@@ -3397,8 +3412,8 @@ async def chat_post(request: Request):
                 handoffs   += 1
 
             if full_reply.strip():
-                user_memory[session_id].append({"role": "assistant", "content": full_reply})
-                if len(user_memory[session_id]) > 40:
+                active_memory.append({"role": "assistant", "content": full_reply})
+                if not ghost_mode and len(user_memory[session_id]) > 40:
                     user_memory[session_id] = user_memory[session_id][-40:]
                 yield "data: [DONE]\n\n"
             else:
@@ -3929,7 +3944,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
         if model_key == "laguna":
             poolside_key_get = os.getenv("POOLSIDE_API_KEY", "")
             laguna_system_get = system_prompts.get("laguna", system_prompts["dagr"])
-            laguna_messages_get = [{"role": "system", "content": laguna_system_get}] + user_memory[session_id][-20:]
+            laguna_messages_get = [{"role": "system", "content": laguna_system_get}] + active_memory[-20:]
 
             def generate_laguna_get():
                 full_reply = ""
@@ -3970,8 +3985,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 except Exception as e:
                     print(f"❌ [Laguna GET] stream exception: {e}")
                 if full_reply.strip():
-                    user_memory[session_id].append({"role": "assistant", "content": full_reply})
-                    if len(user_memory[session_id]) > 40:
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
                 yield "data: [DONE]\n\n"
 
@@ -3984,7 +3999,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
         # ── NIVO: Groq API — isolated from all other models ──
         if model_key == "nivo":
             groq_key      = os.getenv("GROQ_API_KEY", "")
-            nivo_messages = [{"role": "system", "content": system_prompt}] + user_memory[session_id][-20:]
+            nivo_messages = [{"role": "system", "content": system_prompt}] + active_memory[-20:]
 
             def generate_nivo_get():
                 full_reply = ""
@@ -4025,8 +4040,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 except Exception as e:
                     print(f"❌ [Nivo GET] stream exception: {e}")
                 if full_reply.strip():
-                    user_memory[session_id].append({"role": "assistant", "content": full_reply})
-                    if len(user_memory[session_id]) > 40:
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
                 yield "data: [DONE]\n\n"
 
@@ -4048,7 +4063,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                sambhav_msgs_get = [{"role": "system", "content": system_prompt}] + user_memory[session_id][-20:]
+                sambhav_msgs_get = [{"role": "system", "content": system_prompt}] + active_memory[-20:]
                 resp, err = call_sambhav_groq_stream(sambhav_msgs_get, sambhav_groq_key_get)
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'Sambhav unavailable: {err}'})}\n\n"
@@ -4080,8 +4095,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 except Exception as e:
                     print(f"❌ [Sambhav GET] stream exception: {e}")
                 if full_reply.strip():
-                    user_memory[session_id].append({"role": "assistant", "content": full_reply})
-                    if len(user_memory[session_id]) > 40:
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
                 yield "data: [DONE]\n\n"
 
@@ -4100,7 +4115,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
         if tool_context:
             system_prompt += "\n\n" + tool_context
 
-        messages = [{"role": "system", "content": system_prompt}] + user_memory[session_id][-20:]
+        messages = [{"role": "system", "content": system_prompt}] + active_memory[-20:]
         api_key  = os.getenv("OPENROUTER_API_KEY")
 
         def generate():
@@ -4156,15 +4171,15 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                     stream_broke = True
 
                 if finished_cleanly and full_reply.strip():
-                    user_memory[session_id].append({"role": "assistant", "content": full_reply})
-                    if len(user_memory[session_id]) > 40:
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
                     yield "data: [DONE]\n\n"; return
 
                 pool_index += 1; handoffs += 1
 
             if full_reply.strip():
-                user_memory[session_id].append({"role": "assistant", "content": full_reply})
+                active_memory.append({"role": "assistant", "content": full_reply})
                 yield "data: [DONE]\n\n"
             else:
                 yield f"data: {json.dumps({'error': 'Models could not complete a response.'}, ensure_ascii=False)}\n\n"

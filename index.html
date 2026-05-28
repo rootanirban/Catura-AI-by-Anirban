@@ -78,7 +78,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-    <link rel="stylesheet" href="static/style.css?v=0.0.170">   <!-- this is CSS linking section -->
+    <link rel="stylesheet" href="static/style.css?v=0.0.171">   <!-- this is CSS linking section -->
     
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#000000" />
@@ -244,6 +244,26 @@
     <!-- MAIN APP -->
     <div class="app" id="app">
         <div id="settingsOverlay" class="settings-overlay"></div>
+
+        <!-- GHOST CHAT BUTTON — top right corner -->
+        <button class="ghost-chat-btn" id="ghostChatBtn" onclick="toggleGhostChat()" title="Ghost Chat — temporary, nothing saved">
+            <svg class="ghost-icon-svg" width="20" height="20" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <path d="M50 8 C30 8 15 24 15 44 L15 80 C15 83 17 85 20 84 L26 80 C28 79 30 79 32 81 L38 86 C40 88 43 88 44 86 L50 80 L56 86 C57 88 60 88 62 86 L68 81 C70 79 72 79 74 80 L80 84 C83 85 85 83 85 80 L85 44 C85 24 70 8 50 8 Z" fill="currentColor"/>
+                <circle cx="38" cy="42" r="7" fill="var(--ghost-eye-color, #1a3a5c)"/>
+                <circle cx="62" cy="42" r="7" fill="var(--ghost-eye-color, #1a3a5c)"/>
+                <ellipse cx="50" cy="56" rx="5" ry="6" fill="var(--ghost-eye-color, #1a3a5c)"/>
+            </svg>
+            <span class="ghost-label">Ghost</span>
+        </button>
+
+        <!-- GHOST MODE BANNER — shown when ghost chat is ON -->
+        <div class="ghost-banner" id="ghostBanner" style="display:none;">
+            <svg width="14" height="14" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+                <path d="M50 8 C30 8 15 24 15 44 L15 80 C15 83 17 85 20 84 L26 80 C28 79 30 79 32 81 L38 86 C40 88 43 88 44 86 L50 80 L56 86 C57 88 60 88 62 86 L68 81 C70 79 72 79 74 80 L80 84 C83 85 85 83 85 80 L85 44 C85 24 70 8 50 8 Z"/>
+            </svg>
+            Ghost Chat is ON — nothing is saved
+        </div>
+
         <div id="chatbox"></div>
 
         <div class="input-area center" id="inputArea">
@@ -498,17 +518,17 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
     
     <!-- ✅ CACHE BUSTING - VERSION PARAMETER -->
-    <script src="static/firebase-config.js?v=0.0.170"></script>
-    <script src="static/logic.js?v=0.0.170"></script>
-    <script src="static/feedback.js?v=0.0.170"></script>
-    <script src="static/file-upload.js?v=0.0.170"></script>
+    <script src="static/firebase-config.js?v=0.0.171"></script>
+    <script src="static/logic.js?v=0.0.171"></script>
+    <script src="static/feedback.js?v=0.0.171"></script>
+    <script src="static/file-upload.js?v=0.0.171"></script>
 
     <script>
         console.log('🚀 Catura AI v27.0.5 loaded');
         
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js?v=0.0.170')
+                navigator.serviceWorker.register('/service-worker.js?v=0.0.171')
                     .then(() => console.log('✅ Catura AI PWA Ready - v27.0.5'))
                     .catch((err) => console.log('❌ SW Error:', err));
             });
