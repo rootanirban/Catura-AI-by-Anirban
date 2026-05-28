@@ -2022,6 +2022,9 @@ document.addEventListener("DOMContentLoaded", async function () {
             } // end !ghostChatEnabled
         }
 
+        // ── File URLs (needed for DB save + fetch payload) ───────────────────
+        const fileUrls = filesToSend.map(function(f) { return f.url; });
+
         // ── Save user message to DB ──────────────────────────────────────────
         if (!ghostChatEnabled) {
         const { error: userError } = await supabaseClient.from("messages").insert([{
@@ -2038,9 +2041,6 @@ document.addEventListener("DOMContentLoaded", async function () {
         input.value = "";
         input.style.height = "auto";
         chatbox.scrollTop = chatbox.scrollHeight;
-
-        // ── File URLs (needed for fetch payload) ─────────────────────────────
-        const fileUrls = filesToSend.map(function(f) { return f.url; });
 
         // ── Thinking indicator ───────────────────────────────────────────────
         const heavy   = isHeavyQuery(message || (filesToSend.length ? filesToSend[0].name : ''));
