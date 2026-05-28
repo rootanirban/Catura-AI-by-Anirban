@@ -5451,3 +5451,42 @@ kbd.shortcut-key {
         padding: 4px 10px;
     }
 }
+
+/* ============================
+   👻 GHOST MODE — RED ACCENTS
+   Overrides green → red for
+   greeting box + input area
+   ============================ */
+
+/* Input area border — idle */
+.app.ghost-mode .input-area {
+    border-color: #e0555533 !important;
+}
+
+/* Input area border — hover */
+.app.ghost-mode .input-area:hover {
+    border-color: #e0555555 !important;
+    box-shadow: 0 4px 16px rgba(224, 85, 85, 0.15) !important;
+}
+
+/* Input area border — focused/typing */
+.app.ghost-mode .input-area:focus-within {
+    border-color: #e0555566 !important;
+    box-shadow: 0 0 0 2px rgba(224, 85, 85, 0.12), 0 4px 20px rgba(224, 85, 85, 0.2) !important;
+    background: linear-gradient(135deg, #1c1a1a 0%, #181616 100%) !important;
+}
+
+/* Send button — green → red */
+.app.ghost-mode .send-btn {
+    background: linear-gradient(135deg, #e05555 0%, #c03030 100%) !important;
+    box-shadow: 0 2px 8px rgba(224, 85, 85, 0.35) !important;
+}
+.app.ghost-mode .send-btn:hover {
+    background: linear-gradient(135deg, #e86060 0%, #cc3535 100%) !important;
+    box-shadow: 0 4px 14px rgba(224, 85, 85, 0.5) !important;
+}
+
+/* Stop ring spinner color */
+.app.ghost-mode .stop-ring circle {
+    stroke: #e05555 !important;
+}

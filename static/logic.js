@@ -67,16 +67,16 @@ window.toggleGhostChat = function () {
         btn?.classList.add('ghost-active');
         if (banner) banner.style.display = 'flex';
         document.getElementById('app')?.classList.add('ghost-mode');
-        // Start a fresh ghost session (clear screen)
+        // Start fresh ghost session — show ghost greeting
         newChat();
-        showToast('👻 Ghost Chat ON — nothing will be saved');
+        showToast('Ghost Chat ON — nothing will be saved');
     } else {
         // Deactivate — wipe ghost memory, return to normal
         ghostMemory = [];
         btn?.classList.remove('ghost-active');
         if (banner) banner.style.display = 'none';
         document.getElementById('app')?.classList.remove('ghost-mode');
-        // Clear the ghost chat from screen and start fresh normal chat
+        // Clear ghost chat and show normal greeting
         newChat();
         showToast('Ghost Chat OFF — back to normal');
     }
@@ -129,9 +129,26 @@ function displayGreeting() {
     const userNameEl = document.getElementById("userFullname");
     const nickname = localStorage.getItem("catura_call_name");
     const userName = nickname && nickname.trim() ? nickname.trim() : (userNameEl?.textContent || "User");
-    
-    const greeting = getGreetingMessage(userName);
-    
+
+    const isGhost = typeof ghostChatEnabled !== 'undefined' && ghostChatEnabled;
+
+    const greetingText = isGhost
+        ? "👻 You saw nothing. Ghost Mode enabled."
+        : getGreetingMessage(userName);
+
+    const subText = isGhost
+        ? "Nothing is saved. Nothing is remembered."
+        : "How can I help you today?";
+
+    // Colors: ghost = red palette, normal = green palette
+    const accentColor  = isGhost ? "#e05555"   : "#10a37f";
+    const accentColor2 = isGhost ? "#c03030"   : "#0d8c6d";
+    const subColor     = isGhost ? "#a06060"   : "#888";
+    const bgGradient   = isGhost
+        ? "linear-gradient(135deg, #e0555511 0%, #c0303011 100%)"
+        : "linear-gradient(135deg, #10a37f11 0%, #0d8c6d11 100%)";
+    const borderColor  = isGhost ? "#e0555522" : "#10a37f22";
+
     // Create greeting element
     const greetingDiv = document.createElement("div");
     greetingDiv.style.cssText = `
@@ -139,20 +156,20 @@ function displayGreeting() {
         margin-top: 20px;
         margin-bottom: 30px;
         padding: 20px;
-        background: linear-gradient(135deg, #10a37f11 0%, #0d8c6d11 100%);
-        border: 1px solid #10a37f22;
+        background: ${bgGradient};
+        border: 1px solid ${borderColor};
         border-radius: 12px;
         animation: fadeIn 0.6s ease-in-out;
     `;
     greetingDiv.innerHTML = `
-        <div style="font-size: 24px; font-weight: 600; color: #10a37f; letter-spacing: -0.02em;">
-            ${greeting}
+        <div style="font-size: 24px; font-weight: 600; color: ${accentColor}; letter-spacing: -0.02em;">
+            ${greetingText}
         </div>
-        <div style="font-size: 14px; color: #888; margin-top: 8px;">
-            How can I help you today?
+        <div style="font-size: 14px; color: ${subColor}; margin-top: 8px;">
+            ${subText}
         </div>
     `;
-    
+
     const chatbox = document.getElementById("chatbox");
     const app = document.getElementById("app");
     if (chatbox) {
