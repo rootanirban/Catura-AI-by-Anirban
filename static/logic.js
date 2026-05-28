@@ -1781,7 +1781,7 @@ window.showSettingsTab = function (tab, clickedEl) {
                         <path d="M12 8v4M12 16h.01"></path>
                     </svg>
                     <div class="sc-row-body">
-                        <p class="sc-row-label">Two-factor authentication</p>
+                        <p class="sc-row-label">Multi-factor authentication</p>
                         <p class="sc-row-sub soon">Coming soon</p>
                     </div>
                 </div>
