@@ -1501,7 +1501,7 @@ window.showSettingsTab = function (tab, clickedEl) {
         // ⌨️ SHORTCUTS TAB
         // ============================
         shortcuts: (() => {
-            const sc = JSON.parse(localStorage.getItem('catura-shortcuts') || '{"darkMode":true,"newChat":true,"voice":false,"addFiles":true}');
+            const sc = JSON.parse(localStorage.getItem('catura-shortcuts') || '{"darkMode":true,"newChat":true,"voice":false,"addFiles":true,"openSettings":true,"ghostChat":true}');
             return `
             <div class="sc-section">
                 <div class="sc-section-title">Keyboard Shortcuts</div>
@@ -1587,6 +1587,45 @@ window.showSettingsTab = function (tab, clickedEl) {
                     </div>
                 </div>
 
+                <!-- Open Settings -->
+                <div class="sc-row-block">
+                    <div class="sc-row-top">
+                        <div class="sc-row-icon-wrap">
+                            <svg width="18" height="18" viewBox="0 0 100 100" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M50 61a11 11 0 1 1 0-22 11 11 0 0 1 0 22zm38-7-7.7-1.4a31.7 31.7 0 0 0-2.4-5.7l4.4-6.5a3 3 0 0 0-.4-3.8l-8.5-8.5a3 3 0 0 0-3.8-.4l-6.5 4.4a31.7 31.7 0 0 0-5.7-2.4L56 22a3 3 0 0 0-3-2.5h-6A3 3 0 0 0 44 22l-1.4 7.7a31.7 31.7 0 0 0-5.7 2.4l-6.5-4.4a3 3 0 0 0-3.8.4l-8.5 8.5a3 3 0 0 0-.4 3.8l4.4 6.5a31.7 31.7 0 0 0-2.4 5.7L12 54a3 3 0 0 0-2.5 3v6A3 3 0 0 0 12 66l7.7 1.4a31.7 31.7 0 0 0 2.4 5.7l-4.4 6.5a3 3 0 0 0 .4 3.8l8.5 8.5a3 3 0 0 0 3.8.4l6.5-4.4a31.7 31.7 0 0 0 5.7 2.4L44 78a3 3 0 0 0 3 2.5h6A3 3 0 0 0 56 78l1.4-7.7a31.7 31.7 0 0 0 5.7-2.4l6.5 4.4a3 3 0 0 0 3.8-.4l8.5-8.5a3 3 0 0 0 .4-3.8l-4.4-6.5a31.7 31.7 0 0 0 2.4-5.7L88 46a3 3 0 0 0 2.5-3v-6A3 3 0 0 0 88 34z"/>
+                            </svg>
+                        </div>
+                        <div class="sc-row-body">
+                            <p class="sc-row-label">Open settings</p>
+                            <p class="sc-row-sub">Open the settings panel <kbd class="shortcut-key">Ctrl</kbd>+<kbd class="shortcut-key">A</kbd></p>
+                        </div>
+                        <label class="toggle-switch" title="Toggle Open Settings shortcut">
+                            <input type="checkbox" id="sc-toggle-openSettings" ${sc.openSettings ? 'checked' : ''} onchange="saveShortcutToggle('openSettings', this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Ghost Chat -->
+                <div class="sc-row-block">
+                    <div class="sc-row-top">
+                        <div class="sc-row-icon-wrap">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M9 10h.01"></path><path d="M15 10h.01"></path>
+                                <path d="M12 2a8 8 0 0 1 8 8v10l-3-3-3 3-3-3-3 3-3-3V10a8 8 0 0 1 8-8z"></path>
+                            </svg>
+                        </div>
+                        <div class="sc-row-body">
+                            <p class="sc-row-label">Ghost chat</p>
+                            <p class="sc-row-sub">Toggle ghost chat mode <kbd class="shortcut-key">Ctrl</kbd>+<kbd class="shortcut-key">G</kbd></p>
+                        </div>
+                        <label class="toggle-switch" title="Toggle Ghost Chat shortcut">
+                            <input type="checkbox" id="sc-toggle-ghostChat" ${sc.ghostChat ? 'checked' : ''} onchange="saveShortcutToggle('ghostChat', this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
             </div>`;
         })()
     };
@@ -1598,14 +1637,14 @@ window.showSettingsTab = function (tab, clickedEl) {
 // ⌨️ KEYBOARD SHORTCUTS
 // ============================
 window.saveShortcutToggle = function(key, value) {
-    const sc = JSON.parse(localStorage.getItem('catura-shortcuts') || '{"darkMode":true,"newChat":true,"voice":false,"addFiles":true}');
+    const sc = JSON.parse(localStorage.getItem('catura-shortcuts') || '{"darkMode":true,"newChat":true,"voice":false,"addFiles":true,"openSettings":true,"ghostChat":true}');
     sc[key] = value;
     localStorage.setItem('catura-shortcuts', JSON.stringify(sc));
     showToast(value ? `✓ Shortcut enabled` : `Shortcut disabled`);
 };
 
 function getShortcuts() {
-    return JSON.parse(localStorage.getItem('catura-shortcuts') || '{"darkMode":true,"newChat":true,"voice":false,"addFiles":true}');
+    return JSON.parse(localStorage.getItem('catura-shortcuts') || '{"darkMode":true,"newChat":true,"voice":false,"addFiles":true,"openSettings":true,"ghostChat":true}');
 }
 
 document.addEventListener('keydown', function(e) {
@@ -1637,6 +1676,22 @@ document.addEventListener('keydown', function(e) {
         e.preventDefault();
         const fi = document.getElementById('fileInput');
         if (fi) fi.click();
+        return;
+    }
+
+    // Ctrl+A — Open settings
+    if (sc.openSettings && e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') {
+        if (isInput) return;
+        e.preventDefault();
+        if (typeof showSettings === 'function') showSettings();
+        return;
+    }
+
+    // Ctrl+G — Toggle ghost chat
+    if (sc.ghostChat && e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'g') {
+        if (isInput) return;
+        e.preventDefault();
+        if (typeof toggleGhostChat === 'function') toggleGhostChat();
         return;
     }
 });
