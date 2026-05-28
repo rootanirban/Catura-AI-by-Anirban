@@ -5625,3 +5625,273 @@ kbd.shortcut-key {
 .app.ghost-mode .stop-ring circle {
     stroke: #e05555 !important;
 }
+
+/* ============================
+   📷 PROFILE PICTURE FEATURE
+============================ */
+
+/* Wrap around the sc-avatar in settings profile card */
+.sc-avatar-wrap {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.sc-avatar-wrap .sc-avatar {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    position: relative;
+    z-index: 1;
+}
+
+.sc-avatar-wrap .sc-avatar-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    z-index: 2;
+}
+
+.sc-avatar-overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    z-index: 3;
+    color: #fff;
+}
+
+.sc-avatar-wrap:hover .sc-avatar-overlay { opacity: 1; }
+
+/* Rail avatar with profile pic */
+.rail-avatar {
+    background-size: cover !important;
+    background-position: center !important;
+}
+
+/* User avatar in sidebar bottom */
+.user-avatar {
+    background-size: cover !important;
+    background-position: center !important;
+}
+
+/* ============================
+   📷 CROP MODAL
+============================ */
+
+#profileCropModal {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+#profileCropModal.pcm-visible { opacity: 1; }
+
+.pcm-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.82);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.pcm-dialog {
+    position: relative;
+    z-index: 1;
+    background: linear-gradient(160deg, #161616 0%, #1a1a1a 100%);
+    border: 1px solid #2a2a2a;
+    border-radius: 20px;
+    padding: 28px 24px 24px;
+    width: min(380px, calc(100vw - 32px));
+    box-shadow: 0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(16,163,127,0.08);
+    transform: translateY(18px) scale(0.96);
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+#profileCropModal.pcm-visible .pcm-dialog {
+    transform: translateY(0) scale(1);
+}
+
+.pcm-header { text-align: center; margin-bottom: 20px; }
+.pcm-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #f0f0f0;
+    margin: 0 0 5px;
+    letter-spacing: -0.3px;
+}
+.pcm-subtitle {
+    font-size: 12px;
+    color: #555;
+    margin: 0;
+}
+
+.pcm-canvas-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+.pcm-viewport {
+    width: 280px;
+    height: 280px;
+    border-radius: 50%;
+    overflow: hidden;
+    position: relative;
+    background: #0d0d0d;
+    cursor: grab;
+    border: 2.5px solid #10a37f;
+    box-shadow: 0 0 0 6px rgba(16,163,127,0.1), 0 0 40px rgba(16,163,127,0.15);
+    flex-shrink: 0;
+}
+
+.pcm-viewport:active { cursor: grabbing; }
+
+.pcm-img-stage {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: visible;
+}
+
+.pcm-img-stage img {
+    max-width: none;
+    max-height: none;
+    user-select: none;
+    -webkit-user-drag: none;
+    pointer-events: none;
+    transform-origin: center center;
+}
+
+.pcm-circle-mask {
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    border: 3px solid #10a37f;
+    pointer-events: none;
+    z-index: 4;
+}
+
+.pcm-crosshair {
+    position: absolute;
+    background: rgba(16,163,127,0.2);
+    pointer-events: none;
+    z-index: 3;
+}
+.pcm-ch-h { left: 0; right: 0; top: 50%; height: 1px; transform: translateY(-50%); }
+.pcm-ch-v { top: 0; bottom: 0; left: 50%; width: 1px; transform: translateX(-50%); }
+
+.pcm-zoom-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 280px;
+    color: #555;
+}
+
+.pcm-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: #2a2a2a;
+    border-radius: 4px;
+    outline: none;
+    cursor: pointer;
+}
+
+.pcm-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #10a37f;
+    cursor: pointer;
+    box-shadow: 0 0 0 3px rgba(16,163,127,0.2);
+    transition: box-shadow 0.2s;
+}
+
+.pcm-slider::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 0 5px rgba(16,163,127,0.3);
+}
+
+.pcm-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.pcm-btn {
+    flex: 1;
+    height: 44px;
+    border-radius: 12px;
+    border: none;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    font-family: inherit;
+    letter-spacing: 0.2px;
+}
+
+.pcm-cancel {
+    background: #1e1e1e;
+    color: #888;
+    border: 1px solid #2a2a2a;
+}
+.pcm-cancel:hover {
+    background: #252525;
+    color: #bbb;
+    border-color: #3a3a3a;
+}
+.pcm-cancel:active { transform: scale(0.97); }
+
+.pcm-keep {
+    background: linear-gradient(135deg, #10a37f 0%, #0d8c6d 100%);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(16,163,127,0.35);
+}
+.pcm-keep:hover {
+    background: linear-gradient(135deg, #12b48e 0%, #0f9b7a 100%);
+    box-shadow: 0 6px 20px rgba(16,163,127,0.45);
+    transform: translateY(-1px);
+}
+.pcm-keep:active { transform: scale(0.97) translateY(0); }
+
+/* Light theme */
+[data-theme="light"] .pcm-dialog {
+    background: linear-gradient(160deg, #fafbfc 0%, #f4f6fb 100%);
+    border-color: #dde1eb;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.18), 0 0 0 1px rgba(16,163,127,0.08);
+}
+[data-theme="light"] .pcm-title { color: #0f1117; }
+[data-theme="light"] .pcm-subtitle { color: #9aa0b3; }
+[data-theme="light"] .pcm-viewport { background: #e8eaf0; }
+[data-theme="light"] .pcm-cancel { background: #f0f2f7; color: #6b7280; border-color: #dde1eb; }
+[data-theme="light"] .pcm-cancel:hover { background: #e8eaf0; color: #374151; }
+[data-theme="light"] .pcm-slider { background: #dde1eb; }
+

@@ -1142,7 +1142,16 @@ window.showSettingsTab = function (tab, clickedEl) {
             <div class="sc-section">
                 <div class="sc-section-title">Account</div>
                 <div class="sc-profile-card">
-                    <div class="sc-avatar">${initials}</div>
+                    <div class="sc-avatar-wrap" onclick="triggerProfilePicUpload()" title="Change profile picture">
+                        <div class="sc-avatar" id="scAvatarDisplay">${window._profilePicDataUrl ? '' : initials}</div>
+                        ${window._profilePicDataUrl ? `<img class="sc-avatar-img" src="${window._profilePicDataUrl}" alt="Profile">` : ''}
+                        <div class="sc-avatar-overlay">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                                <circle cx="12" cy="13" r="4"></circle>
+                            </svg>
+                        </div>
+                    </div>
                     <div>
                         <p class="sc-profile-name">${fullName}</p>
                         <p class="sc-profile-email">${email}</p>
@@ -1151,6 +1160,16 @@ window.showSettingsTab = function (tab, clickedEl) {
             </div>
             <div class="sc-section">
                 <div class="sc-section-title">Actions</div>
+                <div class="sc-row" onclick="triggerProfilePicUpload()">
+                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                        <circle cx="12" cy="13" r="4"></circle>
+                    </svg>
+                    <div class="sc-row-body">
+                        <p class="sc-row-label">Change profile picture</p>
+                        <p class="sc-row-sub">Upload a custom avatar</p>
+                    </div>
+                </div>
                 <div class="sc-row" onclick="editDisplayName()">
                     <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -4054,3 +4073,287 @@ window.trackFeedback = function (score, userMessage, assistantResponse) {
 window.trackRegenerate  = () => trackAnalyticsEvent('regenerate_clicked');
 window.trackCopyResponse = () => trackAnalyticsEvent('response_copied');
 window.trackResponseTime = (ms) => trackAnalyticsEvent('response_time_ms', { ms });
+
+// ============================
+// 📷 PROFILE PICTURE FEATURE
+// ============================
+
+window._profilePicDataUrl = localStorage.getItem('catura_profile_pic') || null;
+
+// Apply saved profile pic to all avatar elements on load
+(function applyProfilePicOnLoad() {
+    function doApply() {
+        const pic = window._profilePicDataUrl;
+        _applyProfilePicToAllAvatars(pic);
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', doApply);
+    } else {
+        doApply();
+    }
+})();
+
+function _applyProfilePicToAllAvatars(dataUrl) {
+    // Rail avatar (icon rail bottom)
+    const railAvatar = document.getElementById('railAvatar');
+    if (railAvatar) {
+        if (dataUrl) {
+            railAvatar.style.backgroundImage = `url(${dataUrl})`;
+            railAvatar.style.backgroundSize = 'cover';
+            railAvatar.style.backgroundPosition = 'center';
+            railAvatar.textContent = '';
+        } else {
+            railAvatar.style.backgroundImage = '';
+            railAvatar.style.backgroundSize = '';
+        }
+    }
+    // Sidebar user avatar
+    const userAvatar = document.getElementById('userAvatar');
+    if (userAvatar) {
+        if (dataUrl) {
+            userAvatar.style.backgroundImage = `url(${dataUrl})`;
+            userAvatar.style.backgroundSize = 'cover';
+            userAvatar.style.backgroundPosition = 'center';
+            userAvatar.textContent = '';
+        } else {
+            userAvatar.style.backgroundImage = '';
+        }
+    }
+    // Settings profile tab avatar
+    const scAvatarDisplay = document.getElementById('scAvatarDisplay');
+    if (scAvatarDisplay) {
+        const wrap = scAvatarDisplay.closest('.sc-avatar-wrap');
+        if (wrap) {
+            let img = wrap.querySelector('.sc-avatar-img');
+            if (dataUrl) {
+                scAvatarDisplay.textContent = '';
+                if (!img) {
+                    img = document.createElement('img');
+                    img.className = 'sc-avatar-img';
+                    img.alt = 'Profile';
+                    wrap.insertBefore(img, scAvatarDisplay.nextSibling);
+                }
+                img.src = dataUrl;
+            } else {
+                if (img) img.remove();
+            }
+        }
+    }
+}
+
+window.triggerProfilePicUpload = function() {
+    let input = document.getElementById('profilePicInput');
+    if (!input) {
+        input = document.createElement('input');
+        input.type = 'file';
+        input.id = 'profilePicInput';
+        input.accept = 'image/*';
+        input.style.display = 'none';
+        document.body.appendChild(input);
+        input.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                openProfileCropModal(ev.target.result);
+            };
+            reader.readAsDataURL(file);
+            input.value = '';
+        });
+    }
+    input.click();
+};
+
+function openProfileCropModal(imageSrc) {
+    // Remove existing modal if any
+    const existing = document.getElementById('profileCropModal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'profileCropModal';
+    modal.innerHTML = `
+        <div class="pcm-backdrop" id="pcmBackdrop"></div>
+        <div class="pcm-dialog" role="dialog" aria-modal="true" aria-label="Crop profile picture">
+            <div class="pcm-header">
+                <h3 class="pcm-title">Adjust Profile Picture</h3>
+                <p class="pcm-subtitle">Drag to reposition · Scroll or pinch to zoom</p>
+            </div>
+            <div class="pcm-canvas-wrap">
+                <div class="pcm-viewport" id="pcmViewport">
+                    <div class="pcm-img-stage" id="pcmImgStage">
+                        <img id="pcmImg" src="${imageSrc}" alt="Profile" draggable="false">
+                    </div>
+                    <div class="pcm-circle-mask"></div>
+                    <div class="pcm-crosshair pcm-ch-h"></div>
+                    <div class="pcm-crosshair pcm-ch-v"></div>
+                </div>
+                <div class="pcm-zoom-bar">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                    <input type="range" id="pcmZoomSlider" min="0.5" max="3" step="0.01" value="1" class="pcm-slider">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/><line x1="11" y1="8" x2="11" y2="14"/></svg>
+                </div>
+            </div>
+            <div class="pcm-actions">
+                <button class="pcm-btn pcm-cancel" id="pcmCancelBtn">Cancel</button>
+                <button class="pcm-btn pcm-keep" id="pcmKeepBtn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    Keep
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    // Animate in
+    requestAnimationFrame(() => modal.classList.add('pcm-visible'));
+
+    const img = document.getElementById('pcmImg');
+    const stage = document.getElementById('pcmImgStage');
+    const viewport = document.getElementById('pcmViewport');
+    const slider = document.getElementById('pcmZoomSlider');
+    const VIEWPORT_SIZE = Math.min(window.innerWidth - 40, 340);
+
+    let scale = 1;
+    let offsetX = 0, offsetY = 0;
+    let isDragging = false;
+    let startMouseX, startMouseY, startOffsetX, startOffsetY;
+
+    function applyTransform() {
+        img.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+    }
+
+    function clampOffset() {
+        // Allow free movement
+    }
+
+    img.onload = function() {
+        const naturalW = img.naturalWidth;
+        const naturalH = img.naturalHeight;
+        const minDim = Math.min(naturalW, naturalH);
+        scale = VIEWPORT_SIZE / minDim;
+        slider.min = scale * 0.7;
+        slider.max = scale * 4;
+        slider.step = (scale * 3.3) / 100;
+        slider.value = scale;
+        offsetX = 0;
+        offsetY = 0;
+        applyTransform();
+    };
+
+    slider.addEventListener('input', function() {
+        scale = parseFloat(this.value);
+        applyTransform();
+    });
+
+    // Drag
+    viewport.addEventListener('mousedown', function(e) {
+        isDragging = true;
+        startMouseX = e.clientX;
+        startMouseY = e.clientY;
+        startOffsetX = offsetX;
+        startOffsetY = offsetY;
+        viewport.style.cursor = 'grabbing';
+        e.preventDefault();
+    });
+    document.addEventListener('mousemove', function(e) {
+        if (!isDragging) return;
+        offsetX = startOffsetX + (e.clientX - startMouseX);
+        offsetY = startOffsetY + (e.clientY - startMouseY);
+        applyTransform();
+    });
+    document.addEventListener('mouseup', function() {
+        isDragging = false;
+        viewport.style.cursor = 'grab';
+    });
+
+    // Touch drag
+    let lastTouchX, lastTouchY;
+    viewport.addEventListener('touchstart', function(e) {
+        if (e.touches.length === 1) {
+            lastTouchX = e.touches[0].clientX;
+            lastTouchY = e.touches[0].clientY;
+        }
+        e.preventDefault();
+    }, { passive: false });
+    viewport.addEventListener('touchmove', function(e) {
+        if (e.touches.length === 1) {
+            offsetX += e.touches[0].clientX - lastTouchX;
+            offsetY += e.touches[0].clientY - lastTouchY;
+            lastTouchX = e.touches[0].clientX;
+            lastTouchY = e.touches[0].clientY;
+            applyTransform();
+        } else if (e.touches.length === 2) {
+            // Pinch zoom
+            const dist = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            if (window._lastPinchDist) {
+                scale *= dist / window._lastPinchDist;
+                scale = Math.max(parseFloat(slider.min), Math.min(parseFloat(slider.max), scale));
+                slider.value = scale;
+                applyTransform();
+            }
+            window._lastPinchDist = dist;
+        }
+        e.preventDefault();
+    }, { passive: false });
+    viewport.addEventListener('touchend', () => { window._lastPinchDist = null; });
+
+    // Wheel zoom
+    viewport.addEventListener('wheel', function(e) {
+        scale += e.deltaY * -0.002 * scale;
+        scale = Math.max(parseFloat(slider.min), Math.min(parseFloat(slider.max), scale));
+        slider.value = scale;
+        applyTransform();
+        e.preventDefault();
+    }, { passive: false });
+
+    // Cancel
+    document.getElementById('pcmCancelBtn').onclick = closeProfileCropModal;
+    document.getElementById('pcmBackdrop').onclick = closeProfileCropModal;
+
+    // Keep
+    document.getElementById('pcmKeepBtn').onclick = function() {
+        const canvas = document.createElement('canvas');
+        const OUTPUT = 256;
+        canvas.width = OUTPUT;
+        canvas.height = OUTPUT;
+        const ctx = canvas.getContext('2d');
+
+        // Circular clip
+        ctx.beginPath();
+        ctx.arc(OUTPUT / 2, OUTPUT / 2, OUTPUT / 2, 0, Math.PI * 2);
+        ctx.clip();
+
+        // Compute what portion of image is in the viewport circle
+        const vRect = viewport.getBoundingClientRect();
+        const iRect = img.getBoundingClientRect();
+        const cropX = (vRect.left - iRect.left) / scale;
+        const cropY = (vRect.top - iRect.top) / scale;
+        const cropSize = VIEWPORT_SIZE / scale;
+
+        ctx.drawImage(img, cropX, cropY, cropSize, cropSize, 0, 0, OUTPUT, OUTPUT);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+        window._profilePicDataUrl = dataUrl;
+        localStorage.setItem('catura_profile_pic', dataUrl);
+
+        _applyProfilePicToAllAvatars(dataUrl);
+        closeProfileCropModal();
+
+        // Re-render settings profile tab to reflect change
+        const activeTab = document.querySelector('.settings-nav-item.active');
+        if (activeTab && activeTab.getAttribute('onclick')?.includes('profile')) {
+            activeTab.click();
+        }
+    };
+}
+
+function closeProfileCropModal() {
+    const modal = document.getElementById('profileCropModal');
+    if (!modal) return;
+    modal.classList.remove('pcm-visible');
+    setTimeout(() => modal.remove(), 350);
+}
+
