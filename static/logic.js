@@ -1775,15 +1775,19 @@ window.showSettingsTab = function (tab, clickedEl) {
                         <p class="sc-row-sub">Update your account password</p>
                     </div>
                 </div>
-                <div class="sc-row disabled">
+                <div class="sc-row" id="mfaSettingsRow" onclick="openMFAModal()" style="cursor:pointer;">
                     <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                        <path d="M12 8v4M12 16h.01"></path>
+                        <line x1="9" y1="12" x2="11" y2="14"></line>
+                        <line x1="11" y1="14" x2="15" y2="10"></line>
                     </svg>
                     <div class="sc-row-body">
                         <p class="sc-row-label">Multi-factor authentication</p>
-                        <p class="sc-row-sub soon">Coming soon</p>
+                        <p class="sc-row-sub" id="mfaStatusSub">Loading…</p>
                     </div>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-left:8px;opacity:0.4;">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
                 </div>
                 <div class="sc-row danger" onclick="showDeleteAccountModal()" style="cursor:pointer;">
                     <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -3570,6 +3574,262 @@ window.showPrivacyModal = function () {
     document.body.appendChild(modal);
     // Animate in
     requestAnimationFrame(() => modal.classList.add('priv-modal-open'));
+};
+
+// ============================================================
+// 🔐 MFA (TOTP) IMPLEMENTATION — Supabase Auth mfa
+// ============================================================
+
+// Refresh MFA status label in the account settings row
+async function refreshMFAStatus() {
+    const sub = document.getElementById('mfaStatusSub');
+    if (!sub) return;
+    try {
+        const { data, error } = await supabaseClient.auth.mfa.listFactors();
+        if (error) throw error;
+        const verified = (data?.totp || []).filter(f => f.status === 'verified');
+        if (verified.length > 0) {
+            sub.textContent = 'Enabled — tap to manage';
+            sub.style.color = '#10a37f';
+        } else {
+            sub.textContent = 'Not enabled — tap to set up';
+            sub.style.color = '';
+        }
+    } catch(e) {
+        sub.textContent = 'Tap to manage';
+        sub.style.color = '';
+    }
+}
+
+// Patch showSettingsTab to refresh MFA status whenever account tab opens
+const _origShowSettingsTab = window.showSettingsTab;
+window.showSettingsTab = function(tab, el) {
+    _origShowSettingsTab && _origShowSettingsTab(tab, el);
+    if (tab === 'account') {
+        setTimeout(refreshMFAStatus, 100);
+    }
+};
+
+window.openMFAModal = async function() {
+    document.getElementById('mfaModal')?.remove();
+
+    // Check current MFA status
+    let existingFactors = [];
+    try {
+        const { data } = await supabaseClient.auth.mfa.listFactors();
+        existingFactors = (data?.totp || []).filter(f => f.status === 'verified');
+    } catch(e) {}
+
+    const isEnabled = existingFactors.length > 0;
+
+    const modal = document.createElement('div');
+    modal.id = 'mfaModal';
+    modal.className = 'mfa-modal-overlay';
+    modal.innerHTML = `
+        <div class="mfa-backdrop" id="mfaBackdrop"></div>
+        <div class="mfa-dialog" role="dialog" aria-modal="true" aria-label="Multi-factor authentication">
+            <button class="mfa-close-btn" id="mfaCloseBtn" title="Close">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+
+            <div class="mfa-header">
+                <div class="mfa-icon-wrap">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#10a37f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                </div>
+                <h2 class="mfa-title">Two-Factor Authentication</h2>
+                <p class="mfa-subtitle">Protect your account with an authenticator app (Google Authenticator, Authy, etc.)</p>
+            </div>
+
+            <div id="mfaBody">
+                ${isEnabled ? `
+                    <div class="mfa-status-badge mfa-status-on">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        2FA is currently <strong>enabled</strong>
+                    </div>
+                    <p class="mfa-info-text">Your account is protected by an authenticator app. You can remove 2FA below — you will need to re-verify with a code.</p>
+                    <button class="mfa-btn mfa-btn-danger" id="mfaDisableBtn">Remove 2FA</button>
+                ` : `
+                    <div class="mfa-status-badge mfa-status-off">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        2FA is currently <strong>not enabled</strong>
+                    </div>
+                    <button class="mfa-btn mfa-btn-primary" id="mfaEnrollBtn">Set up 2FA</button>
+                `}
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    requestAnimationFrame(() => modal.classList.add('mfa-visible'));
+
+    document.getElementById('mfaCloseBtn').onclick = closeMFAModal;
+    document.getElementById('mfaBackdrop').onclick = closeMFAModal;
+
+    if (isEnabled) {
+        document.getElementById('mfaDisableBtn').onclick = () => _mfaStartDisable(existingFactors[0].id);
+    } else {
+        document.getElementById('mfaEnrollBtn').onclick = _mfaStartEnroll;
+    }
+};
+
+async function _mfaStartEnroll() {
+    const body = document.getElementById('mfaBody');
+    body.innerHTML = `<div class="mfa-loading"><div class="mfa-spinner"></div><span>Generating QR code…</span></div>`;
+
+    try {
+        const { data, error } = await supabaseClient.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Catura AI' });
+        if (error) throw error;
+
+        const { id: factorId, totp } = data;
+        const qrSvg = totp.qr_code;   // SVG string from Supabase
+        const secret = totp.secret;
+
+        body.innerHTML = `
+            <p class="mfa-step-label">Step 1 — Scan this QR code with your authenticator app</p>
+            <div class="mfa-qr-wrap" id="mfaQrWrap">${qrSvg}</div>
+            <details class="mfa-secret-details">
+                <summary>Can't scan? Enter the key manually</summary>
+                <code class="mfa-secret-code" id="mfaSecretCode">${secret}</code>
+                <button class="mfa-copy-secret" onclick="navigator.clipboard.writeText('${secret}').then(()=>showToast('Key copied!'))">Copy key</button>
+            </details>
+            <p class="mfa-step-label" style="margin-top:20px;">Step 2 — Enter the 6-digit code from your app to verify</p>
+            <div class="mfa-otp-row">
+                <input type="text" id="mfaOtpInput" class="mfa-otp-input" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="000000" autocomplete="one-time-code">
+                <button class="mfa-btn mfa-btn-primary" id="mfaVerifyBtn">Verify &amp; Enable</button>
+            </div>
+            <p class="mfa-error" id="mfaError" style="display:none;"></p>
+        `;
+
+        const input = document.getElementById('mfaOtpInput');
+        const verifyBtn = document.getElementById('mfaVerifyBtn');
+
+        // Only allow digits
+        input.addEventListener('input', () => {
+            input.value = input.value.replace(/\D/g, '').slice(0, 6);
+        });
+        input.addEventListener('keydown', e => { if (e.key === 'Enter') verifyBtn.click(); });
+        input.focus();
+
+        verifyBtn.onclick = async () => {
+            const code = input.value.trim();
+            if (code.length !== 6) {
+                _mfaShowError('Please enter a 6-digit code.');
+                return;
+            }
+            verifyBtn.disabled = true;
+            verifyBtn.textContent = 'Verifying…';
+
+            try {
+                // Create a challenge then verify
+                const { data: challengeData, error: challengeErr } = await supabaseClient.auth.mfa.challenge({ factorId });
+                if (challengeErr) throw challengeErr;
+
+                const { data: verifyData, error: verifyErr } = await supabaseClient.auth.mfa.verify({
+                    factorId,
+                    challengeId: challengeData.id,
+                    code
+                });
+                if (verifyErr) throw verifyErr;
+
+                // Success
+                body.innerHTML = `
+                    <div class="mfa-success-wrap">
+                        <div class="mfa-success-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#10a37f" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        </div>
+                        <h3 class="mfa-success-title">2FA Enabled!</h3>
+                        <p class="mfa-success-desc">Your account is now protected. You'll be asked for a code from your authenticator app each time you sign in.</p>
+                        <button class="mfa-btn mfa-btn-primary" onclick="closeMFAModal()">Done</button>
+                    </div>
+                `;
+                refreshMFAStatus();
+                showToast('Two-factor authentication enabled ✓');
+            } catch(e) {
+                verifyBtn.disabled = false;
+                verifyBtn.textContent = 'Verify & Enable';
+                _mfaShowError(e.message || 'Invalid code. Try again.');
+            }
+        };
+    } catch(e) {
+        body.innerHTML = `<p class="mfa-error" style="display:block;">${e.message || 'Failed to start setup. Try again.'}</p>
+            <button class="mfa-btn mfa-btn-primary" onclick="_mfaStartEnroll()" style="margin-top:12px;">Retry</button>`;
+    }
+}
+
+async function _mfaStartDisable(factorId) {
+    const body = document.getElementById('mfaBody');
+
+    // First challenge to get a fresh code
+    body.innerHTML = `
+        <div class="mfa-status-badge mfa-status-off">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Verify to remove 2FA
+        </div>
+        <p class="mfa-info-text">Enter the current 6-digit code from your authenticator app to confirm removal.</p>
+        <div class="mfa-otp-row">
+            <input type="text" id="mfaDisableOtp" class="mfa-otp-input" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="000000" autocomplete="one-time-code">
+            <button class="mfa-btn mfa-btn-danger" id="mfaConfirmDisableBtn">Remove 2FA</button>
+        </div>
+        <p class="mfa-error" id="mfaError" style="display:none;"></p>
+    `;
+
+    const input = document.getElementById('mfaDisableOtp');
+    const btn = document.getElementById('mfaConfirmDisableBtn');
+    input.addEventListener('input', () => { input.value = input.value.replace(/\D/g, '').slice(0, 6); });
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') btn.click(); });
+    input.focus();
+
+    btn.onclick = async () => {
+        const code = input.value.trim();
+        if (code.length !== 6) { _mfaShowError('Please enter a 6-digit code.'); return; }
+        btn.disabled = true;
+        btn.textContent = 'Removing…';
+
+        try {
+            const { data: ch, error: chErr } = await supabaseClient.auth.mfa.challenge({ factorId });
+            if (chErr) throw chErr;
+
+            const { error: vErr } = await supabaseClient.auth.mfa.verify({ factorId, challengeId: ch.id, code });
+            if (vErr) throw vErr;
+
+            // Unenroll the factor
+            const { error: uErr } = await supabaseClient.auth.mfa.unenroll({ factorId });
+            if (uErr) throw uErr;
+
+            body.innerHTML = `
+                <div class="mfa-success-wrap">
+                    <div class="mfa-success-icon" style="background:rgba(224,108,108,0.12);">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#e06c6c" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </div>
+                    <h3 class="mfa-success-title">2FA Removed</h3>
+                    <p class="mfa-success-desc">Two-factor authentication has been disabled for your account.</p>
+                    <button class="mfa-btn mfa-btn-primary" onclick="closeMFAModal()">Done</button>
+                </div>
+            `;
+            refreshMFAStatus();
+            showToast('Two-factor authentication removed');
+        } catch(e) {
+            btn.disabled = false;
+            btn.textContent = 'Remove 2FA';
+            _mfaShowError(e.message || 'Invalid code. Try again.');
+        }
+    };
+}
+
+function _mfaShowError(msg) {
+    const el = document.getElementById('mfaError');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.display = 'block';
+    setTimeout(() => { if (el) el.style.display = 'none'; }, 4000);
+}
+
+window.closeMFAModal = function() {
+    const modal = document.getElementById('mfaModal');
+    if (!modal) return;
+    modal.classList.remove('mfa-visible');
+    setTimeout(() => modal.remove(), 300);
 };
 
 // ============================================================
