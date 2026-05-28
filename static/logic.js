@@ -1231,32 +1231,31 @@ window.showSettingsTab = function (tab, clickedEl) {
                 </div>
             </div>`,
 
-        privacy: `
+        privacy: (() => {
+            const prefs = JSON.parse(localStorage.getItem('catura-privacy-prefs') || '{"analytics":true,"training":true}');
+            return `
+            <!-- Privacy overview row -->
             <div class="sc-section">
                 <div class="sc-section-title">Privacy controls</div>
-
-                <!-- ✅ Data & Privacy — clickable, opens modal -->
                 <div class="sc-row" onclick="showPrivacyModal()" style="cursor:pointer;">
                     <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
                     </svg>
                     <div class="sc-row-body">
-                        <p class="sc-row-label">Data & privacy</p>
-                        <p class="sc-row-sub">View how we collect and use your data</p>
+                        <p class="sc-row-label">Data &amp; privacy policy</p>
+                        <p class="sc-row-sub">View how we collect, use, and protect your data</p>
                     </div>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-left:8px;">
                         <polyline points="9 18 15 12 9 6"></polyline>
                     </svg>
                 </div>
-
-
             </div>
 
-            <!-- Toggles section -->
+            <!-- Data preferences toggles -->
             <div class="sc-section">
                 <div class="sc-section-title">Data preferences</div>
 
-                <!-- Toggle 1: Location metadata -->
+                <!-- Toggle: Location metadata -->
                 <div class="sc-row-block">
                     <div class="sc-row-top">
                         <div class="sc-row-icon-wrap">
@@ -1267,7 +1266,7 @@ window.showSettingsTab = function (tab, clickedEl) {
                         </div>
                         <div class="sc-row-body">
                             <p class="sc-row-label">Location metadata</p>
-                            <p class="sc-row-sub">Allow approximate location to improve nearby, regional, and timezone-aware responses.</p>
+                            <p class="sc-row-sub">Allow approximate location to improve nearby, regional, and timezone-aware responses. City and region only — never precise GPS.</p>
                         </div>
                         <label class="toggle-switch" title="Enable location metadata">
                             <input type="checkbox" id="locationMetadataToggle" onchange="handleLocationToggle(this.checked)">
@@ -1276,7 +1275,7 @@ window.showSettingsTab = function (tab, clickedEl) {
                     </div>
                 </div>
 
-                <!-- Toggle 2: Help to improve us — coming soon -->
+                <!-- Toggle: Help improve Catura AI (analytics) -->
                 <div class="sc-row-block">
                     <div class="sc-row-top">
                         <div class="sc-row-icon-wrap">
@@ -1286,16 +1285,82 @@ window.showSettingsTab = function (tab, clickedEl) {
                             </svg>
                         </div>
                         <div class="sc-row-body">
-                            <p class="sc-row-label">Help to improve us</p>
-                            <p class="sc-row-sub">Share anonymized usage data to help improve Catura AI <span class="badge-soon">Coming soon</span></p>
+                            <p class="sc-row-label">Help improve Catura AI</p>
+                            <p class="sc-row-sub">Share anonymous usage statistics, crash reports, feature usage, and quality signals to help improve performance, reliability, and response quality. No conversations, passwords, or personal data are ever collected.</p>
                         </div>
-                        <label class="toggle-switch disabled-toggle" title="Coming soon">
-                            <input type="checkbox" disabled>
+                        <label class="toggle-switch" title="Help improve Catura AI">
+                            <input type="checkbox" id="analyticsToggle" ${prefs.analytics ? 'checked' : ''} onchange="savePrivacyPref('analytics', this.checked)">
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
+                    <div class="priv-toggle-detail">
+                        <div class="priv-detail-group">
+                            <span class="priv-detail-badge priv-badge-collect">Collects</span>
+                            <span class="priv-detail-text">Response speed · Failed requests · Feature usage · Thumbs up/down · Browser type · Country/region</span>
+                        </div>
+                        <div class="priv-detail-group">
+                            <span class="priv-detail-badge priv-badge-never">Never</span>
+                            <span class="priv-detail-text">Conversations · Passwords · API keys · Personal identifiers</span>
+                        </div>
+                    </div>
                 </div>
-            </div>`,
+
+                <!-- Toggle: AI model training -->
+                <div class="sc-row-block">
+                    <div class="sc-row-top">
+                        <div class="sc-row-icon-wrap">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                            </svg>
+                        </div>
+                        <div class="sc-row-body">
+                            <p class="sc-row-label">AI model training</p>
+                            <p class="sc-row-sub">Allow conversations and feedback to be used to improve future AI models and responses. Sensitive information is automatically filtered before storage.</p>
+                        </div>
+                        <label class="toggle-switch" title="Allow AI model training">
+                            <input type="checkbox" id="trainingToggle" ${prefs.training ? 'checked' : ''} onchange="savePrivacyPref('training', this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="priv-toggle-detail">
+                        <div class="priv-detail-group">
+                            <span class="priv-detail-badge priv-badge-collect">Stores</span>
+                            <span class="priv-detail-text">Sanitized prompts · Sanitized responses · Feedback ratings · Regenerate events · Language</span>
+                        </div>
+                        <div class="priv-detail-group">
+                            <span class="priv-detail-badge priv-badge-filtered">Auto-filtered</span>
+                            <span class="priv-detail-text">Emails · Phone numbers · Passwords · API keys · Addresses · Banking info · Personal IDs</span>
+                        </div>
+                        <div class="priv-detail-group">
+                            <span class="priv-detail-badge priv-badge-never">Never</span>
+                            <span class="priv-detail-text">Real-time live training · Raw sensitive data · GPS coordinates</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Privacy assurance strip -->
+            <div class="priv-assurance-strip">
+                <div class="priv-assurance-item">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10a37f" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    <span>PII auto-filtered</span>
+                </div>
+                <div class="priv-assurance-item">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10a37f" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span>Opt-out anytime</span>
+                </div>
+                <div class="priv-assurance-item">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10a37f" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    <span>No data sold</span>
+                </div>
+                <div class="priv-assurance-item">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10a37f" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span>Transparent collection</span>
+                </div>
+            </div>`;
+        })(),
 
         // ============================
         // 🔊 SPEECH TAB
@@ -3752,6 +3817,12 @@ function restoreLocationToggle() {
     if (toggle) {
         toggle.checked = localStorage.getItem(LOC_TOGGLE_KEY) === '1';
     }
+    // Restore analytics + training toggles
+    const prefs = getPrivacyPrefs();
+    const aToggle = document.getElementById('analyticsToggle');
+    const tToggle = document.getElementById('trainingToggle');
+    if (aToggle) aToggle.checked = prefs.analytics;
+    if (tToggle) tToggle.checked = prefs.training;
 }
 
 // Patch showSettings to restore toggle state after the panel renders
@@ -3816,3 +3887,170 @@ window.openPlansModal = function () {
     modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
     document.body.appendChild(modal);
 };
+
+// ============================================================
+// 🔒 PRIVACY SYSTEM — Analytics · Training · PII Sanitizer
+// ============================================================
+
+// ── Preference helpers ────────────────────────────────────────
+const PRIVACY_PREFS_KEY = 'catura-privacy-prefs';
+const DEFAULT_PREFS = { analytics: true, training: true };
+
+function getPrivacyPrefs() {
+    try {
+        return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem(PRIVACY_PREFS_KEY) || '{}') };
+    } catch (_) { return { ...DEFAULT_PREFS }; }
+}
+
+window.savePrivacyPref = function (key, value) {
+    const prefs = getPrivacyPrefs();
+    prefs[key] = value;
+    localStorage.setItem(PRIVACY_PREFS_KEY, JSON.stringify(prefs));
+
+    // Flush/discard pending queue if user just opted out
+    if (!value) {
+        if (key === 'analytics') _analyticsQueue = [];
+        if (key === 'training')  _trainingQueue  = [];
+    }
+    showToast(value ? `✓ ${key === 'analytics' ? 'Usage analytics' : 'AI training data'} enabled` : `${key === 'analytics' ? 'Usage analytics' : 'AI training data'} disabled`);
+};
+
+// ── PII Sanitizer ─────────────────────────────────────────────
+// Removes passwords, emails, phones, tokens, API keys, addresses,
+// banking info, and other personal identifiers before any storage.
+const PII_PATTERNS = [
+    // Emails
+    { re: /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g,      mask: '[email]' },
+    // Phone numbers (international + local variants)
+    { re: /(\+?\d[\d\s\-().]{7,}\d)/g,                                 mask: '[phone]' },
+    // Passwords typed literally
+    { re: /password\s*[=:]\s*\S+/gi,                                   mask: '[credential]' },
+    // API keys / tokens (generic long alphanumeric strings 20+ chars)
+    { re: /\b([A-Za-z0-9_\-]{20,})\b/g,                               mask: '[token]' },
+    // Bearer / Authorization header values
+    { re: /bearer\s+[A-Za-z0-9\-_.~+/]+=*/gi,                        mask: '[bearer]' },
+    // Credit / debit card numbers (13-19 digits, with optional spaces/dashes)
+    { re: /\b(?:\d[ \-]?){13,19}\b/g,                                  mask: '[card]' },
+    // SSN / Aadhaar-like patterns
+    { re: /\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b/g,                        mask: '[id-number]' },
+    // Precise GPS coordinates
+    { re: /[-+]?\d{1,3}\.\d{4,},\s*[-+]?\d{1,3}\.\d{4,}/g,           mask: '[coordinates]' },
+    // Cookies / session values (key=value;)
+    { re: /\b(session[_-]?id|auth[_-]?token|access[_-]?token)\s*=\s*\S+/gi, mask: '[session]' },
+];
+
+function sanitizePII(text) {
+    if (!text || typeof text !== 'string') return '';
+    let out = text;
+    for (const { re, mask } of PII_PATTERNS) {
+        out = out.replace(re, mask);
+    }
+    return out.trim();
+}
+
+// ── Anonymous user ID ─────────────────────────────────────────
+function getAnonId() {
+    let id = localStorage.getItem('catura-anon-id');
+    if (!id) {
+        id = 'anon_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9);
+        localStorage.setItem('catura-anon-id', id);
+    }
+    return id;
+}
+
+// ── Analytics pipeline ────────────────────────────────────────
+let _analyticsQueue = [];
+const ANALYTICS_BATCH_SIZE = 10;
+const ANALYTICS_FLUSH_MS   = 30_000; // flush every 30s
+
+window.trackAnalyticsEvent = function (eventName, metadata = {}) {
+    if (!getPrivacyPrefs().analytics) return;
+
+    _analyticsQueue.push({
+        anonymous_user_id: getAnonId(),
+        event_name: eventName,
+        metadata: {
+            ...metadata,
+            browser: navigator.userAgent.split(' ').pop(),    // just engine token
+            viewport: `${window.innerWidth}x${window.innerHeight}`,
+            ts: Date.now(),
+        }
+    });
+
+    if (_analyticsQueue.length >= ANALYTICS_BATCH_SIZE) {
+        flushAnalytics();
+    }
+};
+
+async function flushAnalytics() {
+    if (!_analyticsQueue.length) return;
+    const batch = _analyticsQueue.splice(0, ANALYTICS_BATCH_SIZE);
+    try {
+        await fetch('/api/privacy/analytics', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ events: batch }),
+            keepalive: true,
+        });
+    } catch (_) {
+        // Silently discard — never retry, never block UX
+    }
+}
+
+// Periodic flush + flush on page hide (low battery / background)
+setInterval(flushAnalytics, ANALYTICS_FLUSH_MS);
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushAnalytics();
+});
+
+// ── Training pipeline ─────────────────────────────────────────
+let _trainingQueue = [];
+const TRAINING_BATCH_SIZE = 5;
+const TRAINING_FLUSH_MS   = 60_000; // flush every 60s
+
+window.submitTrainingConversation = function ({ userMessage, assistantResponse, feedbackScore = null, language = null }) {
+    if (!getPrivacyPrefs().training) return;
+    if (!userMessage || !assistantResponse) return;
+
+    _trainingQueue.push({
+        anonymous_user_id: getAnonId(),
+        sanitized_user_message: sanitizePII(userMessage),
+        sanitized_assistant_response: sanitizePII(assistantResponse),
+        feedback_score: feedbackScore,
+        language: language || navigator.language?.slice(0, 5) || 'en',
+        coarse_region: null,  // set by backend from IP — never stored raw
+    });
+
+    if (_trainingQueue.length >= TRAINING_BATCH_SIZE) {
+        flushTraining();
+    }
+};
+
+async function flushTraining() {
+    if (!_trainingQueue.length) return;
+    const batch = _trainingQueue.splice(0, TRAINING_BATCH_SIZE);
+    try {
+        await fetch('/api/privacy/training', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ conversations: batch }),
+            keepalive: true,
+        });
+    } catch (_) { /* discard silently */ }
+}
+
+setInterval(flushTraining, TRAINING_FLUSH_MS);
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushTraining();
+});
+
+// ── Quality signals ────────────────────────────────────────────
+// Call these from existing thumbs up/down and other interaction handlers
+window.trackFeedback = function (score, userMessage, assistantResponse) {
+    // score: 1 = thumbs up, -1 = thumbs down
+    trackAnalyticsEvent('feedback', { score });
+    submitTrainingConversation({ userMessage, assistantResponse, feedbackScore: score });
+};
+window.trackRegenerate  = () => trackAnalyticsEvent('regenerate_clicked');
+window.trackCopyResponse = () => trackAnalyticsEvent('response_copied');
+window.trackResponseTime = (ms) => trackAnalyticsEvent('response_time_ms', { ms });

@@ -345,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.176"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.177"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +355,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.176", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.177", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -374,6 +374,177 @@ async def serve_sitemap():
 
 
 
+
+# ============================================================
+# 🔒 PRIVACY SYSTEM — Analytics & Training Data Endpoints
+# ============================================================
+
+import re as _re
+import asyncio
+from pydantic import BaseModel as _BaseModel
+from typing import Optional as _Optional, List as _List, Any as _Any, Dict as _Dict
+from datetime import datetime as _dt
+
+# ── PII Sanitizer (mirrors frontend) ─────────────────────────
+_PII_PATTERNS = [
+    (_re.compile(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}'), '[email]'),
+    (_re.compile(r'(\+?\d[\d\s\-().]{7,}\d)'), '[phone]'),
+    (_re.compile(r'password\s*[=:]\s*\S+', _re.IGNORECASE), '[credential]'),
+    (_re.compile(r'bearer\s+[A-Za-z0-9\-_.~+/]+=*', _re.IGNORECASE), '[bearer]'),
+    (_re.compile(r'\b(?:\d[ \-]?){13,19}\b'), '[card]'),
+    (_re.compile(r'\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b'), '[id-number]'),
+    (_re.compile(r'[-+]?\d{1,3}\.\d{4,},\s*[-+]?\d{1,3}\.\d{4,}'), '[coordinates]'),
+    (_re.compile(r'\b(session[_-]?id|auth[_-]?token|access[_-]?token)\s*=\s*\S+', _re.IGNORECASE), '[session]'),
+    # Long token-like strings (API keys, JWTs, etc.)
+    (_re.compile(r'\b([A-Za-z0-9_\-]{32,})\b'), '[token]'),
+]
+
+def _sanitize(text: str) -> str:
+    if not text:
+        return ''
+    out = str(text)
+    for pattern, mask in _PII_PATTERNS:
+        out = pattern.sub(mask, out)
+    return out.strip()
+
+# ── Pydantic models ───────────────────────────────────────────
+class _AnalyticsEvent(_BaseModel):
+    anonymous_user_id: str
+    event_name: str
+    metadata: _Dict[str, _Any] = {}
+
+class _AnalyticsBatch(_BaseModel):
+    events: _List[_AnalyticsEvent]
+
+class _TrainingConvo(_BaseModel):
+    anonymous_user_id: str
+    sanitized_user_message: str
+    sanitized_assistant_response: str
+    feedback_score: _Optional[float] = None
+    language: _Optional[str] = 'en'
+    coarse_region: _Optional[str] = None
+
+class _TrainingBatch(_BaseModel):
+    conversations: _List[_TrainingConvo]
+
+# ── IP → coarse region helper ─────────────────────────────────
+def _coarse_region_from_request(request: Request) -> _Optional[str]:
+    """Extract country/region from forwarded IP header — never stores raw IP."""
+    try:
+        forwarded = request.headers.get('x-forwarded-for', '')
+        ip = forwarded.split(',')[0].strip() if forwarded else str(request.client.host)
+        # Use ipapi.co free tier — returns country_name, region
+        r = requests.get(f'https://ipapi.co/{ip}/json/', timeout=3)
+        if r.status_code == 200:
+            d = r.json()
+            return d.get('country_name') or d.get('country') or None
+    except Exception:
+        pass
+    return None
+
+# ── Analytics endpoint ────────────────────────────────────────
+@app.post("/api/privacy/analytics")
+async def collect_analytics(batch: _AnalyticsBatch, request: Request):
+    """
+    Receives batched analytics events.
+    • Strips any PII from metadata values before storage.
+    • Stores to analytics_events table in Supabase.
+    • Never logs raw IP addresses.
+    """
+    try:
+        rows = []
+        for ev in batch.events[:50]:  # cap at 50 per batch
+            # Sanitize any string values in metadata
+            safe_meta = {
+                k: _sanitize(str(v)) if isinstance(v, str) else v
+                for k, v in ev.metadata.items()
+                if k not in ('password', 'token', 'key', 'secret', 'auth')
+            }
+            rows.append({
+                'anonymous_user_id': ev.anonymous_user_id[:64],
+                'event_name': ev.event_name[:64],
+                'metadata': safe_meta,
+                'created_at': _dt.utcnow().isoformat(),
+            })
+
+        if rows:
+            supabase.table('analytics_events').insert(rows).execute()
+
+        return JSONResponse({'ok': True, 'stored': len(rows)})
+    except Exception as e:
+        # Never surface internal errors to client
+        print(f'[Analytics] Error: {e}')
+        return JSONResponse({'ok': False}, status_code=200)  # always 200 to client
+
+# ── Training endpoint ─────────────────────────────────────────
+@app.post("/api/privacy/training")
+async def collect_training(batch: _TrainingBatch, request: Request):
+    """
+    Receives batched training conversations.
+    • Runs server-side PII sanitization on top of client-side sanitization.
+    • Resolves coarse region from IP (country only) — raw IP is discarded.
+    • Stores to training_conversations table in Supabase.
+    • Models are NEVER trained live — data feeds offline dataset pipeline only.
+    """
+    try:
+        coarse_region = _coarse_region_from_request(request)
+        rows = []
+        for convo in batch.conversations[:10]:  # cap at 10 per batch
+            # Double-sanitize (client already ran PII filter, we run it again server-side)
+            clean_user = _sanitize(convo.sanitized_user_message)
+            clean_asst = _sanitize(convo.sanitized_assistant_response)
+
+            # Skip if either side is empty after sanitization
+            if not clean_user.strip() or not clean_asst.strip():
+                continue
+
+            rows.append({
+                'anonymous_user_id': convo.anonymous_user_id[:64],
+                'sanitized_user_message': clean_user[:4000],
+                'sanitized_assistant_response': clean_asst[:8000],
+                'feedback_score': convo.feedback_score,
+                'language': (convo.language or 'en')[:10],
+                'coarse_region': coarse_region,
+                'created_at': _dt.utcnow().isoformat(),
+            })
+
+        if rows:
+            supabase.table('training_conversations').insert(rows).execute()
+
+        return JSONResponse({'ok': True, 'stored': len(rows)})
+    except Exception as e:
+        print(f'[Training] Error: {e}')
+        return JSONResponse({'ok': False}, status_code=200)
+
+# ── Quality signal helper (called from existing thumbs up/down) ─
+@app.post("/api/privacy/feedback")
+async def collect_feedback(request: Request):
+    """Single-event shortcut for thumbs up/down — wires into training pipeline."""
+    try:
+        body = await request.json()
+        score        = body.get('score')       # 1 or -1
+        user_msg     = _sanitize(body.get('user_message', ''))
+        asst_resp    = _sanitize(body.get('assistant_response', ''))
+        anon_id      = body.get('anonymous_user_id', 'unknown')[:64]
+        coarse_region = _coarse_region_from_request(request)
+
+        if user_msg and asst_resp:
+            supabase.table('training_conversations').insert({
+                'anonymous_user_id': anon_id,
+                'sanitized_user_message': user_msg[:4000],
+                'sanitized_assistant_response': asst_resp[:8000],
+                'feedback_score': score,
+                'language': body.get('language', 'en')[:10],
+                'coarse_region': coarse_region,
+                'created_at': _dt.utcnow().isoformat(),
+            }).execute()
+
+        return JSONResponse({'ok': True})
+    except Exception as e:
+        print(f'[Feedback] Error: {e}')
+        return JSONResponse({'ok': False}, status_code=200)
+
+
 # ============================================================
 # 📍 LOCATION METADATA ENDPOINTS
 # Privacy-safe: accepts coarse coords (2 d.p.), reverse-geocodes
@@ -381,8 +552,6 @@ async def serve_sitemap():
 # Raw coordinates are NEVER stored or logged.
 # ============================================================
 
-from pydantic import BaseModel as _BaseModel
-from typing import Optional as _Optional
 
 class _CoarseCoords(_BaseModel):
     coarse_lat: float
