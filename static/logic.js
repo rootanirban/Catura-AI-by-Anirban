@@ -96,7 +96,8 @@ function getGreetingMessage(userName) {
 
 function displayGreeting() {
     const userNameEl = document.getElementById("userFullname");
-    const userName = userNameEl?.textContent || "User";
+    const nickname = localStorage.getItem("catura_call_name");
+    const userName = nickname && nickname.trim() ? nickname.trim() : (userNameEl?.textContent || "User");
     
     const greeting = getGreetingMessage(userName);
     
@@ -900,6 +901,67 @@ window.editDisplayName = async function () {
     }
 };
 
+window.editCaturaCallName = function () {
+    const existing = document.getElementById('caturaCallNameModal');
+    if (existing) existing.remove();
+
+    const current = localStorage.getItem('catura_call_name') || '';
+
+    const modal = document.createElement('div');
+    modal.id = 'caturaCallNameModal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(6px);animation:caturaModalFadeIn 0.2s ease;';
+
+    modal.innerHTML = `
+    <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;width:min(400px,92vw);padding:28px 24px 20px;box-shadow:0 24px 64px rgba(0,0,0,0.7);position:relative;animation:caturaModalSlideUp 0.25s cubic-bezier(0.34,1.2,0.64,1);">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+            <div style="width:36px;height:36px;border-radius:10px;background:rgba(16,163,127,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10a37f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                </svg>
+            </div>
+            <div>
+                <p style="margin:0;font-size:15px;font-weight:600;color:#eee;">What should Catura call you?</p>
+                <p style="margin:2px 0 0;font-size:12px;color:#666;">Only shown in your home screen greeting</p>
+            </div>
+        </div>
+        <div style="height:1px;background:#222;margin:16px 0;"></div>
+        <input id="caturaCallNameInput" type="text" placeholder="Enter a name or nickname…" maxlength="40"
+            value="${current.replace(/"/g,'&quot;')}"
+            style="width:100%;box-sizing:border-box;background:#111;border:1.5px solid #333;border-radius:10px;padding:11px 14px;font-size:14px;color:#eee;outline:none;transition:border-color 0.2s;font-family:inherit;"
+            onfocus="this.style.borderColor='#10a37f'" onblur="this.style.borderColor='#333'"
+            onkeydown="if(event.key==='Enter')document.getElementById('caturaCallNameSave').click();if(event.key==='Escape')document.getElementById('caturaCallNameModal').remove();"
+        >
+        <p style="margin:8px 0 16px;font-size:11px;color:#555;">This name only appears in the "Good morning, …" greeting. Your display name stays unchanged.</p>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button onclick="document.getElementById('caturaCallNameModal').remove()"
+                style="padding:9px 18px;border-radius:8px;border:1px solid #333;background:transparent;color:#999;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;transition:background 0.15s;"
+                onmouseover="this.style.background='#222'" onmouseout="this.style.background='transparent'">Cancel</button>
+            <button id="caturaCallNameSave"
+                style="padding:9px 20px;border-radius:8px;border:none;background:#10a37f;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity 0.15s;"
+                onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'"
+                onclick="
+                    const val = document.getElementById('caturaCallNameInput').value.trim();
+                    if (val) {
+                        localStorage.setItem('catura_call_name', val);
+                    } else {
+                        localStorage.removeItem('catura_call_name');
+                    }
+                    document.getElementById('caturaCallNameModal').remove();
+                    if (typeof showToast === 'function') showToast(val ? '✓ Greeting name updated' : '✓ Greeting name cleared');
+                    if (typeof displayGreeting === 'function') displayGreeting();
+                ">Save</button>
+        </div>
+    </div>
+    <style>
+        @keyframes caturaModalFadeIn { from { opacity:0; } to { opacity:1; } }
+        @keyframes caturaModalSlideUp { from { opacity:0; transform:translateY(16px) scale(0.97); } to { opacity:1; transform:translateY(0) scale(1); } }
+    </style>`;
+
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+    document.body.appendChild(modal);
+    requestAnimationFrame(() => document.getElementById('caturaCallNameInput')?.focus());
+};
+
 // ============================
 // 🔲 COMING SOON HELPER
 // ============================
@@ -1049,6 +1111,16 @@ window.showSettingsTab = function (tab, clickedEl) {
                     <div class="sc-row-body">
                         <p class="sc-row-label">Edit display name</p>
                         <p class="sc-row-sub">Change how your name appears</p>
+                    </div>
+                </div>
+                <div class="sc-row" onclick="editCaturaCallName()">
+                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                    <div class="sc-row-body">
+                        <p class="sc-row-label">What should Catura call you?</p>
+                        <p class="sc-row-sub">Set a nickname for your greeting</p>
                     </div>
                 </div>
                 <div class="sc-row danger" onclick="logoutUser()">
