@@ -1,4 +1,129 @@
 // ============================
+// 🎨 UNIVERSAL MODAL SYSTEM
+// ============================
+/**
+ * showModal(options) — replaces all browser confirm/prompt/alert calls
+ *
+ * options {
+ *   type: 'confirm' | 'prompt' | 'alert' | 'danger'
+ *   icon: SVG string (optional)
+ *   iconColor: hex (default #10a37f)
+ *   title: string
+ *   subtitle: string (optional, shown under title)
+ *   message: string (optional, body text)
+ *   inputValue: string (default value for prompt)
+ *   inputPlaceholder: string
+ *   inputLabel: string (label above input)
+ *   inputNote: string (small text below input)
+ *   inputType: 'text'|'email'|'password' (default 'text')
+ *   confirmLabel: string (default 'Confirm')
+ *   cancelLabel: string  (default 'Cancel')
+ *   dangerous: bool — red confirm button
+ *   onConfirm: function(value?) — called with input value or true
+ *   onCancel: function() (optional)
+ * }
+ */
+window.showModal = function(options) {
+    const existing = document.getElementById('catura-modal-overlay');
+    if (existing) existing.remove();
+
+    const {
+        type = 'confirm',
+        icon = null,
+        iconColor = '#10a37f',
+        title = '',
+        subtitle = '',
+        message = '',
+        inputValue = '',
+        inputPlaceholder = '',
+        inputLabel = '',
+        inputNote = '',
+        inputType = 'text',
+        confirmLabel = type === 'alert' ? 'OK' : 'Confirm',
+        cancelLabel = 'Cancel',
+        dangerous = false,
+        onConfirm = () => {},
+        onCancel = () => {}
+    } = options;
+
+    const hasInput  = type === 'prompt';
+    const hasCancel = type !== 'alert';
+
+    const defaultIcon = hasInput
+        ? `<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>`
+        : dangerous
+            ? `<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>`
+            : `<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>`;
+
+    const iconSvg = icon || defaultIcon;
+    const iconBg = dangerous ? 'rgba(224,108,108,0.12)' : `${iconColor}1a`;
+    const iconStroke = dangerous ? '#e06c6c' : iconColor;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'catura-modal-overlay';
+    overlay.innerHTML = `
+        <div class="cm-backdrop" id="cmBackdrop"></div>
+        <div class="cm-dialog" role="dialog" aria-modal="true">
+            <div class="cm-icon-wrap" style="background:${iconBg}">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${iconStroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconSvg}</svg>
+            </div>
+            <div class="cm-body">
+                <h3 class="cm-title">${title}</h3>
+                ${subtitle ? `<p class="cm-subtitle">${subtitle}</p>` : ''}
+                ${message ? `<p class="cm-message">${message}</p>` : ''}
+                ${hasInput ? `
+                    ${inputLabel ? `<label class="cm-input-label">${inputLabel}</label>` : ''}
+                    <input id="cmInput" type="${inputType}" value="${inputValue.replace(/"/g,'&quot;')}"
+                        placeholder="${inputPlaceholder}"
+                        class="cm-input"
+                        autocomplete="off"
+                        spellcheck="false"
+                    >
+                    ${inputNote ? `<p class="cm-input-note">${inputNote}</p>` : ''}
+                ` : ''}
+            </div>
+            <div class="cm-actions">
+                ${hasCancel ? `<button class="cm-btn cm-btn-cancel" id="cmCancelBtn">${cancelLabel}</button>` : ''}
+                <button class="cm-btn ${dangerous ? 'cm-btn-danger' : 'cm-btn-confirm'}" id="cmConfirmBtn">${confirmLabel}</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('cm-visible'));
+
+    const input = document.getElementById('cmInput');
+    if (input) {
+        input.focus();
+        input.select();
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter') doConfirm();
+            if (e.key === 'Escape') doCancel();
+        });
+    }
+
+    function doConfirm() {
+        const val = input ? input.value.trim() : true;
+        close();
+        onConfirm(val);
+    }
+    function doCancel() {
+        close();
+        onCancel();
+    }
+    function close() {
+        overlay.classList.remove('cm-visible');
+        setTimeout(() => overlay.remove(), 300);
+    }
+
+    document.getElementById('cmConfirmBtn').onclick = doConfirm;
+    if (hasCancel) document.getElementById('cmCancelBtn').onclick = doCancel;
+    document.getElementById('cmBackdrop').onclick = doCancel;
+    document.addEventListener('keydown', function escHandler(e) {
+        if (e.key === 'Escape') { doCancel(); document.removeEventListener('keydown', escHandler); }
+    });
+};
+
+// ============================
 // ✅ SUPABASE SETUP
 // ============================
 const supabaseUrl = "https://zhrjmnrfklzuxmfbdqhg.supabase.co";
@@ -749,10 +874,19 @@ window.newChat = function () {
 // 🚪 LOGOUT
 // ============================
 window.logoutUser = async function () {
-    if (confirm("Are you sure you want to logout?")) {
-        await supabaseClient.auth.signOut();
-        window.location.href = "/auth.html";
-    }
+    showModal({
+        type: 'confirm',
+        dangerous: true,
+        icon: `<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>`,
+        title: 'Log out',
+        subtitle: 'Are you sure you want to sign out?',
+        confirmLabel: 'Log out',
+        cancelLabel: 'Stay',
+        onConfirm: async () => {
+            await supabaseClient.auth.signOut();
+            window.location.href = "/auth.html";
+        }
+    });
 };
 
 // ============================
@@ -901,52 +1035,44 @@ window.closeSettings = function () {
 // ============================
 window.editDisplayName = async function () {
     const currentName = document.getElementById("userFullname")?.textContent || "User";
-    const newName = prompt("Enter your new display name:", currentName);
-    
-    if (!newName || newName.trim() === "" || newName.trim() === currentName) {
-        return;
-    }
-
-    const trimmedName = newName.trim();
-
-    try {
-        const { data, error } = await supabaseClient.auth.updateUser({
-            data: { full_name: trimmedName }
-        });
-
-        if (error) {
-            console.error("❌ Update failed:", error.message);
-            showToast("❌ Failed to update name. Please try again.");
-            return;
+    showModal({
+        type: 'prompt',
+        icon: `<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>`,
+        title: 'Edit display name',
+        subtitle: 'Change how your name appears',
+        inputValue: currentName,
+        inputPlaceholder: 'Your name',
+        confirmLabel: 'Save',
+        onConfirm: async (newName) => {
+            if (!newName || newName === currentName) return;
+            const trimmedName = newName.trim();
+            try {
+                const { data, error } = await supabaseClient.auth.updateUser({
+                    data: { full_name: trimmedName }
+                });
+                if (error) { showToast("❌ Failed to update name. Please try again."); return; }
+                currentUser = data.user;
+                const parts = trimmedName.split(/\s+/).filter(Boolean);
+                const initials = parts.length >= 2
+                    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+                    : parts[0].slice(0, 2).toUpperCase();
+                const avatarEl    = document.getElementById("userAvatar");
+                const nameEl      = document.getElementById("userFullname");
+                const railAvatar  = document.getElementById("railAvatar");
+                const scProfileName = document.querySelector(".sc-profile-name");
+                if (avatarEl)   avatarEl.textContent  = initials;
+                if (nameEl)     nameEl.textContent    = trimmedName;
+                if (railAvatar) railAvatar.textContent = initials;
+                if (scProfileName) scProfileName.textContent = trimmedName;
+                showToast(`✓ Name updated to ${trimmedName}`);
+                setTimeout(() => {
+                    showSettingsTab('profile', document.querySelector('.settings-nav-item.active'));
+                }, 500);
+            } catch (err) {
+                showToast("❌ Failed to update name. Please try again.");
+            }
         }
-
-        currentUser = data.user;
-
-        const parts = trimmedName.split(/\s+/).filter(Boolean);
-        const initials = parts.length >= 2
-            ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-            : parts[0].slice(0, 2).toUpperCase();
-
-        const avatarEl    = document.getElementById("userAvatar");
-        const nameEl      = document.getElementById("userFullname");
-        const railAvatar  = document.getElementById("railAvatar");
-        const scProfileName = document.querySelector(".sc-profile-name");
-
-        if (avatarEl)   avatarEl.textContent  = initials;
-        if (nameEl)     nameEl.textContent    = trimmedName;
-        if (railAvatar) railAvatar.textContent = initials;
-        if (scProfileName) scProfileName.textContent = trimmedName;
-
-        showToast(`✓ Name updated to ${trimmedName}`);
-        
-        setTimeout(() => {
-            showSettingsTab('profile', document.querySelector('.settings-nav-item.active'));
-        }, 500);
-
-    } catch (err) {
-        console.error("❌ Error:", err);
-        showToast("❌ Failed to update name. Please try again.");
-    }
+    });
 };
 
 window.editCaturaCallName = function () {
@@ -1861,97 +1987,116 @@ window.exportChatHistory = async function () {
 // 🗂️ ARCHIVE ALL CHATS
 // ============================
 window.archiveAllChats = async function () {
-    if (!confirm("Archive all chats? They will be hidden from your history.")) return;
-    const { error } = await supabaseClient
-        .from("chat_sessions").update({ archived: true }).eq("user_id", currentUser.id);
-    if (error) {
-        console.error("❌ Archive error:", error.code, error.message, error.details, error.hint);
-        showToast("❌ Archive failed: " + (error.message || "Check console for details"));
-    } else {
-        showToast("✓ All chats archived successfully");
-        if (typeof loadChatHistory === "function") loadChatHistory();
-        else if (typeof showHistory === "function") showHistory();
-    }
+    showModal({
+        type: 'confirm',
+        icon: `<polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/>`,
+        title: 'Archive all chats',
+        subtitle: 'They will be hidden from your history',
+        confirmLabel: 'Archive',
+        onConfirm: async () => {
+            const { error } = await supabaseClient
+                .from("chat_sessions").update({ archived: true }).eq("user_id", currentUser.id);
+            if (error) {
+                showToast("❌ Archive failed: " + (error.message || "Check console for details"));
+            } else {
+                showToast("✓ All chats archived successfully");
+                if (typeof loadChatHistory === "function") loadChatHistory();
+                else if (typeof showHistory === "function") showHistory();
+            }
+        }
+    });
 };
 
 // ============================
 // 🗑️ DELETE ALL CHATS
 // ============================
 window.clearAllChats = async function () {
-    if (!confirm("Delete ALL chats permanently? This cannot be undone.")) return;
-
-    const { error: msgErr } = await supabaseClient.from("messages").delete().eq("user_id", currentUser.id);
-    if (msgErr) { showToast("❌ Failed to delete messages"); return; }
-
-    const { error: sessErr } = await supabaseClient.from("chat_sessions").delete().eq("user_id", currentUser.id);
-    if (sessErr) { showToast("❌ Failed to delete sessions"); return; }
-
-    showToast("✓ All chats deleted successfully");
-
-    const chatbox   = document.getElementById("chatbox");
-    const inputArea = document.getElementById("inputArea");
-    const app       = document.getElementById("app");
-
-    if (chatbox) chatbox.innerHTML = "";
-    currentSessionId = generateSessionId();
-    firstMessage = true;
-    if (inputArea) {
-        inputArea.classList.remove("bottom");
-        inputArea.classList.add("center");
-    }
-    if (app) app.classList.add("greeting-mode");
-    displayGreeting();
-    closeSettings();
+    showModal({
+        type: 'confirm',
+        dangerous: true,
+        icon: `<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>`,
+        title: 'Delete all chats',
+        subtitle: 'This action cannot be undone',
+        message: 'All your chat history and messages will be permanently removed.',
+        confirmLabel: 'Delete all',
+        onConfirm: async () => {
+            const { error: msgErr } = await supabaseClient.from("messages").delete().eq("user_id", currentUser.id);
+            if (msgErr) { showToast("❌ Failed to delete messages"); return; }
+            const { error: sessErr } = await supabaseClient.from("chat_sessions").delete().eq("user_id", currentUser.id);
+            if (sessErr) { showToast("❌ Failed to delete sessions"); return; }
+            showToast("✓ All chats deleted successfully");
+            const chatbox   = document.getElementById("chatbox");
+            const inputArea = document.getElementById("inputArea");
+            const app       = document.getElementById("app");
+            if (chatbox) chatbox.innerHTML = "";
+            currentSessionId = generateSessionId();
+            firstMessage = true;
+            if (inputArea) { inputArea.classList.remove("bottom"); inputArea.classList.add("center"); }
+            if (app) app.classList.add("greeting-mode");
+            displayGreeting();
+            closeSettings();
+        }
+    });
 };
 
 // ============================
 // 🗑️ DELETE SINGLE CHAT
 // ============================
 async function deleteSingleChat(sessionId) {
-    if (!confirm("Delete this chat? This cannot be undone.")) return;
-
-    const { error: msgErr } = await supabaseClient.from("messages").delete()
-        .eq("session_id", sessionId).eq("user_id", currentUser.id);
-    if (msgErr) { showToast("❌ Failed to delete messages"); return; }
-
-    const { error: sessErr } = await supabaseClient.from("chat_sessions").delete()
-        .eq("session_id", sessionId).eq("user_id", currentUser.id);
-    if (sessErr) { showToast("❌ Failed to delete session"); return; }
-
-    if (currentSessionId === sessionId) {
-        currentSessionId = generateSessionId();
-        firstMessage = true;
-        const chatbox   = document.getElementById("chatbox");
-        const inputArea = document.getElementById("inputArea");
-        const app       = document.getElementById("app");
-        if (chatbox) chatbox.innerHTML = "";
-        if (inputArea) {
-            inputArea.classList.remove("bottom");
-            inputArea.classList.add("center");
+    showModal({
+        type: 'confirm',
+        dangerous: true,
+        icon: `<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>`,
+        title: 'Delete chat',
+        subtitle: 'This cannot be undone',
+        confirmLabel: 'Delete',
+        onConfirm: async () => {
+            const { error: msgErr } = await supabaseClient.from("messages").delete()
+                .eq("session_id", sessionId).eq("user_id", currentUser.id);
+            if (msgErr) { showToast("❌ Failed to delete messages"); return; }
+            const { error: sessErr } = await supabaseClient.from("chat_sessions").delete()
+                .eq("session_id", sessionId).eq("user_id", currentUser.id);
+            if (sessErr) { showToast("❌ Failed to delete session"); return; }
+            if (currentSessionId === sessionId) {
+                currentSessionId = generateSessionId();
+                firstMessage = true;
+                const chatbox   = document.getElementById("chatbox");
+                const inputArea = document.getElementById("inputArea");
+                const app       = document.getElementById("app");
+                if (chatbox) chatbox.innerHTML = "";
+                if (inputArea) { inputArea.classList.remove("bottom"); inputArea.classList.add("center"); }
+                if (app) app.classList.add("greeting-mode");
+                displayGreeting();
+            }
+            showToast("✓ Chat deleted");
+            showHistory();
         }
-        if (app) app.classList.add("greeting-mode");
-        displayGreeting();
-    }
-
-    showToast("✓ Chat deleted");
-    showHistory();
+    });
 }
 
 // ============================
 // ✏️ RENAME CHAT
 // ============================
 async function renameChat(sessionId, currentTitle, titleEl) {
-    const newTitle = prompt("Rename chat:", currentTitle);
-    if (!newTitle || newTitle.trim() === currentTitle) return;
-
-    const { error } = await supabaseClient.from("chat_sessions")
-        .update({ title: newTitle.trim() })
-        .eq("session_id", sessionId)
-        .eq("user_id", currentUser.id);
-
-    if (error) { showToast("❌ Failed to rename chat"); return; }
-    titleEl.textContent = newTitle.trim();
-    showToast("✓ Chat renamed");
+    showModal({
+        type: 'prompt',
+        icon: `<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>`,
+        title: 'Rename chat',
+        subtitle: 'Give this conversation a new title',
+        inputValue: currentTitle,
+        inputPlaceholder: 'Chat title…',
+        confirmLabel: 'Rename',
+        onConfirm: async (newTitle) => {
+            if (!newTitle || newTitle === currentTitle) return;
+            const { error } = await supabaseClient.from("chat_sessions")
+                .update({ title: newTitle.trim() })
+                .eq("session_id", sessionId)
+                .eq("user_id", currentUser.id);
+            if (error) { showToast("❌ Failed to rename chat"); return; }
+            titleEl.textContent = newTitle.trim();
+            showToast("✓ Chat renamed");
+        }
+    });
 }
 
 // ============================
@@ -3396,7 +3541,7 @@ window.executeDeleteAccount = async function () {
 
     try {
         if (!currentUser) {
-            alert('You are not logged in. Please refresh and try again.');
+            showModal({ type: 'alert', title: 'Not logged in', subtitle: 'Please refresh and try again.' });
             if (btn) { btn.disabled = false; btn.textContent = 'Delete my account'; }
             return;
         }
@@ -3421,12 +3566,10 @@ window.executeDeleteAccount = async function () {
         const { error: authErr } = await supabaseClient.rpc('delete_user');
 
         if (authErr) {
-            // Fallback: sign out and inform user to contact support for full removal
             console.error('Auth delete error:', authErr.message);
             await supabaseClient.auth.signOut();
             document.getElementById('deleteAccountModal')?.remove();
-            alert('Your data has been cleared. Your login account will be fully removed within 24 hours. You have been signed out.');
-            window.location.href = '/auth';
+            showModal({ type: 'alert', title: 'Data cleared', subtitle: 'Your login account will be fully removed within 24 hours. You have been signed out.', confirmLabel: 'OK', onConfirm: () => { window.location.href = '/auth'; } });
             return;
         }
 
@@ -3437,7 +3580,7 @@ window.executeDeleteAccount = async function () {
 
     } catch (e) {
         console.error('Delete account error:', e);
-        alert('Something went wrong. Please try again or contact support.');
+        showModal({ type: 'alert', title: 'Something went wrong', subtitle: 'Please try again or contact support.' });
         if (btn) { btn.disabled = false; btn.textContent = 'Delete my account'; }
     }
 };
@@ -3890,7 +4033,7 @@ window.openPlansModal = function () {
                 <p style="font-size:13px;color:#999;margin:0;">Everything in Free, plus priority access and advanced models.</p>
                 <hr style="border:none;border-top:1px solid #222;margin:4px 0;">
                 <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;">${makeList(proFeatures,'#10a37f')}</ul>
-                <button onclick="alert('Pro plan \u2014 coming soon! Stay tuned.')" style="margin-top:auto;padding:10px;border-radius:8px;border:none;background:#10a37f;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Upgrade to Pro</button>
+                <button onclick="showModal({type:'alert',icon:'<rect x=\\'1\\' y=\\'4\\' width=\\'22\\' height=\\'16\\' rx=\\'2\\' ry=\\'2\\'/><line x1=\\'1\\' y1=\\'10\\' x2=\\'23\\' y2=\\'10\\'/>',title:'Pro plan',subtitle:'Coming soon! Stay tuned.',confirmLabel:'Got it'})" style="margin-top:auto;padding:10px;border-radius:8px;border:none;background:#10a37f;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Upgrade to Pro</button>
             </div>
             <div style="background:linear-gradient(145deg,#1a1a1a,#121212);border:1px solid rgba(124,58,237,0.4);border-radius:12px;padding:24px 20px;display:flex;flex-direction:column;gap:12px;">
                 <div style="font-size:12px;color:#a78bfa;font-weight:600;letter-spacing:.06em;text-transform:uppercase;">Max</div>
@@ -3898,7 +4041,7 @@ window.openPlansModal = function () {
                 <p style="font-size:13px;color:#999;margin:0;">Full access to every model and the highest usage limits.</p>
                 <hr style="border:none;border-top:1px solid #222;margin:4px 0;">
                 <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;">${makeList(maxFeatures,'#a78bfa')}</ul>
-                <button onclick="alert('Max plan \u2014 coming soon! Stay tuned.')" style="margin-top:auto;padding:10px;border-radius:8px;border:none;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Upgrade to Max</button>
+                <button onclick="showModal({type:'alert',icon:'<rect x=\\'1\\' y=\\'4\\' width=\\'22\\' height=\\'16\\' rx=\\'2\\' ry=\\'2\\'/><line x1=\\'1\\' y1=\\'10\\' x2=\\'23\\' y2=\\'10\\'/>',title:'Max plan',subtitle:'Coming soon! Stay tuned.',confirmLabel:'Got it'})" style="margin-top:auto;padding:10px;border-radius:8px;border:none;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Upgrade to Max</button>
             </div>
         </div>
     </div>`;
