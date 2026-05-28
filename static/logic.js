@@ -2322,8 +2322,9 @@ document.addEventListener("DOMContentLoaded", async function () {
     };
 
     window.toggleHistoryAccordion = async function () {
-        const trigger = document.getElementById("historyAccordionTrigger");
-        const list    = document.getElementById("historyAccordionList");
+        const trigger   = document.getElementById("historyAccordionTrigger");
+        const list      = document.getElementById("historyAccordionList");
+        const searchWrap = document.getElementById("historySearchWrap");
         if (!trigger || !list) return;
 
         const isOpen = trigger.classList.contains("open");
@@ -2333,20 +2334,33 @@ document.addEventListener("DOMContentLoaded", async function () {
             trigger.classList.remove("open");
             list.classList.remove("open");
             list.innerHTML = "";
+            if (searchWrap) {
+                searchWrap.classList.remove("open");
+                // Reset search
+                const inp = document.getElementById("historySearchInput");
+                const clr = document.getElementById("historySearchClear");
+                if (inp) inp.value = "";
+                if (clr) clr.classList.remove("visible");
+            }
         } else {
             // Open accordion — load chats
             await openHistoryAccordion();
         }
     };
 
+    // Cache of loaded sessions for client-side search
+    let _cachedSessions = [];
+
     async function openHistoryAccordion() {
-        const trigger = document.getElementById("historyAccordionTrigger");
-        const list    = document.getElementById("historyAccordionList");
+        const trigger    = document.getElementById("historyAccordionTrigger");
+        const list       = document.getElementById("historyAccordionList");
+        const searchWrap = document.getElementById("historySearchWrap");
         if (!trigger || !list) return;
 
         // Mark as open
         trigger.classList.add("open");
         list.classList.add("open");
+        if (searchWrap) searchWrap.classList.add("open");
         list.innerHTML = `<div style="padding:8px 14px;font-size:12px;color:#555;">Loading…</div>`;
 
         if (!currentUser) {
@@ -2365,18 +2379,66 @@ document.addEventListener("DOMContentLoaded", async function () {
             return;
         }
 
+        _cachedSessions = data || [];
         list.innerHTML = "";
 
-        if (data.length === 0) {
+        if (_cachedSessions.length === 0) {
             list.innerHTML = `<div class="no-history">No chats yet. Start a new chat to see history.</div>`;
             return;
         }
 
-        data.forEach(session => {
+        _cachedSessions.forEach(session => {
             const item = buildHistoryItem(session, loadSession);
             list.appendChild(item);
         });
     }
+
+    // ── Chat search ──────────────────────────────────────────────────────────
+    window.filterHistoryList = function (query) {
+        const list = document.getElementById("historyAccordionList");
+        const clr  = document.getElementById("historySearchClear");
+        if (!list) return;
+
+        // Show/hide clear button
+        if (clr) clr.classList.toggle("visible", query.trim().length > 0);
+
+        // Remove any previous no-results message
+        const prev = list.querySelector(".history-no-results");
+        if (prev) prev.remove();
+
+        const q = query.trim().toLowerCase();
+        const items = list.querySelectorAll(".history-item");
+        let visibleCount = 0;
+
+        items.forEach(item => {
+            const sid = item.dataset.sessionId;
+            const session = _cachedSessions.find(s => s.session_id === sid);
+            if (!session) { item.style.display = ""; return; }
+
+            // Search title + any snippet stored on the session object
+            const haystack = [
+                session.title || "",
+                session.snippet || session.preview || session.last_message || ""
+            ].join(" ").toLowerCase();
+
+            const matches = !q || haystack.includes(q);
+            item.style.display = matches ? "" : "none";
+            if (matches) visibleCount++;
+        });
+
+        if (q && visibleCount === 0) {
+            const msg = document.createElement("div");
+            msg.className = "history-no-results";
+            msg.textContent = `No chats match "${query}"`;
+            list.appendChild(msg);
+        }
+    };
+
+    window.clearHistorySearch = function () {
+        const inp = document.getElementById("historySearchInput");
+        if (inp) { inp.value = ""; inp.focus(); }
+        window.filterHistoryList("");
+    };
 
 });
 
