@@ -133,7 +133,7 @@ function displayGreeting() {
     const isGhost = typeof ghostChatEnabled !== 'undefined' && ghostChatEnabled;
 
     const greetingText = isGhost
-        ? "👻 You saw nothing. Ghost Mode enabled."
+        ? " You saw nothing. Ghost Mode enabled."
         : getGreetingMessage(userName);
 
     const subText = isGhost
