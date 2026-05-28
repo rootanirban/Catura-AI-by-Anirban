@@ -311,13 +311,8 @@ function getTimeOfDay() {
     return "night";
 }
 
-// Tracks last shown greeting index per time-slot to avoid immediate repeats
-const _lastGreetingIdx = {};
-
 function getGreetingMessage(userName) {
     const timeOfDay = getTimeOfDay();
-
-    // Each entry is [headline, subtext]
     const greetings = {
         morning: [
             [`Good morning, ${userName}! ☀️`,            `What are we building today?`],
@@ -458,8 +453,6 @@ function getGreetingMessage(userName) {
             [`Hey ${userName}! Good evening. 🌙`,         `I've got answers — you've got questions?`],
             [`I tell you one thing dont laugh! 😁 go your bathroom and think, better ideas come in silent`],
             [`You will be the Next Elon Mask ${userName}`, `Let's start building your empire tonight!`],
-
-
         ],
         night: [
             [`Still up, ${userName}? 🌌`,                 `Night owl mode activated.`],
@@ -516,55 +509,11 @@ function getGreetingMessage(userName) {
             [`The night is full of possibilities, ${userName}.`, `What would you like to build or learn?`],
             [`Up late, ${userName}? 🌙`,                 `Let's create something amazing tonight.`],
             [`${userName}, it's late — but let's go. 🌙`, `What are we building tonight?`],
-        ],
+        ]
     };
-
-    // Ghost mode greetings — picked randomly, unrelated to time
-    const ghostGreetings = [
-        [`You saw nothing. 👻`,                           `Ghost Mode is on. Nothing is saved.`],
-        [`Ghost Mode activated, ${userName}.`,            `This conversation will vanish.`],
-        [`Shhh… 👻 Ghost Chat is on.`,                   `No history. No traces. Just us.`],
-        [`Invisible mode, ${userName}! 👤`,               `Nothing here will be remembered.`],
-        [`Off the record, ${userName}. 🕵️`,              `Ghost Mode — no logs, no saves.`],
-        [`You were never here, ${userName}. 👻`,          `Ghost Mode is keeping secrets.`],
-        [`Private session active. 🔒`,                    `Nothing will be saved or remembered.`],
-        [`${userName} has entered stealth mode. 🌫️`,      `Ghost Chat: untraceable.`],
-    ];
-
-    // Pick list
-    const list = greetings[timeOfDay];
-    const slotKey = timeOfDay;
-
-    // Avoid immediate repeat
-    let idx;
-    const last = _lastGreetingIdx[slotKey];
-    do {
-        idx = Math.floor(Math.random() * list.length);
-    } while (list.length > 1 && idx === last);
-    _lastGreetingIdx[slotKey] = idx;
-
-    return list[idx]; // returns [headline, subtext]
-}
-
-// Picks a random ghost greeting, no repeats
-let _lastGhostIdx = -1;
-function getGhostGreeting(userName) {
-    const ghostGreetings = [
-        [`You saw nothing. 👻`,                           `Ghost Mode is on. Nothing is saved.`],
-        [`Ghost Mode activated, ${userName}.`,            `This conversation will vanish.`],
-        [`Shhh… 👻 Ghost Chat is on.`,                   `No history. No traces. Just us.`],
-        [`Invisible mode, ${userName}! 👤`,               `Nothing here will be remembered.`],
-        [`Off the record, ${userName}. 🕵️`,              `Ghost Mode — no logs, no saves.`],
-        [`You were never here, ${userName}. 👻`,          `Ghost Mode is keeping secrets.`],
-        [`Private session active. 🔒`,                    `Nothing will be saved or remembered.`],
-        [`${userName} has entered stealth mode. 🌫️`,      `Ghost Chat: untraceable.`],
-    ];
-    let idx;
-    do {
-        idx = Math.floor(Math.random() * ghostGreetings.length);
-    } while (ghostGreetings.length > 1 && idx === _lastGhostIdx);
-    _lastGhostIdx = idx;
-    return ghostGreetings[idx];
+    
+    const greetingList = greetings[timeOfDay];
+    return greetingList[Math.floor(Math.random() * greetingList.length)];
 }
 
 function displayGreeting() {
@@ -574,9 +523,13 @@ function displayGreeting() {
 
     const isGhost = typeof ghostChatEnabled !== 'undefined' && ghostChatEnabled;
 
-    const [greetingText, subText] = isGhost
-        ? getGhostGreeting(userName)
+    const greetingText = isGhost
+        ? " You saw nothing. Ghost Mode enabled."
         : getGreetingMessage(userName);
+
+    const subText = isGhost
+        ? "Nothing is saved. Nothing is remembered."
+        : "How can I help you today?";
 
     // Colors: ghost = red palette, normal = green palette
     const accentColor  = isGhost ? "#e05555"   : "#10a37f";
