@@ -311,37 +311,260 @@ function getTimeOfDay() {
     return "night";
 }
 
+// Tracks last shown greeting index per time-slot to avoid immediate repeats
+const _lastGreetingIdx = {};
+
 function getGreetingMessage(userName) {
     const timeOfDay = getTimeOfDay();
+
+    // Each entry is [headline, subtext]
     const greetings = {
         morning: [
-            `Good morning, ${userName}`,
-            `Rise and shine, ${userName}!`,
-            `Good morning! Ready to code, ${userName}?`,
-            `☀️ Good morning, ${userName}!`,
+            [`Good morning, ${userName}! ☀️`,            `What are we building today?`],
+            [`Rise and shine, ${userName}!`,              `Your ideas are ready to run.`],
+            [`Hey ${userName}, good morning!`,            `Let's make today count.`],
+            [`Morning, ${userName}! ☕`,                  `Coffee or code first?`],
+            [`A fresh morning, ${userName}!`,             `What's on your mind?`],
+            [`Good morning, ${userName}!`,                `Ready to solve something great?`],
+            [`Wakey wakey, ${userName}! 🌅`,              `The world is full of problems to fix.`],
+            [`Top of the morning, ${userName}!`,          `How can I help you kick off the day?`],
+            [`${userName}, good morning! 🌄`,             `Let's turn your ideas into reality.`],
+            [`Morning energy loading… ☀️`,                `What would you like to explore, ${userName}?`],
+            [`Hello, ${userName}! Bright morning.`,       `I'm all yours — what's first?`],
+            [`Good morning! Glad you're here, ${userName}.`, `Ask me anything.`],
+            [`${userName}! Morning. ✨`,                  `Let's get something done.`],
+            [`Rise, ${userName}! Big day ahead.`,         `What do you need from me?`],
+            [`Morning check-in, ${userName}! ☕`,         `I'm caffeinated and ready. Are you?`],
+            [`A beautiful morning starts here 🌞`,       `What are we creating today, ${userName}?`],
+            [`Hope your morning is going great so far!`, `What can I help you with today`],
+            [`New day, new possibilities ✨`,            `What would you like to build or learn`],
+            [`Morning ☕`,                               `Let's make today a great one, ${userName}!`],
+            [`Good morning, ${userName}! 🌅`,             `Ready to turn your ideas into reality?`],
+            [`Morning, ${userName}!`,                   `Let's get something done.`],
+            [`Hey ${userName}! Good morning. ☀️`,         `I've got answers — you've got questions?`],
+            [`Good morning, ${userName}!`,              `Shall we create something amazing today?`],
+            [`${userName}, morning! Still going strong?`, `Let's keep the momentum.`],
+            [`This mmorning is yours, ${userName}.`,      `What would you like to explore?`],
+            [`Morning check-in, ${userName}! ☕`,         `What do you need from me?`],
+            [`Hope your last night went well. ${userName}?`, `What can I help you with this morning?`],
+            [`Morning! Let's make it a great one, ${userName}!`, `What would you like to build or learn today?`],
+            [`${userName}, the morning is full of possibilities.`, `What would you like to create or learn today?`],
+            [`${userName}, you do, you can, you will.`, `Let's make this morning amazing!`],
+            [`Morning, ${userName}! Let's get started.`, `What can I help you with today?`],
+            [`Good morning! What's on your mind today?`, `Let's make it a great day, ${userName}!`],
+            [`${userName}, morning!`, `What would you like to build or learn today?`],
+            [`Morning, ${userName}!`, `Let's make today amazing.`],
+            [`Good morning, ${userName}!`, `Ready to turn your ideas into reality?`],
+            [`You are home alone ${userName}?, 🏠`, `Let's make the most of this quiet morning.`],
+            [`${userName}, morning!`, `What would you like to build or learn today?`],
+            [`Good morning! What's on your mind today?`, `Let's make it a great day, ${userName}!`],
+            [`${userName}, morning!`, `Let's make today amazing!`],
+            [`you will be the secound person to wake up in your house ${userName}?, 🏠`, `Let's make the most of this quiet morning.`],
+            [`You will be the next Gennady Korotkevich ${userName}?, 🏆`, `Let's start training this morning!`],
+            [`No one stand of with your side ? i will`, `lets build something good together ${userName}!`],
         ],
         afternoon: [
-            `Good afternoon, ${userName}`,
-            `Hope you're having a great afternoon, ${userName}!`,
-            `Afternoon, ${userName}!`,
-            `🌤️ Good afternoon, ${userName}!`,
+            [`Good afternoon, ${userName}!`,              `How's the day treating you?`],
+            [`Hey ${userName}, afternoon! 🌤️`,            `Need a hand with something?`],
+            [`Afternoon, ${userName}!`,                   `Let's get things moving.`],
+            [`Hope your day's going well, ${userName}!`,  `What can I help with?`],
+            [`Midday check-in, ${userName}! 🌞`,          `Anything I can sort out for you?`],
+            [`${userName}, good afternoon!`,              `Ask me anything — I'm here.`],
+            [`Afternoon boost, ${userName}! ⚡`,           `What are we tackling?`],
+            [`Hey there, ${userName}! Post-lunch mode? 😄`, `I'm still sharp, let's go.`],
+            [`Good afternoon! Welcome back, ${userName}.`, `Where did we leave off?`],
+            [`Afternoon, ${userName}. Let's roll. 🚀`,    `What do you want to build or learn?`],
+            [`${userName}! Afternoon mode: ON. ✅`,       `What's on the agenda?`],
+            [`Hello, ${userName}! Afternoon's here.`,     `I'm ready for any question.`],
+            [`Productivity hour, ${userName}! 🌤️`,        `Let's make this afternoon count.`],
+            [`${userName}, the afternoon is yours.`,      `What would you like to explore?`],
+            [`Hey ${userName}! Halfway through the day.`, `Let's finish it strong.`],
+            [`Hope your afternoon is productive 🚀,${userName}` `What can I help you with today?`],
+            [`Afternoon vibes, ${userName}! 🌞`,             `What are we creating or learning this fine day?`],
+            [`Good afternoon, ${userName}!`,              `Ready to turn your ideas into reality?`],
+            [`Afternoon, ${userName}!`,                   `Let's get something done.`],
+            [`Hey ${userName}! Good afternoon. 🌤️`,         `I've got answers — you've got questions?`],
+            [`Good afternoon, ${userName}!`,              `Shall we create something amazing today?`],
+            [`${userName}, afternoon! Still going strong?`, `Let's keep the momentum.`],
+            [`Afternoon check-in, ${userName}! 🌞`,         `What do you need from me?`],
+            [`Hello, ${userName}! Hope your day's going well.`, `What can I help you with this afternoon?`],
+            [`Afternoon! Let's make it a great one, ${userName}!`, `What would you like to build or learn today?`],
+            [`afternoon vibes only 🌤️`,                       `lets build something good`],
+            [`Good afternoon, ${userName}!`,              `Ready to turn your ideas into reality?`],
+            [`Same powerful, different vibe. Afternoon, ${userName}!`, `Let's get something done.`],
+            [`Hey ${userName}! Good afternoon. 🌤️`,         `I've got answers — you've got questions?`]
+            [`Good afternoon, ${userName}!`,              `Shall we create something amazing today?`],
+            [`${userName}, afternoon! Still going strong?`, `Let's keep the momentum.`],
+            [`Same energy like in Morning WOW 🤩`,          `keep it up`],
+            [`Afternoon check-in, ${userName}! 🌞`,         `What do you need from me?`],
+            [`Hello, ${userName}! Hope your day's going well.`, `What can I help you with this afternoon?`],
+            [`Afternoon! Let's make it a great one, ${userName}!`, `What would you like to build or learn today?`],
+            [`${userName}, the afternoon is full of possibilities.`, `What would you like to create or learn today?`],
+            [`${userName}, you do, you can, you will.`, `Let's make this afternoon amazing!`],
+            [`Afternoon, ${userName}! Let's get started.`, `What can I help you with today?`],
+            [`Good afternoon! What's on your mind today?`, `Let's make it a great day, ${userName}!`],
+            [`${userName}, afternoon!`, `What would you like to build or learn today?`],
+            [`Afternoon, ${userName}!`, `Let's make today amazing.`],
+            [`Good afternoon, ${userName}!`, `Ready to turn your ideas into reality?`],
+            [`You are home alone ${userName}?, 🏠`, `Let's make the most of this quiet afternoon.`]
+            [`${userName}, afternoon!`, `What would you like to build or learn today?`],
+            [`Good afternoon! What's on your mind today?`, `Let's make it a great day, ${userName}!`],
+            [`${userName}, afternoon!`, `Let's make today amazing`],
+            [`Is everyone out of home ${userName}? 🏠`, `Let's make the most of this quiet afternoon.`],
+            [`is everyone sleeping after eating? ${userName}? 🏠`, `Let's make the most of this quiet afternoon.`],
         ],
         evening: [
-            `Good evening, ${userName}`,
-            `Evening, ${userName}!`,
-            `Good evening! Let's build something, ${userName}`,
-            `🌙 Good evening, ${userName}!`,
+            [`Good evening, ${userName}! 🌙`,             `What's on your mind tonight?`],
+            [`Evening, ${userName}!`,                     `Let's build something cool.`],
+            [`Hey ${userName}, evening! ✨`,               `How can I help you wind down — or ramp up?`],
+            [`${userName}, good evening!`,                `Ask me anything.`],
+            [`Evening mode, ${userName}! 🌆`,             `The best ideas come after dark.`],
+            [`Good evening! Great to see you, ${userName}.`, `What are we working on?`],
+            [`Hey there, ${userName}! Evening vibes. 🎧`, `What can I do for you?`],
+            [`${userName}! Evening check-in. 🌙`,         `Ideas, questions, code — bring it all.`],
+            [`Welcome back, ${userName}. Evening!`,       `What would you like to explore?`],
+            [`Evenings are for deep work, ${userName}.`,  `What's the task?`],
+            [`${userName}, the evening is yours. 🌇`,     `Let's get something done.`],
+            [`Evening, ${userName}! Ready when you are.`, `What do you need?`],
+            [`Hey ${userName}! Good evening. 🌃`,         `I've got answers — you've got questions?`],
+            [`Good evening, ${userName}! 🌙`,             `Shall we create something tonight?`],
+            [`${userName}, evening! Still going strong?`, `Let's keep the momentum.`],
+            [`Evening check-in, ${userName}! 🌙`,         `What do you need from me?`],
+            [`Hello, ${userName}! Hope you had a great day.`, `What can I help you with this evening?`],
+            [`Evening! Let's make it a great one, ${userName}!`, `What would you like to build or learn tonight?`],
+            [`Hope your evening feels peaceful and productive.`, `What can I help you with, ${userName}?`],
+            [`Time to finish the day strong 💪`,    `what you want to build or learn tonight?`],
+            [`Evening vibes only 🌃`,                       `lets build something good`],
+            [`Good evening, ${userName}! 🌙`,             `Ready to turn your ideas into reality?`],
+            [`Evening, ${userName}!`,                   `Let's get something done.`],
+            [`Hey ${userName}! Good evening. 🌙`,         `I've got answers`],
+            [`Good evening, ${userName}!`,              `Shall we create something amazing tonight?`],
+            [`Night approaching, ${userName}! have you any ideas in mind?`, `Let's keep the momentum.`],
+            [`Evening check-in, ${userName}! 🌙`,         `What do you need from me?`],
+            [`Hello, ${userName}! Hope you had a great day.`, `What can I help you with this evening?`],
+            [`Evening! Let's make it a great one, ${userName}!`, `What would you like to build or learn tonight?`],
+            [`${userName}, the evening is full of possibilities.`, `What would you like to create or learn tonight?`],
+            [`${userName}, you do, you can, you will.`, `Let's make this evening amazing!`],
+            [`Evening, ${userName}! Let's get started.`, `What can I help you with tonight?`],
+            [`Good evening! What's on your mind tonight?`, `Let's make it a great evening, ${userName}!`],
+            [`${userName}, evening!`, `What would you like to build or learn tonight?`],
+            [`Prepared for tonight ${userName}?`, `Let's make tonight amazing.`],
+            [`Few hours Left in the day ${userName},`, `What would you like to build or learn tonight?`],
+            [`I know you have a great plan for tonight ${userName},`, `Let's make it happen.`],
+            [`Good evening, ${userName}!`, `Ready to turn your ideas into reality?`],
+            [`You are home alone ${userName}?, 🏠`, `Let's make the most of this quiet evening.`],
+            [`${userName}, evening!`, `What would you like to build ?`],
+            [`Same energy like in Afternoon WOW 🤩`,          `keep it up`],
+            [`Hey ${userName}! Good evening. 🌙`,         `I've got answers — you've got questions?`],
+            [`I tell you one thing dont laugh! 😁 go your bathroom and think, better ideas come in silent`],
+            [`You will be the Next Elon Mask ${userName}`, `Let's start building your empire tonight!`],
+
+
         ],
         night: [
-            `Good night, ${userName}`,
-            `Night owl coding session, ${userName}?`,
-            `Burning the midnight oil, ${userName}?`,
-            `🌌 Good night, ${userName}!`,
-        ]
+            [`Still up, ${userName}? 🌌`,                 `Night owl mode activated.`],
+            [`Burning the midnight oil, ${userName}?`,    `I'm right here with you.`],
+            [`Late night session, ${userName}! 🦉`,       `Some of the best work happens now.`],
+            [`${userName}, it's late — but let's go. 🌙`, `What are we building tonight?`],
+            [`Night shift, ${userName}! 🌌`,              `The stars are out — so are the ideas.`],
+            [`Hey ${userName}! Late night check-in.`,     `What do you need from me?`],
+            [`Good night-ish, ${userName}! 🌙`,           `What's keeping you up?`],
+            [`${userName}, the night is young. ✨`,        `What do you want to create?`],
+            [`Can't sleep, ${userName}? 😄`,              `Good thing I never do either.`],
+            [`Night mode: ON, ${userName}. 🔦`,           `What are we solving?`],
+            [`Late night, big ideas, ${userName}! 🌠`,    `Let's make them real.`],
+            [`Hey ${userName}! Moon's out. 🌕`,           `Best time to think deeply.`],
+            [`Night owl energy, ${userName}! 🦉`,         `I'm fully awake — what about you?`],
+            [`${userName}, midnight hustle! 💻`,          `I'm your co-pilot tonight.`],
+            [`Deep night, ${userName}. 🌌`,               `Ask me anything — I don't sleep.`],
+            [`Good night, ${userName}! 🌙`,             `Ready to turn your ideas into reality?`],
+            [`Night, ${userName}!`,                   `Let's get something done.`],
+            [`Hey ${userName}! Burning the midnight oil? 🌌`,         `I've got answers`],
+            [`Late night grind, ${userName}!`,              `Let's make the most of these quiet hours.`],
+            [`The night is full of possibilities, ${userName}.`, `What would you like to build or learn?`],
+            [`Up late, ${userName}? 🌙`,                 `Let's create something amazing tonight.`],
+            [`${userName}, it's late — but let's go. 🌙`, `What are we building tonight?`],
+            [`Night shift, ${userName}! 🌌`,              `The stars are out — so are the ideas.`],
+            [`Hey ${userName}! Late night check-in.`,     `What do you need from me?`],
+            [`Good night-ish, ${userName}! 🌙`,           `What's keeping you up?`],
+            [`Hey let's make this night memorable, ${userName}! 🌌`, `What do you want to create?`],
+            [`Can't sleep, ${userName}? 😄`,              `Good thing I never do either.`],
+            [`its already late, ${userName}! Make something good`, `let's create something amazing tonight.`],
+            [`Night mode: ON, ${userName}. 🔦`,           `What are we solving?`],
+            [`Late night, big ideas, ${userName}! 🌠`,    `Let's make them real.`],
+            [`Hey ${userName}! Moon's out. 🌕`,           `Best time to think deeply.`],
+            [`Family sleeping ${userName}? 🛌`,         `I'm fully awake — what about you?`],
+            [`${userName}, midnight hustle! 💻`,          `I'm your catura tonight.`],
+            [`Deep night, ${userName}. 🌌`,               `Ask me anything — I don't sleep.`],
+            [`Everyone Sleeping,${userName} it's time to hunt new ideas 🦉`,         `Let's make the most of these quiet hours.`],
+            [`The night is full of possibilities, ${userName}.`, `What would you like to build or learn?`],
+            [`Up late, ${userName}? 🌙`,                 `Let's create something amazing tonight.`],
+            [`${userName}, it's late — but let's go. 🌙`, `What are we building tonight?`],
+            [`Night shift, ${userName}! 🌌`,              `The stars are out — so are the ideas.`],
+            [`Hey ${userName}! Late night check-in.`,     `What do you need from me?`],
+            [`Good night-ish, ${userName}! 🌙`,           `What's keeping you up?`],
+            [`Hey let's make this night memorable, ${userName}! 🌌`, `What do you want to create?`],
+            [`Can't sleep, ${userName}? 😄`,              `Good thing I never do either.`],
+            [`its already late, ${userName}! Make something good`, `let's create something amazing tonight.`],
+            [`Night mode: ON, ${userName}. 🔦`,           `What are we solving?`],
+            [`Late night, big ideas, ${userName}! 🌠`,    `Let's make them real.`],
+            [`Hey ${userName}! Moon's out. 🌕`,           `Best time to think deeply.`],
+            [`Family sleeping ${userName}? 🛌`,         `I'm fully awake — what about you?`],
+            [`${userName}, midnight hustle! 💻`,          `I'm your catura tonight.`],
+            [`Deep night, ${userName}. 🌌`,               `Ask me anything — I don't sleep.`],
+            [`Everyone Sleeping,${userName} it's time to hunt new ideas 🦉`,         `Let's make the most of these quiet hours.`],
+            [`The night is full of possibilities, ${userName}.`, `What would you like to build or learn?`],
+            [`Up late, ${userName}? 🌙`,                 `Let's create something amazing tonight.`],
+            [`${userName}, it's late — but let's go. 🌙`, `What are we building tonight?`],
+        ],
     };
-    
-    const greetingList = greetings[timeOfDay];
-    return greetingList[Math.floor(Math.random() * greetingList.length)];
+
+    // Ghost mode greetings — picked randomly, unrelated to time
+    const ghostGreetings = [
+        [`You saw nothing. 👻`,                           `Ghost Mode is on. Nothing is saved.`],
+        [`Ghost Mode activated, ${userName}.`,            `This conversation will vanish.`],
+        [`Shhh… 👻 Ghost Chat is on.`,                   `No history. No traces. Just us.`],
+        [`Invisible mode, ${userName}! 👤`,               `Nothing here will be remembered.`],
+        [`Off the record, ${userName}. 🕵️`,              `Ghost Mode — no logs, no saves.`],
+        [`You were never here, ${userName}. 👻`,          `Ghost Mode is keeping secrets.`],
+        [`Private session active. 🔒`,                    `Nothing will be saved or remembered.`],
+        [`${userName} has entered stealth mode. 🌫️`,      `Ghost Chat: untraceable.`],
+    ];
+
+    // Pick list
+    const list = greetings[timeOfDay];
+    const slotKey = timeOfDay;
+
+    // Avoid immediate repeat
+    let idx;
+    const last = _lastGreetingIdx[slotKey];
+    do {
+        idx = Math.floor(Math.random() * list.length);
+    } while (list.length > 1 && idx === last);
+    _lastGreetingIdx[slotKey] = idx;
+
+    return list[idx]; // returns [headline, subtext]
+}
+
+// Picks a random ghost greeting, no repeats
+let _lastGhostIdx = -1;
+function getGhostGreeting(userName) {
+    const ghostGreetings = [
+        [`You saw nothing. 👻`,                           `Ghost Mode is on. Nothing is saved.`],
+        [`Ghost Mode activated, ${userName}.`,            `This conversation will vanish.`],
+        [`Shhh… 👻 Ghost Chat is on.`,                   `No history. No traces. Just us.`],
+        [`Invisible mode, ${userName}! 👤`,               `Nothing here will be remembered.`],
+        [`Off the record, ${userName}. 🕵️`,              `Ghost Mode — no logs, no saves.`],
+        [`You were never here, ${userName}. 👻`,          `Ghost Mode is keeping secrets.`],
+        [`Private session active. 🔒`,                    `Nothing will be saved or remembered.`],
+        [`${userName} has entered stealth mode. 🌫️`,      `Ghost Chat: untraceable.`],
+    ];
+    let idx;
+    do {
+        idx = Math.floor(Math.random() * ghostGreetings.length);
+    } while (ghostGreetings.length > 1 && idx === _lastGhostIdx);
+    _lastGhostIdx = idx;
+    return ghostGreetings[idx];
 }
 
 function displayGreeting() {
@@ -351,13 +574,9 @@ function displayGreeting() {
 
     const isGhost = typeof ghostChatEnabled !== 'undefined' && ghostChatEnabled;
 
-    const greetingText = isGhost
-        ? " You saw nothing. Ghost Mode enabled."
+    const [greetingText, subText] = isGhost
+        ? getGhostGreeting(userName)
         : getGreetingMessage(userName);
-
-    const subText = isGhost
-        ? "Nothing is saved. Nothing is remembered."
-        : "How can I help you today?";
 
     // Colors: ghost = red palette, normal = green palette
     const accentColor  = isGhost ? "#e05555"   : "#10a37f";
