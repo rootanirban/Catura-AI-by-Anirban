@@ -78,7 +78,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-    <link rel="stylesheet" href="static/style.css?v=0.0.179">   <!-- this is CSS linking section -->
+    <link rel="stylesheet" href="static/style.css?v=0.0.180">   <!-- this is CSS linking section -->
     
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#000000" />
@@ -103,10 +103,12 @@
             <img src="static/logo.png" alt="Catura AI" class="mobile-header-logo">
             <span>Catura AI</span>
         </div>
-        <button class="mobile-header-new" onclick="newChat()" title="New Chat" aria-label="New chat">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+        <button class="mobile-header-ghost" id="mobileGhostBtn" onclick="toggleGhostChat()" title="Ghost Chat — temporary, nothing saved" aria-label="Toggle Ghost Chat">
+            <svg class="mobile-ghost-svg" width="20" height="20" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <path d="M50 8 C30 8 15 24 15 44 L15 80 C15 83 17 85 20 84 L26 80 C28 79 30 79 32 81 L38 86 C40 88 43 88 44 86 L50 80 L56 86 C57 88 60 88 62 86 L68 81 C70 79 72 79 74 80 L80 84 C83 85 85 83 85 80 L85 44 C85 24 70 8 50 8 Z" fill="currentColor"/>
+                <circle cx="38" cy="42" r="7" fill="var(--ghost-eye-color, #111)"/>
+                <circle cx="62" cy="42" r="7" fill="var(--ghost-eye-color, #111)"/>
+                <ellipse cx="50" cy="56" rx="5" ry="6" fill="var(--ghost-eye-color, #111)"/>
             </svg>
         </button>
     </div>
@@ -537,17 +539,17 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
     
     <!-- ✅ CACHE BUSTING - VERSION PARAMETER -->
-    <script src="static/firebase-config.js?v=0.0.179"></script>
-    <script src="static/logic.js?v=0.0.179"></script>
-    <script src="static/feedback.js?v=0.0.179"></script>
-    <script src="static/file-upload.js?v=0.0.179"></script>
+    <script src="static/firebase-config.js?v=0.0.180"></script>
+    <script src="static/logic.js?v=0.0.180"></script>
+    <script src="static/feedback.js?v=0.0.180"></script>
+    <script src="static/file-upload.js?v=0.0.180"></script>
 
     <script>
         console.log('🚀 Catura AI v27.0.5 loaded');
         
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js?v=0.0.179')
+                navigator.serviceWorker.register('/service-worker.js?v=0.0.180')
                     .then(() => console.log('✅ Catura AI PWA Ready - v27.0.5'))
                     .catch((err) => console.log('❌ SW Error:', err));
             });

@@ -1883,7 +1883,7 @@ html { scroll-behavior: smooth; }
         touch-action: manipulation;
     }
 
-    /* === MOBILE HEADER === */
+    /* === MOBILE HEADER — Claude-style floating minimal === */
     .mobile-header {
         display: flex;
         align-items: center;
@@ -1892,17 +1892,19 @@ html { scroll-behavior: smooth; }
         top: 0;
         left: 0;
         right: 0;
-        height: 52px;
-        background: rgba(13, 13, 13, 0.99);
-        border-bottom: 1px solid #1e1e1e;
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
+        height: 56px;
+        background: transparent;
+        border-bottom: none;
         z-index: 998;
-        padding: 0 12px;
-        padding-top: max(0, env(safe-area-inset-top));
+        padding: 0 6px 0 8px;
+        padding-top: max(0px, env(safe-area-inset-top));
         box-sizing: border-box;
         will-change: transform;
+        pointer-events: none;
     }
+
+    /* Give pointer-events back to individual buttons */
+    .mobile-header > * { pointer-events: auto; }
 
     .mobile-hamburger {
         display: flex;
@@ -1918,56 +1920,55 @@ html { scroll-behavior: smooth; }
         border: none;
         cursor: pointer;
         padding: 8px;
-        border-radius: 10px;
-        transition: background 0.2s ease;
+        border-radius: 14px;
+        transition: background 0.18s ease;
         flex-shrink: 0;
         -webkit-appearance: none;
         appearance: none;
+        color: #bbb;
     }
 
-    .mobile-hamburger:active {
-        background: #1e1e1e;
-    }
+    .mobile-hamburger:active { background: rgba(255,255,255,0.08); }
 
     .mobile-hamburger span {
         display: block;
         width: 20px;
-        height: 2px;
-        background: #ccc;
+        height: 1.8px;
+        background: currentColor;
         border-radius: 2px;
-        transition: transform 0.25s ease, opacity 0.25s ease, background 0.2s ease;
+        transition: transform 0.25s ease, opacity 0.25s ease;
         transform-origin: center;
     }
 
-    .mobile-hamburger.is-open span:nth-child(1) {
-        transform: translateY(7px) rotate(45deg);
-    }
-    .mobile-hamburger.is-open span:nth-child(2) {
-        opacity: 0;
-        transform: scaleX(0);
-    }
-    .mobile-hamburger.is-open span:nth-child(3) {
-        transform: translateY(-7px) rotate(-45deg);
-    }
+    .mobile-hamburger.is-open span:nth-child(1) { transform: translateY(6.8px) rotate(45deg); }
+    .mobile-hamburger.is-open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+    .mobile-hamburger.is-open span:nth-child(3) { transform: translateY(-6.8px) rotate(-45deg); }
 
+    /* Centre brand — absolutely positioned so it's always centred */
     .mobile-header-brand {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 7px;
         font-size: 15px;
-        font-weight: 600;
+        font-weight: 650;
         color: #e5e5e5;
-        letter-spacing: -0.01em;
+        letter-spacing: -0.02em;
+        pointer-events: none;
+        white-space: nowrap;
     }
 
     .mobile-header-logo {
         width: 22px;
         height: 22px;
         object-fit: contain;
-        border-radius: 5px;
+        border-radius: 6px;
     }
 
-    .mobile-header-new {
+    /* Ghost button — right side, matches hamburger style */
+    .mobile-header-ghost {
         display: flex;
         align-items: center;
         justify-content: center;
@@ -1977,19 +1978,25 @@ html { scroll-behavior: smooth; }
         min-height: 44px;
         background: transparent;
         border: none;
-        color: #aaa;
+        color: #666;
         cursor: pointer;
-        border-radius: 10px;
-        transition: background 0.2s ease, color 0.2s ease;
+        border-radius: 14px;
+        transition: background 0.18s ease, color 0.2s ease;
         flex-shrink: 0;
         padding: 0;
         -webkit-appearance: none;
         appearance: none;
     }
 
-    .mobile-header-new:active {
-        background: #1e1e1e;
-        color: #e5e5e5;
+    .mobile-header-ghost:active { background: rgba(255,255,255,0.08); }
+
+    /* Ghost active state synced with main ghost button */
+    .mobile-header-ghost.ghost-active {
+        color: #a8c4ff;
+    }
+    .mobile-header-ghost.ghost-active .mobile-ghost-svg {
+        filter: drop-shadow(0 0 6px rgba(120,160,255,0.7));
+        animation: ghostFloat 3s ease-in-out infinite;
     }
 
     /* === MAIN APP === */
@@ -2004,7 +2011,7 @@ html { scroll-behavior: smooth; }
         bottom: 0;
         width: 100%;
         height: 100dvh;
-        padding-top: 52px;
+        padding-top: 56px;
         padding-bottom: 0;
         box-sizing: border-box;
         display: flex;
@@ -2017,7 +2024,7 @@ html { scroll-behavior: smooth; }
     .app.greeting-mode {
         justify-content: center;
         align-items: center;
-        padding-top: 52px;
+        padding-top: 56px;
     }
 
     .app.greeting-mode #chatbox {
@@ -2027,7 +2034,7 @@ html { scroll-behavior: smooth; }
     /* === CHATBOX === */
     #chatbox {
         position: absolute;
-        top: 52px;
+        top: 56px;
         left: 0;
         right: 0;
         bottom: 120px;
@@ -2552,15 +2559,12 @@ html { scroll-behavior: smooth; }
 }
 
 /* ── Mobile header ── */
-[data-theme="light"] .mobile-header {
-    background: rgba(255,255,255,0.97);
-    border-bottom-color: #eaecf0;
-}
+[data-theme="light"] .mobile-header { background: transparent !important; border-bottom: none !important; }
 [data-theme="light"] .mobile-header-brand { color: #0f1117; }
-[data-theme="light"] .mobile-hamburger span { background: #3d4455; }
-[data-theme="light"] .mobile-hamburger:active { background: #f0f2f7; }
-[data-theme="light"] .mobile-header-new { color: #7a8399; }
-[data-theme="light"] .mobile-header-new:active { background: #f0f2f7; color: #0f1117; }
+[data-theme="light"] .mobile-hamburger span { background: #555; }
+[data-theme="light"] .mobile-hamburger:active { background: rgba(0,0,0,0.06); }
+[data-theme="light"] .mobile-header-ghost { color: #888; }
+[data-theme="light"] .mobile-header-ghost.ghost-active { color: #4a6fd8; }
 
 /* ── Input area mobile ── */
 [data-theme="light"] .input-area.bottom {
@@ -4519,55 +4523,55 @@ kbd.shortcut-key {
     font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif !important;
   }
 
-  /* ── MOBILE HEADER — premium glass effect ── */
+  /* ── MOBILE HEADER — Claude-style transparent minimal ── */
   .mobile-header {
-    height: 56px;
-    background: rgba(10, 10, 10, 0.92) !important;
-    border-bottom: 1px solid rgba(255,255,255,0.07) !important;
-    backdrop-filter: blur(20px) saturate(180%) !important;
-    -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
-    padding: 0 16px !important;
-    box-shadow: 0 1px 0 rgba(255,255,255,0.04) !important;
+    height: 56px !important;
+    background: transparent !important;
+    border-bottom: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    padding: 0 6px 0 8px !important;
+    box-shadow: none !important;
   }
 
   .mobile-header-brand {
-    font-size: 16px !important;
-    font-weight: 700 !important;
+    font-size: 15px !important;
+    font-weight: 650 !important;
     letter-spacing: -0.02em !important;
-    color: #f0f0f0 !important;
-    gap: 9px !important;
+    color: #e5e5e5 !important;
+    gap: 7px !important;
   }
 
   .mobile-header-logo {
-    width: 26px !important;
-    height: 26px !important;
-    border-radius: 7px !important;
-    box-shadow: 0 0 0 1.5px rgba(16,163,127,0.4) !important;
+    width: 22px !important;
+    height: 22px !important;
+    border-radius: 6px !important;
+    box-shadow: none !important;
   }
 
   .mobile-hamburger {
-    width: 40px !important;
-    height: 40px !important;
-    min-width: 40px !important;
-    min-height: 40px !important;
-    border-radius: 12px !important;
-    gap: 4.5px !important;
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    border-radius: 14px !important;
+    gap: 5px !important;
   }
 
   .mobile-hamburger span {
-    width: 18px !important;
-    height: 1.5px !important;
-    background: #b0b0b0 !important;
+    width: 20px !important;
+    height: 1.8px !important;
+    background: #bbb !important;
     border-radius: 2px !important;
   }
 
-  .mobile-header-new {
-    width: 40px !important;
-    height: 40px !important;
-    min-width: 40px !important;
-    min-height: 40px !important;
-    border-radius: 12px !important;
-    color: #888 !important;
+  .mobile-header-ghost {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    border-radius: 14px !important;
+    color: #666 !important;
   }
 
   /* ── CHATBOX ── */
@@ -5026,8 +5030,8 @@ kbd.shortcut-key {
 /* ── Light theme mobile tweaks ── */
 @media (max-width: 768px) {
   [data-theme="light"] .mobile-header {
-    background: rgba(253,253,253,0.94) !important;
-    border-bottom: 1px solid rgba(0,0,0,0.08) !important;
+    background: transparent !important;
+    border-bottom: none !important;
   }
 
   [data-theme="light"] .input-area,
@@ -5567,20 +5571,12 @@ kbd.shortcut-key {
 
 /* Mobile adjustments */
 @media (max-width: 768px) {
+    /* Hide the in-app floating ghost button on mobile — it's in the header now */
     .ghost-chat-btn {
-        top: 10px;
-        right: 10px;
-        padding: 6px 10px 6px 8px;
-    }
-    .ghost-label {
-        display: none;
-    }
-    .ghost-chat-btn {
-        border-radius: 50%;
-        padding: 8px;
+        display: none !important;
     }
     .ghost-banner {
-        top: 48px;
+        top: 58px;
         right: 10px;
         font-size: 10px;
         padding: 4px 10px;

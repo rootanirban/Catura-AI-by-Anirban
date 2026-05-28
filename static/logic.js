@@ -183,25 +183,24 @@ const GHOST_WINDOW = 24;       // 12 user + 12 bot = 24 messages kept
 
 window.toggleGhostChat = function () {
     ghostChatEnabled = !ghostChatEnabled;
-    const btn    = document.getElementById('ghostChatBtn');
-    const banner = document.getElementById('ghostBanner');
+    const btn        = document.getElementById('ghostChatBtn');
+    const mobileBtn  = document.getElementById('mobileGhostBtn');
+    const banner     = document.getElementById('ghostBanner');
 
     if (ghostChatEnabled) {
-        // Activate ghost mode
         ghostMemory = [];
         btn?.classList.add('ghost-active');
+        mobileBtn?.classList.add('ghost-active');
         if (banner) banner.style.display = 'flex';
         document.getElementById('app')?.classList.add('ghost-mode');
-        // Start fresh ghost session — show ghost greeting
         newChat();
         showToast('Ghost Chat ON — nothing will be saved');
     } else {
-        // Deactivate — wipe ghost memory, return to normal
         ghostMemory = [];
         btn?.classList.remove('ghost-active');
+        mobileBtn?.classList.remove('ghost-active');
         if (banner) banner.style.display = 'none';
         document.getElementById('app')?.classList.remove('ghost-mode');
-        // Clear ghost chat and show normal greeting
         newChat();
         showToast('Ghost Chat OFF — back to normal');
     }
