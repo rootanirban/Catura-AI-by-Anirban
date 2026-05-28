@@ -131,6 +131,98 @@ const supabaseKey = "sb_publishable_aIbByN1rFc9V3AH41Kyz6A_e1XppA1Z";
 const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 // ============================
+// ☁️ SETTINGS SYNC (cross-device)
+// ============================
+
+/**
+ * Save a single setting to Supabase user_settings table.
+ * Uses upsert so it works whether the row exists or not.
+ */
+async function saveSettingToCloud(key, value) {
+    if (!currentUser) return;
+    try {
+        const payload = {
+            user_id: currentUser.id,
+            [key]: value,
+            updated_at: new Date().toISOString()
+        };
+        const { error } = await supabaseClient
+            .from('user_settings')
+            .upsert(payload, { onConflict: 'user_id' });
+        if (error) console.warn('[Sync] saveSettingToCloud error:', error.message);
+    } catch (err) {
+        console.warn('[Sync] saveSettingToCloud exception:', err);
+    }
+}
+
+/**
+ * Load all settings from Supabase and apply them locally.
+ * Called once after login. Local localStorage is updated so
+ * all existing code reading localStorage still works.
+ */
+async function loadSettingsFromCloud() {
+    if (!currentUser) return;
+    try {
+        const { data, error } = await supabaseClient
+            .from('user_settings')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .single();
+
+        if (error || !data) {
+            console.log('[Sync] No cloud settings found yet — using local defaults.');
+            return;
+        }
+
+        console.log('[Sync] Settings loaded from cloud ✓');
+
+        // call_name
+        if (data.call_name !== null && data.call_name !== undefined) {
+            localStorage.setItem('catura_call_name', data.call_name);
+        }
+
+        // theme
+        if (data.theme) {
+            localStorage.setItem('catura-theme', data.theme);
+            applyTheme(data.theme);
+        }
+
+        // font_size
+        if (data.font_size) {
+            localStorage.setItem('catura-font', data.font_size);
+            applyFontSize(data.font_size);
+        }
+
+        // profile_pic
+        if (data.profile_pic) {
+            localStorage.setItem('catura_profile_pic', data.profile_pic);
+            window._profilePicDataUrl = data.profile_pic;
+            if (typeof _applyProfilePicToAllAvatars === 'function') {
+                _applyProfilePicToAllAvatars(data.profile_pic);
+            }
+        }
+
+        // shortcuts
+        if (data.shortcuts) {
+            localStorage.setItem('catura-shortcuts', JSON.stringify(data.shortcuts));
+        }
+
+        // privacy_prefs
+        if (data.privacy_prefs) {
+            localStorage.setItem('catura-privacy-prefs', JSON.stringify(data.privacy_prefs));
+        }
+
+        // location toggle
+        if (data.location_enabled !== null && data.location_enabled !== undefined) {
+            localStorage.setItem('catura_location_enabled', data.location_enabled ? '1' : '0');
+        }
+
+    } catch (err) {
+        console.warn('[Sync] loadSettingsFromCloud exception:', err);
+    }
+}
+
+// ============================
 // ✅ USER AUTH
 // ============================
 let currentUser = null;
@@ -160,6 +252,9 @@ async function getUser() {
         if (avatarEl)   avatarEl.textContent  = initials;
         if (nameEl)     nameEl.textContent     = fullName;
         if (railAvatar) railAvatar.textContent = initials;
+
+        // ☁️ Load synced settings from Supabase after login
+        await loadSettingsFromCloud();
     }
 }
 
@@ -1119,6 +1214,7 @@ window.editCaturaCallName = function () {
                     } else {
                         localStorage.removeItem('catura_call_name');
                     }
+                    saveSettingToCloud('call_name', val || null);
                     document.getElementById('caturaCallNameModal').remove();
                     if (typeof showToast === 'function') showToast(val ? '✓ Greeting name updated' : '✓ Greeting name cleared');
                     if (typeof displayGreeting === 'function') displayGreeting();
@@ -1849,6 +1945,7 @@ window.saveShortcutToggle = function(key, value) {
     const sc = JSON.parse(localStorage.getItem('catura-shortcuts') || '{"darkMode":true,"newChat":true,"voice":false,"addFiles":true,"openSettings":true,"ghostChat":true}');
     sc[key] = value;
     localStorage.setItem('catura-shortcuts', JSON.stringify(sc));
+    saveSettingToCloud('shortcuts', sc);
     showToast(value ? `✓ Shortcut enabled` : `Shortcut disabled`);
 };
 
@@ -2676,6 +2773,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 window.setTheme = function(theme) {
     localStorage.setItem('catura-theme', theme);
     applyTheme(theme);
+    saveSettingToCloud('theme', theme);
     // Update active button
     document.querySelectorAll('.theme-option').forEach(btn => btn.classList.remove('active'));
     const activeBtn = document.querySelector(`.theme-option[onclick="setTheme('${theme}')"]`);
@@ -2710,6 +2808,7 @@ function initTheme() {
 window.setFontSize = function(size) {
     localStorage.setItem('catura-font', size);
     applyFontSize(size);
+    saveSettingToCloud('font_size', size);
     document.querySelectorAll('.font-option').forEach(btn => btn.classList.remove('active'));
     const activeBtn = document.querySelector(`.font-option[onclick="setFontSize('${size}')"]`);
     if (activeBtn) activeBtn.classList.add('active');
@@ -3853,6 +3952,7 @@ const LOC_CACHE_TTL   = 60 * 60 * 1000; // 1 hour in ms
  */
 window.handleLocationToggle = async function (enabled) {
     localStorage.setItem(LOC_TOGGLE_KEY, enabled ? '1' : '0');
+    saveSettingToCloud('location_enabled', enabled);
 
     if (!enabled) {
         // Wipe any cached location — user opted out
@@ -4067,6 +4167,7 @@ window.savePrivacyPref = function (key, value) {
     const prefs = getPrivacyPrefs();
     prefs[key] = value;
     localStorage.setItem(PRIVACY_PREFS_KEY, JSON.stringify(prefs));
+    saveSettingToCloud('privacy_prefs', prefs);
 
     // Flush/discard pending queue if user just opted out
     if (!value) {
@@ -4480,6 +4581,7 @@ function openProfileCropModal(imageSrc) {
         const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
         window._profilePicDataUrl = dataUrl;
         localStorage.setItem('catura_profile_pic', dataUrl);
+        saveSettingToCloud('profile_pic', dataUrl);
 
         _applyProfilePicToAllAvatars(dataUrl);
         closeProfileCropModal();
