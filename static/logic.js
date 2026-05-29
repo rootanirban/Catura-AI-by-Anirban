@@ -3446,7 +3446,7 @@ window.toggleModelSelector = function (e) {
             dropdown.classList.add('open');
             btn.classList.add('open');
 
-            const moreModels = ['apep', 'gemma', 'gemma4', 'nivo', 'laguna'];
+            const moreModels = ['apep', 'gemma', 'gemma4', 'nivo', 'laguna', 'laguna_lite'];
             if (moreModels.includes(selectedModel)) {
                 requestAnimationFrame(() => {
                     requestAnimationFrame(() => { toggleMoreModels(null); });
@@ -3486,7 +3486,7 @@ window.toggleModelSelector = function (e) {
             dropdown.classList.add('open');
             btn.classList.add('open');
 
-            const moreModels = ['apep', 'gemma', 'gemma4', 'nivo', 'laguna'];
+            const moreModels = ['apep', 'gemma', 'gemma4', 'nivo', 'laguna', 'laguna_lite'];
             if (moreModels.includes(selectedModel)) {
                 requestAnimationFrame(() => {
                     requestAnimationFrame(() => { toggleMoreModels(null); });

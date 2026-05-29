@@ -345,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.192"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.193"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +355,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.192", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.193", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -2884,7 +2884,8 @@ async def chat_post(request: Request):
             "apep":    ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
             "sambhav": [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
             "nivo":    [],  # Routed via Groq API (GROQ_API_KEY) — see generate_nivo()
-            "laguna":  [],  # Routed via Poolside API (POOLSIDE_API_KEY)
+            "laguna":      [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna M.1
+            "laguna_lite": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna SX.2
         }
         model_key  = model.strip()
         model_pool = model_pools.get(model_key, model_pools["dagr"])
@@ -2947,7 +2948,7 @@ async def chat_post(request: Request):
         system_prompts = {
             "sambhav": (
                 # ── Identity ──
-                "Your name is Catura (pronounced kuh-CHUR-uh). You are a creative, thoughtful, and "
+                "Your name is Catura, (pronounced kuh-CHUR-uh) Sambhav Model. You are a creative, thoughtful, and "
                 "highly capable AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Sambhav, powered by advanced multimodal intelligence. "
 
@@ -2982,7 +2983,7 @@ async def chat_post(request: Request):
             ),
             "dagr": (
                 # ── Identity ──
-                "Your name is Catura (pronounced kuh-CHUR-uh). You are a smart, warm, and witty "
+                "Your name is Catura (pronounced kuh-CHUR-uh) Degr Model. You are a smart, warm, and witty "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Dagr, the general-purpose model. "
 
@@ -3021,7 +3022,7 @@ async def chat_post(request: Request):
             ),
             "apep": (
                 # ── Identity ──
-                "Your name is Catura (pronounced kuh-CHUR-uh). You are an expert coding and "
+                "Your name is Catura (pronounced kuh-CHUR-uh) Apep Model. You are an expert coding and "
                 "technical AI specialist created by Anirban — an independent developer based in India. "
                 "You are Catura AI Apep, the developer-focused model. "
 
@@ -3058,7 +3059,7 @@ async def chat_post(request: Request):
                 + NO_TOOL_CALL_RULE
             ),
             "Gemma": (
-                "Your name is Catura (pronounced kuh-CHUR-uh). You are a powerful and efficient "
+                "Your name is Catura (pronounced kuh-CHUR-uh) Gemma Core Model. You are a powerful and efficient "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Gemma, built for fast and capable everyday tasks. "
                 "Speak clearly and helpfully. Never start with 'Certainly!', 'Great question!', or similar openers. "
@@ -3070,7 +3071,7 @@ async def chat_post(request: Request):
                 + NO_TOOL_CALL_RULE
             ),
             "Gemma4": (
-                "Your name is Catura (pronounced kuh-CHUR-uh). You are a powerful and efficient "
+                "Your name is Catura (pronounced kuh-CHUR-uh) Gemma Max Model. You are a powerful and efficient "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Gemma4, built for fast and capable everyday tasks. "
                 "Speak clearly and helpfully. Never start with 'Certainly!', 'Great question!', or similar openers. "
@@ -3083,7 +3084,7 @@ async def chat_post(request: Request):
             ),
             "nivo": (
                 # ── Identity ──
-                "Your name is Catura (pronounced kuh-CHUR-uh). You are a highly capable "
+                "Your name is Catura (pronounced kuh-CHUR-uh) Nivo Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Nivo, designed for versatile and high-quality responses. "
 
@@ -3120,7 +3121,7 @@ async def chat_post(request: Request):
             ),
             "laguna": (
                 # ── Identity ──
-                "Your name is Catura (pronounced kuh-CHUR-uh). You are a highly capable "
+                "Your name is Catura (pronounced kuh-CHUR-uh) Laguna Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Laguna, designed for precise, high-quality responses. "
 
@@ -3141,6 +3142,40 @@ async def chat_post(request: Request):
 
                 # ── Identity rules ──
                 "If asked what model or AI you are, say you are Catura AI Laguna and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+
+                # ── Hard rules ──
+                "Never make up facts. If you don't know something, say so honestly. "
+                "Never say 'I don't have real-time data' — if live data is provided in context, use it; "
+                "otherwise give your best knowledge-based answer."
+                + FORMATTING_RULES
+                + NO_TOOL_CALL_RULE
+            ),
+            # ── LAGUNA LITE — Laguna SX.2 via Poolside (POOLSIDE_API_KEY) ──
+            "laguna_lite": (
+                # ── Identity ──
+                "Your name is Catura (pronounced kuh-CHUR-uh) Laguna Lite Model. You are a highly capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI Laguna Lite, designed for fast, precise, and high-quality responses. "
+
+                # ── Personality & tone ──
+                "You are thoughtful, clear, and direct. You speak like a knowledgeable friend — "
+                "helpful, intelligent, and never robotic or sycophantic. "
+                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
+                "'Absolutely!', or similar hollow openers. Just answer directly. "
+
+                # ── Language behaviour ──
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+
+                # ── Response style ──
+                "Keep answers concise unless the user explicitly asks for detail or a long explanation. "
+                "Use bullet points, numbered lists, or headers only when they genuinely improve clarity. "
+                "For simple questions, give simple answers. Don't pad responses. "
+
+                # ── Identity rules ──
+                "If asked what model or AI you are, say you are Catura AI Laguna Lite and cannot share "
                 "details about the underlying technology. "
                 "If asked who made you, say 'I was created by Anirban.' "
 
@@ -3318,6 +3353,109 @@ async def chat_post(request: Request):
 
             return StreamingResponse(
                 generate_laguna(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000",
+                }
+            )
+
+        # ── LAGUNA LITE: Poolside API (POOLSIDE_API_KEY) — Laguna SX.2 — isolated from all other models ──
+        if model_key == "laguna_lite":
+            poolside_key_lite = os.getenv("POOLSIDE_API_KEY", "")
+            laguna_lite_system = system_prompts.get("laguna_lite", system_prompts["dagr"])
+
+            def generate_laguna_lite():
+                full_reply = ""
+
+                tool_result_ll = None
+                if intent != "general" and not file_urls:
+                    yield f"data: {json.dumps({'status': 'tool_running', 'intent': intent})}\n\n"
+                    tool_result_ll = run_tool(intent, prompt)
+
+                final_system_ll = laguna_lite_system
+                tool_context_ll = build_tool_context(tool_result_ll)
+                if tool_context_ll:
+                    final_system_ll += "\n\n" + tool_context_ll
+
+                if tool_result_ll:
+                    badge_payload = json.dumps({"tool_used": tool_result_ll.get("tool", ""), "intent": intent})
+                    yield f"data: {badge_payload}\n\n"
+                    sp = build_sources_payload(tool_result_ll)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                laguna_lite_messages = (
+                    [{"role": "system", "content": final_system_ll}]
+                    + active_memory[-20:]
+                )
+
+                # Call Poolside with Laguna SX.2
+                if not poolside_key_lite:
+                    yield f"data: {json.dumps({'error': 'Laguna Lite unavailable: POOLSIDE_API_KEY not set'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+                try:
+                    resp_ll = requests.post(
+                        "https://inference.poolside.ai/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {poolside_key_lite}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": "poolside/laguna-sx.2",
+                            "messages": laguna_lite_messages,
+                            "stream": True,
+                            "temperature": 0.3,
+                            "max_tokens": 8000,
+                        },
+                        stream=True,
+                        timeout=(10, 120),
+                    )
+                    if resp_ll.status_code != 200:
+                        yield f"data: {json.dumps({'error': f'Laguna Lite unavailable: HTTP {resp_ll.status_code}'})}\n\n"
+                        yield "data: [DONE]\n\n"
+                        return
+                except Exception as e:
+                    yield f"data: {json.dumps({'error': f'Laguna Lite unavailable: {e}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+
+                try:
+                    for line in resp_ll.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                print(f"⚠️ [Laguna Lite] mid-stream error: {chunk['error']}")
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            if token:
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, Exception):
+                            continue
+                except Exception as e:
+                    print(f"❌ [Laguna Lite] stream exception: {e}")
+
+                if full_reply.strip():
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_laguna_lite(),
                 media_type="text/event-stream",
                 headers={
                     "Cache-Control": "no-cache",
@@ -3641,7 +3779,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "apep":    ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
             "sambhav": [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
             "nivo":    [],  # Routed via Groq API (GROQ_API_KEY)
-            "laguna":  [],  # Routed via Poolside API (POOLSIDE_API_KEY)
+            "laguna":      [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna M.1
+            "laguna_lite": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna SX.2
         }
         model_key  = model.strip()
         model_pool = model_pools.get(model_key, model_pools["dagr"])
@@ -3851,7 +3990,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             # ══════════════════════════════════════════════════════════════════
             "sambhav": (
                 # ── Identity ──────────────────────────────────────────────────
-                "Your name is Catura (pronounced kuh-CHUR-uh). "
+                "Your name is Catura (pronounced kuh-CHUR-uh) Sambhav Model. "
                 "You are Catura AI Sambhav — the most thoughtful and analytically deep variant of Catura. "
                 "You were created by Anirban, an independent developer and builder based in India. "
                 "You are powered by advanced multimodal intelligence and excel at nuanced, "
@@ -3896,7 +4035,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             # ══════════════════════════════════════════════════════════════════
             "dagr": (
                 # ── Identity ──────────────────────────────────────────────────
-                "Your name is Catura (pronounced kuh-CHUR-uh). "
+                "Your name is Catura (pronounced kuh-CHUR-uh) Dagr Model. "
                 "You are Catura AI Dagr — the general-purpose, everyday assistant variant of Catura. "
                 "You were created by Anirban, an independent developer and builder based in India. "
 
@@ -3949,7 +4088,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             # ══════════════════════════════════════════════════════════════════
             "apep": (
                 # ── Identity ──────────────────────────────────────────────────
-                "Your name is Catura (pronounced kuh-CHUR-uh). "
+                "Your name is Catura (pronounced kuh-CHUR-uh) Apep Model. "
                 "You are Catura AI Apep — the expert coding and engineering variant of Catura. "
                 "You were created by Anirban, an independent developer and builder based in India. "
 
@@ -4071,7 +4210,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             # NIVO — OpenCode Zen powered, versatile high-quality assistant
             # ══════════════════════════════════════════════════════════════════
             "nivo": (
-                "Your name is Catura (pronounced kuh-CHUR-uh). You are a highly capable "
+                "Your name is Catura (pronounced kuh-CHUR-uh) Nivo Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Nivo, designed for versatile and high-quality responses. "
                 "You are thoughtful, clear, and direct. You speak like a knowledgeable friend — "
@@ -4092,7 +4231,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             ),
             "laguna": (
                 # ── Identity ──
-                "Your name is Catura (pronounced kuh-CHUR-uh). You are a highly capable "
+                "Your name is Catura (pronounced kuh-CHUR-uh) Laguna Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Laguna, designed for precise, high-quality responses. "
                 "You are thoughtful, clear, and direct. Never start with 'Certainly!', 'Of course!', "
@@ -4101,6 +4240,22 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "respond naturally in that same language. Match the user's language automatically. "
                 "Keep answers concise unless the user explicitly asks for detail. "
                 "If asked what model or AI you are, say you are Catura AI Laguna and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+                "Never make up facts. If you don't know something, say so honestly."
+                + NO_TOOL_CALL_RULE
+            ),
+            # ── LAGUNA LITE — Laguna SX.2 via Poolside (POOLSIDE_API_KEY) ──
+            "laguna_lite": (
+                "Your name is Catura (pronounced kuh-CHUR-uh) Laguna Lite Model. You are a highly capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI Laguna Lite, designed for fast, precise, and high-quality responses. "
+                "You are thoughtful, clear, and direct. Never start with 'Certainly!', 'Of course!', "
+                "'Great question!', 'Absolutely!', or similar hollow openers. Just answer directly. "
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+                "Keep answers concise unless the user explicitly asks for detail. "
+                "If asked what model or AI you are, say you are Catura AI Laguna Lite and cannot share "
                 "details about the underlying technology. "
                 "If asked who made you, say 'I was created by Anirban.' "
                 "Never make up facts. If you don't know something, say so honestly."
@@ -4161,6 +4316,87 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_laguna_get(), media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache",
+                         "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"}
+            )
+
+        # ── LAGUNA LITE: Poolside API (POOLSIDE_API_KEY) — Laguna SX.2 — GET handler ──
+        if model_key == "laguna_lite":
+            poolside_key_lite_get = os.getenv("POOLSIDE_API_KEY", "")
+            laguna_lite_system_get = system_prompts.get("laguna_lite", system_prompts["dagr"])
+            laguna_lite_messages_get = [{"role": "system", "content": laguna_lite_system_get}] + active_memory[-20:]
+
+            def generate_laguna_lite_get():
+                full_reply = ""
+                if tool_result:
+                    yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
+                    sp = build_sources_payload(tool_result)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                if not poolside_key_lite_get:
+                    yield f"data: {json.dumps({'error': 'Laguna Lite unavailable: POOLSIDE_API_KEY not set'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+                try:
+                    resp_ll_get = requests.post(
+                        "https://inference.poolside.ai/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {poolside_key_lite_get}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": "poolside/laguna-sx.2",
+                            "messages": laguna_lite_messages_get,
+                            "stream": True,
+                            "temperature": 0.3,
+                            "max_tokens": 8000,
+                        },
+                        stream=True,
+                        timeout=(10, 120),
+                    )
+                    if resp_ll_get.status_code != 200:
+                        yield f"data: {json.dumps({'error': f'Laguna Lite unavailable: HTTP {resp_ll_get.status_code}'})}\n\n"
+                        yield "data: [DONE]\n\n"
+                        return
+                except Exception as e:
+                    yield f"data: {json.dumps({'error': f'Laguna Lite unavailable: {e}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+
+                try:
+                    for line in resp_ll_get.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            if token:
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, Exception):
+                            continue
+                except Exception as e:
+                    print(f"❌ [Laguna Lite GET] stream exception: {e}")
+                if full_reply.strip():
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_laguna_lite_get(), media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache",
                          "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"}
             )
