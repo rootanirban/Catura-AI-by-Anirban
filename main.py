@@ -345,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.194"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.195"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +355,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.194", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.195", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -2885,7 +2885,7 @@ async def chat_post(request: Request):
             "sambhav": [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
             "nivo":    [],  # Routed via Groq API (GROQ_API_KEY) — see generate_nivo()
             "laguna":      [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna M.1
-            "laguna_lite": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna SX.2
+            "laguna_lite": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2
         }
         model_key  = model.strip()
         model_pool = model_pools.get(model_key, model_pools["dagr"])
@@ -3152,7 +3152,7 @@ async def chat_post(request: Request):
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
-            # ── LAGUNA LITE — Laguna SX.2 via Poolside (POOLSIDE_API_KEY) ──
+            # ── LAGUNA LITE — Laguna XS.2 via Poolside (POOLSIDE_API_KEY) ──
             "laguna_lite": (
                 # ── Identity ──
                 "Your name is Catura (pronounced kuh-CHUR-uh) Laguna Lite Model. You are a highly capable "
@@ -3360,7 +3360,7 @@ async def chat_post(request: Request):
                 }
             )
 
-        # ── LAGUNA LITE: Poolside API (POOLSIDE_API_KEY) — Laguna SX.2 — isolated from all other models ──
+        # ── LAGUNA LITE: Poolside API (POOLSIDE_API_KEY) — Laguna XS.2 — isolated from all other models ──
         if model_key == "laguna_lite":
             poolside_key_lite = os.getenv("POOLSIDE_API_KEY", "")
             laguna_lite_system = system_prompts.get("laguna_lite", system_prompts["dagr"])
@@ -3390,7 +3390,7 @@ async def chat_post(request: Request):
                     + active_memory[-20:]
                 )
 
-                # Call Poolside with Laguna SX.2
+                # Call Poolside with Laguna XS.2
                 if not poolside_key_lite:
                     yield f"data: {json.dumps({'error': 'Laguna Lite unavailable: POOLSIDE_API_KEY not set'})}\n\n"
                     yield "data: [DONE]\n\n"
@@ -3403,7 +3403,7 @@ async def chat_post(request: Request):
                             "Content-Type": "application/json",
                         },
                         json={
-                            "model": "poolside/laguna-sx.2",
+                            "model": "poolside/laguna-xs.2",
                             "messages": laguna_lite_messages,
                             "stream": True,
                             "temperature": 0.3,
@@ -3780,7 +3780,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "sambhav": [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
             "nivo":    [],  # Routed via Groq API (GROQ_API_KEY)
             "laguna":      [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna M.1
-            "laguna_lite": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna SX.2
+            "laguna_lite": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2
         }
         model_key  = model.strip()
         model_pool = model_pools.get(model_key, model_pools["dagr"])
@@ -4245,7 +4245,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "Never make up facts. If you don't know something, say so honestly."
                 + NO_TOOL_CALL_RULE
             ),
-            # ── LAGUNA LITE — Laguna SX.2 via Poolside (POOLSIDE_API_KEY) ──
+            # ── LAGUNA LITE — Laguna XS.2 via Poolside (POOLSIDE_API_KEY) ──
             "laguna_lite": (
                 "Your name is Catura (pronounced kuh-CHUR-uh) Laguna Lite Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
@@ -4320,7 +4320,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                          "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"}
             )
 
-        # ── LAGUNA LITE: Poolside API (POOLSIDE_API_KEY) — Laguna SX.2 — GET handler ──
+        # ── LAGUNA LITE: Poolside API (POOLSIDE_API_KEY) — Laguna XS.2 — GET handler ──
         if model_key == "laguna_lite":
             poolside_key_lite_get = os.getenv("POOLSIDE_API_KEY", "")
             laguna_lite_system_get = system_prompts.get("laguna_lite", system_prompts["dagr"])
@@ -4346,7 +4346,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             "Content-Type": "application/json",
                         },
                         json={
-                            "model": "poolside/laguna-sx.2",
+                            "model": "poolside/laguna-xs.2",
                             "messages": laguna_lite_messages_get,
                             "stream": True,
                             "temperature": 0.3,
