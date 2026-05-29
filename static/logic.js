@@ -2975,32 +2975,14 @@ window.setTheme = function(theme) {
 
 function applyTheme(theme) {
     const root = document.documentElement;
-
     root.removeAttribute('data-theme');
-
-    const applyDark = () => {
-        root.setAttribute('data-theme', 'dark');
-        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#0b0f14');
-    };
-
-    const applyLight = () => {
-        root.setAttribute('data-theme', 'light');
-        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#ffffff');
-    };
-
     if (theme === 'light') {
-        applyLight();
-    } else if (theme === 'auto' || theme === 'system') {
+        root.setAttribute('data-theme', 'light');
+    } else if (theme === 'auto') {
         const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        prefersDark ? applyDark() : applyLight();
-    } else {
-        applyDark();
+        if (!prefersDark) root.setAttribute('data-theme', 'light');
     }
-
-    document.body.classList.add('theme-transition');
-    setTimeout(() => {
-        document.body.classList.remove('theme-transition');
-    }, 300);
+    // dark = default, no attribute needed
 }
 
 function initTheme() {
@@ -5067,11 +5049,3 @@ function closeProfileCropModal() {
     setTimeout(() => modal.remove(), 350);
 }
 
-
-
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    const savedTheme = localStorage.getItem('catura-theme') || 'dark';
-    if(savedTheme === 'auto' || savedTheme === 'system'){
-        applyTheme(savedTheme);
-    }
-});
