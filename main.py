@@ -345,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.195"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.196"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +355,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.195", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.196", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -3440,6 +3440,7 @@ async def chat_post(request: Request):
                             if not choices:
                                 continue
                             token = (choices[0].get("delta") or {}).get("content") or ""
+                            token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', token)
                             if token:
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
@@ -4382,6 +4383,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             if not choices:
                                 continue
                             token = (choices[0].get("delta") or {}).get("content") or ""
+                            token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', token)
                             if token:
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
