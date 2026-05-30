@@ -131,6 +131,45 @@ const supabaseKey = "sb_publishable_aIbByN1rFc9V3AH41Kyz6A_e1XppA1Z";
 const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 // ============================
+// 🔑 USER-SCOPED LOCALSTORAGE
+// ============================
+/**
+ * All per-user keys are namespaced by userId so that switching
+ * accounts on the same browser never leaks data between users.
+ *
+ * Usage:
+ *   userKey('catura_call_name')   → 'catura_call_name_abc123'
+ *   getUserItem('catura_call_name')
+ *   setUserItem('catura_call_name', value)
+ *   removeUserItem('catura_call_name')
+ */
+function userKey(key) {
+    const uid = currentUser?.id || '__anon__';
+    return `${key}_${uid}`;
+}
+function getUserItem(key) {
+    return localStorage.getItem(userKey(key));
+}
+function setUserItem(key, value) {
+    localStorage.setItem(userKey(key), value);
+}
+function removeUserItem(key) {
+    localStorage.removeItem(userKey(key));
+}
+
+/**
+ * Remove the old non-namespaced keys so previous-user data
+ * never bleeds into a freshly-logged-in session.
+ */
+function clearStaleGlobalKeys() {
+    // Remove old non-namespaced keys so a previous user's data never bleeds in.
+    // Also remove the old base64 profile_pic key (replaced by profile_pic_url).
+    localStorage.removeItem('catura_call_name');
+    localStorage.removeItem('catura_profile_pic');
+    localStorage.removeItem('catura_profile_pic_url'); // old non-namespaced version
+}
+
+// ============================
 // ☁️ SETTINGS SYNC (cross-device)
 // ============================
 
@@ -138,6 +177,38 @@ const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
  * Save a single setting to Supabase user_settings table.
  * Uses upsert so it works whether the row exists or not.
  */
+/**
+ * Save ALL current settings to Supabase in a single upsert.
+ * Call this after the user first logs in on a brand-new device
+ * if no cloud row was found — so the cloud row gets created
+ * from whatever the user configured locally.
+ * Also used after bulk changes (e.g. import settings).
+ */
+async function saveAllSettingsToCloud() {
+    if (!currentUser) return;
+    try {
+        const payload = {
+            user_id:          currentUser.id,
+            theme:            localStorage.getItem('catura-theme') || 'dark',
+            font_size:        localStorage.getItem('catura-font') || 'default',
+            call_name:        getUserItem('catura_call_name') || null,
+            profile_pic_url:  getUserItem('catura_profile_pic_url') || null,
+            profile_pic:      null, // legacy base64 cleared
+            shortcuts:        JSON.parse(localStorage.getItem('catura-shortcuts') || 'null'),
+            privacy_prefs:    JSON.parse(localStorage.getItem('catura-privacy-prefs') || 'null'),
+            location_enabled: localStorage.getItem('catura_location_enabled') === '1',
+            updated_at:       new Date().toISOString()
+        };
+        const { error } = await supabaseClient
+            .from('user_settings')
+            .upsert(payload, { onConflict: 'user_id' });
+        if (error) console.warn('[Sync] saveAllSettingsToCloud error:', error.message);
+        else console.log('[Sync] All settings pushed to cloud ✓');
+    } catch (err) {
+        console.warn('[Sync] saveAllSettingsToCloud exception:', err);
+    }
+}
+
 async function saveSettingToCloud(key, value) {
     if (!currentUser) return;
     try {
@@ -159,6 +230,15 @@ async function saveSettingToCloud(key, value) {
  * Load all settings from Supabase and apply them locally.
  * Called once after login. Local localStorage is updated so
  * all existing code reading localStorage still works.
+ *
+ * Cross-device guarantee:
+ *   - theme, font_size, shortcuts, privacy_prefs, location_enabled
+ *     are written to plain localStorage so they survive the next page
+ *     load on this device without another cloud round-trip.
+ *   - call_name and profile_pic_url are user-namespaced in localStorage
+ *     (so multiple accounts on the same browser stay isolated).
+ *   - profile_pic is stored as a public Supabase Storage URL so it works
+ *     on every device without localStorage size limits.
  */
 async function loadSettingsFromCloud() {
     if (!currentUser) return;
@@ -169,36 +249,63 @@ async function loadSettingsFromCloud() {
             .eq('user_id', currentUser.id)
             .single();
 
-        if (error || !data) {
-            console.log('[Sync] No cloud settings found yet — using local defaults.');
+        // PGRST116 = "no rows returned" — normal for a brand-new user or first device.
+        // Anything else is a real error worth logging.
+        if (error) {
+            if (error.code !== 'PGRST116') {
+                console.warn('[Sync] loadSettingsFromCloud error:', error.message);
+            } else {
+                console.log('[Sync] No cloud settings yet — creating initial row from local state.');
+                // Push whatever the user has configured locally so it syncs to other devices.
+                // This handles: user configures settings on Device A before any row exists,
+                // then logs in on Device B — Device A's settings will now sync.
+                clearStaleGlobalKeys();
+                // Kick off a background push (don't await — don't block the UI)
+                saveAllSettingsToCloud().catch(e => console.warn('[Sync] Initial push failed:', e));
+            }
+            window._profilePicDataUrl = null;
+            if (typeof _applyProfilePicToAllAvatars === 'function') _applyProfilePicToAllAvatars(null);
             return;
         }
 
-        console.log('[Sync] Settings loaded from cloud ✓');
+        console.log('[Sync] Settings loaded from cloud:', data);
 
-        // call_name
+        // Wipe leftover keys from any previous user on this browser
+        clearStaleGlobalKeys();
+
+        // call_name (greeting nickname) — user-namespaced
         if (data.call_name !== null && data.call_name !== undefined) {
-            localStorage.setItem('catura_call_name', data.call_name);
+            setUserItem('catura_call_name', data.call_name);
+        } else {
+            removeUserItem('catura_call_name');
         }
 
         // theme
         if (data.theme) {
             localStorage.setItem('catura-theme', data.theme);
-            applyTheme(data.theme);
+            if (typeof applyTheme === 'function') applyTheme(data.theme);
         }
 
         // font_size
         if (data.font_size) {
             localStorage.setItem('catura-font', data.font_size);
-            applyFontSize(data.font_size);
+            if (typeof applyFontSize === 'function') applyFontSize(data.font_size);
         }
 
-        // profile_pic
-        if (data.profile_pic) {
-            localStorage.setItem('catura_profile_pic', data.profile_pic);
-            window._profilePicDataUrl = data.profile_pic;
+        // profile_pic — stored as Supabase Storage public URL (not base64)
+        // Falls back to legacy base64 blob in data.profile_pic for old rows.
+        const picUrl = data.profile_pic_url || data.profile_pic || null;
+        if (picUrl) {
+            setUserItem('catura_profile_pic_url', picUrl);
+            window._profilePicDataUrl = picUrl;
             if (typeof _applyProfilePicToAllAvatars === 'function') {
-                _applyProfilePicToAllAvatars(data.profile_pic);
+                _applyProfilePicToAllAvatars(picUrl);
+            }
+        } else {
+            removeUserItem('catura_profile_pic_url');
+            window._profilePicDataUrl = null;
+            if (typeof _applyProfilePicToAllAvatars === 'function') {
+                _applyProfilePicToAllAvatars(null);
             }
         }
 
@@ -253,8 +360,15 @@ async function getUser() {
         if (nameEl)     nameEl.textContent     = fullName;
         if (railAvatar) railAvatar.textContent = initials;
 
-        // ☁️ Load synced settings from Supabase after login
+        // ☁️ Load synced settings from Supabase after login.
+        // This applies theme, font, profile pic, call_name from the cloud.
+        // It also calls displayGreeting() after applying call_name so the
+        // greeting always shows the correct nickname from the cloud.
         await loadSettingsFromCloud();
+
+        // Re-render greeting with the freshly-resolved user data.
+        // (Safe to call even if loadSettingsFromCloud already called it.)
+        if (typeof displayGreeting === 'function') displayGreeting();
     }
 }
 
@@ -534,8 +648,12 @@ function getGreetingMessage(userName) {
 
 function displayGreeting() {
     const userNameEl = document.getElementById("userFullname");
-    const nickname = localStorage.getItem("catura_call_name");
-    const userName = nickname && nickname.trim() ? nickname.trim() : (userNameEl?.textContent || "User");
+    // 1. Use the per-user nickname if set
+    const nickname = getUserItem("catura_call_name");
+    // 2. Otherwise fall back to the display name ("Edit display name" value)
+    const userName = (nickname && nickname.trim())
+        ? nickname.trim()
+        : (userNameEl?.textContent?.trim() || "User");
 
     const isGhost = typeof ghostChatEnabled !== 'undefined' && ghostChatEnabled;
 
@@ -1361,7 +1479,7 @@ window.editCaturaCallName = function () {
     const existing = document.getElementById('caturaCallNameModal');
     if (existing) existing.remove();
 
-    const current = localStorage.getItem('catura_call_name') || '';
+    const current = getUserItem('catura_call_name') || '';
 
     const isLight = document.documentElement.getAttribute('data-theme') === 'light';
     const t = isLight ? {
@@ -1435,9 +1553,9 @@ window.editCaturaCallName = function () {
                 onclick="
                     const val = document.getElementById('caturaCallNameInput').value.trim();
                     if (val) {
-                        localStorage.setItem('catura_call_name', val);
+                        setUserItem('catura_call_name', val);
                     } else {
-                        localStorage.removeItem('catura_call_name');
+                        removeUserItem('catura_call_name');
                     }
                     saveSettingToCloud('call_name', val || null);
                     document.getElementById('caturaCallNameModal').remove();
@@ -2524,6 +2642,9 @@ document.addEventListener("click", closeAllMenus);
 // ============================
 document.addEventListener("DOMContentLoaded", async function () {
 
+    // Apply locally-cached theme/font immediately so the page doesn't flash defaults.
+    // getUser() → loadSettingsFromCloud() will override these with the cloud values
+    // if they differ (e.g. user changed settings on another device).
     initTheme();
     initFontSize();
     initWebSearchUI();
@@ -2533,6 +2654,9 @@ document.addEventListener("DOMContentLoaded", async function () {
         document.getElementById('sidebar')?.classList.add('open');
     }
 
+    // getUser() fetches the Supabase session, populates currentUser, then calls
+    // loadSettingsFromCloud() which overwrites theme/font/profile-pic/call-name
+    // with the authoritative cloud values and calls displayGreeting() internally.
     await getUser();
 
     if (!currentUser) {
@@ -2540,6 +2664,9 @@ document.addEventListener("DOMContentLoaded", async function () {
         return;
     }
 
+    // displayGreeting() was already called inside getUser() → loadSettingsFromCloud().
+    // Call it once more here as a safety net in case the cloud load was a no-op
+    // (new user with no saved settings) so the greeting still shows.
     displayGreeting();
 
     const chatbox   = document.getElementById("chatbox");
@@ -4936,20 +5063,10 @@ window.trackResponseTime = (ms) => trackAnalyticsEvent('response_time_ms', { ms 
 // 📷 PROFILE PICTURE FEATURE
 // ============================
 
-window._profilePicDataUrl = localStorage.getItem('catura_profile_pic') || null;
-
-// Apply saved profile pic to all avatar elements on load
-(function applyProfilePicOnLoad() {
-    function doApply() {
-        const pic = window._profilePicDataUrl;
-        _applyProfilePicToAllAvatars(pic);
-    }
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', doApply);
-    } else {
-        doApply();
-    }
-})();
+// Profile pic is intentionally NOT loaded from localStorage here.
+// It will be loaded after auth resolves in loadSettingsFromCloud(),
+// using the user-scoped key, so no previous user's picture leaks in.
+window._profilePicDataUrl = null;
 
 function _applyProfilePicToAllAvatars(dataUrl) {
     // Rail avatar (icon rail bottom)
@@ -5172,7 +5289,7 @@ function openProfileCropModal(imageSrc) {
     document.getElementById('pcmBackdrop').onclick = closeProfileCropModal;
 
     // Keep
-    document.getElementById('pcmKeepBtn').onclick = function() {
+    document.getElementById('pcmKeepBtn').onclick = async function() {
         const canvas = document.createElement('canvas');
         const OUTPUT = 256;
         canvas.width = OUTPUT;
@@ -5194,10 +5311,9 @@ function openProfileCropModal(imageSrc) {
         ctx.drawImage(img, cropX, cropY, cropSize, cropSize, 0, 0, OUTPUT, OUTPUT);
 
         const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
-        window._profilePicDataUrl = dataUrl;
-        localStorage.setItem('catura_profile_pic', dataUrl);
-        saveSettingToCloud('profile_pic', dataUrl);
 
+        // ── Apply instantly in the UI (use the local dataUrl for speed) ──────────
+        window._profilePicDataUrl = dataUrl;
         _applyProfilePicToAllAvatars(dataUrl);
         closeProfileCropModal();
 
@@ -5205,6 +5321,53 @@ function openProfileCropModal(imageSrc) {
         const activeTab = document.querySelector('.settings-nav-item.active');
         if (activeTab && activeTab.getAttribute('onclick')?.includes('profile')) {
             activeTab.click();
+        }
+
+        // ── Upload to Supabase Storage for cross-device sync ──────────────────────
+        try {
+            if (!currentUser) throw new Error('Not logged in');
+
+            // Convert dataUrl → Blob
+            const res  = await fetch(dataUrl);
+            const blob = await res.blob();
+            const fileName = `avatars/${currentUser.id}/avatar.jpg`;
+
+            // Upsert into the 'avatars' bucket (overwrite if exists)
+            const { error: upErr } = await supabaseClient.storage
+                .from('avatars')
+                .upload(fileName, blob, {
+                    contentType: 'image/jpeg',
+                    upsert: true
+                });
+
+            if (upErr) throw upErr;
+
+            // Get the public URL
+            const { data: urlData } = supabaseClient.storage
+                .from('avatars')
+                .getPublicUrl(fileName);
+
+            const publicUrl = urlData?.publicUrl;
+            if (!publicUrl) throw new Error('Could not get public URL');
+
+            // ── Bust CDN cache by appending a version timestamp ──────────────────
+            const versionedUrl = publicUrl + '?v=' + Date.now();
+
+            // Persist the URL (not the base64) so all devices load the same image
+            setUserItem('catura_profile_pic_url', versionedUrl);
+            window._profilePicDataUrl = versionedUrl;
+            // Save URL to the user_settings row for cross-device sync
+            await saveSettingToCloud('profile_pic_url', versionedUrl);
+            // Clear the old base64 column if it ever existed
+            await saveSettingToCloud('profile_pic', null);
+
+            showToast('✓ Profile picture saved');
+        } catch (err) {
+            console.warn('[ProfilePic] Upload failed — keeping local preview only:', err);
+            // Fall back: store base64 in cloud so at least the pic is synced somehow
+            setUserItem('catura_profile_pic_url', dataUrl);
+            await saveSettingToCloud('profile_pic_url', dataUrl);
+            showToast('✓ Profile picture saved (local)');
         }
     };
 }
