@@ -345,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.204"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.205"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +355,58 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.204", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.205", "timestamp": datetime.utcnow().isoformat()}
+
+# ── 🧠 MEMORY ENDPOINTS ───────────────────────────────────────────────────────
+
+@app.post("/api/memory/save")
+async def save_memory(req: MemorySaveRequest):
+    try:
+        if not req.user_id or not req.memory_text.strip():
+            return JSONResponse({"ok": False, "error": "Missing fields"}, status_code=400)
+        supabase.table("user_memories").insert({
+            "user_id": req.user_id,
+            "memory_text": req.memory_text.strip()[:500],
+            "created_at": datetime.utcnow().isoformat()
+        }).execute()
+        return JSONResponse({"ok": True})
+    except Exception as e:
+        print(f"❌ [Memory] save error: {e}")
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
+@app.get("/api/memory/load")
+async def load_memory(user_id: str):
+    try:
+        result = supabase.table("user_memories") \
+            .select("id, memory_text, created_at") \
+            .eq("user_id", user_id) \
+            .order("created_at", desc=False) \
+            .limit(100).execute()
+        return JSONResponse({"ok": True, "memories": result.data or []})
+    except Exception as e:
+        print(f"❌ [Memory] load error: {e}")
+        return JSONResponse({"ok": False, "memories": []})
+
+
+@app.delete("/api/memory/clear")
+async def clear_memory(req: MemoryClearRequest):
+    try:
+        supabase.table("user_memories").delete().eq("user_id", req.user_id).execute()
+        return JSONResponse({"ok": True})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
+@app.delete("/api/memory/delete-one")
+async def delete_one_memory(id: str, user_id: str):
+    try:
+        supabase.table("user_memories").delete().eq("id", id).eq("user_id", user_id).execute()
+        return JSONResponse({"ok": True})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+# ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -426,6 +477,14 @@ class _TrainingConvo(_BaseModel):
 
 class _TrainingBatch(_BaseModel):
     conversations: _List[_TrainingConvo]
+
+# ── Memory request models ─────────────────────────────────────
+class MemorySaveRequest(_BaseModel):
+    user_id: str
+    memory_text: str
+
+class MemoryClearRequest(_BaseModel):
+    user_id: str
 
 # ── IP → coarse region helper ─────────────────────────────────
 def _coarse_region_from_request(request: Request) -> _Optional[str]:
@@ -2812,6 +2871,7 @@ async def chat_post(request: Request):
         web_search_forced = body.get("web_search_enabled", False)
         ghost_mode    = body.get("ghost_mode", False)
         ghost_history = body.get("ghost_history", [])   # list of {role, content}
+        user_memories_list = body.get("user_memories", [])   # 🧠 memory injection
         # Legacy web_results from frontend removed — backend handles all search internally
         web_results = []
 
@@ -3188,6 +3248,15 @@ async def chat_post(request: Request):
             ),
         }
         system_prompt = system_prompts.get(model_key, system_prompts["dagr"])
+
+        # ── 🧠 MEMORY INJECTION ───────────────────────────────────────────────
+        if user_memories_list and not ghost_mode:
+            memory_block = "\n\n## 🧠 USER MEMORY — what you know about this user:\n"
+            for mem in user_memories_list[:50]:
+                memory_block += f"- {mem}\n"
+            memory_block += "\nUse this information naturally when helpful. Do NOT announce that you're using memory — just incorporate it smoothly into your responses.\n"
+            system_prompt = system_prompt + memory_block
+        # ─────────────────────────────────────────────────────────────────────
 
         # ── TOOL ROUTING PIPELINE ──────────────────────────────────────────
         # Step 1: detect intent ONLY — tool execution moved INSIDE generators

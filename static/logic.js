@@ -369,6 +369,8 @@ async function getUser() {
         // Re-render greeting with the freshly-resolved user data.
         // (Safe to call even if loadSettingsFromCloud already called it.)
         if (typeof displayGreeting === 'function') displayGreeting();
+        // 🧠 Load memory toggle state + saved memories from Supabase
+        await loadMemoryState();
     }
 }
 
@@ -389,6 +391,176 @@ let firstMessage = true;
 let ghostChatEnabled = false;
 let ghostMemory = [];          // sliding window — max 12 exchanges (24 messages)
 const GHOST_WINDOW = 24;       // 12 user + 12 bot = 24 messages kept
+
+// ============================
+// 🧠 MEMORY STATE
+// ============================
+let memoryEnabled = false;
+let userMemories = [];  // array of memory strings loaded from Supabase
+
+async function loadMemoryState() {
+    if (!currentUser) return;
+    try {
+        const { data, error } = await supabaseClient
+            .from('user_settings')
+            .select('memory_enabled')
+            .eq('user_id', currentUser.id)
+            .single();
+        if (!error && data) {
+            memoryEnabled = data.memory_enabled || false;
+        }
+        // Sync toggle UI if settings panel is open
+        const toggle = document.getElementById('memoryToggle');
+        if (toggle) toggle.checked = memoryEnabled;
+        if (memoryEnabled) await loadUserMemories();
+    } catch (e) { console.warn('[Memory] loadMemoryState error:', e); }
+}
+
+async function loadUserMemories() {
+    if (!currentUser) return;
+    try {
+        const resp = await fetch(`/api/memory/load?user_id=${currentUser.id}`);
+        const data = await resp.json();
+        if (data.ok) userMemories = (data.memories || []).map(m => m.memory_text);
+    } catch (e) { console.warn('[Memory] loadUserMemories error:', e); }
+}
+
+async function saveMemoryEnabled(enabled) {
+    if (!currentUser) return;
+    try {
+        await supabaseClient.from('user_settings').upsert(
+            { user_id: currentUser.id, memory_enabled: enabled, updated_at: new Date().toISOString() },
+            { onConflict: 'user_id' }
+        );
+    } catch (e) { console.warn('[Memory] saveMemoryEnabled error:', e); }
+}
+
+window.toggleMemoryEnabled = async function(checked) {
+    memoryEnabled = checked;
+    await saveMemoryEnabled(checked);
+    if (checked) {
+        await loadUserMemories();
+        showToast('✓ Memory enabled — Catura will remember things you share');
+    } else {
+        userMemories = [];
+        showToast('Memory disabled — info is only used in the current chat');
+    }
+};
+
+async function maybeExtractAndSaveMemory(userMessage) {
+    if (!memoryEnabled || !currentUser || ghostChatEnabled) return;
+    const memoryPatterns = [
+        /my name is .+/i,
+        /i(?:'m| am) a .+/i,
+        /call me .+/i,
+        /i work (?:at|for|in|as) .+/i,
+        /i(?:'m| am) (?:a |an )?\w+ (?:developer|engineer|student|doctor|teacher|designer|manager|analyst|writer|artist|lawyer|nurse|professor)/i,
+        /i live in .+/i,
+        /i(?:'m| am) from .+/i,
+        /i(?:'m| am) \d+ years? old/i,
+        /i (?:prefer|like|love|enjoy|hate|dislike) .+/i,
+        /my (?:favourite|favorite) .+ is .+/i,
+        /i speak .+/i,
+        /i(?:'m| am) (?:learning|studying) .+/i,
+        /my (?:goal|dream|plan) is .+/i,
+    ];
+    for (const pattern of memoryPatterns) {
+        if (pattern.test(userMessage)) {
+            const fact = userMessage.trim().slice(0, 200);
+            if (!userMemories.includes(fact)) {
+                try {
+                    const resp = await fetch('/api/memory/save', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ user_id: currentUser.id, memory_text: fact })
+                    });
+                    if ((await resp.json()).ok) userMemories.push(fact);
+                } catch (e) { console.warn('[Memory] save error:', e); }
+            }
+            break;
+        }
+    }
+}
+
+window.clearAllMemories = async function() {
+    if (!currentUser) { showToast('Please log in first'); return; }
+    showModal({
+        type: 'confirm', dangerous: true,
+        icon: `<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>`,
+        title: 'Clear all memories',
+        subtitle: 'This cannot be undone',
+        message: 'Catura will forget everything it has learned about you.',
+        confirmLabel: 'Clear all',
+        onConfirm: async () => {
+            try {
+                const resp = await fetch('/api/memory/clear', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: currentUser.id })
+                });
+                if ((await resp.json()).ok) {
+                    userMemories = [];
+                    showToast('✓ All memories cleared');
+                    // Refresh the panel if it's open
+                    const activeItem = document.querySelector('.settings-nav-item.active');
+                    if (activeItem?.getAttribute('onclick')?.includes('personalization')) activeItem.click();
+                } else { showToast('❌ Failed to clear memories'); }
+            } catch (e) { showToast('❌ Error clearing memories'); }
+        }
+    });
+};
+
+window.viewSavedMemories = async function() {
+    if (!currentUser) { showToast('Please log in first'); return; }
+    try {
+        const resp = await fetch(`/api/memory/load?user_id=${currentUser.id}`);
+        const data = await resp.json();
+        const memories = data.memories || [];
+        if (memories.length === 0) {
+            showModal({ type: 'alert', title: 'No memories saved', message: 'Catura has not learned anything about you yet. Enable memory and share things about yourself — it will start remembering.', confirmLabel: 'OK' });
+            return;
+        }
+        const existing = document.getElementById('memoryViewerModal');
+        if (existing) existing.remove();
+        const modal = document.createElement('div');
+        modal.id = 'memoryViewerModal';
+        modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;';
+        modal.innerHTML = `
+            <div style="position:absolute;inset:0;background:rgba(0,0,0,0.65);" onclick="document.getElementById('memoryViewerModal').remove()"></div>
+            <div style="position:relative;background:var(--bg-modal,#1a1a1a);border:1px solid var(--border,#2a2a2a);border-radius:14px;padding:24px;width:min(480px,90vw);max-height:70vh;display:flex;flex-direction:column;gap:16px;z-index:1;">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                    <h3 style="margin:0;font-size:16px;font-weight:600;color:var(--text-primary,#e5e5e5);">🧠 Saved Memories (${memories.length})</h3>
+                    <button onclick="document.getElementById('memoryViewerModal').remove()" style="background:none;border:none;cursor:pointer;color:var(--text-muted,#888);font-size:18px;">✕</button>
+                </div>
+                <p style="margin:0;font-size:12px;color:var(--text-muted,#888);">Facts Catura has remembered about you. Click ✕ to delete individual ones.</p>
+                <div style="overflow-y:auto;display:flex;flex-direction:column;gap:8px;max-height:50vh;">
+                    ${memories.map(m => `
+                        <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--bg-surface2,#161616);border-radius:8px;border:1px solid var(--border-subtle,#1e1e1e);">
+                            <span style="font-size:13px;color:var(--text-secondary,#ccc);flex:1;line-height:1.5;">${m.memory_text}</span>
+                            <button onclick="deleteOneMemory('${m.id}',this)" title="Delete" style="background:none;border:none;cursor:pointer;color:#e06c6c;font-size:16px;padding:0;flex-shrink:0;line-height:1;">✕</button>
+                        </div>
+                    `).join('')}
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;">
+                    <button onclick="clearAllMemories()" style="padding:8px 14px;background:rgba(224,108,108,0.12);border:1px solid rgba(224,108,108,0.3);border-radius:8px;color:#e06c6c;font-size:13px;cursor:pointer;">Clear All</button>
+                    <button onclick="document.getElementById('memoryViewerModal').remove()" style="padding:8px 14px;background:var(--accent,#10a37f);border:none;border-radius:8px;color:#fff;font-size:13px;cursor:pointer;">Done</button>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+    } catch (e) { showToast('❌ Failed to load memories'); }
+};
+
+window.deleteOneMemory = async function(id, btn) {
+    if (!currentUser) return;
+    try {
+        const resp = await fetch(`/api/memory/delete-one?id=${id}&user_id=${currentUser.id}`, { method: 'DELETE' });
+        if ((await resp.json()).ok) {
+            btn.closest('div[style]').remove();
+            userMemories = userMemories.filter(m => true); // keep array in sync loosely
+            showToast('✓ Memory deleted');
+        }
+    } catch (e) { showToast('❌ Failed to delete memory'); }
+};
 
 window.toggleGhostChat = function () {
     ghostChatEnabled = !ghostChatEnabled;
@@ -2019,74 +2191,51 @@ window.showSettingsTab = function (tab, clickedEl) {
                 </div>
             </div>
             <div class="sc-section">
-                <div class="sc-section-title">Memory</div>
-                <div class="sc-row disabled" onclick="showToast('Memory & context — coming soon!')">
-                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                    </svg>
-                    <div class="sc-row-body">
-                        <p class="sc-row-label">Memory &amp; context</p>
-                        <p class="sc-row-sub soon">Coming soon</p>
-                    </div>
-                    <svg class="sc-row-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                </div>
-                <div class="sc-memory-submenu">
-                    <div class="sc-row disabled sc-memory-item">
-                        <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="3"></circle>
-                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"></path>
-                        </svg>
+                <div class="sc-section-title">Memory &amp; context</div>
+
+                <!-- Enable Memory toggle -->
+                <div class="sc-row-block">
+                    <div class="sc-row-top">
+                        <div class="sc-row-icon-wrap">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                            </svg>
+                        </div>
                         <div class="sc-row-body">
                             <p class="sc-row-label">Enable Memory</p>
-                            <p class="sc-row-sub soon">Master on/off switch — coming soon</p>
+                            <p class="sc-row-sub">When on, Catura saves what you share and uses it across all chats. When off, info is only used in the current session and forgotten when the chat ends.</p>
                         </div>
-                        <div class="sc-toggle-pill disabled"></div>
+                        <label class="toggle-switch" title="Enable Memory">
+                            <input type="checkbox" id="memoryToggle" ${memoryEnabled ? 'checked' : ''} onchange="toggleMemoryEnabled(this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
                     </div>
-                    <div class="sc-row disabled sc-memory-item">
-                        <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 20h9"></path>
-                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-                        </svg>
-                        <div class="sc-row-body">
-                            <p class="sc-row-label">Remember Preferences</p>
-                            <p class="sc-row-sub soon">Tone, style, language, format — coming soon</p>
-                        </div>
-                        <div class="sc-toggle-pill disabled"></div>
+                </div>
+
+                <!-- View Saved Memories -->
+                <div class="sc-row" onclick="viewSavedMemories()" style="cursor:pointer;">
+                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    <div class="sc-row-body">
+                        <p class="sc-row-label">View Saved Memories</p>
+                        <p class="sc-row-sub">See and manage what Catura has stored about you</p>
                     </div>
-                    <div class="sc-row disabled sc-memory-item">
-                        <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                            <line x1="8" y1="21" x2="16" y2="21"></line>
-                            <line x1="12" y1="17" x2="12" y2="21"></line>
-                        </svg>
-                        <div class="sc-row-body">
-                            <p class="sc-row-label">Remember Projects</p>
-                            <p class="sc-row-sub soon">Tasks, goals, code &amp; project details — coming soon</p>
-                        </div>
-                        <div class="sc-toggle-pill disabled"></div>
-                    </div>
-                    <div class="sc-row disabled sc-memory-item">
-                        <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                            <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                        <div class="sc-row-body">
-                            <p class="sc-row-label">View Saved Memories</p>
-                            <p class="sc-row-sub soon">See what Catura has stored — coming soon</p>
-                        </div>
-                    </div>
-                    <div class="sc-row disabled sc-memory-item sc-memory-danger">
-                        <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="3 6 5 6 21 6"></polyline>
-                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
-                            <path d="M10 11v6"></path>
-                            <path d="M14 11v6"></path>
-                            <path d="M9 6V4h6v2"></path>
-                        </svg>
-                        <div class="sc-row-body">
-                            <p class="sc-row-label">Clear All Memories</p>
-                            <p class="sc-row-sub soon">Delete everything saved — coming soon</p>
-                        </div>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-left:8px;opacity:0.4;"><polyline points="9 18 15 12 9 6"/></svg>
+                </div>
+
+                <!-- Clear All Memories -->
+                <div class="sc-row sc-memory-danger" onclick="clearAllMemories()" style="cursor:pointer;">
+                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                        <path d="M10 11v6"></path><path d="M14 11v6"></path>
+                        <path d="M9 6V4h6v2"></path>
+                    </svg>
+                    <div class="sc-row-body">
+                        <p class="sc-row-label">Clear All Memories</p>
+                        <p class="sc-row-sub">Delete everything Catura has saved — cannot be undone</p>
                     </div>
                 </div>
             </div>`,
@@ -2904,7 +3053,8 @@ document.addEventListener("DOMContentLoaded", async function () {
                     web_results: webResults,
                     web_search_enabled: ghostChatEnabled ? false : webSearchEnabled,
                     ghost_mode : ghostChatEnabled,
-                    ghost_history: ghostChatEnabled ? ghostMemory.slice(0, -1) : []
+                    ghost_history: ghostChatEnabled ? ghostMemory.slice(0, -1) : [],
+                    user_memories: (memoryEnabled && !ghostChatEnabled) ? userMemories : []
                 })
             });
             if (!res.ok) throw new Error("Server error " + res.status);
@@ -3008,6 +3158,11 @@ document.addEventListener("DOMContentLoaded", async function () {
                 }]);
                 if (botError) console.error("❌ Bot message save failed:", botError.message);
                 }
+            }
+
+            // 🧠 Memory extraction — save user info if memory is enabled
+            if (memoryEnabled && !ghostChatEnabled && currentUser && message) {
+                maybeExtractAndSaveMemory(message);
             }
 
         } catch (err) {
