@@ -4252,6 +4252,8 @@ window.openChangePasswordModal = function () {
 
                 <p id="chpwStep2Error" class="chpw-error" style="display:none;"></p>
 
+                <p id="chpwResendCountdown" class="chpw-error" style="display:none; color:#10a37f;"></p>
+
                 <p class="chpw-resend-row">
                     Didn't receive it? 
                     <button class="chpw-resend-btn" id="chpwResendBtn" onclick="chpwResendOtp()">Resend code</button>
@@ -4336,8 +4338,39 @@ window.chpwSendOtp = async function () {
         document.getElementById('chpw-step-2').style.display = 'block';
         setTimeout(() => document.getElementById('chpwOtpInput')?.focus(), 100);
 
+        // Start 60-second cooldown on the Resend button right away
+        const resendBtn = document.getElementById('chpwResendBtn');
+        const countdownEl = document.getElementById('chpwResendCountdown');
+        if (resendBtn) {
+            resendBtn.disabled = true;
+            let seconds = 60;
+            if (countdownEl) {
+                countdownEl.style.display = 'block';
+                countdownEl.textContent = `For security purposes, you can only request this after ${seconds} seconds.`;
+            }
+            const interval = setInterval(() => {
+                seconds--;
+                if (seconds <= 0) {
+                    clearInterval(interval);
+                    resendBtn.disabled = false;
+                    if (countdownEl) countdownEl.style.display = 'none';
+                } else {
+                    if (countdownEl) {
+                        countdownEl.textContent = `For security purposes, you can only request this after ${seconds} seconds.`;
+                    }
+                }
+            }, 1000);
+        }
+
     } catch (e) {
-        err.textContent = e.message || 'Failed to send code. Please try again.';
+        // Handle Supabase rate-limit: "you can only request this after X seconds"
+        const msg = e.message || '';
+        const match = msg.match(/(\d+)\s*seconds?/i);
+        if (match) {
+            err.textContent = `Too many requests. Please wait ${match[1]} seconds before trying again.`;
+        } else {
+            err.textContent = msg || 'Failed to send code. Please try again.';
+        }
         err.style.display = 'block';
         btn.disabled = false;
         btn.innerHTML = origHTML;
@@ -4347,6 +4380,7 @@ window.chpwSendOtp = async function () {
 window.chpwResendOtp = async function () {
     const btn   = document.getElementById('chpwResendBtn');
     const err   = document.getElementById('chpwStep2Error');
+    const countdownEl = document.getElementById('chpwResendCountdown');
     btn.disabled = true;
     btn.textContent = 'Sending…';
 
@@ -4355,12 +4389,56 @@ window.chpwResendOtp = async function () {
         if (error) throw error;
         btn.textContent = '✓ Sent!';
         if (err) err.style.display = 'none';
-        setTimeout(() => { btn.disabled = false; btn.textContent = 'Resend code'; }, 30000);
+
+        // Countdown timer: 60 seconds before resend is allowed again
+        let seconds = 60;
+        if (countdownEl) {
+            countdownEl.style.display = 'block';
+            countdownEl.textContent = `For security purposes, you can only request this after ${seconds} seconds.`;
+        }
+        const interval = setInterval(() => {
+            seconds--;
+            if (seconds <= 0) {
+                clearInterval(interval);
+                btn.disabled = false;
+                btn.textContent = 'Resend code';
+                if (countdownEl) countdownEl.style.display = 'none';
+            } else {
+                if (countdownEl) {
+                    countdownEl.textContent = `For security purposes, you can only request this after ${seconds} seconds.`;
+                }
+            }
+        }, 1000);
+
     } catch (e) {
-        err.textContent = e.message || 'Failed to resend. Try again.';
-        err.style.display = 'block';
-        btn.disabled = false;
-        btn.textContent = 'Resend code';
+        // Supabase rate-limit error contains "seconds" — parse and show countdown
+        const msg = e.message || '';
+        const match = msg.match(/(\d+)\s*seconds?/i);
+        if (match) {
+            let seconds = parseInt(match[1], 10);
+            if (countdownEl) {
+                countdownEl.style.display = 'block';
+                countdownEl.textContent = `For security purposes, you can only request this after ${seconds} seconds.`;
+            }
+            const interval = setInterval(() => {
+                seconds--;
+                if (seconds <= 0) {
+                    clearInterval(interval);
+                    btn.disabled = false;
+                    btn.textContent = 'Resend code';
+                    if (countdownEl) countdownEl.style.display = 'none';
+                } else {
+                    if (countdownEl) {
+                        countdownEl.textContent = `For security purposes, you can only request this after ${seconds} seconds.`;
+                    }
+                }
+            }, 1000);
+        } else {
+            err.textContent = msg || 'Failed to resend. Try again.';
+            err.style.display = 'block';
+            btn.disabled = false;
+            btn.textContent = 'Resend code';
+        }
     }
 };
 
@@ -4373,34 +4451,46 @@ window.chpwBackToStep1 = function () {
 };
 
 window.chpwVerifyAndUpdate = async function () {
-    const otp = document.getElementById('chpwOtpInput')?.value.trim() || '';
-    const pw  = document.getElementById('chpwNewInput')?.value        || '';
-    const btn = document.getElementById('chpwStep2Btn');
-    const err = document.getElementById('chpwStep2Error');
+    const otp   = document.getElementById('chpwOtpInput')?.value.trim() || '';
+    const pw    = document.getElementById('chpwNewInput')?.value        || '';
+    const btn   = document.getElementById('chpwStep2Btn');
+    const err   = document.getElementById('chpwStep2Error');
+    const email = currentUser?.email || '';
 
     if (otp.length !== 6 || pw.length < 8) return;
 
     const saveBtnHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Verify &amp; update password';
 
     btn.disabled = true;
-    btn.innerHTML = '⏳ Updating…';
+    btn.innerHTML = '⏳ Verifying…';
+    if (err) err.style.display = 'none';
 
     try {
-        // ✅ FIXED: Supabase reauthenticate() sends a nonce-based OTP.
-        // The correct flow is to pass the OTP directly as the `nonce` inside
-        // updateUser() — NOT via verifyOtp() which is for a different flow.
-        const { error: updateErr } = await supabaseClient.auth.updateUser(
-            { password: pw },
-            { nonce: otp }
-        );
+        // STEP A: Verify the OTP (reauthentication type) — this re-auths the session
+        const { error: verifyErr } = await supabaseClient.auth.verifyOtp({
+            email,
+            token: otp,
+            type: 'reauthentication'
+        });
+
+        if (verifyErr) {
+            const msg = verifyErr.message?.toLowerCase() || '';
+            const isExpired = msg.includes('expired') || msg.includes('invalid') || msg.includes('otp') || msg.includes('token');
+            err.textContent = isExpired
+                ? 'Code is expired or invalid. Click "Resend code" to get a new one.'
+                : (verifyErr.message || 'Verification failed. Please try again.');
+            err.style.display = 'block';
+            btn.disabled = false;
+            btn.innerHTML = saveBtnHTML;
+            return;
+        }
+
+        // STEP B: Now update the password (session is freshly re-authenticated)
+        btn.innerHTML = '⏳ Updating…';
+        const { error: updateErr } = await supabaseClient.auth.updateUser({ password: pw });
 
         if (updateErr) {
-            const isNonceErr = updateErr.message?.toLowerCase().includes('nonce') ||
-                               updateErr.message?.toLowerCase().includes('expired') ||
-                               updateErr.message?.toLowerCase().includes('invalid');
-            err.textContent = isNonceErr
-                ? 'Code expired or invalid. Click "Resend code" to get a new one.'
-                : (updateErr.message || 'Failed to update password. Please try again.');
+            err.textContent = updateErr.message || 'Failed to update password. Please try again.';
             err.style.display = 'block';
             btn.disabled = false;
             btn.innerHTML = saveBtnHTML;
