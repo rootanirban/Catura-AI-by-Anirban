@@ -4173,12 +4173,13 @@ window.executeDeleteAccount = async function () {
 //  STEP 1 (chpw-step-1): User enters new password + confirm
 //         → clicks "Send verification code"
 //         → we call supabaseClient.auth.reauthenticate()
-//         → Supabase emails a 6-digit OTP using the Reauthentication template
+//         → Supabase emails a 6-digit OTP (nonce) via Reauthentication template
 //
 //  STEP 2 (chpw-step-2): User enters the 6-digit OTP from email
 //         → clicks "Verify & update password"
-//         → we call supabaseClient.auth.verifyOtp({ type:'reauthentication', token })
-//           which re-auths the session, then immediately call updateUser({ password })
+//         → we call supabaseClient.auth.updateUser({ password, nonce: otp })
+//           The nonce goes INSIDE the first argument — this is the ONLY correct
+//           Supabase JS v2 flow. verifyOtp() does NOT support reauthentication.
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -4451,46 +4452,36 @@ window.chpwBackToStep1 = function () {
 };
 
 window.chpwVerifyAndUpdate = async function () {
-    const otp   = document.getElementById('chpwOtpInput')?.value.trim() || '';
-    const pw    = document.getElementById('chpwNewInput')?.value        || '';
-    const btn   = document.getElementById('chpwStep2Btn');
-    const err   = document.getElementById('chpwStep2Error');
-    const email = currentUser?.email || '';
+    const otp = document.getElementById('chpwOtpInput')?.value.trim() || '';
+    const pw  = document.getElementById('chpwNewInput')?.value        || '';
+    const btn = document.getElementById('chpwStep2Btn');
+    const err = document.getElementById('chpwStep2Error');
 
     if (otp.length !== 6 || pw.length < 8) return;
 
     const saveBtnHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Verify &amp; update password';
 
     btn.disabled = true;
-    btn.innerHTML = '⏳ Verifying…';
+    btn.innerHTML = '⏳ Updating…';
     if (err) err.style.display = 'none';
 
     try {
-        // STEP A: Verify the OTP (reauthentication type) — this re-auths the session
-        const { error: verifyErr } = await supabaseClient.auth.verifyOtp({
-            email,
-            token: otp,
-            type: 'reauthentication'
+        // ✅ CORRECT Supabase JS v2 reauthenticate flow:
+        // After reauthenticate() sends the OTP to email, pass the OTP as
+        // `nonce` INSIDE the first argument of updateUser(). This is the only
+        // correct way — verifyOtp() does NOT support 'reauthentication' type.
+        const { error: updateErr } = await supabaseClient.auth.updateUser({
+            password: pw,
+            nonce: otp
         });
 
-        if (verifyErr) {
-            const msg = verifyErr.message?.toLowerCase() || '';
-            const isExpired = msg.includes('expired') || msg.includes('invalid') || msg.includes('otp') || msg.includes('token');
-            err.textContent = isExpired
-                ? 'Code is expired or invalid. Click "Resend code" to get a new one.'
-                : (verifyErr.message || 'Verification failed. Please try again.');
-            err.style.display = 'block';
-            btn.disabled = false;
-            btn.innerHTML = saveBtnHTML;
-            return;
-        }
-
-        // STEP B: Now update the password (session is freshly re-authenticated)
-        btn.innerHTML = '⏳ Updating…';
-        const { error: updateErr } = await supabaseClient.auth.updateUser({ password: pw });
-
         if (updateErr) {
-            err.textContent = updateErr.message || 'Failed to update password. Please try again.';
+            const msg = updateErr.message?.toLowerCase() || '';
+            const isBadNonce = msg.includes('nonce') || msg.includes('expired') ||
+                               msg.includes('invalid') || msg.includes('otp');
+            err.textContent = isBadNonce
+                ? 'Code is expired or invalid. Click "Resend code" to get a fresh one.'
+                : (updateErr.message || 'Failed to update password. Please try again.');
             err.style.display = 'block';
             btn.disabled = false;
             btn.innerHTML = saveBtnHTML;
