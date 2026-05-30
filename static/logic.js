@@ -2020,13 +2020,73 @@ window.showSettingsTab = function (tab, clickedEl) {
             </div>
             <div class="sc-section">
                 <div class="sc-section-title">Memory</div>
-                <div class="sc-row disabled">
+                <div class="sc-row disabled" onclick="showToast('Memory & context — coming soon!')">
                     <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
                     </svg>
                     <div class="sc-row-body">
-                        <p class="sc-row-label">Memory & context</p>
+                        <p class="sc-row-label">Memory &amp; context</p>
                         <p class="sc-row-sub soon">Coming soon</p>
+                    </div>
+                    <svg class="sc-row-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </div>
+                <div class="sc-memory-submenu">
+                    <div class="sc-row disabled sc-memory-item">
+                        <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"></path>
+                        </svg>
+                        <div class="sc-row-body">
+                            <p class="sc-row-label">Enable Memory</p>
+                            <p class="sc-row-sub soon">Master on/off switch — coming soon</p>
+                        </div>
+                        <div class="sc-toggle-pill disabled"></div>
+                    </div>
+                    <div class="sc-row disabled sc-memory-item">
+                        <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 20h9"></path>
+                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                        </svg>
+                        <div class="sc-row-body">
+                            <p class="sc-row-label">Remember Preferences</p>
+                            <p class="sc-row-sub soon">Tone, style, language, format — coming soon</p>
+                        </div>
+                        <div class="sc-toggle-pill disabled"></div>
+                    </div>
+                    <div class="sc-row disabled sc-memory-item">
+                        <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                            <line x1="8" y1="21" x2="16" y2="21"></line>
+                            <line x1="12" y1="17" x2="12" y2="21"></line>
+                        </svg>
+                        <div class="sc-row-body">
+                            <p class="sc-row-label">Remember Projects</p>
+                            <p class="sc-row-sub soon">Tasks, goals, code &amp; project details — coming soon</p>
+                        </div>
+                        <div class="sc-toggle-pill disabled"></div>
+                    </div>
+                    <div class="sc-row disabled sc-memory-item">
+                        <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                        <div class="sc-row-body">
+                            <p class="sc-row-label">View Saved Memories</p>
+                            <p class="sc-row-sub soon">See what Catura has stored — coming soon</p>
+                        </div>
+                    </div>
+                    <div class="sc-row disabled sc-memory-item sc-memory-danger">
+                        <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                            <path d="M10 11v6"></path>
+                            <path d="M14 11v6"></path>
+                            <path d="M9 6V4h6v2"></path>
+                        </svg>
+                        <div class="sc-row-body">
+                            <p class="sc-row-label">Clear All Memories</p>
+                            <p class="sc-row-sub soon">Delete everything saved — coming soon</p>
+                        </div>
                     </div>
                 </div>
             </div>`,
@@ -2283,6 +2343,27 @@ window.showSettingsTab = function (tab, clickedEl) {
     };
 
     content.innerHTML = tabs[tab] || tabs.general;
+
+    // Wire up Memory & context expand/collapse
+    if (tab === 'personalization') {
+        const allRows = content.querySelectorAll('.sc-section .sc-row');
+        allRows.forEach(row => {
+            const chevron = row.querySelector('.sc-row-chevron');
+            if (!chevron) return;
+            const submenu = row.parentElement.querySelector('.sc-memory-submenu');
+            if (!submenu) return;
+            row.removeAttribute('onclick');
+            row.style.cursor = 'pointer';
+            row.style.opacity = '1';
+            row.classList.remove('disabled');
+            let memOpen = false;
+            row.addEventListener('click', () => {
+                memOpen = !memOpen;
+                submenu.classList.toggle('open', memOpen);
+                chevron.style.transform = memOpen ? 'rotate(90deg)' : '';
+            });
+        });
+    }
 };
 
 // ============================
