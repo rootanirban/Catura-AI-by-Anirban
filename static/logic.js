@@ -1363,12 +1363,49 @@ window.editCaturaCallName = function () {
 
     const current = localStorage.getItem('catura_call_name') || '';
 
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const t = isLight ? {
+        overlay: 'rgba(0,0,0,0.35)',
+        box: '#ffffff',
+        boxBorder: '#e4e7ef',
+        boxShadow: '0 24px 64px rgba(0,0,0,0.14)',
+        title: '#0f1117',
+        sub: '#7a8399',
+        divider: '#eaecf0',
+        inputBg: '#f9fafb',
+        inputBorder: '#dde1eb',
+        inputBorderFocus: '#10a37f',
+        inputColor: '#0f1117',
+        note: '#9aa0b5',
+        cancelBorder: '#dde1eb',
+        cancelBg: '#f4f6fb',
+        cancelBgHover: '#e8eaf0',
+        cancelColor: '#3d4455',
+    } : {
+        overlay: 'rgba(0,0,0,0.6)',
+        box: '#1a1a1a',
+        boxBorder: '#2a2a2a',
+        boxShadow: '0 24px 64px rgba(0,0,0,0.7)',
+        title: '#eeeeee',
+        sub: '#666666',
+        divider: '#222222',
+        inputBg: '#111111',
+        inputBorder: '#333333',
+        inputBorderFocus: '#10a37f',
+        inputColor: '#eeeeee',
+        note: '#555555',
+        cancelBorder: '#333333',
+        cancelBg: 'transparent',
+        cancelBgHover: '#222222',
+        cancelColor: '#999999',
+    };
+
     const modal = document.createElement('div');
     modal.id = 'caturaCallNameModal';
-    modal.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(6px);animation:caturaModalFadeIn 0.2s ease;';
+    modal.style.cssText = `position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:${t.overlay};backdrop-filter:blur(6px);animation:caturaModalFadeIn 0.2s ease;`;
 
     modal.innerHTML = `
-    <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;width:min(400px,92vw);padding:28px 24px 20px;box-shadow:0 24px 64px rgba(0,0,0,0.7);position:relative;animation:caturaModalSlideUp 0.25s cubic-bezier(0.34,1.2,0.64,1);">
+    <div style="background:${t.box};border:1px solid ${t.boxBorder};border-radius:16px;width:min(400px,92vw);padding:28px 24px 20px;box-shadow:${t.boxShadow};position:relative;animation:caturaModalSlideUp 0.25s cubic-bezier(0.34,1.2,0.64,1);">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
             <div style="width:36px;height:36px;border-radius:10px;background:rgba(16,163,127,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10a37f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1376,22 +1413,22 @@ window.editCaturaCallName = function () {
                 </svg>
             </div>
             <div>
-                <p style="margin:0;font-size:15px;font-weight:600;color:#eee;">What should Catura call you?</p>
-                <p style="margin:2px 0 0;font-size:12px;color:#666;">Only shown in your home screen greeting</p>
+                <p style="margin:0;font-size:15px;font-weight:600;color:${t.title};">What should Catura call you?</p>
+                <p style="margin:2px 0 0;font-size:12px;color:${t.sub};">Only shown in your home screen greeting</p>
             </div>
         </div>
-        <div style="height:1px;background:#222;margin:16px 0;"></div>
+        <div style="height:1px;background:${t.divider};margin:16px 0;"></div>
         <input id="caturaCallNameInput" type="text" placeholder="Enter a name or nickname…" maxlength="40"
             value="${current.replace(/"/g,'&quot;')}"
-            style="width:100%;box-sizing:border-box;background:#111;border:1.5px solid #333;border-radius:10px;padding:11px 14px;font-size:14px;color:#eee;outline:none;transition:border-color 0.2s;font-family:inherit;"
-            onfocus="this.style.borderColor='#10a37f'" onblur="this.style.borderColor='#333'"
+            style="width:100%;box-sizing:border-box;background:${t.inputBg};border:1.5px solid ${t.inputBorder};border-radius:10px;padding:11px 14px;font-size:14px;color:${t.inputColor};outline:none;transition:border-color 0.2s;font-family:inherit;"
+            onfocus="this.style.borderColor='#10a37f'" onblur="this.style.borderColor='${t.inputBorder}'"
             onkeydown="if(event.key==='Enter')document.getElementById('caturaCallNameSave').click();if(event.key==='Escape')document.getElementById('caturaCallNameModal').remove();"
         >
-        <p style="margin:8px 0 16px;font-size:11px;color:#555;">This name only appears in the "Good morning, …" greeting. Your display name stays unchanged.</p>
+        <p style="margin:8px 0 16px;font-size:11px;color:${t.note};">This name only appears in the "Good morning, …" greeting. Your display name stays unchanged.</p>
         <div style="display:flex;gap:10px;justify-content:flex-end;">
             <button onclick="document.getElementById('caturaCallNameModal').remove()"
-                style="padding:9px 18px;border-radius:8px;border:1px solid #333;background:transparent;color:#999;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;transition:background 0.15s;"
-                onmouseover="this.style.background='#222'" onmouseout="this.style.background='transparent'">Cancel</button>
+                style="padding:9px 18px;border-radius:8px;border:1px solid ${t.cancelBorder};background:${t.cancelBg};color:${t.cancelColor};font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;transition:background 0.15s;"
+                onmouseover="this.style.background='${t.cancelBgHover}'" onmouseout="this.style.background='${t.cancelBg}'">Cancel</button>
             <button id="caturaCallNameSave"
                 style="padding:9px 20px;border-radius:8px;border:none;background:#10a37f;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity 0.15s;"
                 onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'"
@@ -4547,9 +4584,58 @@ window.openPlansModal = function () {
     const existing = document.getElementById('plansModal');
     if (existing) existing.remove();
 
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const p = isLight ? {
+        overlay: 'rgba(0,0,0,0.35)',
+        outerBg: '#ffffff',
+        outerBorder: '#e4e7ef',
+        outerShadow: '0 24px 80px rgba(0,0,0,0.12)',
+        closeBtnColor: '#7a8399',
+        titleColor: '#0f1117',
+        subtitleColor: '#7a8399',
+        cardBg: '#f8f9fb',
+        cardBorder: '#e4e7ef',
+        cardProBorder: 'rgba(16,163,127,0.4)',
+        cardMaxBg: 'linear-gradient(145deg,#f8f9fb,#f4f5fb)',
+        cardMaxBorder: 'rgba(124,58,237,0.3)',
+        tierLabel: '#7a8399',
+        priceColor: '#0f1117',
+        priceMuted: '#9aa0b5',
+        descColor: '#5a6070',
+        dividerColor: '#e8eaed',
+        featureColor: '#3d4455',
+        currentPlanBg: '#f0f2f7',
+        currentPlanBorder: '#dde1eb',
+        currentPlanColor: '#9aa0b5',
+        currentPlanHover: '#e4e7f0',
+    } : {
+        overlay: 'rgba(0,0,0,0.65)',
+        outerBg: '#1a1a1a',
+        outerBorder: '#2a2a2a',
+        outerShadow: '0 24px 80px rgba(0,0,0,0.6)',
+        closeBtnColor: '#888',
+        titleColor: '#ffffff',
+        subtitleColor: '#888',
+        cardBg: '#111111',
+        cardBorder: '#2a2a2a',
+        cardProBorder: 'rgba(16,163,127,0.35)',
+        cardMaxBg: 'linear-gradient(145deg,#1a1a1a,#121212)',
+        cardMaxBorder: 'rgba(124,58,237,0.4)',
+        tierLabel: '#888',
+        priceColor: '#ffffff',
+        priceMuted: '#666',
+        descColor: '#999',
+        dividerColor: '#222',
+        featureColor: '#bbbbbb',
+        currentPlanBg: '#222222',
+        currentPlanBorder: '#333333',
+        currentPlanColor: '#666666',
+        currentPlanHover: '#2a2a2a',
+    };
+
     const modal = document.createElement('div');
     modal.id = 'plansModal';
-    modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);';
+    modal.style.cssText = `position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:${p.overlay};backdrop-filter:blur(4px);`;
 
     const freeFeatures = ['Unlimited chats with Dagr & Apep','Access to Sambhav model','Standard response speed','Basic file uploads'];
     const proFeatures = ['Everything in Free','Access to Gemma & Gemma4 models','Priority response speed','Larger file uploads','Extended context window','Early access to new features'];
@@ -4557,38 +4643,38 @@ window.openPlansModal = function () {
 
     const check = (color) => `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
 
-    const makeList = (items, color) => items.map(f => `<li style="display:flex;align-items:center;gap:8px;font-size:13px;color:#bbb;">${check(color)}${f}</li>`).join('');
+    const makeList = (items, color) => items.map(f => `<li style="display:flex;align-items:flex-start;gap:8px;font-size:13px;color:${p.featureColor};line-height:1.5;">${check(color)}<span>${f}</span></li>`).join('');
 
     modal.innerHTML = `
-    <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;width:min(860px,95vw);max-height:90vh;overflow-y:auto;padding:32px 28px;position:relative;box-shadow:0 24px 80px rgba(0,0,0,0.6);">
-        <button onclick="document.getElementById('plansModal').remove()" style="position:absolute;top:16px;right:18px;background:none;border:none;color:#888;font-size:20px;cursor:pointer;line-height:1;padding:4px 8px;border-radius:6px;">&#x2715;</button>
-        <h2 style="margin:0 0 6px;font-size:22px;color:#fff;font-weight:700;">Choose your plan</h2>
-        <p style="margin:0 0 28px;color:#888;font-size:14px;">Simple, transparent pricing. Upgrade or downgrade anytime.</p>
+    <div style="background:${p.outerBg};border:1px solid ${p.outerBorder};border-radius:16px;width:min(860px,95vw);max-height:90vh;overflow-y:auto;padding:32px 28px;position:relative;box-shadow:${p.outerShadow};">
+        <button onclick="document.getElementById('plansModal').remove()" style="position:absolute;top:16px;right:18px;background:none;border:none;color:${p.closeBtnColor};font-size:20px;cursor:pointer;line-height:1;padding:4px 8px;border-radius:6px;transition:color 0.15s;" onmouseover="this.style.color='#10a37f'" onmouseout="this.style.color='${p.closeBtnColor}'">&#x2715;</button>
+        <h2 style="margin:0 0 6px;font-size:22px;color:${p.titleColor};font-weight:700;">Choose your plan</h2>
+        <p style="margin:0 0 28px;color:${p.subtitleColor};font-size:14px;">Simple, transparent pricing. Upgrade or downgrade anytime.</p>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;">
-            <div style="background:#111;border:1px solid #2a2a2a;border-radius:12px;padding:24px 20px;display:flex;flex-direction:column;gap:12px;">
-                <div style="font-size:12px;color:#888;font-weight:600;letter-spacing:.06em;text-transform:uppercase;">Free</div>
-                <div style="font-size:32px;font-weight:800;color:#fff;">₹0<span style="font-size:14px;font-weight:400;color:#666;">/mo</span></div>
-                <p style="font-size:13px;color:#999;margin:0;">Get started with core AI features, no credit card required.</p>
-                <hr style="border:none;border-top:1px solid #222;margin:4px 0;">
+            <div style="background:${p.cardBg};border:1px solid ${p.cardBorder};border-radius:12px;padding:24px 20px;display:flex;flex-direction:column;gap:12px;">
+                <div style="font-size:12px;color:${p.tierLabel};font-weight:600;letter-spacing:.06em;text-transform:uppercase;">Free</div>
+                <div style="font-size:32px;font-weight:800;color:${p.priceColor};">₹0<span style="font-size:14px;font-weight:400;color:${p.priceMuted};">/mo</span></div>
+                <p style="font-size:13px;color:${p.descColor};margin:0;">Get started with core AI features, no credit card required.</p>
+                <hr style="border:none;border-top:1px solid ${p.dividerColor};margin:4px 0;">
                 <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;">${makeList(freeFeatures,'#10a37f')}</ul>
-                <button disabled style="margin-top:auto;padding:10px;border-radius:8px;border:1px solid #333;background:#222;color:#666;font-size:13px;font-weight:600;cursor:default;">Current plan</button>
+                <button disabled style="margin-top:auto;padding:10px;border-radius:8px;border:1px solid ${p.currentPlanBorder};background:${p.currentPlanBg};color:${p.currentPlanColor};font-size:13px;font-weight:600;cursor:default;">Current plan</button>
             </div>
-            <div style="background:#111;border:1px solid rgba(16,163,127,0.35);border-radius:12px;padding:24px 20px;display:flex;flex-direction:column;gap:12px;position:relative;">
+            <div style="background:${p.cardBg};border:1px solid ${p.cardProBorder};border-radius:12px;padding:24px 20px;display:flex;flex-direction:column;gap:12px;position:relative;">
                 <div style="position:absolute;top:-1px;right:16px;background:#10a37f;color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:0 0 8px 8px;letter-spacing:.04em;text-transform:uppercase;">Popular</div>
                 <div style="font-size:12px;color:#10a37f;font-weight:600;letter-spacing:.06em;text-transform:uppercase;">Pro</div>
-                <div style="font-size:32px;font-weight:800;color:#fff;">₹199<span style="font-size:14px;font-weight:400;color:#666;">/mo</span></div>
-                <p style="font-size:13px;color:#999;margin:0;">Everything in Free, plus priority access and advanced models.</p>
-                <hr style="border:none;border-top:1px solid #222;margin:4px 0;">
+                <div style="font-size:32px;font-weight:800;color:${p.priceColor};">₹199<span style="font-size:14px;font-weight:400;color:${p.priceMuted};">/mo</span></div>
+                <p style="font-size:13px;color:${p.descColor};margin:0;">Everything in Free, plus priority access and advanced models.</p>
+                <hr style="border:none;border-top:1px solid ${p.dividerColor};margin:4px 0;">
                 <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;">${makeList(proFeatures,'#10a37f')}</ul>
-                <button onclick="showModal({type:'alert',icon:'<rect x=\\'1\\' y=\\'4\\' width=\\'22\\' height=\\'16\\' rx=\\'2\\' ry=\\'2\\'/><line x1=\\'1\\' y1=\\'10\\' x2=\\'23\\' y2=\\'10\\'/>',title:'Pro plan',subtitle:'Coming soon! Stay tuned.',confirmLabel:'Got it'})" style="margin-top:auto;padding:10px;border-radius:8px;border:none;background:#10a37f;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Upgrade to Pro</button>
+                <button onclick="showModal({type:'alert',icon:'<rect x=\\'1\\' y=\\'4\\' width=\\'22\\' height=\\'16\\' rx=\\'2\\' ry=\\'2\\'/><line x1=\\'1\\' y1=\\'10\\' x2=\\'23\\' y2=\\'10\\'/>',title:'Pro plan',subtitle:'Coming soon! Stay tuned.',confirmLabel:'Got it'})" style="margin-top:auto;padding:10px;border-radius:8px;border:none;background:#10a37f;color:#fff;font-size:13px;font-weight:600;cursor:pointer;transition:opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Upgrade to Pro</button>
             </div>
-            <div style="background:linear-gradient(145deg,#1a1a1a,#121212);border:1px solid rgba(124,58,237,0.4);border-radius:12px;padding:24px 20px;display:flex;flex-direction:column;gap:12px;">
+            <div style="background:${p.cardMaxBg};border:1px solid ${p.cardMaxBorder};border-radius:12px;padding:24px 20px;display:flex;flex-direction:column;gap:12px;">
                 <div style="font-size:12px;color:#a78bfa;font-weight:600;letter-spacing:.06em;text-transform:uppercase;">Max</div>
-                <div style="font-size:32px;font-weight:800;color:#fff;">₹349<span style="font-size:14px;font-weight:400;color:#666;">/mo</span></div>
-                <p style="font-size:13px;color:#999;margin:0;">Full access to every model and the highest usage limits.</p>
-                <hr style="border:none;border-top:1px solid #222;margin:4px 0;">
+                <div style="font-size:32px;font-weight:800;color:${p.priceColor};">₹349<span style="font-size:14px;font-weight:400;color:${p.priceMuted};">/mo</span></div>
+                <p style="font-size:13px;color:${p.descColor};margin:0;">Full access to every model and the highest usage limits.</p>
+                <hr style="border:none;border-top:1px solid ${p.dividerColor};margin:4px 0;">
                 <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;">${makeList(maxFeatures,'#a78bfa')}</ul>
-                <button onclick="showModal({type:'alert',icon:'<rect x=\\'1\\' y=\\'4\\' width=\\'22\\' height=\\'16\\' rx=\\'2\\' ry=\\'2\\'/><line x1=\\'1\\' y1=\\'10\\' x2=\\'23\\' y2=\\'10\\'/>',title:'Max plan',subtitle:'Coming soon! Stay tuned.',confirmLabel:'Got it'})" style="margin-top:auto;padding:10px;border-radius:8px;border:none;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Upgrade to Max</button>
+                <button onclick="showModal({type:'alert',icon:'<rect x=\\'1\\' y=\\'4\\' width=\\'22\\' height=\\'16\\' rx=\\'2\\' ry=\\'2\\'/><line x1=\\'1\\' y1=\\'10\\' x2=\\'23\\' y2=\\'10\\'/>',title:'Max plan',subtitle:'Coming soon! Stay tuned.',confirmLabel:'Got it'})" style="margin-top:auto;padding:10px;border-radius:8px;border:none;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;font-size:13px;font-weight:600;cursor:pointer;transition:opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Upgrade to Max</button>
             </div>
         </div>
     </div>`;
