@@ -276,6 +276,10 @@ user_memory = {}
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Admin client uses service_role key → bypasses Row Level Security for server-side writes
+# Set SUPABASE_SERVICE_KEY in your Render env vars (Supabase → Project Settings → API → service_role)
+_svc_key = os.getenv("SUPABASE_SERVICE_KEY", "") or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+_supabase_admin: Client = create_client(SUPABASE_URL, _svc_key) if _svc_key else supabase
 
 # ✅ RENDER APP URL
 APP_URL = os.getenv("APP_URL", "https://my-ai-assistant-9bbd.onrender.com/")
@@ -345,7 +349,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.210"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.211"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +359,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.210", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.211", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -380,7 +384,7 @@ async def save_memory(req: MemorySaveRequest):
     try:
         if not req.user_id or not req.memory_text.strip():
             return JSONResponse({"ok": False, "error": "Missing fields"}, status_code=400)
-        supabase.table("user_memories").insert({
+        _supabase_admin.table("user_memories").insert({
             "user_id": req.user_id,
             "memory_text": req.memory_text.strip()[:500],
             "created_at": datetime.utcnow().isoformat()
@@ -394,7 +398,7 @@ async def save_memory(req: MemorySaveRequest):
 @app.get("/api/memory/load")
 async def load_memory(user_id: str):
     try:
-        result = supabase.table("user_memories") \
+        result = _supabase_admin.table("user_memories") \
             .select("id, memory_text, created_at") \
             .eq("user_id", user_id) \
             .order("created_at", desc=False) \
@@ -408,7 +412,7 @@ async def load_memory(user_id: str):
 @app.delete("/api/memory/clear")
 async def clear_memory(req: MemoryClearRequest):
     try:
-        supabase.table("user_memories").delete().eq("user_id", req.user_id).execute()
+        _supabase_admin.table("user_memories").delete().eq("user_id", req.user_id).execute()
         return JSONResponse({"ok": True})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
@@ -417,7 +421,7 @@ async def clear_memory(req: MemoryClearRequest):
 @app.delete("/api/memory/delete-one")
 async def delete_one_memory(id: str, user_id: str):
     try:
-        supabase.table("user_memories").delete().eq("id", id).eq("user_id", user_id).execute()
+        _supabase_admin.table("user_memories").delete().eq("id", id).eq("user_id", user_id).execute()
         return JSONResponse({"ok": True})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
@@ -433,16 +437,22 @@ async def extract_and_save_memory(req: MemoryExtractRequest):
         existing_str = "\n".join(f"- {m}" for m in req.existing_memories[:30]) if req.existing_memories else "None yet."
 
         extraction_prompt = (
-            "You are a memory extraction assistant. Extract personal facts from this user message and return JSON.\n\n"
+            "You are a personal memory extraction assistant for an AI chat app.\n"
+            "Your ONLY job: read the user message below and extract personal facts as JSON.\n\n"
             f"User message: \"{req.message}\"\n\n"
-            f"Already known facts (DO NOT repeat):\n{existing_str}\n\n"
-            "Extract ONLY new personal facts: name, age, location, job, hobbies, preferences, goals, skills, relationships.\n"
-            "Rules:\n"
-            "- Only extract facts explicitly stated — do NOT infer\n"
-            "- Skip greetings, questions, and non-personal content\n"
-            "- Each fact: clean short sentence e.g. \"The user name is Anirban\" or \"The user is a Python developer\"\n"
-            "- If NO personal facts, return empty list\n"
-            '- Return ONLY valid JSON: {"facts": ["fact1", "fact2"]} — no markdown, no extra text\n'
+            f"Already known (DO NOT repeat these):\n{existing_str}\n\n"
+            "Extract ALL that apply: name, age, location/city/country, job/profession, "
+            "education/course/year/semester, hobbies, interests, preferences, goals, dreams, "
+            "skills, languages, relationships, schedule, subjects studied, projects.\n\n"
+            "STRICT RULES:\n"
+            "- Only extract facts EXPLICITLY stated — never infer or assume\n"
+            "- Write each fact as: \'The user [fact]\' e.g. \'The user\'s name is Anirban Das\'\n"
+            "- \'my name is X\' → \'The user\'s name is X\'\n"
+            "- \'I study BCA\' → \'The user studies BCA\'\n"
+            "- \'I am from Kolkata\' → \'The user is from Kolkata\'\n"
+            "- Return empty list if zero personal facts\n"
+            "- Output ONLY raw JSON — no markdown, no backticks, no explanation\n"
+            'REQUIRED FORMAT (nothing else): {"facts": ["fact1", "fact2"]}\n'
         )
 
         api_key = os.getenv("OPENROUTER_API_KEY", "")
@@ -515,12 +525,12 @@ async def extract_and_save_memory(req: MemoryExtractRequest):
             return JSONResponse({"ok": False, "facts": []})
 
         saved_facts = []
-        for fact in facts[:5]:
+        for fact in facts[:10]:
             fact = str(fact).strip()[:300]
             if not fact:
                 continue
             try:
-                supabase.table("user_memories").insert({
+                _supabase_admin.table("user_memories").insert({
                     "user_id": req.user_id,
                     "memory_text": fact,
                     "created_at": datetime.utcnow().isoformat()
@@ -535,6 +545,25 @@ async def extract_and_save_memory(req: MemoryExtractRequest):
     except Exception as e:
         print(f"❌ [Memory] extract error: {e}")
         return JSONResponse({"ok": False, "facts": []})
+
+# ── Guaranteed direct save — no AI, no models, just write to Supabase ────────
+@app.post("/api/memory/save-direct")
+async def save_memory_direct(req: MemorySaveRequest):
+    """Saves a fact directly to Supabase — used as frontend fallback when AI extraction fails."""
+    try:
+        if not req.user_id or not req.memory_text.strip():
+            return JSONResponse({"ok": False})
+        fact = req.memory_text.strip()[:500]
+        _supabase_admin.table("user_memories").insert({
+            "user_id": req.user_id,
+            "memory_text": fact,
+            "created_at": datetime.utcnow().isoformat()
+        }).execute()
+        print(f"🧠 [Memory] direct-saved: '{fact[:60]}' for {req.user_id[:8]}")
+        return JSONResponse({"ok": True, "fact": fact})
+    except Exception as e:
+        print(f"❌ [Memory] direct-save error: {e}")
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 # ─────────────────────────────────────────────────────────────────────────────
 

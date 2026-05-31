@@ -480,7 +480,7 @@ async function maybeExtractAndSaveMemory(userMessage) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 user_id: currentUser.id,
-                message: userMessage.trim().slice(0, 800),   // wider context window
+                message: userMessage.trim().slice(0, 800),
                 existing_memories: userMemories.slice(0, 30)
             })
         });
@@ -489,18 +489,96 @@ async function maybeExtractAndSaveMemory(userMessage) {
             for (const fact of data.facts) {
                 if (!fact) continue;
                 const factLower = fact.toLowerCase().trim();
-                // Deduplicate: skip if a very similar fact already in memory
                 const alreadyKnown = userMemories.some(m =>
                     m.toLowerCase().trim() === factLower ||
                     m.toLowerCase().includes(factLower.slice(0, 30))
                 );
                 if (!alreadyKnown) {
                     userMemories.push(fact);
-                    console.log('[Memory] ✅ saved:', fact);
+                    console.log('[Memory] ✅ AI extracted & saved:', fact);
                 }
             }
+        } else {
+            // AI extraction failed or returned nothing — use direct regex fallback
+            console.warn('[Memory] AI extraction returned ok:false or empty, using direct fallback');
+            await _memoryDirectFallback(userMessage);
         }
-    } catch (e) { console.warn('[Memory] extract error:', e); }
+    } catch (e) {
+        console.warn('[Memory] extract network error:', e);
+        await _memoryDirectFallback(userMessage);
+    }
+}
+
+// ── Direct memory fallback: regex extracts name/location, saves via backend ──
+// Called when AI extraction fails. Guaranteed path: no model, no rate limits.
+async function _memoryDirectFallback(userMessage) {
+    if (!currentUser || !memoryEnabled || ghostChatEnabled) return;
+    const factsToSave = [];
+
+    // Name extraction
+    const nameRx = [
+        /(?:my name is|i am|i'?m|call me|name'?s?)\s+([A-Z][a-z]{1,20}(?:\s+[A-Z][a-z]{1,20})?)/i,
+        /(?:^|\s)([A-Z][a-z]{2,15}\s+[A-Z][a-z]{2,15})(?:\s+here|\s*$)/,
+    ];
+    for (const rx of nameRx) {
+        const m = userMessage.match(rx);
+        if (m && m[1] && m[1].trim().length > 2) {
+            const name = m[1].trim();
+            if (!userMemories.some(mem => mem.toLowerCase().includes(name.toLowerCase()))) {
+                factsToSave.push(`The user's name is ${name}`);
+            }
+            break;
+        }
+    }
+
+    // Location extraction
+    const locRx = /(?:i'?m from|i live in|i am from|from)\s+([A-Z][a-z]+(?:[\s,]+[A-Z][a-z]+)*)/i;
+    const locM = userMessage.match(locRx);
+    if (locM && locM[1]) {
+        const loc = locM[1].trim();
+        if (!userMemories.some(mem => mem.toLowerCase().includes(loc.toLowerCase()))) {
+            factsToSave.push(`The user is from ${loc}`);
+        }
+    }
+
+    // Education extraction
+    const eduRx = /(?:i study|i'?m studying|i do|i am in|enrolled in)\s+([A-Za-z0-9\s]{3,50})/i;
+    const eduM = userMessage.match(eduRx);
+    if (eduM && eduM[1]) {
+        const edu = eduM[1].trim();
+        if (!userMemories.some(mem => mem.toLowerCase().includes(edu.toLowerCase()))) {
+            factsToSave.push(`The user studies ${edu}`);
+        }
+    }
+
+    // Save each fact via backend save-direct endpoint
+    for (const fact of factsToSave) {
+        try {
+            const r = await fetch('/api/memory/save-direct', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: currentUser.id, memory_text: fact })
+            });
+            const d = await r.json();
+            if (d.ok) {
+                userMemories.push(fact);
+                console.log('[Memory] ✅ fallback direct-saved:', fact);
+            }
+        } catch (saveErr) {
+            // Last resort: write directly via authenticated Supabase client
+            try {
+                const { error } = await supabaseClient.from('user_memories').insert({
+                    user_id: currentUser.id,
+                    memory_text: fact,
+                    created_at: new Date().toISOString()
+                });
+                if (!error) {
+                    userMemories.push(fact);
+                    console.log('[Memory] ✅ fallback supabase-direct saved:', fact);
+                }
+            } catch (_) {}
+        }
+    }
 }
 
 window.clearAllMemories = async function() {
