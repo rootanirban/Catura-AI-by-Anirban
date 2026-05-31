@@ -4540,9 +4540,9 @@ window.executeDeleteAccount = async function () {
 //
 //  STEP 2 (chpw-step-2): User enters the 6-digit OTP from email
 //         → clicks "Verify & update password"
-//         → we call supabaseClient.auth.updateUser({ password, nonce: otp })
-//           The nonce goes INSIDE the first argument — this is the ONLY correct
-//           Supabase JS v2 flow. verifyOtp() does NOT support reauthentication.
+//         → we call supabaseClient.auth.verifyOtp({ email, token: otp, type: 'reauthentication' })
+//           then supabaseClient.auth.updateUser({ password })
+//           verifyOtp with type 'reauthentication' is the ONLY correct flow.
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -4831,18 +4831,18 @@ window.chpwVerifyAndUpdate = async function () {
     try {
         // ✅ CORRECT Supabase JS v2 reauthenticate flow (two-step):
         //
-        // Step A: Verify the OTP from the reauthentication email.
-        //         This upgrades the session to AAL2 (assurance level 2).
-        //         type: 'email' is correct for reauthentication OTPs.
+        // Step A: Verify the OTP using type: 'reauthentication' — this is the
+        //         ONLY correct type for OTPs sent by reauthenticate().
+        //         type: 'email' looks in the wrong OTP table and always returns
+        //         "expired/invalid" even with a brand-new valid code.
         //
-        // Step B: Only after the OTP is verified, call updateUser({ password }).
-        //         No `nonce` field — that field is not a valid updateUser() param
-        //         and causes "expired/invalid" errors even with a fresh OTP.
+        // Step B: After OTP is verified the session is at AAL2 — just call
+        //         updateUser({ password }). No nonce field needed.
         const email = currentUser?.email || '';
         const { error: verifyErr } = await supabaseClient.auth.verifyOtp({
             email,
             token: otp,
-            type: 'email'
+            type: 'reauthentication'
         });
 
         if (verifyErr) {
