@@ -345,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.208"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.209"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +355,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.208", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.209", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY ENDPOINTS ───────────────────────────────────────────────────────
 
@@ -405,6 +405,89 @@ async def delete_one_memory(id: str, user_id: str):
         return JSONResponse({"ok": True})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
+class MemoryExtractRequest(_BaseModel):
+    user_id: str
+    message: str
+    existing_memories: list = []
+
+@app.post("/api/memory/extract")
+async def extract_and_save_memory(req: MemoryExtractRequest):
+    """AI-powered: extract personal facts from a message, save new ones to Supabase."""
+    try:
+        if not req.user_id or not req.message.strip():
+            return JSONResponse({"ok": False, "facts": []})
+
+        existing_str = "\n".join(f"- {m}" for m in req.existing_memories[:30]) if req.existing_memories else "None yet."
+
+        extraction_prompt = (
+            "You are a memory extraction assistant. Extract personal facts from this user message and return JSON.\n\n"
+            f"User message: \"{req.message}\"\n\n"
+            f"Already known facts (DO NOT repeat):\n{existing_str}\n\n"
+            "Extract ONLY new personal facts: name, age, location, job, hobbies, preferences, goals, skills, relationships.\n"
+            "Rules:\n"
+            "- Only extract facts explicitly stated — do NOT infer\n"
+            "- Skip greetings, questions, and non-personal content\n"
+            "- Each fact: clean short sentence e.g. \"The user name is Anirban\" or \"The user is a Python developer\"\n"
+            "- If NO personal facts, return empty list\n"
+            '- Return ONLY valid JSON: {"facts": ["fact1", "fact2"]} — no markdown, no extra text\n'
+        )
+
+        api_key = os.getenv("OPENROUTER_API_KEY", "")
+        if not api_key:
+            return JSONResponse({"ok": False, "facts": []})
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://catura.ai",
+        }
+        payload = {
+            "model": "openai/gpt-oss-20b:free",
+            "max_tokens": 200,
+            "temperature": 0.1,
+            "messages": [{"role": "user", "content": extraction_prompt}]
+        }
+
+        import httpx as _httpx
+        async with _httpx.AsyncClient(timeout=8.0) as client:
+            r = await client.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
+
+        if r.status_code != 200:
+            print(f"❌ [Memory] extract API error: {r.status_code}")
+            return JSONResponse({"ok": False, "facts": []})
+
+        raw = r.json()
+        text = raw.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+        text = text.replace("```json", "").replace("```", "").strip()
+
+        parsed = json.loads(text)
+        facts = parsed.get("facts", [])
+        if not isinstance(facts, list):
+            return JSONResponse({"ok": False, "facts": []})
+
+        saved_facts = []
+        for fact in facts[:5]:
+            fact = str(fact).strip()[:300]
+            if not fact:
+                continue
+            try:
+                supabase.table("user_memories").insert({
+                    "user_id": req.user_id,
+                    "memory_text": fact,
+                    "created_at": datetime.utcnow().isoformat()
+                }).execute()
+                saved_facts.append(fact)
+            except Exception as save_err:
+                print(f"❌ [Memory] save in extract: {save_err}")
+
+        print(f"🧠 [Memory] extracted {len(saved_facts)} facts for {req.user_id[:8]}")
+        return JSONResponse({"ok": True, "facts": saved_facts})
+
+    except Exception as e:
+        print(f"❌ [Memory] extract error: {e}")
+        return JSONResponse({"ok": False, "facts": []})
 
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -3251,11 +3334,31 @@ async def chat_post(request: Request):
 
         # ── 🧠 MEMORY INJECTION ───────────────────────────────────────────────
         if user_memories_list and not ghost_mode:
-            memory_block = "\n\n## 🧠 USER MEMORY — what you know about this user:\n"
+            memory_block = (
+                "\n\n"
+                "## 🧠 PERSONAL MEMORY — CRITICAL OVERRIDE\n"
+                "You DO have personal memory for this user. This user has enabled memory.\n"
+                "NEVER say 'I don't have personal memories' or 'I can't remember previous conversations'.\n"
+                "NEVER say 'I can only recall what's shared in this session'.\n"
+                "You genuinely know the following facts about this user — treat them as things you remember:\n\n"
+            )
             for mem in user_memories_list[:50]:
-                memory_block += f"- {mem}\n"
-            memory_block += "\nUse this information naturally when helpful. Do NOT announce that you're using memory — just incorporate it smoothly into your responses.\n"
+                memory_block += f"- {str(mem)[:300]}\n"
+            memory_block += (
+                "\n"
+                "Use this information naturally and proactively when relevant.\n"
+                "When the user introduces themselves or mentions something you already know, "
+                "acknowledge it warmly (e.g. 'I remember you mentioned that!').\n"
+                "Do NOT say 'Based on my memory...' — just use it like a friend who remembers.\n"
+                "If asked 'do you remember me?' or 'do you know me?' — YES, you do. Reference what you know.\n"
+            )
             system_prompt = system_prompt + memory_block
+        elif not ghost_mode:
+            system_prompt = system_prompt + (
+                "\n\nNote: This user has not saved any personal memories yet. "
+                "If they share personal information, acknowledge it warmly within this conversation. "
+                "Do NOT proactively say you have no memory unless directly asked.\n"
+            )
         # ─────────────────────────────────────────────────────────────────────
 
         # ── TOOL ROUTING PIPELINE ──────────────────────────────────────────
