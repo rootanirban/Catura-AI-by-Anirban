@@ -4753,6 +4753,11 @@ window.chpwResendOtp = async function () {
         if (error) throw error;
         btn.textContent = '✓ Sent!';
         if (err) err.style.display = 'none';
+        // Clear old OTP — resend issues a NEW nonce that invalidates the previous one
+        const otpInput = document.getElementById('chpwOtpInput');
+        if (otpInput) { otpInput.value = ''; otpInput.focus(); }
+        const step2Btn = document.getElementById('chpwStep2Btn');
+        if (step2Btn) step2Btn.disabled = true;
 
         // Countdown timer: 60 seconds before resend is allowed again
         let seconds = 60;
@@ -4829,42 +4834,31 @@ window.chpwVerifyAndUpdate = async function () {
     if (err) err.style.display = 'none';
 
     try {
-        // ✅ CORRECT Supabase JS v2 reauthenticate flow (two-step):
+        // ✅ THE ONLY CORRECT Supabase JS v2 reauthenticate flow:
         //
-        // Step A: Verify the OTP using type: 'reauthentication' — this is the
-        //         ONLY correct type for OTPs sent by reauthenticate().
-        //         type: 'email' looks in the wrong OTP table and always returns
-        //         "expired/invalid" even with a brand-new valid code.
+        // reauthenticate() sends a 6-digit nonce to the user's email.
+        // Pass that nonce directly to updateUser() as the `nonce` field.
         //
-        // Step B: After OTP is verified the session is at AAL2 — just call
-        //         updateUser({ password }). No nonce field needed.
-        const email = currentUser?.email || '';
-        const { error: verifyErr } = await supabaseClient.auth.verifyOtp({
-            email,
-            token: otp,
-            type: 'reauthentication'
-        });
-
-        if (verifyErr) {
-            const msg = verifyErr.message?.toLowerCase() || '';
-            const isBadOtp = msg.includes('expired') || msg.includes('invalid') ||
-                             msg.includes('otp') || msg.includes('token');
-            err.textContent = isBadOtp
-                ? 'Code is expired or invalid. Click "Resend code" to get a fresh one.'
-                : (verifyErr.message || 'Verification failed. Please try again.');
-            err.style.display = 'block';
-            btn.disabled = false;
-            btn.innerHTML = saveBtnHTML;
-            return;
-        }
-
-        // OTP verified — now update the password
+        // ❌ verifyOtp() with ANY type ('email', 'recovery', 'reauthentication')
+        //    ALWAYS returns otp_expired for nonces from reauthenticate() —
+        //    this is confirmed Supabase behavior (GitHub Discussion #34956).
+        //    verifyOtp() is NOT the right method for this flow.
+        //
+        // ✅ updateUser({ password, nonce }) is the documented correct approach:
+        //    https://supabase.com/docs/reference/javascript/auth-updateuser
         const { error: updateErr } = await supabaseClient.auth.updateUser({
-            password: pw
+            password: pw,
+            nonce: otp
         });
 
         if (updateErr) {
-            err.textContent = updateErr.message || 'Failed to update password. Please try again.';
+            const msg = updateErr.message?.toLowerCase() || '';
+            const isBadNonce = msg.includes('nonce') || msg.includes('expired') ||
+                               msg.includes('invalid') || msg.includes('otp') ||
+                               msg.includes('token') || msg.includes('reauth');
+            err.textContent = isBadNonce
+                ? 'Code is expired or invalid. Click "Resend code" to get a fresh one.'
+                : (updateErr.message || 'Failed to update password. Please try again.');
             err.style.display = 'block';
             btn.disabled = false;
             btn.innerHTML = saveBtnHTML;
