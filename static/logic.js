@@ -451,39 +451,52 @@ async function maybeExtractAndSaveMemory(userMessage) {
     if (!memoryEnabled || !currentUser || ghostChatEnabled) return;
     if (!userMessage || userMessage.trim().length < 3) return;
 
-    // ── Fast local pre-filter: skip obviously non-personal messages ──────────
-    // Only bother calling the AI extractor if the message could plausibly contain
-    // personal info. This avoids wasting API calls on "what is photosynthesis?" etc.
+    // ── Wider pre-filter: catch natural intro-style messages too ────────────
     const personalSignals = [
-        /\bmy\b/i, /\bi'm\b/i, /\bi am\b/i, /\bmyself\b/i,
+        /\bmy\b/i, /\bi'?m\b/i, /\bi am\b/i, /\bmyself\b/i,
         /\bcall me\b/i, /\bname'?s?\b/i, /\bi work\b/i, /\bi live\b/i,
         /\bi speak\b/i, /\bi like\b/i, /\bi love\b/i, /\bi hate\b/i,
         /\bi enjoy\b/i, /\bi prefer\b/i, /\bi study\b/i, /\bi learn\b/i,
-        /\bi'm from\b/i, /\bborn in\b/i, /\bage\b/i, /\byears old\b/i,
+        /\bi'?m from\b/i, /\bborn in\b/i, /\bage\b/i, /\byears old\b/i,
         /\bmy goal\b/i, /\bmy dream\b/i, /\bmy job\b/i, /\bmy hobby\b/i,
-        /\bmy favourite\b/i, /\bmy favorite\b/i, /\bmy project\b/i,
+        /\bmy fav(ou?rite)?\b/i, /\bmy project\b/i, /\bmy name\b/i,
+        /\bim\b/i,          // catches "im anirban" (no apostrophe)
+        /\bi do\b/i,        // "i do machine learning"
+        /\bi use\b/i,       // "i use python"
+        /\bi build\b/i,     // "i build apps"
+        /\bi know\b/i,      // "i know javascript"
+        /\bi can\b/i,       // "i can code"
+        /\bi have\b/i,      // "i have 3 years of experience"
+        /\bwe are\b/i,      // "we are from kolkata"
+        /^[a-z]+\s+[a-z]/i  // bare intro like "anirban here" (short opener)
     ];
     const mightBePersonal = personalSignals.some(p => p.test(userMessage));
     if (!mightBePersonal) return;
 
     // ── AI-powered extraction via /api/memory/extract ─────────────────────────
-    // The backend uses Claude to intelligently extract memorable facts
     try {
         const resp = await fetch('/api/memory/extract', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 user_id: currentUser.id,
-                message: userMessage.trim().slice(0, 500),
-                existing_memories: userMemories.slice(0, 30)  // so we don't re-save duplicates
+                message: userMessage.trim().slice(0, 800),   // wider context window
+                existing_memories: userMemories.slice(0, 30)
             })
         });
         const data = await resp.json();
         if (data.ok && data.facts && data.facts.length > 0) {
             for (const fact of data.facts) {
-                if (fact && !userMemories.includes(fact)) {
+                if (!fact) continue;
+                const factLower = fact.toLowerCase().trim();
+                // Deduplicate: skip if a very similar fact already in memory
+                const alreadyKnown = userMemories.some(m =>
+                    m.toLowerCase().trim() === factLower ||
+                    m.toLowerCase().includes(factLower.slice(0, 30))
+                );
+                if (!alreadyKnown) {
                     userMemories.push(fact);
-                    console.log('[Memory] saved:', fact);
+                    console.log('[Memory] ✅ saved:', fact);
                 }
             }
         }
@@ -561,10 +574,12 @@ window.viewSavedMemories = async function() {
 window.deleteOneMemory = async function(id, btn) {
     if (!currentUser) return;
     try {
+        const deletedText = btn.closest('div[style]')?.querySelector('span')?.textContent?.trim();
         const resp = await fetch(`/api/memory/delete-one?id=${id}&user_id=${currentUser.id}`, { method: 'DELETE' });
         if ((await resp.json()).ok) {
             btn.closest('div[style]').remove();
-            userMemories = userMemories.filter(m => true); // keep array in sync loosely
+            // Properly remove from local array so memory context stays in sync
+            if (deletedText) userMemories = userMemories.filter(m => m.trim() !== deletedText);
             showToast('✓ Memory deleted');
         }
     } catch (e) { showToast('❌ Failed to delete memory'); }

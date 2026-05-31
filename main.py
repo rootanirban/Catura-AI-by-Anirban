@@ -345,7 +345,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.209"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.210"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +355,23 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.209", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.210", "timestamp": datetime.utcnow().isoformat()}
+
+# ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
+from pydantic import BaseModel as _MemBaseModel
+from typing import List as _MemList
+
+class MemorySaveRequest(_MemBaseModel):
+    user_id: str
+    memory_text: str
+
+class MemoryClearRequest(_MemBaseModel):
+    user_id: str
+
+class MemoryExtractRequest(_MemBaseModel):
+    user_id: str
+    message: str
+    existing_memories: list = []
 
 # ── 🧠 MEMORY ENDPOINTS ───────────────────────────────────────────────────────
 
@@ -407,11 +423,6 @@ async def delete_one_memory(id: str, user_id: str):
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 
-class MemoryExtractRequest(_BaseModel):
-    user_id: str
-    message: str
-    existing_memories: list = []
-
 @app.post("/api/memory/extract")
 async def extract_and_save_memory(req: MemoryExtractRequest):
     """AI-powered: extract personal facts from a message, save new ones to Supabase."""
@@ -443,26 +454,62 @@ async def extract_and_save_memory(req: MemoryExtractRequest):
             "Content-Type": "application/json",
             "HTTP-Referer": "https://catura.ai",
         }
-        payload = {
-            "model": "openai/gpt-oss-20b:free",
-            "max_tokens": 200,
-            "temperature": 0.1,
-            "messages": [{"role": "user", "content": extraction_prompt}]
-        }
+
+        # Model fallback chain — try in order until one succeeds
+        # Primary: a reliable small model; fallbacks in case of rate limit or empty response
+        EXTRACTION_MODELS = [
+            "meta-llama/llama-3.1-8b-instruct:free",
+            "mistralai/mistral-7b-instruct:free",
+            "openai/gpt-oss-20b:free",
+            "google/gemma-2-9b-it:free",
+        ]
 
         import httpx as _httpx
-        async with _httpx.AsyncClient(timeout=8.0) as client:
-            r = await client.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
+        text = None
+        for model_name in EXTRACTION_MODELS:
+            payload = {
+                "model": model_name,
+                "max_tokens": 300,
+                "temperature": 0.1,
+                "messages": [{"role": "user", "content": extraction_prompt}]
+            }
+            try:
+                async with _httpx.AsyncClient(timeout=10.0) as client:
+                    r = await client.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
+                if r.status_code == 200:
+                    raw = r.json()
+                    candidate = raw.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+                    candidate = candidate.replace("```json", "").replace("```", "").strip()
+                    if candidate and "{" in candidate:
+                        text = candidate
+                        print(f"🧠 [Memory] extraction model used: {model_name}")
+                        break
+                    else:
+                        print(f"⚠️ [Memory] {model_name} returned empty/bad content, trying next")
+                else:
+                    print(f"⚠️ [Memory] {model_name} HTTP {r.status_code}, trying next")
+            except Exception as model_err:
+                print(f"⚠️ [Memory] {model_name} error: {model_err}, trying next")
 
-        if r.status_code != 200:
-            print(f"❌ [Memory] extract API error: {r.status_code}")
+        if not text:
+            print("❌ [Memory] all extraction models failed")
             return JSONResponse({"ok": False, "facts": []})
 
-        raw = r.json()
-        text = raw.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
-        text = text.replace("```json", "").replace("```", "").strip()
-
-        parsed = json.loads(text)
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            # Try to salvage a partial JSON response
+            import re as _re_mem
+            match = _re_mem.search(r'\{.*?"facts".*?\].*?\}', text, _re_mem.DOTALL)
+            if match:
+                try:
+                    parsed = json.loads(match.group())
+                except Exception:
+                    print(f"❌ [Memory] AI returned invalid JSON: {text[:200]}")
+                    return JSONResponse({"ok": False, "facts": []})
+            else:
+                print(f"❌ [Memory] AI returned invalid JSON: {text[:200]}")
+                return JSONResponse({"ok": False, "facts": []})
         facts = parsed.get("facts", [])
         if not isinstance(facts, list):
             return JSONResponse({"ok": False, "facts": []})
@@ -562,13 +609,6 @@ class _TrainingBatch(_BaseModel):
     conversations: _List[_TrainingConvo]
 
 # ── Memory request models ─────────────────────────────────────
-class MemorySaveRequest(_BaseModel):
-    user_id: str
-    memory_text: str
-
-class MemoryClearRequest(_BaseModel):
-    user_id: str
-
 # ── IP → coarse region helper ─────────────────────────────────
 def _coarse_region_from_request(request: Request) -> _Optional[str]:
     """Extract country/region from forwarded IP header — never stores raw IP."""
