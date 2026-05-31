@@ -4815,7 +4815,7 @@ window.chpwBackToStep1 = function () {
 };
 
 window.chpwVerifyAndUpdate = async function () {
-    const otp = document.getElementById('chpwOtpInput')?.value.trim() || '';
+    const otp = (document.getElementById('chpwOtpInput')?.value || '').replace(/\D/g, '');
     const pw  = document.getElementById('chpwNewInput')?.value        || '';
     const btn = document.getElementById('chpwStep2Btn');
     const err = document.getElementById('chpwStep2Error');
@@ -4829,22 +4829,42 @@ window.chpwVerifyAndUpdate = async function () {
     if (err) err.style.display = 'none';
 
     try {
-        // ✅ CORRECT Supabase JS v2 reauthenticate flow:
-        // After reauthenticate() sends the OTP to email, pass the OTP as
-        // `nonce` INSIDE the first argument of updateUser(). This is the only
-        // correct way — verifyOtp() does NOT support 'reauthentication' type.
+        // ✅ CORRECT Supabase JS v2 reauthenticate flow (two-step):
+        //
+        // Step A: Verify the OTP from the reauthentication email.
+        //         This upgrades the session to AAL2 (assurance level 2).
+        //         type: 'email' is correct for reauthentication OTPs.
+        //
+        // Step B: Only after the OTP is verified, call updateUser({ password }).
+        //         No `nonce` field — that field is not a valid updateUser() param
+        //         and causes "expired/invalid" errors even with a fresh OTP.
+        const email = currentUser?.email || '';
+        const { error: verifyErr } = await supabaseClient.auth.verifyOtp({
+            email,
+            token: otp,
+            type: 'email'
+        });
+
+        if (verifyErr) {
+            const msg = verifyErr.message?.toLowerCase() || '';
+            const isBadOtp = msg.includes('expired') || msg.includes('invalid') ||
+                             msg.includes('otp') || msg.includes('token');
+            err.textContent = isBadOtp
+                ? 'Code is expired or invalid. Click "Resend code" to get a fresh one.'
+                : (verifyErr.message || 'Verification failed. Please try again.');
+            err.style.display = 'block';
+            btn.disabled = false;
+            btn.innerHTML = saveBtnHTML;
+            return;
+        }
+
+        // OTP verified — now update the password
         const { error: updateErr } = await supabaseClient.auth.updateUser({
-            password: pw,
-            nonce: otp
+            password: pw
         });
 
         if (updateErr) {
-            const msg = updateErr.message?.toLowerCase() || '';
-            const isBadNonce = msg.includes('nonce') || msg.includes('expired') ||
-                               msg.includes('invalid') || msg.includes('otp');
-            err.textContent = isBadNonce
-                ? 'Code is expired or invalid. Click "Resend code" to get a fresh one.'
-                : (updateErr.message || 'Failed to update password. Please try again.');
+            err.textContent = updateErr.message || 'Failed to update password. Please try again.';
             err.style.display = 'block';
             btn.disabled = false;
             btn.innerHTML = saveBtnHTML;
