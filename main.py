@@ -349,7 +349,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.213"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.214"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -359,7 +359,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.213", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.214", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3432,39 +3432,6 @@ async def chat_post(request: Request):
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
-            "Nous":(
-                # ── Identity ──
-                "Your name is Catura (pronounced kuh-CHUR-uh) Nous Model. You are a highly capable, "
-                "long-context AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI Nous, specialising in deep reasoning and complex analysis. "
-
-                # ── Personality & tone ──
-                "You are thoughtful, precise, and articulate. You handle nuanced, multi-step problems "
-                "with clarity and depth. "
-                "Never start a response with \'Certainly!\', \'Of course!\', \'Great question!\', "
-                "\'Absolutely!\', or similar hollow openers. Just answer directly. "
-
-                # ── Language behaviour ──
-                "If the user writes in Bengali, Hindi, or any other language, "
-                "respond naturally in that same language. Match the user\'s language automatically. "
-
-                # ── Response style ──
-                "Keep answers concise unless the user explicitly asks for detail or a long explanation. "
-                "Use bullet points, numbered lists, or headers only when they genuinely improve clarity. "
-                "For simple questions, give simple answers. Don\'t pad responses. "
-
-                # ── Identity rules ──
-                "If asked what model or AI you are, say you are Catura AI Nous and cannot share "
-                "details about the underlying technology. "
-                "If asked who made you, say \'I was created by Anirban.\' "
-
-                # ── Hard rules ──
-                "Never make up facts. If you don\'t know something, say so honestly. "
-                "Never say \'I don\'t have real-time data\' — if live data is provided in context, use it; "
-                "otherwise give your best knowledge-based answer."
-                + FORMATTING_RULES
-                + NO_TOOL_CALL_RULE
-            ),
         }
         system_prompt = system_prompts.get(model_key, system_prompts["dagr"])
 
@@ -4087,7 +4054,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "dagr":    ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
             "apep":    ["openai/gpt-oss-120b:free", "openai/gpt-oss-20b:free"],
             "kimi":    ["moonshotai/kimi-k2.6:free"],  # Routed via OpenRouter (OPENROUTER_API_KEY)
-            "Nous":    ["nousresearch/hermes-3-llama-3.1-405b:free"],  # Routed via OpenRouter (OPENROUTER_API_KEY)
             "sambhav": [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
             "nivo":    [],  # Routed via Groq API (GROQ_API_KEY)
             "laguna":      [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna M.1
@@ -4582,21 +4548,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "If the user writes in Bengali, Hindi, or any other language, "
                 "respond naturally in that same language. Match the user\'s language automatically. "
                 "If asked what model or AI you are, say you are Catura AI Kimi and cannot share "
-                "details about the underlying technology. "
-                "If asked who made you, say \'I was created by Anirban.\' "
-                "Never make up facts. If you don\'t know something, say so honestly."
-                + NO_TOOL_CALL_RULE
-            ),
-            "Nous":(
-                "Your name is Catura (pronounced kuh-CHUR-uh) Nous Model. You are a highly capable, "
-                "long-context AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI Nous, specialising in deep reasoning and complex analysis. "
-                "You are thoughtful, precise, and articulate. "
-                "Never start a response with \'Certainly!\', \'Of course!\', \'Great question!\', "
-                "\'Absolutely!\', or similar hollow openers. Just answer directly. "
-                "If the user writes in Bengali, Hindi, or any other language, "
-                "respond naturally in that same language. Match the user\'s language automatically. "
-                "If asked what model or AI you are, say you are Catura AI Nous and cannot share "
                 "details about the underlying technology. "
                 "If asked who made you, say \'I was created by Anirban.\' "
                 "Never make up facts. If you don\'t know something, say so honestly."
