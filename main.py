@@ -349,7 +349,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.215"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.216"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -359,7 +359,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.215", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.216", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3088,8 +3088,8 @@ async def chat_post(request: Request):
         # ── MODEL POOLS ────────────────────────────────────────────────────
         # Gemma models → Google AI Studio (GEMINI_API_KEY), NOT OpenRouter
         GEMMA_GOOGLE_MODELS = {
-            "Gemma":    "gemma-4-26b-a4b-it",
-            "Gemma4":   "gemma-4-31b-it",
+            "gemma":    "gemma-4-26b-a4b-it",
+            "gemma4":   "gemma-4-31b-it",
         }
         model_pools = {
             "dagr":    ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
@@ -3270,7 +3270,7 @@ async def chat_post(request: Request):
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
-            "Gemma": (
+            "gemma": (
                 "Your name is Catura (pronounced kuh-CHUR-uh) Gemma Core Model. You are a powerful and efficient "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Gemma, built for fast and capable everyday tasks. "
@@ -3282,7 +3282,7 @@ async def chat_post(request: Request):
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
-            "Gemma4": (
+            "gemma4": (
                 "Your name is Catura (pronounced kuh-CHUR-uh) Gemma Max Model. You are a powerful and efficient "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Gemma4, built for fast and capable everyday tasks. "
@@ -4013,8 +4013,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
         # Gemma models → Google AI Studio (GEMINI_API_KEY), NOT OpenRouter
         GEMMA_GOOGLE_MODELS = {
-            "Gemma":    "gemma-4-26b-a4b-it",
-            "Gemma4":   "gemma-4-31b-it",
+            "gemma":    "gemma-4-26b-a4b-it",
+            "gemma4":   "gemma-4-31b-it",
         }
         model_pools = {
             "dagr":    ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
