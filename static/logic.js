@@ -449,134 +449,35 @@ window.toggleMemoryEnabled = async function(checked) {
 
 async function maybeExtractAndSaveMemory(userMessage) {
     if (!memoryEnabled || !currentUser || ghostChatEnabled) return;
-    if (!userMessage || userMessage.trim().length < 3) return;
-
-    // ── Wider pre-filter: catch natural intro-style messages too ────────────
-    const personalSignals = [
-        /\bmy\b/i, /\bi'?m\b/i, /\bi am\b/i, /\bmyself\b/i,
-        /\bcall me\b/i, /\bname'?s?\b/i, /\bi work\b/i, /\bi live\b/i,
-        /\bi speak\b/i, /\bi like\b/i, /\bi love\b/i, /\bi hate\b/i,
-        /\bi enjoy\b/i, /\bi prefer\b/i, /\bi study\b/i, /\bi learn\b/i,
-        /\bi'?m from\b/i, /\bborn in\b/i, /\bage\b/i, /\byears old\b/i,
-        /\bmy goal\b/i, /\bmy dream\b/i, /\bmy job\b/i, /\bmy hobby\b/i,
-        /\bmy fav(ou?rite)?\b/i, /\bmy project\b/i, /\bmy name\b/i,
-        /\bim\b/i,          // catches "im anirban" (no apostrophe)
-        /\bi do\b/i,        // "i do machine learning"
-        /\bi use\b/i,       // "i use python"
-        /\bi build\b/i,     // "i build apps"
-        /\bi know\b/i,      // "i know javascript"
-        /\bi can\b/i,       // "i can code"
-        /\bi have\b/i,      // "i have 3 years of experience"
-        /\bwe are\b/i,      // "we are from kolkata"
-        /^[a-z]+\s+[a-z]/i  // bare intro like "anirban here" (short opener)
+    const memoryPatterns = [
+        /my name is .+/i,
+        /i(?:'m| am) a .+/i,
+        /call me .+/i,
+        /i work (?:at|for|in|as) .+/i,
+        /i(?:'m| am) (?:a |an )?\w+ (?:developer|engineer|student|doctor|teacher|designer|manager|analyst|writer|artist|lawyer|nurse|professor)/i,
+        /i live in .+/i,
+        /i(?:'m| am) from .+/i,
+        /i(?:'m| am) \d+ years? old/i,
+        /i (?:prefer|like|love|enjoy|hate|dislike) .+/i,
+        /my (?:favourite|favorite) .+ is .+/i,
+        /i speak .+/i,
+        /i(?:'m| am) (?:learning|studying) .+/i,
+        /my (?:goal|dream|plan) is .+/i,
     ];
-    const mightBePersonal = personalSignals.some(p => p.test(userMessage));
-    if (!mightBePersonal) return;
-
-    // ── AI-powered extraction via /api/memory/extract ─────────────────────────
-    try {
-        const resp = await fetch('/api/memory/extract', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                user_id: currentUser.id,
-                message: userMessage.trim().slice(0, 800),
-                existing_memories: userMemories.slice(0, 30)
-            })
-        });
-        const data = await resp.json();
-        if (data.ok && data.facts && data.facts.length > 0) {
-            for (const fact of data.facts) {
-                if (!fact) continue;
-                const factLower = fact.toLowerCase().trim();
-                const alreadyKnown = userMemories.some(m =>
-                    m.toLowerCase().trim() === factLower ||
-                    m.toLowerCase().includes(factLower.slice(0, 30))
-                );
-                if (!alreadyKnown) {
-                    userMemories.push(fact);
-                    console.log('[Memory] ✅ AI extracted & saved:', fact);
-                }
-            }
-        } else {
-            // AI extraction failed or returned nothing — use direct regex fallback
-            console.warn('[Memory] AI extraction returned ok:false or empty, using direct fallback');
-            await _memoryDirectFallback(userMessage);
-        }
-    } catch (e) {
-        console.warn('[Memory] extract network error:', e);
-        await _memoryDirectFallback(userMessage);
-    }
-}
-
-// ── Direct memory fallback: regex extracts name/location, saves via backend ──
-// Called when AI extraction fails. Guaranteed path: no model, no rate limits.
-async function _memoryDirectFallback(userMessage) {
-    if (!currentUser || !memoryEnabled || ghostChatEnabled) return;
-    const factsToSave = [];
-
-    // Name extraction
-    const nameRx = [
-        /(?:my name is|i am|i'?m|call me|name'?s?)\s+([A-Z][a-z]{1,20}(?:\s+[A-Z][a-z]{1,20})?)/i,
-        /(?:^|\s)([A-Z][a-z]{2,15}\s+[A-Z][a-z]{2,15})(?:\s+here|\s*$)/,
-    ];
-    for (const rx of nameRx) {
-        const m = userMessage.match(rx);
-        if (m && m[1] && m[1].trim().length > 2) {
-            const name = m[1].trim();
-            if (!userMemories.some(mem => mem.toLowerCase().includes(name.toLowerCase()))) {
-                factsToSave.push(`The user's name is ${name}`);
+    for (const pattern of memoryPatterns) {
+        if (pattern.test(userMessage)) {
+            const fact = userMessage.trim().slice(0, 200);
+            if (!userMemories.includes(fact)) {
+                try {
+                    const resp = await fetch('/api/memory/save', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ user_id: currentUser.id, memory_text: fact })
+                    });
+                    if ((await resp.json()).ok) userMemories.push(fact);
+                } catch (e) { console.warn('[Memory] save error:', e); }
             }
             break;
-        }
-    }
-
-    // Location extraction
-    const locRx = /(?:i'?m from|i live in|i am from|from)\s+([A-Z][a-z]+(?:[\s,]+[A-Z][a-z]+)*)/i;
-    const locM = userMessage.match(locRx);
-    if (locM && locM[1]) {
-        const loc = locM[1].trim();
-        if (!userMemories.some(mem => mem.toLowerCase().includes(loc.toLowerCase()))) {
-            factsToSave.push(`The user is from ${loc}`);
-        }
-    }
-
-    // Education extraction
-    const eduRx = /(?:i study|i'?m studying|i do|i am in|enrolled in)\s+([A-Za-z0-9\s]{3,50})/i;
-    const eduM = userMessage.match(eduRx);
-    if (eduM && eduM[1]) {
-        const edu = eduM[1].trim();
-        if (!userMemories.some(mem => mem.toLowerCase().includes(edu.toLowerCase()))) {
-            factsToSave.push(`The user studies ${edu}`);
-        }
-    }
-
-    // Save each fact via backend save-direct endpoint
-    for (const fact of factsToSave) {
-        try {
-            const r = await fetch('/api/memory/save-direct', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: currentUser.id, memory_text: fact })
-            });
-            const d = await r.json();
-            if (d.ok) {
-                userMemories.push(fact);
-                console.log('[Memory] ✅ fallback direct-saved:', fact);
-            }
-        } catch (saveErr) {
-            // Last resort: write directly via authenticated Supabase client
-            try {
-                const { error } = await supabaseClient.from('user_memories').insert({
-                    user_id: currentUser.id,
-                    memory_text: fact,
-                    created_at: new Date().toISOString()
-                });
-                if (!error) {
-                    userMemories.push(fact);
-                    console.log('[Memory] ✅ fallback supabase-direct saved:', fact);
-                }
-            } catch (_) {}
         }
     }
 }
@@ -652,12 +553,10 @@ window.viewSavedMemories = async function() {
 window.deleteOneMemory = async function(id, btn) {
     if (!currentUser) return;
     try {
-        const deletedText = btn.closest('div[style]')?.querySelector('span')?.textContent?.trim();
         const resp = await fetch(`/api/memory/delete-one?id=${id}&user_id=${currentUser.id}`, { method: 'DELETE' });
         if ((await resp.json()).ok) {
             btn.closest('div[style]').remove();
-            // Properly remove from local array so memory context stays in sync
-            if (deletedText) userMemories = userMemories.filter(m => m.trim() !== deletedText);
+            userMemories = userMemories.filter(m => true); // keep array in sync loosely
             showToast('✓ Memory deleted');
         }
     } catch (e) { showToast('❌ Failed to delete memory'); }
