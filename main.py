@@ -276,6 +276,10 @@ user_memory = {}
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Admin client uses service_role key → bypasses Row Level Security for server-side writes
+# Set SUPABASE_SERVICE_KEY in your Render env vars (Supabase → Project Settings → API → service_role)
+_svc_key = os.getenv("SUPABASE_SERVICE_KEY", "") or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+_supabase_admin: Client = create_client(SUPABASE_URL, _svc_key) if _svc_key else supabase
 
 # ✅ RENDER APP URL
 APP_URL = os.getenv("APP_URL", "https://my-ai-assistant-9bbd.onrender.com/")
@@ -345,7 +349,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.217"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.218"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -355,7 +359,23 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.217", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.218", "timestamp": datetime.utcnow().isoformat()}
+
+# ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
+from pydantic import BaseModel as _MemBaseModel
+from typing import List as _MemList
+
+class MemorySaveRequest(_MemBaseModel):
+    user_id: str
+    memory_text: str
+
+class MemoryClearRequest(_MemBaseModel):
+    user_id: str
+
+class MemoryExtractRequest(_MemBaseModel):
+    user_id: str
+    message: str
+    existing_memories: list = []
 
 # ── 🧠 MEMORY ENDPOINTS ───────────────────────────────────────────────────────
 
@@ -364,7 +384,7 @@ async def save_memory(req: MemorySaveRequest):
     try:
         if not req.user_id or not req.memory_text.strip():
             return JSONResponse({"ok": False, "error": "Missing fields"}, status_code=400)
-        supabase.table("user_memories").insert({
+        _supabase_admin.table("user_memories").insert({
             "user_id": req.user_id,
             "memory_text": req.memory_text.strip()[:500],
             "created_at": datetime.utcnow().isoformat()
@@ -378,7 +398,7 @@ async def save_memory(req: MemorySaveRequest):
 @app.get("/api/memory/load")
 async def load_memory(user_id: str):
     try:
-        result = supabase.table("user_memories") \
+        result = _supabase_admin.table("user_memories") \
             .select("id, memory_text, created_at") \
             .eq("user_id", user_id) \
             .order("created_at", desc=False) \
@@ -392,7 +412,7 @@ async def load_memory(user_id: str):
 @app.delete("/api/memory/clear")
 async def clear_memory(req: MemoryClearRequest):
     try:
-        supabase.table("user_memories").delete().eq("user_id", req.user_id).execute()
+        _supabase_admin.table("user_memories").delete().eq("user_id", req.user_id).execute()
         return JSONResponse({"ok": True})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
@@ -401,9 +421,148 @@ async def clear_memory(req: MemoryClearRequest):
 @app.delete("/api/memory/delete-one")
 async def delete_one_memory(id: str, user_id: str):
     try:
-        supabase.table("user_memories").delete().eq("id", id).eq("user_id", user_id).execute()
+        _supabase_admin.table("user_memories").delete().eq("id", id).eq("user_id", user_id).execute()
         return JSONResponse({"ok": True})
     except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
+@app.post("/api/memory/extract")
+async def extract_and_save_memory(req: MemoryExtractRequest):
+    """AI-powered: extract personal facts from a message, save new ones to Supabase."""
+    try:
+        if not req.user_id or not req.message.strip():
+            return JSONResponse({"ok": False, "facts": []})
+
+        existing_str = "\n".join(f"- {m}" for m in req.existing_memories[:30]) if req.existing_memories else "None yet."
+
+        extraction_prompt = (
+            "You are a personal memory extraction assistant for an AI chat app.\n"
+            "Your ONLY job: read the user message below and extract personal facts as JSON.\n\n"
+            f"User message: \"{req.message}\"\n\n"
+            f"Already known (DO NOT repeat these):\n{existing_str}\n\n"
+            "Extract ALL that apply: name, age, location/city/country, job/profession, "
+            "education/course/year/semester, hobbies, interests, preferences, goals, dreams, "
+            "skills, languages, relationships, schedule, subjects studied, projects.\n\n"
+            "STRICT RULES:\n"
+            "- Only extract facts EXPLICITLY stated — never infer or assume\n"
+            "- Write each fact as: \'The user [fact]\' e.g. \'The user\'s name is Anirban Das\'\n"
+            "- \'my name is X\' → \'The user\'s name is X\'\n"
+            "- \'I study BCA\' → \'The user studies BCA\'\n"
+            "- \'I am from Kolkata\' → \'The user is from Kolkata\'\n"
+            "- Return empty list if zero personal facts\n"
+            "- Output ONLY raw JSON — no markdown, no backticks, no explanation\n"
+            'REQUIRED FORMAT (nothing else): {"facts": ["fact1", "fact2"]}\n'
+        )
+
+        api_key = os.getenv("OPENROUTER_API_KEY", "")
+        if not api_key:
+            return JSONResponse({"ok": False, "facts": []})
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://catura.ai",
+        }
+
+        # Model fallback chain — try in order until one succeeds
+        # Primary: a reliable small model; fallbacks in case of rate limit or empty response
+        EXTRACTION_MODELS = [
+            "meta-llama/llama-3.1-8b-instruct:free",
+            "mistralai/mistral-7b-instruct:free",
+            "openai/gpt-oss-20b:free",
+            "google/gemma-2-9b-it:free",
+        ]
+
+        import httpx as _httpx
+        text = None
+        for model_name in EXTRACTION_MODELS:
+            payload = {
+                "model": model_name,
+                "max_tokens": 300,
+                "temperature": 0.1,
+                "messages": [{"role": "user", "content": extraction_prompt}]
+            }
+            try:
+                async with _httpx.AsyncClient(timeout=10.0) as client:
+                    r = await client.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
+                if r.status_code == 200:
+                    raw = r.json()
+                    candidate = raw.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+                    candidate = candidate.replace("```json", "").replace("```", "").strip()
+                    if candidate and "{" in candidate:
+                        text = candidate
+                        print(f"🧠 [Memory] extraction model used: {model_name}")
+                        break
+                    else:
+                        print(f"⚠️ [Memory] {model_name} returned empty/bad content, trying next")
+                else:
+                    print(f"⚠️ [Memory] {model_name} HTTP {r.status_code}, trying next")
+            except Exception as model_err:
+                print(f"⚠️ [Memory] {model_name} error: {model_err}, trying next")
+
+        if not text:
+            print("❌ [Memory] all extraction models failed")
+            return JSONResponse({"ok": False, "facts": []})
+
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            # Try to salvage a partial JSON response
+            import re as _re_mem
+            match = _re_mem.search(r'\{.*?"facts".*?\].*?\}', text, _re_mem.DOTALL)
+            if match:
+                try:
+                    parsed = json.loads(match.group())
+                except Exception:
+                    print(f"❌ [Memory] AI returned invalid JSON: {text[:200]}")
+                    return JSONResponse({"ok": False, "facts": []})
+            else:
+                print(f"❌ [Memory] AI returned invalid JSON: {text[:200]}")
+                return JSONResponse({"ok": False, "facts": []})
+        facts = parsed.get("facts", [])
+        if not isinstance(facts, list):
+            return JSONResponse({"ok": False, "facts": []})
+
+        saved_facts = []
+        for fact in facts[:10]:
+            fact = str(fact).strip()[:300]
+            if not fact:
+                continue
+            try:
+                _supabase_admin.table("user_memories").insert({
+                    "user_id": req.user_id,
+                    "memory_text": fact,
+                    "created_at": datetime.utcnow().isoformat()
+                }).execute()
+                saved_facts.append(fact)
+            except Exception as save_err:
+                print(f"❌ [Memory] save in extract: {save_err}")
+
+        print(f"🧠 [Memory] extracted {len(saved_facts)} facts for {req.user_id[:8]}")
+        return JSONResponse({"ok": True, "facts": saved_facts})
+
+    except Exception as e:
+        print(f"❌ [Memory] extract error: {e}")
+        return JSONResponse({"ok": False, "facts": []})
+
+# ── Guaranteed direct save — no AI, no models, just write to Supabase ────────
+@app.post("/api/memory/save-direct")
+async def save_memory_direct(req: MemorySaveRequest):
+    """Saves a fact directly to Supabase — used as frontend fallback when AI extraction fails."""
+    try:
+        if not req.user_id or not req.memory_text.strip():
+            return JSONResponse({"ok": False})
+        fact = req.memory_text.strip()[:500]
+        _supabase_admin.table("user_memories").insert({
+            "user_id": req.user_id,
+            "memory_text": fact,
+            "created_at": datetime.utcnow().isoformat()
+        }).execute()
+        print(f"🧠 [Memory] direct-saved: '{fact[:60]}' for {req.user_id[:8]}")
+        return JSONResponse({"ok": True, "fact": fact})
+    except Exception as e:
+        print(f"❌ [Memory] direct-save error: {e}")
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -479,13 +638,6 @@ class _TrainingBatch(_BaseModel):
     conversations: _List[_TrainingConvo]
 
 # ── Memory request models ─────────────────────────────────────
-class MemorySaveRequest(_BaseModel):
-    user_id: str
-    memory_text: str
-
-class MemoryClearRequest(_BaseModel):
-    user_id: str
-
 # ── IP → coarse region helper ─────────────────────────────────
 def _coarse_region_from_request(request: Request) -> _Optional[str]:
     """Extract country/region from forwarded IP header — never stores raw IP."""
@@ -2515,10 +2667,11 @@ def call_openrouter_stream(model_id, messages, api_key, file_urls=None, vision_i
                 "messages": messages,
                 "stream": True,
                 "temperature": 0.3,
-                "max_tokens": 16000,
+                "max_tokens": 8192,
+                **({"provider": {"order": ["OpenAI"], "allow_fallbacks": True}} if "gpt-oss" in model_id else {}),
             },
             stream=True,
-            timeout=(5, 90),
+            timeout=(10, 90),
         )
         if resp.status_code != 200:
             try:
@@ -2936,8 +3089,8 @@ async def chat_post(request: Request):
         # ── MODEL POOLS ────────────────────────────────────────────────────
         # Gemma models → Google AI Studio (GEMINI_API_KEY), NOT OpenRouter
         GEMMA_GOOGLE_MODELS = {
-            "Gemma":    "gemma-4-26b-a4b-it",
-            "Gemma4":   "gemma-4-31b-it",
+            "gemma":    "gemma-4-26b-a4b-it",
+            "gemma4":   "gemma-4-31b-it",
         }
         model_pools = {
             "dagr":    ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
@@ -3118,7 +3271,7 @@ async def chat_post(request: Request):
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
-            "Gemma": (
+            "gemma": (
                 "Your name is Catura (pronounced kuh-CHUR-uh) Gemma Core Model. You are a powerful and efficient "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Gemma, built for fast and capable everyday tasks. "
@@ -3130,7 +3283,7 @@ async def chat_post(request: Request):
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
-            "Gemma4": (
+            "gemma4": (
                 "Your name is Catura (pronounced kuh-CHUR-uh) Gemma Max Model. You are a powerful and efficient "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Gemma4, built for fast and capable everyday tasks. "
@@ -3251,11 +3404,31 @@ async def chat_post(request: Request):
 
         # ── 🧠 MEMORY INJECTION ───────────────────────────────────────────────
         if user_memories_list and not ghost_mode:
-            memory_block = "\n\n## 🧠 USER MEMORY — what you know about this user:\n"
+            memory_block = (
+                "\n\n"
+                "## 🧠 PERSONAL MEMORY — CRITICAL OVERRIDE\n"
+                "You DO have personal memory for this user. This user has enabled memory.\n"
+                "NEVER say 'I don't have personal memories' or 'I can't remember previous conversations'.\n"
+                "NEVER say 'I can only recall what's shared in this session'.\n"
+                "You genuinely know the following facts about this user — treat them as things you remember:\n\n"
+            )
             for mem in user_memories_list[:50]:
-                memory_block += f"- {mem}\n"
-            memory_block += "\nUse this information naturally when helpful. Do NOT announce that you're using memory — just incorporate it smoothly into your responses.\n"
+                memory_block += f"- {str(mem)[:300]}\n"
+            memory_block += (
+                "\n"
+                "Use this information naturally and proactively when relevant.\n"
+                "When the user introduces themselves or mentions something you already know, "
+                "acknowledge it warmly (e.g. 'I remember you mentioned that!').\n"
+                "Do NOT say 'Based on my memory...' — just use it like a friend who remembers.\n"
+                "If asked 'do you remember me?' or 'do you know me?' — YES, you do. Reference what you know.\n"
+            )
             system_prompt = system_prompt + memory_block
+        elif not ghost_mode:
+            system_prompt = system_prompt + (
+                "\n\nNote: This user has not saved any personal memories yet. "
+                "If they share personal information, acknowledge it warmly within this conversation. "
+                "Do NOT proactively say you have no memory unless directly asked.\n"
+            )
         # ─────────────────────────────────────────────────────────────────────
 
         # ── TOOL ROUTING PIPELINE ──────────────────────────────────────────
@@ -3841,8 +4014,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
         # Gemma models → Google AI Studio (GEMINI_API_KEY), NOT OpenRouter
         GEMMA_GOOGLE_MODELS = {
-            "Gemma":    "gemma-4-26b-a4b-it",
-            "Gemma4":   "gemma-4-31b-it",
+            "gemma":    "gemma-4-26b-a4b-it",
+            "gemma4":   "gemma-4-31b-it",
         }
         model_pools = {
             "dagr":    ["openai/gpt-oss-20b:free", "openai/gpt-oss-120b:free"],
@@ -4331,6 +4504,30 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "Never make up facts. If you don't know something, say so honestly."
                 + NO_TOOL_CALL_RULE
             ),
+            # ── GEMMA — Google AI Studio (GEMINI_API_KEY) ──
+            "gemma": (
+                "Your name is Catura (pronounced kuh-CHUR-uh) Gemma Core Model. You are a powerful and efficient "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI Gemma, built for fast and capable everyday tasks. "
+                "Speak clearly and helpfully. Never start with 'Certainly!', 'Great question!', or similar openers. "
+                "Match the user's language automatically. "
+                "Never make up facts. If asked who made you, say 'I was created by Anirban.' "
+                "If asked which model you are, what AI you are, or which version is running, "
+                "always say: 'I am Catura AI Gemma.' Never mention Dagr, Apep, Sambhav, or Gemma4."
+                + NO_TOOL_CALL_RULE
+            ),
+            # ── GEMMA4 — Google AI Studio (GEMINI_API_KEY) ──
+            "gemma4": (
+                "Your name is Catura (pronounced kuh-CHUR-uh) Gemma Max Model. You are a powerful and efficient "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI Gemma4, built for fast and capable everyday tasks. "
+                "Speak clearly and helpfully. Never start with 'Certainly!', 'Great question!', or similar openers. "
+                "Match the user's language automatically. "
+                "Never make up facts. If asked who made you, say 'I was created by Anirban.' "
+                "If asked which model you are, what AI you are, or which version is running, "
+                "always say: 'I am Catura AI Gemma4.' Never mention Dagr, Apep, Sambhav, or Gemma."
+                + NO_TOOL_CALL_RULE
+            ),
         }
         system_prompt = system_prompts.get(model_key, system_prompts["dagr"])
 
@@ -4593,6 +4790,65 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
         messages = [{"role": "system", "content": system_prompt}] + active_memory[-20:]
         api_key  = os.getenv("OPENROUTER_API_KEY")
+
+        # ── GEMMA: Google AI Studio direct streaming (GET handler) ──
+        if model_key in GEMMA_GOOGLE_MODELS:
+            google_model_id_get = GEMMA_GOOGLE_MODELS[model_key]
+            print(f"🟢 [Gemma GET] Routing '{model_key}' → Google AI Studio model: {google_model_id_get}")
+
+            def generate_gemma_get():
+                full_reply = ""
+                if tool_result:
+                    badge_payload = json.dumps({"tool_used": tool_result.get("tool", ""), "intent": intent})
+                    yield f"data: {badge_payload}\n\n"
+                    sp = build_sources_payload(tool_result)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                resp, err = call_gemma_google_stream(active_memory[-20:], system_prompt, google_model_id_get)
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'{model_key} unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+                try:
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            candidates = chunk.get("candidates", [])
+                            if not candidates:
+                                continue
+                            parts = candidates[0].get("content", {}).get("parts", [])
+                            for part in parts:
+                                token = part.get("text", "")
+                                if token:
+                                    full_reply += token
+                                    yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, Exception):
+                            continue
+                except Exception as e:
+                    print(f"❌ [Gemma GET] stream exception: {e}")
+                if full_reply.strip():
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_gemma_get(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000",
+                }
+            )
 
         def generate():
             MAX_HANDOFFS = 40
