@@ -3012,6 +3012,23 @@ document.addEventListener("DOMContentLoaded", async function () {
     input.addEventListener("input", autoResize);
 
     // ============================
+    // ✉️ SEND BUTTON — disabled state
+    // ============================
+    window.updateSendBtn = function () {
+        const btn = document.getElementById('sendBtn');
+        if (!btn) return;
+        // Never disable while streaming (it's a stop button then)
+        if (isStreaming) { btn.disabled = false; return; }
+        const hasText  = input.value.trim().length > 0;
+        const hasFiles = (typeof attachedFiles !== 'undefined') && attachedFiles.length > 0;
+        btn.disabled = !(hasText || hasFiles);
+    };
+    // Run once on init so button starts disabled
+    updateSendBtn();
+    // Re-evaluate on every keystroke
+    input.addEventListener("input", updateSendBtn);
+
+    // ============================
     // 🔥 SEND MESSAGE — with file upload support
     // ============================
     window.sendMessage = async function () {
@@ -3107,6 +3124,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         // ── Clear input ──────────────────────────────────────────────────────
         input.value = "";
         input.style.height = "auto";
+        if (typeof updateSendBtn === 'function') updateSendBtn();
         chatbox.scrollTop = chatbox.scrollHeight;
 
         // ── Thinking indicator ───────────────────────────────────────────────
@@ -3285,6 +3303,8 @@ document.addEventListener("DOMContentLoaded", async function () {
     input.addEventListener("keydown", function (e) {
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
+            const btn = document.getElementById('sendBtn');
+            if (btn && btn.disabled && !isStreaming) return;  // empty input
             sendMessage();
         }
     });
@@ -3834,11 +3854,13 @@ function setStreamingState(streaming) {
     const btn = document.getElementById('sendBtn');
     if (!btn) return;
     if (streaming) {
+        btn.disabled = false;          // stop button must always be clickable
         btn.classList.add('is-stopping');
         btn.title = 'Stop generating';
     } else {
         btn.classList.remove('is-stopping');
         btn.title = 'Send message';
+        if (typeof updateSendBtn === 'function') updateSendBtn();
     }
 }
 
@@ -3852,6 +3874,8 @@ window.handleSendOrStop = function () {
         setStreamingState(false);
         showToast('Response stopped', 1500);
     } else {
+        const btn = document.getElementById('sendBtn');
+        if (btn && btn.disabled) return;   // empty input — do nothing
         sendMessage();
     }
 };

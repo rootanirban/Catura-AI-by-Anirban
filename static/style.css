@@ -1363,9 +1363,18 @@ html { scroll-behavior: smooth; }
 }
 
 .send-btn:disabled {
-    opacity: 0.45;
+    opacity: 0.35;
     cursor: not-allowed;
-    transform: scale(1);
+    transform: scale(1) !important;
+    box-shadow: none !important;
+    pointer-events: auto; /* keep it in the DOM flow but show not-allowed cursor */
+    background: linear-gradient(135deg, #10a37f 0%, #0d8c6d 100%) !important;
+    filter: saturate(0.4) brightness(0.85);
+}
+
+.send-btn:disabled:hover {
+    transform: scale(1) !important;
+    box-shadow: none !important;
 }
 
 .send-btn .stop-icon,
@@ -4979,6 +4988,21 @@ kbd.shortcut-key {
     box-shadow: 0 2px 12px rgba(16,163,127,0.45) !important;
   }
 
+  .send-btn:disabled {
+    opacity: 0.35 !important;
+    cursor: not-allowed !important;
+    transform: scale(1) !important;
+    box-shadow: none !important;
+    filter: saturate(0.4) brightness(0.85) !important;
+    background: linear-gradient(145deg, #12b58c, #0d8f6e) !important;
+  }
+
+  .send-btn:disabled:hover,
+  .send-btn:disabled:active {
+    transform: scale(1) !important;
+    box-shadow: none !important;
+  }
+
   .send-btn:active {
     transform: scale(0.9) !important;
     box-shadow: 0 1px 6px rgba(16,163,127,0.3) !important;
@@ -5886,6 +5910,17 @@ kbd.shortcut-key {
 .app.ghost-mode .send-btn:hover {
     background: linear-gradient(135deg, #e86060 0%, #cc3535 100%) !important;
     box-shadow: 0 4px 14px rgba(224, 85, 85, 0.5) !important;
+}
+.app.ghost-mode .send-btn:disabled {
+    background: linear-gradient(135deg, #e05555 0%, #c03030 100%) !important;
+    box-shadow: none !important;
+    opacity: 0.35 !important;
+    filter: saturate(0.4) brightness(0.85) !important;
+    transform: scale(1) !important;
+}
+.app.ghost-mode .send-btn:disabled:hover {
+    transform: scale(1) !important;
+    box-shadow: none !important;
 }
 
 /* Stop ring spinner color */
