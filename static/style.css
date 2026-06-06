@@ -667,6 +667,46 @@ html { scroll-behavior: smooth; }
 #chatbox::-webkit-scrollbar-thumb:hover { background: #10a37f; }
 
 /* ============================
+   SCROLL TO BOTTOM BUTTON
+   ============================ */
+#scrollToBottomBtn {
+    position: fixed;
+    bottom: 110px;
+    left: 50%;
+    transform: translateX(-50%) translateY(16px);
+    z-index: 999;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--bg-secondary, #1e1e1e);
+    border: 1px solid var(--border, #2a2a2a);
+    color: var(--text-secondary, #aaa);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease, background 0.15s, color 0.15s;
+}
+#scrollToBottomBtn.visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(0);
+}
+#scrollToBottomBtn:hover {
+    background: var(--accent, #10a37f);
+    color: #fff;
+    border-color: var(--accent, #10a37f);
+}
+@media (max-width: 768px) {
+    #scrollToBottomBtn {
+        bottom: 90px;
+    }
+}
+
+/* ============================
    MESSAGES
 ============================ */
 .message.user {

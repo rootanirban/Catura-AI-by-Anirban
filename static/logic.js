@@ -2973,6 +2973,32 @@ document.addEventListener("click", closeAllMenus);
 // ============================
 document.addEventListener("DOMContentLoaded", async function () {
 
+    // ============================
+    // ↓ SCROLL TO BOTTOM BUTTON
+    // ============================
+    (function initScrollToBottom() {
+        const chatbox = document.getElementById('chatbox');
+        const btn     = document.getElementById('scrollToBottomBtn');
+        if (!chatbox || !btn) return;
+
+        const THRESHOLD = 200; // px from bottom to show the button
+
+        function updateBtn() {
+            const distFromBottom = chatbox.scrollHeight - chatbox.scrollTop - chatbox.clientHeight;
+            if (distFromBottom > THRESHOLD) {
+                btn.classList.add('visible');
+            } else {
+                btn.classList.remove('visible');
+            }
+        }
+
+        chatbox.addEventListener('scroll', updateBtn, { passive: true });
+
+        btn.addEventListener('click', function () {
+            chatbox.scrollTo({ top: chatbox.scrollHeight, behavior: 'smooth' });
+        });
+    })();
+
     // Apply locally-cached theme/font immediately so the page doesn't flash defaults.
     // getUser() → loadSettingsFromCloud() will override these with the cloud values
     // if they differ (e.g. user changed settings on another device).
