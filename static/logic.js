@@ -1537,10 +1537,13 @@ window.newChat = function () {
     if (app) app.classList.add("greeting-mode");
     
     displayGreeting();
-    
+
     if (window.innerWidth <= 768) closeSidebar();
     showMainMenu();
     showToast("New chat started", 2000);
+
+    // Auto-focus the input so the user can start typing immediately
+    setTimeout(() => document.getElementById('input')?.focus(), 50);
 };
 
 // ============================
@@ -3038,6 +3041,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     // Call it once more here as a safety net in case the cloud load was a no-op
     // (new user with no saved settings) so the greeting still shows.
     displayGreeting();
+    setTimeout(() => document.getElementById('input')?.focus(), 100);
 
     const chatbox   = document.getElementById("chatbox");
     const input     = document.getElementById("input");
