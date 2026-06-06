@@ -254,7 +254,7 @@ html { scroll-behavior: smooth; }
     height: 100dvh;
     background: #111;
     border-right: 1px solid #1e1e1e;
-    display: none;
+    display: flex;
     flex-direction: column;
     align-items: center;
     padding: 10px 0;
@@ -262,10 +262,19 @@ html { scroll-behavior: smooth; }
     flex-shrink: 0;
     z-index: 100;
     overflow: hidden;
-    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity: 0;
+    pointer-events: none;
+    width: 0;
+    min-width: 0;
+    transition: opacity 0.22s ease, width 0.28s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.icon-rail.visible { display: flex; }
+.icon-rail.visible {
+    opacity: 1;
+    pointer-events: auto;
+    width: 52px;
+    min-width: 52px;
+}
 
 .rail-btn {
     width: 36px;
@@ -340,10 +349,11 @@ html { scroll-behavior: smooth; }
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-                min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-                border-color 0.3s ease,
-                border-width 0.3s ease;
+    transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                min-width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                border-color 0.28s ease,
+                border-width 0.28s ease,
+                box-shadow 0.28s ease;
     flex-shrink: 0;
     position: relative;
     z-index: 100;
@@ -355,6 +365,31 @@ html { scroll-behavior: smooth; }
     border-right: 1px solid #222;
     box-shadow: 2px 0 10px rgba(0,0,0,0.4);
     overflow: visible;
+}
+
+/* Sidebar inner content — fade + slide in when opening, out when closing */
+.sidebar-header,
+.sidebar-menu,
+.sidebar-bottom {
+    opacity: 0;
+    transform: translateX(-10px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: none;
+}
+
+.sidebar.open .sidebar-header,
+.sidebar.open .sidebar-menu,
+.sidebar.open .sidebar-bottom {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+    transition-delay: 0.06s;
+}
+
+.sidebar:not(.open) .sidebar-header,
+.sidebar:not(.open) .sidebar-menu,
+.sidebar:not(.open) .sidebar-bottom {
+    transition-delay: 0s;
 }
 
 .sidebar-header {
@@ -2441,12 +2476,24 @@ html { scroll-behavior: smooth; }
         left: -280px;
         width: 260px;
         height: 100dvh;
-        transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        transition: left 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                    box-shadow 0.28s ease;
         z-index: 1000;
         overflow: visible;
         -webkit-backface-visibility: hidden;
         will-change: left;
         transform: translateZ(0);
+    }
+
+    /* Reset desktop content-fade overrides — mobile uses left slide */
+    .sidebar .sidebar-header,
+    .sidebar .sidebar-menu,
+    .sidebar .sidebar-bottom {
+        opacity: 1;
+        transform: none;
+        pointer-events: auto;
+        transition: none;
+        transition-delay: 0s;
     }
 
     .sidebar.open {
@@ -2455,16 +2502,20 @@ html { scroll-behavior: smooth; }
     }
 
     .sidebar-overlay {
-        display: none;
+        display: block;
         position: fixed;
         inset: 0;
         background: rgba(0, 0, 0, 0.65);
         z-index: 999;
         backdrop-filter: blur(4px);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.28s ease;
     }
 
     .sidebar-overlay.show {
-        display: block;
+        opacity: 1;
+        pointer-events: auto;
     }
 
     /* === WELCOME SCREEN === */
