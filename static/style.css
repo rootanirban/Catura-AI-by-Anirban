@@ -670,13 +670,13 @@ html { scroll-behavior: smooth; }
    SCROLL TO BOTTOM BUTTON
    ============================ */
 #scrollToBottomBtn {
-    position: fixed;
+    position: absolute;
     bottom: 110px;
     left: 50%;
     transform: translateX(-50%) translateY(16px);
-    z-index: 999;
-    width: 36px;
-    height: 36px;
+    z-index: 200;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
     background: var(--bg-secondary, #1e1e1e);
     border: 1px solid var(--border, #2a2a2a);
@@ -685,7 +685,7 @@ html { scroll-behavior: smooth; }
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.35);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.45);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.2s ease, transform 0.2s ease, background 0.15s, color 0.15s;
@@ -702,7 +702,7 @@ html { scroll-behavior: smooth; }
 }
 @media (max-width: 768px) {
     #scrollToBottomBtn {
-        bottom: 90px;
+        bottom: 85px;
     }
 }
 
