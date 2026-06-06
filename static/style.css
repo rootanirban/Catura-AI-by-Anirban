@@ -6778,7 +6778,6 @@ kbd.shortcut-key {
 /* ── Transition for smooth theme switching ── */
 body,
 .app,
-.sidebar,
 .icon-rail,
 .input-area,
 .message.bot,
@@ -6795,6 +6794,16 @@ body,
         color 0.2s ease,
         border-color 0.2s ease,
         box-shadow 0.2s ease !important;
+}
+
+/* Sidebar gets its own transition so the slide animation isn't overridden */
+.sidebar {
+    transition:
+        transform 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+        margin-left 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.32s ease,
+        background 0.22s ease,
+        border-color 0.2s ease !important;
 }
 
 /* ── BASE ── */
