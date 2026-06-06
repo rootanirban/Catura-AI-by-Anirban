@@ -341,55 +341,31 @@ html { scroll-behavior: smooth; }
    SIDEBAR - FIXED FOR DROPDOWN VISIBILITY
 ============================ */
 .sidebar {
-    width: 0;
-    min-width: 0;
+    width: 260px;
+    min-width: 260px;
     height: 100dvh;
     background: linear-gradient(180deg, #111111 0%, #0f0f0f 100%);
-    border-right: 0px solid transparent;
+    border-right: 1px solid #222;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
-                min-width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
-                border-color 0.28s ease,
-                border-width 0.28s ease,
-                box-shadow 0.28s ease;
     flex-shrink: 0;
     position: relative;
     z-index: 100;
+    /* Slide in/out via transform + margin — one smooth motion as a unit */
+    transform: translateX(-260px);
+    margin-left: -260px;
+    box-shadow: none;
+    transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+                margin-left 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.32s ease;
+    will-change: transform, margin-left;
 }
 
 .sidebar.open {
-    width: 260px;
-    min-width: 260px;
-    border-right: 1px solid #222;
-    box-shadow: 2px 0 10px rgba(0,0,0,0.4);
-    overflow: visible;
-}
-
-/* Sidebar inner content — fade + slide in when opening, out when closing */
-.sidebar-header,
-.sidebar-menu,
-.sidebar-bottom {
-    opacity: 0;
-    transform: translateX(-10px);
-    transition: opacity 0.2s ease, transform 0.2s ease;
-    pointer-events: none;
-}
-
-.sidebar.open .sidebar-header,
-.sidebar.open .sidebar-menu,
-.sidebar.open .sidebar-bottom {
-    opacity: 1;
     transform: translateX(0);
-    pointer-events: auto;
-    transition-delay: 0.06s;
-}
-
-.sidebar:not(.open) .sidebar-header,
-.sidebar:not(.open) .sidebar-menu,
-.sidebar:not(.open) .sidebar-bottom {
-    transition-delay: 0s;
+    margin-left: 0;
+    box-shadow: 2px 0 16px rgba(0,0,0,0.45);
 }
 
 .sidebar-header {
@@ -643,8 +619,6 @@ html { scroll-behavior: smooth; }
     position: relative;
     overflow: hidden;
     min-width: 0;
-    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-                width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .app.greeting-mode {
@@ -2475,30 +2449,22 @@ html { scroll-behavior: smooth; }
         top: 0;
         left: -280px;
         width: 260px;
+        min-width: 260px;
         height: 100dvh;
-        transition: left 0.28s cubic-bezier(0.4, 0, 0.2, 1),
-                    box-shadow 0.28s ease;
+        /* Override desktop transform/margin approach — mobile slides via left */
+        transform: none !important;
+        margin-left: 0 !important;
+        transition: left 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+                    box-shadow 0.32s ease;
         z-index: 1000;
-        overflow: visible;
+        overflow: hidden;
         -webkit-backface-visibility: hidden;
         will-change: left;
-        transform: translateZ(0);
-    }
-
-    /* Reset desktop content-fade overrides — mobile uses left slide */
-    .sidebar .sidebar-header,
-    .sidebar .sidebar-menu,
-    .sidebar .sidebar-bottom {
-        opacity: 1;
-        transform: none;
-        pointer-events: auto;
-        transition: none;
-        transition-delay: 0s;
     }
 
     .sidebar.open {
         left: 0;
-        box-shadow: 4px 0 20px rgba(0, 0, 0, 0.6);
+        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.6);
     }
 
     .sidebar-overlay {
