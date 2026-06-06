@@ -2981,18 +2981,31 @@ document.addEventListener("DOMContentLoaded", async function () {
         const btn     = document.getElementById('scrollToBottomBtn');
         if (!chatbox || !btn) return;
 
-        const THRESHOLD = 200; // px from bottom to show the button
+        const THRESHOLD = 200;
 
         function updateBtn() {
+            // Only show if content actually overflows the viewport
+            const overflows = chatbox.scrollHeight > chatbox.clientHeight + 10;
             const distFromBottom = chatbox.scrollHeight - chatbox.scrollTop - chatbox.clientHeight;
-            if (distFromBottom > THRESHOLD) {
+            if (overflows && distFromBottom > THRESHOLD) {
                 btn.classList.add('visible');
             } else {
                 btn.classList.remove('visible');
             }
         }
 
+        // Update on scroll
         chatbox.addEventListener('scroll', updateBtn, { passive: true });
+
+        // Update whenever chatbox content changes (new chat, messages added/removed)
+        const observer = new MutationObserver(updateBtn);
+        observer.observe(chatbox, { childList: true, subtree: true });
+
+        // Also update on window resize
+        window.addEventListener('resize', updateBtn, { passive: true });
+
+        // Initial check
+        updateBtn();
 
         btn.addEventListener('click', function () {
             chatbox.scrollTo({ top: chatbox.scrollHeight, behavior: 'smooth' });

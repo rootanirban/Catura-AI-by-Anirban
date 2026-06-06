@@ -669,41 +669,45 @@ html { scroll-behavior: smooth; }
 /* ============================
    SCROLL TO BOTTOM BUTTON
    ============================ */
+#inputAreaWrap {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    flex-shrink: 0;
+}
+
 #scrollToBottomBtn {
     position: absolute;
-    bottom: 110px;
+    top: -48px;
     left: 50%;
-    transform: translateX(-50%) translateY(16px);
+    transform: translateX(-50%) scale(0.85);
     z-index: 200;
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     background: var(--bg-secondary, #1e1e1e);
-    border: 1px solid var(--border, #2a2a2a);
+    border: 1px solid rgba(255,255,255,0.12);
     color: var(--text-secondary, #aaa);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.45);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.2s ease, transform 0.2s ease, background 0.15s, color 0.15s;
+    transition: opacity 0.18s ease, transform 0.18s ease, background 0.15s, color 0.15s;
 }
 #scrollToBottomBtn.visible {
     opacity: 1;
     pointer-events: auto;
-    transform: translateX(-50%) translateY(0);
+    transform: translateX(-50%) scale(1);
 }
 #scrollToBottomBtn:hover {
     background: var(--accent, #10a37f);
     color: #fff;
     border-color: var(--accent, #10a37f);
-}
-@media (max-width: 768px) {
-    #scrollToBottomBtn {
-        bottom: 85px;
-    }
 }
 
 /* ============================

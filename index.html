@@ -78,7 +78,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-    <link rel="stylesheet" href="static/style.css?v=0.0.221">   <!-- this is CSS linking section -->
+    <link rel="stylesheet" href="static/style.css?v=0.0.222">   <!-- this is CSS linking section -->
     
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#000000" />
@@ -287,14 +287,15 @@
 
         <div id="chatbox"></div>
 
-        <!-- SCROLL TO BOTTOM BUTTON -->
-        <button id="scrollToBottomBtn" aria-label="Scroll to bottom" title="Scroll to bottom">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="6 9 12 15 18 9"/>
-            </svg>
-        </button>
+        <div id="inputAreaWrap">
+            <!-- SCROLL TO BOTTOM BUTTON — floats above input bar, Claude-style -->
+            <button id="scrollToBottomBtn" aria-label="Scroll to bottom" title="Scroll to bottom">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"/>
+                </svg>
+            </button>
 
-        <div class="input-area center" id="inputArea">
+            <div class="input-area center" id="inputArea">
             <!-- ATTACHED FILES PREVIEW -->
             <div class="attached-files-preview" id="attachedFilesPreview" style="display: none;">
                 <div class="attached-files-list" id="attachedFilesList"></div>
@@ -477,6 +478,7 @@
                 </button>
             </div>
         </div>
+        </div><!-- /#inputAreaWrap -->
 
         <input type="file" id="fileInput" multiple accept="image/*,.pdf,.txt,.doc,.docx,.csv,.jpg,.jpeg,.png,.gif,.webp,.py,.js,.ts,.jsx,.tsx,.html,.htm,.css,.json,.java,.c,.cpp,.cs,.go,.rs,.rb,.php,.swift,.kt,.sh,.bash,.xml,.yaml,.yml,.toml,.md,.sql" style="display:none" onchange="handleFileSelect(event)">
 
@@ -553,18 +555,18 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
     
     <!-- ✅ CACHE BUSTING - VERSION PARAMETER -->
-    <script src="static/firebase-config.js?v=0.0.221"></script>
-    <script src="static/live-sync.js?v=0.0.221"></script>
-    <script src="static/logic.js?v=0.0.221"></script>
-    <script src="static/feedback.js?v=0.0.221"></script>
-    <script src="static/file-upload.js?v=0.0.221"></script>
+    <script src="static/firebase-config.js?v=0.0.222"></script>
+    <script src="static/live-sync.js?v=0.0.222"></script>
+    <script src="static/logic.js?v=0.0.222"></script>
+    <script src="static/feedback.js?v=0.0.222"></script>
+    <script src="static/file-upload.js?v=0.0.222"></script>
 
     <script>
         console.log('🚀 Catura AI v27.0.5 loaded');
         
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js?v=0.0.221')
+                navigator.serviceWorker.register('/service-worker.js?v=0.0.222')
                     .then(() => console.log('✅ Catura AI PWA Ready - v27.0.5'))
                     .catch((err) => console.log('❌ SW Error:', err));
             });
