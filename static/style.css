@@ -1056,6 +1056,32 @@ html { scroll-behavior: smooth; }
 }
 .code-block code { white-space: pre; color: #cdd6f4; }
 
+/* ── highlight.js integration ────────────────────────────── */
+/* Let hljs theme handle background; we override just the container */
+.code-block pre .hljs-catura.hljs { background: transparent; padding: 0; }
+
+/* Line numbers */
+.code-block code .code-line {
+    display: table-row;
+}
+.code-block code .line-num {
+    display: table-cell;
+    padding-right: 16px;
+    min-width: 2ch;
+    text-align: right;
+    color: #4a5568;
+    user-select: none;
+    border-right: 1px solid #2a2a2a;
+    margin-right: 16px;
+    padding-left: 4px;
+    font-size: 11px;
+    opacity: 0.55;
+}
+.code-block code .code-line > *:not(.line-num) {
+    display: table-cell;
+    padding-left: 14px;
+}
+
 /* ============================
    THINKING / TYPING
 ============================ */
