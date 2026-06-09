@@ -913,33 +913,6 @@ function repairTruncated(text) {
 //   h1–h6, ul, ol, roman-numeral lists, alpha lists,
 //   nested lists, blockquotes, tables, code, inline formatting.
 // ============================
-
-// Helper: set formatted HTML on an element then syntax-highlight all code blocks inside it
-function setFormattedHTML(el, rawText) {
-    el.innerHTML = formatMessage(rawText);
-    if (typeof hljs !== 'undefined') {
-        el.querySelectorAll('code[class^="language-"]').forEach(block => {
-            // Extract plain text from line spans (stripping line-num), highlight, then re-wrap
-            const lines = Array.from(block.querySelectorAll('.code-line'));
-            if (lines.length) {
-                const plainText = lines.map(l => {
-                    const clone = l.cloneNode(true);
-                    clone.querySelector('.line-num')?.remove();
-                    return clone.textContent;
-                }).join('\n');
-                block.textContent = plainText;
-                hljs.highlightElement(block);
-                const highlighted = block.innerHTML.split('\n');
-                block.innerHTML = highlighted.map((line, i) =>
-                    `<span class="code-line"><span class="line-num">${i + 1}</span>${line}</span>`
-                ).join('\n');
-            } else {
-                hljs.highlightElement(block);
-            }
-        });
-    }
-}
-
 function formatMessage(rawText) {
     if (!rawText) return "";
 
@@ -951,11 +924,6 @@ function formatMessage(rawText) {
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;");
-        // Split into lines and wrap each for line numbers
-        const lines = escapedCode.trimEnd().split("\n");
-        const numberedLines = lines.map((line, i) =>
-            `<span class="code-line"><span class="line-num">${i + 1}</span>${line}</span>`
-        ).join("\n");
         codeBlocks.push(`<div class="code-block">
             <div class="code-header">
                 <span class="lang-label">${language}</span>
@@ -965,7 +933,7 @@ function formatMessage(rawText) {
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                     </svg> Copy</button>
             </div>
-            <pre><code class="language-${language} hljs-catura">${numberedLines}</code></pre>
+            <pre><code>${escapedCode.trimEnd()}</code></pre>
         </div>`);
         return `\x00CODE${codeBlocks.length - 1}\x00`;
     });
@@ -1220,19 +1188,7 @@ function applyInline(text) {
 // 📋 COPY CODE
 // ============================
 function copyCode(btn) {
-    const codeEl = btn.closest(".code-block").querySelector("code");
-    // If line numbers are present, extract only the code text (not the line-num spans)
-    const lineSpans = codeEl.querySelectorAll('.code-line');
-    let code;
-    if (lineSpans.length) {
-        code = Array.from(lineSpans).map(line => {
-            const clone = line.cloneNode(true);
-            clone.querySelector('.line-num')?.remove();
-            return clone.textContent;
-        }).join('\n');
-    } else {
-        code = codeEl.innerText;
-    }
+    const code = btn.closest(".code-block").querySelector("code").innerText;
     navigator.clipboard.writeText(code).then(() => {
         btn.textContent = "✓ Copied!";
         btn.classList.add("copied");
@@ -3259,7 +3215,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                 chatbox.appendChild(createUserBubble(msg.content, historyFiles));
             } else {
                 const { wrapper, botMsg } = createBotWrapper();
-                setFormattedHTML(botMsg, msg.content);
+                botMsg.innerHTML = formatMessage(repairTruncated(msg.content));
                 wrapper.dataset.raw = msg.content;
                 chatbox.appendChild(wrapper);
             }
@@ -3618,7 +3574,7 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
                 // needed for markdown lists, paragraphs, and code blocks.
                 const displayReply = fullReply.replace(/\[\d+\](\[\d+\])*/g, '').trimEnd();
                 animRunning = false;
-                setFormattedHTML(bm, displayReply);
+                bm.innerHTML = formatMessage(repairTruncated(displayReply));
                 bm.classList.remove("streaming");
                 if (wrapper) wrapper.dataset.raw = fullReply;
                 chatbox.scrollTop = chatbox.scrollHeight;
@@ -3633,7 +3589,7 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
 
         if (tickCount % RENDER_EVERY === 0 || (streamDone && wordQueue.length === 0)) {
             // Full markdown re-parse (kept infrequent to stay fast)
-            setFormattedHTML(bm, displayed);
+            bm.innerHTML = formatMessage(repairTruncated(displayed));
             if (!(streamDone && wordQueue.length === 0)) {
                 bm.classList.add("streaming");
             } else {
@@ -3645,7 +3601,7 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
             if (cursor) {
                 cursor.insertAdjacentText("beforebegin", batch.join(""));
             } else {
-                setFormattedHTML(bm, displayed);
+                bm.innerHTML = formatMessage(repairTruncated(displayed));
                 bm.classList.add("streaming");
             }
         }
@@ -3751,7 +3707,7 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
             // Only re-render if the drain loop didn't already do it (animRunning was set false there)
             // Strip citation numbers but preserve all whitespace/newlines for markdown
             const displayReply = fullReply.replace(/\[\d+\](\[\d+\])*/g, '').trimEnd();
-            setFormattedHTML(bm, displayReply);
+            bm.innerHTML = formatMessage(repairTruncated(displayReply));
             if (w) w.dataset.raw = fullReply;
         }
         chatbox.scrollTop = chatbox.scrollHeight;
