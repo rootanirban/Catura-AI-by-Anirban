@@ -916,13 +916,12 @@ function repairTruncated(text) {
 
 // Helper: set formatted HTML on an element then syntax-highlight all code blocks inside it
 function setFormattedHTML(el, rawText) {
-    setFormattedHTML(el, rawText);
+    el.innerHTML = formatMessage(rawText);
     if (typeof hljs !== 'undefined') {
         el.querySelectorAll('code[class^="language-"]').forEach(block => {
-            // Strip line-number spans before highlighting, then re-wrap
+            // Extract plain text from line spans (stripping line-num), highlight, then re-wrap
             const lines = Array.from(block.querySelectorAll('.code-line'));
             if (lines.length) {
-                // Extract plain text per line, highlight the whole block, then re-inject line nums
                 const plainText = lines.map(l => {
                     const clone = l.cloneNode(true);
                     clone.querySelector('.line-num')?.remove();
@@ -930,7 +929,6 @@ function setFormattedHTML(el, rawText) {
                 }).join('\n');
                 block.textContent = plainText;
                 hljs.highlightElement(block);
-                // Re-wrap highlighted lines with line numbers
                 const highlighted = block.innerHTML.split('\n');
                 block.innerHTML = highlighted.map((line, i) =>
                     `<span class="code-line"><span class="line-num">${i + 1}</span>${line}</span>`
