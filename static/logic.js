@@ -913,27 +913,6 @@ function repairTruncated(text) {
 //   h1–h6, ul, ol, roman-numeral lists, alpha lists,
 //   nested lists, blockquotes, tables, code, inline formatting.
 // ============================
-
-// Helper: set formatted HTML on an element then syntax-highlight all code blocks inside it
-function setFormattedHTML(el, rawText) {
-    el.innerHTML = formatMessage(rawText);
-    if (typeof hljs !== 'undefined') {
-        el.querySelectorAll('pre code[class^="language-"]').forEach(block => {
-            // 1. Highlight the raw code
-            hljs.highlightElement(block);
-            // 2. Wrap each line in a span so CSS counter can show line numbers
-            //    Split the already-highlighted HTML by newlines — safe for standard
-            //    languages since hljs never splits a span across two lines
-            const lines = block.innerHTML.split('\n');
-            // Drop the trailing empty entry that split() adds after a final \n
-            if (lines[lines.length - 1].trim() === '') lines.pop();
-            block.innerHTML = lines
-                .map(line => `<span class="code-line">${line}</span>`)
-                .join('\n');
-        });
-    }
-}
-
 function formatMessage(rawText) {
     if (!rawText) return "";
 
@@ -954,7 +933,7 @@ function formatMessage(rawText) {
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                     </svg> Copy</button>
             </div>
-            <pre><code class="language-${language}">${escapedCode.trimEnd()}</code></pre>
+            <pre><code>${escapedCode.trimEnd()}</code></pre>
         </div>`);
         return `\x00CODE${codeBlocks.length - 1}\x00`;
     });
@@ -1209,11 +1188,7 @@ function applyInline(text) {
 // 📋 COPY CODE
 // ============================
 function copyCode(btn) {
-    const codeEl = btn.closest(".code-block").querySelector("code");
-    const lineSpans = codeEl.querySelectorAll('.code-line');
-    const code = lineSpans.length
-        ? Array.from(lineSpans).map(s => s.textContent).join('\n')
-        : codeEl.innerText;
+    const code = btn.closest(".code-block").querySelector("code").innerText;
     navigator.clipboard.writeText(code).then(() => {
         btn.textContent = "✓ Copied!";
         btn.classList.add("copied");
@@ -3240,7 +3215,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                 chatbox.appendChild(createUserBubble(msg.content, historyFiles));
             } else {
                 const { wrapper, botMsg } = createBotWrapper();
-                setFormattedHTML(botMsg, msg.content);
+                botMsg.innerHTML = formatMessage(repairTruncated(msg.content));
                 wrapper.dataset.raw = msg.content;
                 chatbox.appendChild(wrapper);
             }
@@ -3599,7 +3574,7 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
                 // needed for markdown lists, paragraphs, and code blocks.
                 const displayReply = fullReply.replace(/\[\d+\](\[\d+\])*/g, '').trimEnd();
                 animRunning = false;
-                setFormattedHTML(bm, displayReply);
+                bm.innerHTML = formatMessage(repairTruncated(displayReply));
                 bm.classList.remove("streaming");
                 if (wrapper) wrapper.dataset.raw = fullReply;
                 chatbox.scrollTop = chatbox.scrollHeight;
@@ -3614,7 +3589,7 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
 
         if (tickCount % RENDER_EVERY === 0 || (streamDone && wordQueue.length === 0)) {
             // Full markdown re-parse (kept infrequent to stay fast)
-            setFormattedHTML(bm, displayed);
+            bm.innerHTML = formatMessage(repairTruncated(displayed));
             if (!(streamDone && wordQueue.length === 0)) {
                 bm.classList.add("streaming");
             } else {
@@ -3626,7 +3601,7 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
             if (cursor) {
                 cursor.insertAdjacentText("beforebegin", batch.join(""));
             } else {
-                setFormattedHTML(bm, displayed);
+                bm.innerHTML = formatMessage(repairTruncated(displayed));
                 bm.classList.add("streaming");
             }
         }
@@ -3732,7 +3707,7 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
             // Only re-render if the drain loop didn't already do it (animRunning was set false there)
             // Strip citation numbers but preserve all whitespace/newlines for markdown
             const displayReply = fullReply.replace(/\[\d+\](\[\d+\])*/g, '').trimEnd();
-            setFormattedHTML(bm, displayReply);
+            bm.innerHTML = formatMessage(repairTruncated(displayReply));
             if (w) w.dataset.raw = fullReply;
         }
         chatbox.scrollTop = chatbox.scrollHeight;

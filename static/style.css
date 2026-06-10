@@ -1050,52 +1050,11 @@ html { scroll-behavior: smooth; }
 .code-header button.copied { color: #10a37f; border-color: #10a37f; background: #10a37f11; }
 
 .code-block pre {
-    margin: 0;
-    padding: 0;
-    overflow-x: auto;
+    margin: 0; padding: 16px; overflow-x: auto;
     font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
-    font-size: 13px;
-    line-height: 1.6;
-    max-height: 400px;
-    overflow-y: auto;
+    font-size: 13px; line-height: 1.6; max-height: 400px; overflow-y: auto;
 }
-
-/* highlight.js: transparent bg so our .code-block background shows through */
-.code-block pre code.hljs {
-    background: transparent;
-    padding: 16px 16px 16px 0;
-    display: block;
-    counter-reset: line-number;
-    white-space: pre;           /* preserve indentation exactly */
-    tab-size: 4;
-}
-
-/* Each line wrapper — left padding makes room for the number gutter */
-.code-block code .code-line {
-    display: block;
-    padding-left: 52px;
-    position: relative;
-    white-space: pre;
-    min-height: 1.6em;
-}
-
-/* CSS counter renders the line number — no JS needed, no DOM splitting risk */
-.code-block code .code-line::before {
-    counter-increment: line-number;
-    content: counter(line-number);
-    position: absolute;
-    left: 0;
-    width: 36px;
-    text-align: right;
-    padding-right: 12px;
-    color: #4b5263;
-    font-size: 11.5px;
-    line-height: 1.6;
-    user-select: none;
-    border-right: 1px solid #2a2a2a;
-}
-
-.code-block code { color: #cdd6f4; }
+.code-block code { white-space: pre; color: #cdd6f4; }
 
 /* ============================
    THINKING / TYPING
