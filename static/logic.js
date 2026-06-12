@@ -3973,32 +3973,27 @@ window.toggleMoreModels = function (e) {
         }
         if (left < margin) left = margin;
 
-        // Vertical: try to align top with dropdown top.
-        // If that pushes the panel below the viewport, anchor its BOTTOM
-        // to the dropdown bottom (grows upward) — same as Claude's behaviour.
-        let top = dropRect.top;
-        if (top + panelH > window.innerHeight - margin) {
-            // Anchor bottom of panel to bottom of dropdown (grows upward)
-            top = dropRect.bottom - panelH;
-        }
-        // Never go above the viewport — but also clamp max-height so panel
-        // doesn't fly to the top when it's taller than available space above.
-        if (top < margin) {
+        // Vertical: ALWAYS anchor panel bottom to dropdown bottom (grows upward).
+        // This keeps the panel glued to the dropdown no matter where it sits on
+        // screen (centered input or bottom input). If there is not enough room
+        // above the dropdown we simply cap the panel height so it scrolls —
+        // we NEVER let it float away to an arbitrary position near the viewport top.
+        const anchoredTop = dropRect.bottom - panelH;
+        const clampedTop  = Math.max(margin, anchoredTop);
+
+        if (anchoredTop < margin) {
+            // Not enough vertical room: shrink panel to fill space between
+            // viewport-top-margin and the dropdown bottom, then scroll within it.
             const availableH = dropRect.bottom - margin;
-            if (availableH < panelH) {
-                // Not enough room growing upward — constrain height and pin top
-                panel.style.maxHeight = Math.max(availableH, 120) + 'px';
-                panel.style.overflowY = 'auto';
-            }
-            top = margin;
+            panel.style.maxHeight = Math.max(availableH, 80) + 'px';
+            panel.style.overflowY = 'auto';
         } else {
-            // Reset any previously constrained max-height
             panel.style.maxHeight = '';
             panel.style.overflowY = '';
         }
 
         panel.style.left = left + 'px';
-        panel.style.top  = top + 'px';
+        panel.style.top  = clampedTop + 'px';
     } else {
         // Mobile: close main dropdown, open sub-panel as new bottom-sheet
         panel.style.left = '';
