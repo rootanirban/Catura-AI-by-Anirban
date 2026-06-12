@@ -3953,18 +3953,36 @@ window.toggleMoreModels = function (e) {
         const panelW   = 230;
         const gap      = 8;
         const margin   = 8;
+
+        // Measure the dropdown's CURRENT position on screen (already positioned by toggleModelSelector)
         const dropRect = dropdownEl.getBoundingClientRect();
 
-        // Temporarily show panel off-screen to measure its real height
+        // Measure panel height by making it visible off-screen with position:fixed so
+        // layout is not affected by any parent overflow/transform, and scrollHeight is real.
+        const prevPos      = panel.style.position;
+        const prevVis      = panel.style.visibility;
+        const prevDisplay  = panel.style.display;
+        const prevTop      = panel.style.top;
+        const prevLeft     = panel.style.left;
+        const prevMaxH     = panel.style.maxHeight;
+        const prevOverflow = panel.style.overflowY;
+
+        panel.style.position   = 'fixed';
         panel.style.visibility = 'hidden';
         panel.style.display    = 'block';
+        panel.style.maxHeight  = '';
+        panel.style.overflowY  = '';
         panel.style.top        = '-9999px';
         panel.style.left       = '-9999px';
-        const panelH = panel.scrollHeight || 260;
-        panel.style.display    = '';
-        panel.style.top        = '';
-        panel.style.left       = '';
-        panel.style.visibility = '';
+
+        // Force a reflow so the browser computes the real height
+        void panel.offsetHeight;
+        const panelH = panel.scrollHeight || panel.offsetHeight || 260;
+
+        // Restore (we'll set final values below)
+        panel.style.position   = prevPos  || '';
+        panel.style.visibility = prevVis  || '';
+        panel.style.display    = prevDisplay || '';
 
         // Horizontal: prefer right of dropdown, fall back to left
         let left = dropRect.right + gap;
@@ -3973,17 +3991,16 @@ window.toggleMoreModels = function (e) {
         }
         if (left < margin) left = margin;
 
-        // Vertical: ALWAYS anchor panel bottom to dropdown bottom (grows upward).
-        // This keeps the panel glued to the dropdown no matter where it sits on
-        // screen (centered input or bottom input). If there is not enough room
-        // above the dropdown we simply cap the panel height so it scrolls —
-        // we NEVER let it float away to an arbitrary position near the viewport top.
+        // Vertical: anchor panel bottom to dropdown bottom (grows upward),
+        // but NEVER let the top go above the viewport margin.
+        // If there isn't enough room above the dropdown, shrink the panel height
+        // so it stays fully within the viewport without flying to the top.
         const anchoredTop = dropRect.bottom - panelH;
         const clampedTop  = Math.max(margin, anchoredTop);
 
         if (anchoredTop < margin) {
-            // Not enough vertical room: shrink panel to fill space between
-            // viewport-top-margin and the dropdown bottom, then scroll within it.
+            // Not enough vertical room — shrink panel so it fits between
+            // viewport top margin and the dropdown bottom.
             const availableH = dropRect.bottom - margin;
             panel.style.maxHeight = Math.max(availableH, 80) + 'px';
             panel.style.overflowY = 'auto';
@@ -4019,13 +4036,49 @@ window.goBackToMainModels = function (e) {
     if (panel) panel.classList.remove('open');
     if (row)   row.classList.remove('open');
 
-    if (dropdown) {
-        dropdown.style.top    = '';
-        dropdown.style.left   = '';
-        dropdown.style.bottom = '';
+    if (dropdown && btn) {
+        // Re-run the same positioning logic as toggleModelSelector so the
+        // dropdown ends up in exactly the right place regardless of whether
+        // the input box is centred or at the bottom.
+        const isMobile = window.innerWidth <= 768;
+        if (isMobile) {
+            dropdown.style.top    = '';
+            dropdown.style.left   = '';
+            dropdown.style.bottom = '';
+        } else {
+            const rect = btn.getBoundingClientRect();
+
+            // Measure dropdown height off-screen with position:fixed
+            const prevPos = dropdown.style.position;
+            const prevVis = dropdown.style.visibility;
+            const prevDisp = dropdown.style.display;
+            dropdown.style.position   = 'fixed';
+            dropdown.style.visibility = 'hidden';
+            dropdown.style.display    = 'block';
+            dropdown.style.top        = '-9999px';
+            dropdown.style.left       = '-9999px';
+            void dropdown.offsetHeight;
+            const dropH = dropdown.scrollHeight || dropdown.offsetHeight || 180;
+            const dropW = Math.max(dropdown.offsetWidth || 0, 220);
+            dropdown.style.position   = prevPos  || '';
+            dropdown.style.visibility = prevVis  || '';
+            dropdown.style.display    = prevDisp || '';
+
+            let top = rect.top - dropH - 8;
+            if (top < 8) top = rect.bottom + 8;
+            top = Math.max(8, Math.min(top, window.innerHeight - dropH - 8));
+
+            let left = rect.right - dropW;
+            if (left < 8) left = 8;
+            if (left + dropW > window.innerWidth - 8) left = window.innerWidth - dropW - 8;
+
+            dropdown.style.top    = top + 'px';
+            dropdown.style.left   = left + 'px';
+            dropdown.style.bottom = 'auto';
+        }
         dropdown.classList.add('open');
+        btn.classList.add('open');
     }
-    if (btn) btn.classList.add('open');
 };
 
 // Close dropdown when clicking outside
