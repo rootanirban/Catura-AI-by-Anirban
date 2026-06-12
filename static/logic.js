@@ -3978,11 +3978,24 @@ window.toggleMoreModels = function (e) {
         // to the dropdown bottom (grows upward) — same as Claude's behaviour.
         let top = dropRect.top;
         if (top + panelH > window.innerHeight - margin) {
-            // Anchor bottom of panel to bottom of dropdown
+            // Anchor bottom of panel to bottom of dropdown (grows upward)
             top = dropRect.bottom - panelH;
         }
-        // Never go above the top of the viewport
-        top = Math.max(margin, top);
+        // Never go above the viewport — but also clamp max-height so panel
+        // doesn't fly to the top when it's taller than available space above.
+        if (top < margin) {
+            const availableH = dropRect.bottom - margin;
+            if (availableH < panelH) {
+                // Not enough room growing upward — constrain height and pin top
+                panel.style.maxHeight = Math.max(availableH, 120) + 'px';
+                panel.style.overflowY = 'auto';
+            }
+            top = margin;
+        } else {
+            // Reset any previously constrained max-height
+            panel.style.maxHeight = '';
+            panel.style.overflowY = '';
+        }
 
         panel.style.left = left + 'px';
         panel.style.top  = top + 'px';
