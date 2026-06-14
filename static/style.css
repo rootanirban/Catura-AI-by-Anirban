@@ -1918,6 +1918,92 @@ html { scroll-behavior: smooth; }
 .user-copy-btn:hover { background: #1e1e1e; color: #fff; border-color: #333; }
 .user-copy-btn.copied { color: #10a37f; border-color: #10a37f44; }
 
+/* ── User message action button group (edit + copy) ── */
+.user-btn-group {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    margin-bottom: 2px;
+}
+
+.user-edit-btn {
+    background: transparent;
+    border: 1px solid #2a2a2a;
+    color: #666;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s, color 0.15s;
+    padding: 0;
+}
+.user-msg-wrapper:hover .user-edit-btn { opacity: 1; }
+.user-edit-btn:hover { background: #1e1e1e; color: #fff; border-color: #333; }
+
+/* ============================
+   VERSION NAVIGATOR (‹ 1/2 ›)
+============================ */
+.msg-version-nav {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px;
+    width: 100%;
+    padding: 2px 0 6px 0;
+    user-select: none;
+}
+.version-nav-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: #666;
+    min-width: 28px;
+    text-align: center;
+    letter-spacing: 0.2px;
+}
+.version-nav-btn {
+    background: transparent;
+    border: 1px solid #2a2a2a;
+    color: #666;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    flex-shrink: 0;
+}
+.version-nav-btn:hover:not(:disabled) {
+    background: #1e1e1e;
+    color: #fff;
+    border-color: #333;
+}
+.version-nav-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+/* Light theme */
+[data-theme="light"] .version-nav-label { color: #8a90a5; }
+[data-theme="light"] .version-nav-btn {
+    border-color: #dde1eb;
+    color: #9aa0b5;
+}
+[data-theme="light"] .version-nav-btn:hover:not(:disabled) {
+    background: #f4f6fb;
+    color: #3d4455;
+    border-color: #c8cdd9;
+}
+
 /* ============================
    BOT MESSAGE WRAPPER
 ============================ */
@@ -2796,8 +2882,8 @@ html { scroll-behavior: smooth; }
 [data-theme="light"] .bot-copy-btn.copied { color: #10a37f; border-color: #10a37f55; }
 
 /* ── User copy button ── */
-[data-theme="light"] .user-copy-btn { border-color: #dde1eb; color: #9aa0b5; background: transparent; }
-[data-theme="light"] .user-copy-btn:hover { background: #f4f6fb; color: #3d4455; border-color: #c8cdd9; }
+[data-theme="light"] .user-copy-btn, [data-theme="light"] .user-edit-btn { border-color: #dde1eb; color: #9aa0b5; background: transparent; }
+[data-theme="light"] .user-copy-btn:hover, [data-theme="light"] .user-edit-btn:hover { background: #f4f6fb; color: #3d4455; border-color: #c8cdd9; }
 [data-theme="light"] .user-copy-btn.copied { color: #10a37f; border-color: #10a37f55; }
 
 /* ── Welcome / greeting ── */
@@ -5622,32 +5708,40 @@ kbd.shortcut-key {
     gap: 5px !important;
   }
 
-  /* ── User message copy button — mobile redesign ── */
-  /* Wrapper becomes column so button sits BELOW the bubble, not beside it */
+  /* ── User message action buttons — mobile redesign ── */
+  /* Wrapper becomes column so buttons sit BELOW the bubble, not beside it */
   .user-msg-wrapper {
     flex-direction: column !important;
     align-items: flex-end !important;
   }
 
-  /* The copy button: small, below-right, always slightly visible on mobile */
-  .user-copy-btn {
+  .user-btn-group {
+    align-self: flex-end !important;
+    margin-top: 2px !important;
+    gap: 3px !important;
+  }
+
+  /* Both action buttons: small, below-right, always slightly visible on mobile */
+  .user-copy-btn,
+  .user-edit-btn {
     width: 22px !important;
     height: 22px !important;
     border-radius: 6px !important;
     opacity: 0.45 !important;
     margin-bottom: 0 !important;
-    margin-top: 2px !important;
-    align-self: flex-end !important;
+    margin-top: 0 !important;
   }
 
   /* Tap to make fully visible */
   .user-copy-btn:active,
-  .user-copy-btn.copied {
+  .user-copy-btn.copied,
+  .user-edit-btn:active {
     opacity: 1 !important;
   }
 
   /* SVG icon slightly smaller */
-  .user-copy-btn svg {
+  .user-copy-btn svg,
+  .user-edit-btn svg {
     width: 11px !important;
     height: 11px !important;
   }
@@ -7091,12 +7185,14 @@ body,
     border-color: #c8cdd9;
 }
 [data-theme="light"] .bot-copy-btn.copied { color: #10a37f; border-color: rgba(16,163,127,0.4); }
-[data-theme="light"] .user-copy-btn {
+[data-theme="light"] .user-copy-btn,
+[data-theme="light"] .user-edit-btn {
     border-color: #dde1eb;
     color: #9aa0b5;
     background: transparent;
 }
-[data-theme="light"] .user-copy-btn:hover {
+[data-theme="light"] .user-copy-btn:hover,
+[data-theme="light"] .user-edit-btn:hover {
     background: #f4f6fb;
     color: #3d4455;
     border-color: #c8cdd9;
@@ -7715,7 +7811,8 @@ body,
         background: #f4f6fb !important;
         color: #3d4455 !important;
     }
-    [data-theme="light"] .user-copy-btn {
+    [data-theme="light"] .user-copy-btn,
+    [data-theme="light"] .user-edit-btn {
         border-color: #dde1eb !important;
         color: #9aa0b5 !important;
     }

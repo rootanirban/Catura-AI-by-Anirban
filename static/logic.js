@@ -398,6 +398,12 @@ const GHOST_WINDOW = 24;       // 12 user + 12 bot = 24 messages kept
 let memoryEnabled = false;
 let userMemories = [];  // array of memory strings loaded from Supabase
 
+// ============================
+// ✏️ EDIT-MESSAGE STATE
+// ============================
+// Tracks an in-progress edit: which turn-group id was edited
+let pendingEditGroupId = null;
+
 async function loadMemoryState() {
     if (!currentUser) return;
     try {
@@ -1231,6 +1237,128 @@ function copyUserMessage(btn) {
 }
 
 // ============================
+// ✏️ EDIT USER MESSAGE
+// ============================
+function editUserMessage(btn) {
+    const userWrapper = btn.closest(".user-msg-wrapper");
+    if (!userWrapper) return;
+
+    // Only allow one edit per turn (disable button so it can't be clicked again)
+    btn.disabled = true;
+    btn.style.opacity = "0.3";
+    btn.style.cursor = "default";
+    btn.title = "Already edited";
+
+    const bubble = userWrapper.querySelector(".message.user");
+    const text   = bubble ? bubble.innerText.trim() : "";
+    if (!text) return;
+
+    // ── Assign a stable group-id to this turn if not already set ────────────
+    const groupId = userWrapper.dataset.turnGroup || ("tg_" + Date.now());
+    userWrapper.dataset.turnGroup = groupId;
+
+    // ── Find the bot wrapper that immediately follows this user wrapper ─────
+    let botWrapper = userWrapper.nextElementSibling;
+    // Skip any tool-badge divs — bot-msg-wrapper comes after
+    while (botWrapper && !botWrapper.classList.contains("bot-msg-wrapper")) {
+        botWrapper = botWrapper.nextElementSibling;
+    }
+    if (botWrapper) botWrapper.dataset.turnGroup = groupId;
+
+    // ── Snapshot ghost memory for v1 so we can restore it when navigating ──
+    const v1GhostSnapshot = typeof ghostMemory !== "undefined" ? ghostMemory.slice() : [];
+
+    // ── Hide the original turn (v1) — keep in DOM for switching ────────────
+    userWrapper.dataset.version = "1";
+    userWrapper.style.display   = "none";
+    if (botWrapper) {
+        botWrapper.dataset.version = "1";
+        botWrapper.style.display   = "none";
+    }
+
+    // ── Trim ghostMemory so new send starts clean from before this turn ────
+    if (typeof ghostMemory !== "undefined" && ghostMemory.length > 0) {
+        let lastUserIdx = -1;
+        for (let i = ghostMemory.length - 1; i >= 0; i--) {
+            if (ghostMemory[i].role === "user") { lastUserIdx = i; break; }
+        }
+        if (lastUserIdx !== -1) ghostMemory = ghostMemory.slice(0, lastUserIdx);
+    }
+
+    // ── Store the pending edit context so sendMessage can wire up v2 ───────
+    pendingEditGroupId = groupId;
+
+    // ── Populate textarea ────────────────────────────────────────────────────
+    const inputEl = document.getElementById("input");
+    if (inputEl) {
+        inputEl.value = text;
+        inputEl.style.height = "auto";
+        inputEl.style.height = inputEl.scrollHeight + "px";
+        inputEl.focus();
+        inputEl.selectionStart = inputEl.selectionEnd = inputEl.value.length;
+        if (typeof updateSendBtn === "function") updateSendBtn();
+    }
+}
+
+// ============================
+// 🔀 VERSION NAVIGATOR (‹ 1/2 ›)
+// ============================
+function createVersionNavigator(groupId, v1UserWrapper, v1BotWrapper) {
+    const nav = document.createElement("div");
+    nav.classList.add("msg-version-nav");
+    nav.dataset.navGroup = groupId;
+    // currentVersion: 1 = old, 2 = new (we start on 2 after editing)
+    nav.dataset.current = "2";
+    nav.dataset.total   = "2";
+
+    function render(current) {
+        nav.innerHTML = `
+            <button class="version-nav-btn prev-version" title="View previous reply"
+                    ${current <= 1 ? "disabled" : ""}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2.5"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 18 9 12 15 6"/>
+                </svg>
+            </button>
+            <span class="version-nav-label">${current} / 2</span>
+            <button class="version-nav-btn next-version" title="View latest reply"
+                    ${current >= 2 ? "disabled" : ""}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2.5"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"/>
+                </svg>
+            </button>`;
+
+        nav.querySelector(".prev-version").onclick = () => switchVersion(1);
+        nav.querySelector(".next-version").onclick = () => switchVersion(2);
+    }
+
+    function switchVersion(target) {
+        nav.dataset.current = String(target);
+        render(target);
+
+        const chatbox = document.getElementById("chatbox");
+        if (!chatbox) return;
+
+        // All turn-group elements for this group
+        const all = chatbox.querySelectorAll(`[data-turn-group="${groupId}"]`);
+        all.forEach(el => {
+            // v1 elements have data-version="1", v2 have data-version="2"
+            if (el.dataset.version === String(target)) {
+                el.style.display = "";
+            } else {
+                el.style.display = "none";
+            }
+        });
+    }
+
+    render(2); // start on version 2 (the new edit)
+    return nav;
+}
+
+// ============================
 // 🍞 TOAST
 // ============================
 function showToast(message, duration = 3000) {
@@ -1279,9 +1407,10 @@ function createLightIndicator() {
 // ============================
 // 📦 USER BUBBLE (supports file attachments)
 // ============================
-function createUserBubble(text, files) {
+function createUserBubble(text, files, turnGroupId) {
     const wrapper = document.createElement("div");
     wrapper.classList.add("user-msg-wrapper");
+    if (turnGroupId) wrapper.dataset.turnGroup = turnGroupId;
 
     // File attachments (images + docs) shown above text
     if (files && files.length > 0) {
@@ -1298,13 +1427,25 @@ function createUserBubble(text, files) {
         wrapper.appendChild(bubble);
     }
 
+    // Action buttons container (edit + copy, shown on hover)
+    const btnGroup = document.createElement("div");
+    btnGroup.classList.add("user-btn-group");
+
+    const editBtn = document.createElement("button");
+    editBtn.classList.add("user-edit-btn");
+    editBtn.title = "Edit message";
+    editBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+    editBtn.onclick = () => editUserMessage(editBtn);
+
     const copyBtn = document.createElement("button");
     copyBtn.classList.add("user-copy-btn");
     copyBtn.title = "Copy message";
     copyBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
     copyBtn.onclick = () => copyUserMessage(copyBtn);
 
-    wrapper.appendChild(copyBtn);
+    btnGroup.appendChild(editBtn);
+    btnGroup.appendChild(copyBtn);
+    wrapper.appendChild(btnGroup);
     return wrapper;
 }
 
@@ -2925,7 +3066,15 @@ document.addEventListener("DOMContentLoaded", async function () {
         if (typeof renderAttachedPreview === 'function') renderAttachedPreview();
 
         // ── Build user bubble (text + file previews) ─────────────────────────
-        const userBubble = createUserBubble(message, filesToSend);
+        // If this send is the result of an edit, carry the group id forward
+        const _editGroupId = pendingEditGroupId || null;
+        pendingEditGroupId = null; // consume immediately
+
+        const userBubble = createUserBubble(message, filesToSend, _editGroupId || undefined);
+        if (_editGroupId) {
+            userBubble.dataset.turnGroup = _editGroupId;
+            userBubble.dataset.version   = "2";
+        }
         chatbox.appendChild(userBubble);
 
         // ── Session: create on very first message ────────────────────────────
@@ -3157,6 +3306,24 @@ document.addEventListener("DOMContentLoaded", async function () {
             // 🧠 Memory extraction — save user info if memory is enabled
             if (memoryEnabled && !ghostChatEnabled && currentUser && message) {
                 maybeExtractAndSaveMemory(message);
+            }
+
+            // ── If this was an edited turn, tag v2 bot wrapper + inject navigator ──
+            if (_editGroupId && wrapper) {
+                wrapper.dataset.turnGroup = _editGroupId;
+                wrapper.dataset.version   = "2";
+
+                // Find the original v1 user + bot wrappers in the DOM
+                const v1User = chatbox.querySelector(
+                    `.user-msg-wrapper[data-turn-group="${_editGroupId}"][data-version="1"]`
+                );
+                const v1Bot  = chatbox.querySelector(
+                    `.bot-msg-wrapper[data-turn-group="${_editGroupId}"][data-version="1"]`
+                );
+
+                // Insert the ‹ 1/2 › navigator between v1 (hidden) and v2 (shown)
+                const nav = createVersionNavigator(_editGroupId, v1User, v1Bot);
+                chatbox.insertBefore(nav, userBubble);
             }
 
         } catch (err) {
