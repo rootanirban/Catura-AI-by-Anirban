@@ -78,7 +78,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-    <link rel="stylesheet" href="static/style.css?v=0.0.242">   <!-- this is CSS linking section -->
+    <link rel="stylesheet" href="static/style.css?v=0.0.243">   <!-- this is CSS linking section -->
     
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#000000" />
@@ -385,14 +385,14 @@
                         <div class="model-option active" data-model="dagr" data-name="Dagr" onclick="selectModel('dagr', 'Dagr', event)">
                             <div class="model-option-info">
                                 <div class="model-option-name">Dagr</div>
-                                <div class="model-option-desc">Your intelligent everyday companion</div>
+                                <div class="model-option-desc">YFast reasoning & tool use · OpenAI GPT OSS 20B</div>
                             </div>
                             <div class="model-option-check">✓</div>
                         </div>
                         <div class="model-option" data-model="sambhav" data-name="Sambhav" onclick="selectModel('sambhav', 'Sambhav', event)">
                             <div class="model-option-info">
                                 <div class="model-option-name">Sambhav</div>
-                                <div class="model-option-desc">Fast,Smart and efficient</div>
+                                <div class="model-option-desc">Fast,Smart and efficient · Meta Llama 3 70B</div>
                             </div>
                             <div class="model-option-check">✓</div>
                         </div>
@@ -420,7 +420,7 @@
                     <div class="model-option" data-model="apep" data-name="Apep" onclick="selectModel('apep', 'Apep', event)">
                         <div class="model-option-info">
                             <div class="model-option-name">Apep</div>
-                            <div class="model-option-desc">Expert at coding & technical problems</div>
+                            <div class="model-option-desc">Powerful reasoning & agentic tasks · OpenAI GPT OSS 120B</div>
                         </div>
                         <div class="model-option-check">✓</div>
                     </div>
@@ -441,35 +441,35 @@
                     <div class="model-option" data-model="nivo" data-name="Nivo" onclick="selectModel('nivo', 'Nivo', event)">
                         <div class="model-option-info">
                             <div class="model-option-name">Nivo</div>
-                            <div class="model-option-desc">Powered by Groq</div>
+                            <div class="model-option-desc">Ultra-fast inference · Powered by Groq</div>
                         </div>
                         <div class="model-option-check">✓</div>
                     </div>
                     <div class="model-option" data-model="laguna" data-name="Laguna" onclick="selectModel('laguna', 'Laguna', event)">
                         <div class="model-option-info">
                             <div class="model-option-name">Laguna</div>
-                            <div class="model-option-desc">Powered by Poolside · Laguna M.1</div>
+                            <div class="model-option-desc">Enterprise agentic coding · Poolside Laguna M.1</div>
                         </div>
                         <div class="model-option-check">✓</div>
                     </div>
                     <div class="model-option" data-model="laguna_lite" data-name="Laguna Lite" onclick="selectModel('laguna_lite', 'Laguna Lite', event)">
                         <div class="model-option-info">
                             <div class="model-option-name">Laguna Lite</div>
-                            <div class="model-option-desc">Powered by Poolside · Laguna SX.2</div>
+                            <div class="model-option-desc">Local agentic coding · Poolside Laguna XS.2</div>
                         </div>
                         <div class="model-option-check">✓</div>
                     </div>
                     <div class="model-option" data-model="nex" data-name="Nex" onclick="selectModel('nex', 'Nex', event)">
                         <div class="model-option-info">
                             <div class="model-option-name">Nex</div>
-                            <div class="model-option-desc">Powered by Nex · Nex n2.6</div>
+                            <div class="model-option-desc">Agentic coding & deep reasoning · Nex N2 Pro</div>
                         </div>
                         <div class="model-option-check">✓</div>
                     </div>
                     <div class="model-option" data-model="nemotron" data-name="Nemotron" onclick="selectModel('nemotron', 'Nemotron', event)">
                         <div class="model-option-info">
                             <div class="model-option-name">Nemotron</div>
-                            <div class="model-option-desc">Powered by Nemotron · Nemotron n2.6</div>
+                            <div class="model-option-desc">Frontier reasoning & agent orchestration · Nemotron 3 Ultra</div>
                         </div>
                         <div class="model-option-check">✓</div>
                     </div>
@@ -569,18 +569,18 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
     
     <!-- ✅ CACHE BUSTING - VERSION PARAMETER -->
-    <script src="static/firebase-config.js?v=0.0.242"></script>
-    <script src="static/live-sync.js?v=0.0.242"></script>
-    <script src="static/logic.js?v=0.0.242"></script>
-    <script src="static/feedback.js?v=0.0.242"></script>
-    <script src="static/file-upload.js?v=0.0.242"></script>
+    <script src="static/firebase-config.js?v=0.0.243"></script>
+    <script src="static/live-sync.js?v=0.0.243"></script>
+    <script src="static/logic.js?v=0.0.243"></script>
+    <script src="static/feedback.js?v=0.0.243"></script>
+    <script src="static/file-upload.js?v=0.0.243"></script>
 
     <script>
         console.log('🚀 Catura AI v27.0.5 loaded');
         
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js?v=0.0.242')
+                navigator.serviceWorker.register('/service-worker.js?v=0.0.243')
                     .then(() => console.log('✅ Catura AI PWA Ready - v27.0.5'))
                     .catch((err) => console.log('❌ SW Error:', err));
             });
