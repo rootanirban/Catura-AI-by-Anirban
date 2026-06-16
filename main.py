@@ -349,7 +349,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.241"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.242"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -359,7 +359,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.241", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.242", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3099,7 +3099,6 @@ async def chat_post(request: Request):
             "nivo":    [],  # Routed via Groq API (GROQ_API_KEY) — see generate_nivo()
             "laguna":      [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna M.1
             "laguna_lite": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2
-            "nemotron":["nvidia/nemotron-3-ultra-550b-a55b:free"],
             "nex":       ["nex-agi/nex-n2-pro:free"],
         }
         model_key  = model.strip()
