@@ -2,7 +2,7 @@
 
 [![Catura AI](static/icons/catura-ai-official.png)](https://my-ai-assistant-9bbd.onrender.com/)
 
-[![✨ Live Demo](https://img.shields.io/badge/✨_Live_Demo-Visit_App-6366f1?style=for-the-badge)](https://my-ai-assistant-9bbd.onrender.com/)
+[![✨ Live Demo](https://img.shields.io/badge/✨_Live_Demo-Visit_App-6366f1?style=for-the-badge)](https://catura.duckdns.org/)
 [![📦 Open Source](https://img.shields.io/badge/Open_Source-Yes-8b5cf6?style=for-the-badge)](https://github.com/Anidas-crypto/Catura-AI-by-Anirban)
 ![⚡ FastAPI](https://img.shields.io/badge/Backend-FastAPI-10b981?style=for-the-badge)
 ![License](https://img.shields.io/badge/License-Apache_2.0-yellow?style=for-the-badge)
