@@ -1,6 +1,6 @@
 <div align="center">
 
-[![Catura AI](static/icons/catura-ai-official.png)](https://my-ai-assistant-9bbd.onrender.com/)
+[![Catura AI](static/icons/catura-ai-official.png)](https://catura.duckdns.org/)
 
 [![✨ Live Demo](https://img.shields.io/badge/✨_Live_Demo-Visit_App-6366f1?style=for-the-badge)](https://catura.duckdns.org/)
 [![📦 Open Source](https://img.shields.io/badge/Open_Source-Yes-8b5cf6?style=for-the-badge)](https://github.com/Anidas-crypto/Catura-AI-by-Anirban)
@@ -83,7 +83,7 @@ Everything is handled behind the scenes — so you just focus on the task.
 
 | | |
 |--|--|
-| 🔗 **Live App** | https://my-ai-assistant-9bbd.onrender.com/ |
+| 🔗 **Live App** | https://catura.duckdns.org/ |
 | 💻 **Repository** | https://github.com/Anidas-crypto/Catura-AI-by-Anirban |
 
 ---
