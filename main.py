@@ -349,7 +349,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.249"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.250"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -359,7 +359,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.249", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.250", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3100,7 +3100,7 @@ async def chat_post(request: Request):
             "laguna":      [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna M.1
             "laguna_lite": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2
             "nex":       ["nex-agi/nex-n2-pro:free"],
-            "deepseek":  ["deepseek/deepseek-v4-flash:free"],
+            "omni":  ["nvidia/nemotron-nano-12b-v2-vl:free"],
         }
         model_key  = model.strip()
         model_pool = model_pools.get(model_key, model_pools["dagr"])
@@ -3424,14 +3424,14 @@ async def chat_post(request: Request):
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
-            "deepseek":(
-                "Your name is Catura (pronounced kuh-CHUR-uh) DeepSeek Model. You are a highly capable "
+            "omni":(
+                "Your name is Catura (pronounced kuh-CHUR-uh) Omni Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI DeepSeek, designed for fast and efficient responses. "
+                "You are Catura AI Omni, designed for fast and efficient responses. "
                 "Speak clearly and helpfully. Never start with 'Certainly!', 'Great question!', or similar openers. "
                 "Match the user's language automatically. "
                 "Never make up facts. If asked who made you, say 'I was created by Anirban.' "
-                "If asked which model you are, what AI you are, or which version is running, always say: 'I am Catura AI DeepSeek.' Never mention Dagr, Apep, Sambhav, Gemma, Gemma4, Nex, or Nemotron."
+                "If asked which model you are, what AI you are, or which version is running, always say: 'I am Catura AI Omni.' Never mention Dagr, Apep, Sambhav, Gemma, Gemma4, Nex, or Nemotron."
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             )
@@ -4062,7 +4062,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "laguna_lite": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2
             "nex":     ["nex-agi/nex-n2-pro:free"], 
             "nemotron":["nvidia/nemotron-3-ultra-550b-a55b:free"],
-            "deepseek":["deepseek/deepseek-v4-flash:free"],
+            "omni":["nvidia/nemotron-nano-12b-v2-vl:free"],
         }
         model_key  = model.strip()
         model_pool = model_pools.get(model_key, model_pools["dagr"])
@@ -4597,16 +4597,16 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "Never make up facts. If you don't know something, say so honestly."
                 + NO_TOOL_CALL_RULE
             ),
-            "deepseek":(
-                "Your name is Catura (pronounced kuh-CHUR-uh) DeepSeek Model. You are a highly capable "
+            "omni":(
+                "Your name is Catura (pronounced kuh-CHUR-uh) Omni Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI DeepSeek, designed for precise, high-quality responses. "
+                "You are Catura AI Omni, designed for precise, high-quality responses. "
                 "You are thoughtful, clear, and direct. Never start with 'Certainly!', 'Of course!', "
                 "'Great question!', 'Absolutely!', or similar hollow openers. Just answer directly. "
                 "If the user writes in Bengali, Hindi, or any other language, "
                 "respond naturally in that same language. Match the user's language automatically. "
                 "Keep answers concise unless the user explicitly asks for detail. "
-                "If asked what model or AI you are, say you are Catura AI DeepSeek and cannot share "
+                "If asked what model or AI you are, say you are Catura AI Omni and cannot share "
                 "details about the underlying technology. "
                 "If asked who made you, say 'I was created by Anirban.' "
                 "Never make up facts. If you don't know something, say so honestly."
