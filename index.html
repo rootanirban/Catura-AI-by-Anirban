@@ -78,7 +78,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-    <link rel="stylesheet" href="static/style.css?v=0.0.251">   <!-- this is CSS linking section -->
+    <link rel="stylesheet" href="static/style.css?v=0.0.252">   <!-- this is CSS linking section -->
     
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#000000" />
@@ -459,10 +459,10 @@
                         </div>
                         <div class="model-option-check">✓</div>
                     </div>
-                    <div class="model-option" data-model="nex" data-name="Nex" onclick="selectModel('nex', 'Nex', event)">
+                    <div class="model-option" data-model="cohere" data-name="Cohere" onclick="selectModel('cohere', 'Cohere', event)">
                         <div class="model-option-info">
-                            <div class="model-option-name">Nex</div>
-                            <div class="model-option-desc">Agentic coding & deep reasoning · Nex N2 Pro</div>
+                            <div class="model-option-name">Cohere</div>
+                            <div class="model-option-desc">Simple coding & reasoning · Cohere North Mini Code </div>
                         </div>
                         <div class="model-option-check">✓</div>
                     </div>
@@ -576,18 +576,18 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
     
     <!-- ✅ CACHE BUSTING - VERSION PARAMETER -->
-    <script src="static/firebase-config.js?v=0.0.251"></script>
-    <script src="static/live-sync.js?v=0.0.251"></script>
-    <script src="static/logic.js?v=0.0.251"></script>
-    <script src="static/feedback.js?v=0.0.251"></script>
-    <script src="static/file-upload.js?v=0.0.251"></script>
+    <script src="static/firebase-config.js?v=0.0.252"></script>
+    <script src="static/live-sync.js?v=0.0.252"></script>
+    <script src="static/logic.js?v=0.0.252"></script>
+    <script src="static/feedback.js?v=0.0.252"></script>
+    <script src="static/file-upload.js?v=0.0.252"></script>
 
     <script>
         console.log('🚀 Catura AI v27.0.5 loaded');
         
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js?v=0.0.251')
+                navigator.serviceWorker.register('/service-worker.js?v=0.0.252')
                     .then(() => console.log('✅ Catura AI PWA Ready - v27.0.5'))
                     .catch((err) => console.log('❌ SW Error:', err));
             });
