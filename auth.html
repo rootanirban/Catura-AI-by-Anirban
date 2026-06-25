@@ -4,130 +4,665 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <!-- ═══ PRIMARY META ═══ -->
-    <title>Sign in to Catura AI — Free AI Chatbot</title>
-    <meta name="description" content="Log in or create a free account to chat with Catura AI — your intelligent everyday AI assistant.">
-    <meta name="robots" content="noindex, nofollow">
+    <title>Catura AI — Free AI Chatbot</title>
+    <meta name="description" content="Catura AI — your intelligent everyday AI assistant. Chat smarter, think faster.">
+    <meta name="robots" content="index, follow">
 
-    <!-- ═══ OPEN GRAPH ═══ -->
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Sign in to Catura AI">
-    <meta property="og:description" content="Log in or create a free account to chat with Catura AI.">
+    <meta property="og:title" content="Catura AI">
+    <meta property="og:description" content="Your intelligent everyday AI assistant.">
     <meta property="og:image" content="/static/icons/icon-512.png">
-    <meta property="og:url" content="https://catura.ai/auth">
+    <meta property="og:url" content="https://catura.ai">
     <meta property="og:site_name" content="Catura AI">
 
-    <!-- ═══ ICONS ═══ -->
     <link rel="icon" type="image/png" href="static/logos.png">
 
     <style>
         /* ── Reset ── */
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-        /* ── Screen-reader only utility ── */
         .sr-only {
-            position: absolute;
-            width: 1px; height: 1px;
-            padding: 0; margin: -1px;
-            overflow: hidden;
-            clip: rect(0,0,0,0);
-            white-space: nowrap;
-            border: 0;
+            position: absolute; width: 1px; height: 1px;
+            padding: 0; margin: -1px; overflow: hidden;
+            clip: rect(0,0,0,0); white-space: nowrap; border: 0;
         }
 
-        /* ── Base ── */
+        /* ── CSS Variables ── */
+        :root {
+            --bg: #0a0a0a;
+            --bg-secondary: #111111;
+            --bg-card: #141414;
+            --border: #1e1e1e;
+            --border-light: #2a2a2a;
+            --text: #e8e8e8;
+            --text-muted: #666;
+            --text-dim: #444;
+            --accent: #10a37f;
+            --accent-dim: #0d8c6d;
+            --accent-glow: rgba(16, 163, 127, 0.15);
+            --footer-bg: #0f0f0f;
+        }
+
+        html { scroll-behavior: smooth; }
+
         body {
-            font-family: system-ui, -apple-system, sans-serif;
-            background: #0d0d0d;
-            color: #e5e5e5;
+            font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
             min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* ════════════════════════════════════════
+           NAVBAR
+        ════════════════════════════════════════ */
+        nav {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 100;
+            background: rgba(10,10,10,0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .nav-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 2rem;
+        }
+
+        /* Logo */
+        .nav-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            flex-shrink: 0;
+        }
+        .nav-logo-img {
+            width: 32px; height: 32px;
+            border-radius: 8px;
+            object-fit: contain;
+        }
+        .nav-logo-text {
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: -0.3px;
+        }
+        .nav-logo-text span { color: var(--accent); }
+
+        /* Center nav links */
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            list-style: none;
+        }
+        .nav-links a {
+            padding: 6px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color 0.2s, background 0.2s;
+            cursor: pointer;
+            border: none;
+            background: none;
+            display: block;
+        }
+        .nav-links a:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+        .nav-links a.active { color: var(--text); background: rgba(255,255,255,0.07); }
+
+        /* Right auth buttons */
+        .nav-auth {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        .btn-ghost {
+            padding: 7px 18px;
+            border-radius: 8px;
+            border: 1px solid var(--border-light);
+            background: transparent;
+            color: var(--text);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .btn-ghost:hover { background: rgba(255,255,255,0.05); border-color: #3a3a3a; }
+        .btn-primary {
+            padding: 7px 18px;
+            border-radius: 8px;
+            border: none;
+            background: var(--accent);
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, box-shadow 0.2s;
+        }
+        .btn-primary:hover { background: var(--accent-dim); box-shadow: 0 0 20px var(--accent-glow); }
+
+        /* ════════════════════════════════════════
+           MAIN CONTENT AREA
+        ════════════════════════════════════════ */
+        main {
+            flex: 1;
+            padding-top: 64px; /* navbar height */
+        }
+
+        /* ── PAGES ── */
+        .page { display: none; }
+        .page.active { display: block; }
+
+        /* ════════════════════════════════════════
+           HOME PAGE
+        ════════════════════════════════════════ */
+        #page-home {}
+
+        /* Hero */
+        .hero {
+            min-height: calc(100dvh - 64px);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 1rem;
+            text-align: center;
+            padding: 4rem 2rem;
+            position: relative;
+            overflow: hidden;
         }
 
-        /* ── Card ── */
-        .card {
-            background: #1a1a1a;
-            border: 1px solid #2a2a2a;
-            border-radius: 18px;
+        /* Subtle background grid */
+        .hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(16,163,127,0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(16,163,127,0.04) 1px, transparent 1px);
+            background-size: 60px 60px;
+            mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black 40%, transparent 100%);
+        }
+
+        /* Glow orb */
+        .hero::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -60%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(16,163,127,0.08) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .hero-content { position: relative; z-index: 1; max-width: 720px; }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            border-radius: 100px;
+            border: 1px solid rgba(16,163,127,0.3);
+            background: rgba(16,163,127,0.08);
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--accent);
+            margin-bottom: 2rem;
+            letter-spacing: 0.5px;
+        }
+        .hero-badge-dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--accent);
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        .hero h1 {
+            font-size: clamp(2.4rem, 6vw, 4.5rem);
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -2px;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(135deg, #ffffff 0%, #a0a0a0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero h1 .accent {
+            background: linear-gradient(135deg, #10a37f, #7ee8cc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-sub {
+            font-size: clamp(1rem, 2vw, 1.2rem);
+            color: var(--text-muted);
+            line-height: 1.7;
+            max-width: 560px;
+            margin: 0 auto 2.5rem;
+        }
+
+        .hero-cta {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .btn-hero-primary {
+            padding: 13px 28px;
+            border-radius: 10px;
+            border: none;
+            background: var(--accent);
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-hero-primary:hover {
+            background: var(--accent-dim);
+            box-shadow: 0 0 30px rgba(16,163,127,0.3);
+            transform: translateY(-1px);
+        }
+        .btn-hero-secondary {
+            padding: 13px 28px;
+            border-radius: 10px;
+            border: 1px solid var(--border-light);
+            background: rgba(255,255,255,0.03);
+            color: var(--text);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s, transform 0.15s;
+        }
+        .btn-hero-secondary:hover {
+            background: rgba(255,255,255,0.07);
+            border-color: #3a3a3a;
+            transform: translateY(-1px);
+        }
+
+        /* Features section */
+        .features-section {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 5rem 2rem;
+        }
+
+        .section-label {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 1rem;
+        }
+        .section-title {
+            font-size: clamp(1.8rem, 4vw, 2.8rem);
+            font-weight: 700;
+            letter-spacing: -1px;
+            line-height: 1.2;
+            margin-bottom: 1rem;
+        }
+        .section-desc {
+            font-size: 15px;
+            color: var(--text-muted);
+            line-height: 1.7;
+            max-width: 560px;
+            margin-bottom: 3rem;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1px;
+            background: var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        .feature-card {
+            background: var(--bg-card);
+            padding: 2rem;
+            transition: background 0.2s;
+            position: relative;
+        }
+        .feature-card:hover { background: #181818; }
+        .feature-icon {
+            width: 44px; height: 44px;
+            border-radius: 10px;
+            background: var(--accent-glow);
+            border: 1px solid rgba(16,163,127,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.2rem;
+            color: var(--accent);
+        }
+        .feature-title {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 0.6rem;
+            color: var(--text);
+        }
+        .feature-desc {
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.65;
+        }
+
+        /* Stats row */
+        .stats-section {
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            padding: 3rem 2rem;
+        }
+        .stats-inner {
+            max-width: 900px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 2rem;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: var(--text);
+            letter-spacing: -1px;
+        }
+        .stat-value span { color: var(--accent); }
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 4px;
+            letter-spacing: 0.5px;
+        }
+
+        /* How it's different */
+        .diff-section {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 5rem 2rem;
+        }
+        .diff-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+        .diff-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 1.5rem;
+            padding: 1.8rem 2rem;
+            border-bottom: 1px solid var(--border);
+            transition: background 0.2s;
+        }
+        .diff-item:last-child { border-bottom: none; }
+        .diff-item:hover { background: rgba(255,255,255,0.02); }
+        .diff-num {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--accent);
+            letter-spacing: 1px;
+            padding-top: 2px;
+            flex-shrink: 0;
+            width: 24px;
+        }
+        .diff-content h3 {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+        }
+        .diff-content p {
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.65;
+        }
+
+        /* ════════════════════════════════════════
+           ABOUT PAGE
+        ════════════════════════════════════════ */
+        #page-about {}
+
+        .about-hero {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 6rem 2rem 4rem;
+            text-align: center;
+        }
+        .about-hero h1 {
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            font-weight: 800;
+            letter-spacing: -1.5px;
+            line-height: 1.15;
+            margin-bottom: 1.5rem;
+        }
+        .about-hero p {
+            font-size: 16px;
+            color: var(--text-muted);
+            line-height: 1.75;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .about-content {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 2rem 2rem 5rem;
+        }
+
+        .about-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 1px;
+            background: var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            margin-bottom: 3rem;
+        }
+
+        .about-card {
+            background: var(--bg-card);
+            padding: 2.5rem;
+        }
+        .about-card-label {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 1rem;
+        }
+        .about-card h2 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            margin-bottom: 1rem;
+        }
+        .about-card p {
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.75;
+        }
+
+        .creator-section {
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2.5rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 2rem;
+            flex-wrap: wrap;
+        }
+        .creator-avatar {
+            width: 64px; height: 64px;
+            border-radius: 14px;
+            background: var(--accent-glow);
+            border: 1px solid rgba(16,163,127,0.25);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 28px;
+            flex-shrink: 0;
+        }
+        .creator-info h3 {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .creator-info .creator-role {
+            font-size: 12px;
+            color: var(--accent);
+            font-weight: 500;
+            margin-bottom: 0.75rem;
+        }
+        .creator-info p {
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.7;
+            max-width: 520px;
+        }
+
+        /* ════════════════════════════════════════
+           AUTH MODAL OVERLAY
+        ════════════════════════════════════════ */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 200;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        .modal-overlay.open {
+            display: flex;
+        }
+
+        .modal-card {
+            background: #141414;
+            border: 1px solid var(--border-light);
+            border-radius: 20px;
             padding: 2rem;
             width: 100%;
-            max-width: 390px;
+            max-width: 400px;
+            position: relative;
+            animation: modal-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
         }
+        @keyframes modal-in {
+            from { opacity: 0; transform: scale(0.92) translateY(10px); }
+            to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 16px; right: 16px;
+            width: 30px; height: 30px;
+            border-radius: 8px;
+            border: none;
+            background: rgba(255,255,255,0.05);
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px;
+            transition: background 0.2s, color 0.2s;
+        }
+        .modal-close:hover { background: rgba(255,255,255,0.1); color: var(--text); }
 
         /* ── Logo / brand area ── */
         .logo-area {
             text-align: center;
-            margin-bottom: 1.75rem;
+            margin-bottom: 1.5rem;
         }
         .logo-box {
-            width: 60px; height: 60px;
+            width: 52px; height: 52px;
             border-radius: 12px;
             display: flex; align-items: center; justify-content: center;
-            margin: 0 auto 12px;
+            margin: 0 auto 10px;
             background: transparent;
         }
         .logo-box img { width: 100%; height: 100%; object-fit: contain; }
-        .logo-area h1 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
-        .logo-area p  { font-size: 13px; color: #888; }
+        .logo-area h1 { font-size: 17px; font-weight: 700; margin-bottom: 3px; }
+        .logo-area p  { font-size: 12px; color: #888; }
 
-        /* ── Tab bar (Login / Sign up) ── */
+        /* ── Tab bar ── */
         .tabs {
             display: flex;
-            background: #111;
+            background: #0d0d0d;
             border-radius: 10px;
             padding: 3px;
             gap: 3px;
-            margin-bottom: 1.5rem;
+            margin-bottom: 1.25rem;
         }
         .tab {
             flex: 1; padding: 8px;
-            border-radius: 8px; border: none;
+            border-radius: 7px; border: none;
             font-size: 13px; font-weight: 500;
             cursor: pointer; transition: background 0.2s, color 0.2s;
-            background: transparent; color: #888;
+            background: transparent; color: #666;
         }
-        .tab[aria-selected="true"] { background: #10a37f; color: #fff; }
-        .tab:focus-visible {
-            outline: 2px solid #10a37f;
-            outline-offset: 2px;
-        }
+        .tab[aria-selected="true"] { background: var(--accent); color: #fff; }
+        .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
         /* ── OAuth buttons ── */
         .oauth-btn {
             display: flex; align-items: center; gap: 10px;
             padding: 10px 14px;
             width: 100%;
-            background: #111; border: 1px solid #2a2a2a;
-            border-radius: 10px; color: #e5e5e5;
+            background: #0d0d0d; border: 1px solid var(--border-light);
+            border-radius: 10px; color: var(--text);
             font-size: 13px; cursor: pointer;
             transition: background 0.15s;
             margin-bottom: 8px;
         }
-        .oauth-btn:hover { background: #222; }
-        .oauth-btn:focus-visible {
-            outline: 2px solid #10a37f;
-            outline-offset: 2px;
-        }
+        .oauth-btn:hover { background: #1a1a1a; }
+        .oauth-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
         .oauth-btn svg { flex-shrink: 0; }
 
         /* ── Divider ── */
         .divider {
             display: flex; align-items: center; gap: 10px;
-            margin: 1rem 0; color: #444; font-size: 12px;
+            margin: 0.75rem 0; color: #333; font-size: 11px;
         }
         .divider::before, .divider::after {
             content: ''; flex: 1;
-            height: 1px; background: #2a2a2a;
+            height: 1px; background: var(--border);
         }
 
         /* ── Form fields ── */
         label {
             display: block;
-            font-size: 12px; color: #aaa;
+            font-size: 12px; color: #888;
             margin-bottom: 5px;
         }
         .field { margin-bottom: 10px; }
@@ -138,71 +673,57 @@
         .field-row label { margin-bottom: 0; }
 
         .forgot {
-            font-size: 12px; color: #10a37f;
+            font-size: 12px; color: var(--accent);
             cursor: pointer; background: none; border: none; padding: 0;
         }
         .forgot:hover { text-decoration: underline; }
-        .forgot:focus-visible {
-            outline: 2px solid #10a37f;
-            outline-offset: 2px;
-            border-radius: 2px;
-        }
 
         input[type="email"],
         input[type="password"],
         input[type="text"] {
             width: 100%; padding: 10px 13px;
-            background: #111; border: 1px solid #2a2a2a;
-            border-radius: 10px; color: #e5e5e5;
+            background: #0d0d0d; border: 1px solid var(--border-light);
+            border-radius: 10px; color: var(--text);
             font-size: 13px; outline: none;
             transition: border-color 0.2s;
         }
-        input:focus { border-color: #10a37f; }
+        input:focus { border-color: var(--accent); }
         input[aria-invalid="true"] { border-color: #ff6b6b; }
 
         /* ── Submit button ── */
         .submit {
             width: 100%; padding: 11px;
-            background: #10a37f; border: none;
+            background: var(--accent); border: none;
             border-radius: 10px; color: #fff;
             font-size: 14px; font-weight: 600;
             cursor: pointer; margin-top: 12px;
             transition: background 0.2s;
         }
-        .submit:hover    { background: #0d8c6d; }
+        .submit:hover    { background: var(--accent-dim); }
         .submit:disabled { background: #1a4a3a; cursor: not-allowed; }
-        .submit:focus-visible {
-            outline: 2px solid #10a37f;
-            outline-offset: 2px;
-        }
 
         /* ── Status / error message ── */
         .msg {
-            margin-top: 12px; padding: 10px 13px;
-            border-radius: 8px; font-size: 13px;
+            margin-top: 10px; padding: 9px 12px;
+            border-radius: 8px; font-size: 12px;
             text-align: center;
         }
         .msg:empty { display: none; }
         .msg.error   { background: #2a1a1a; color: #ff6b6b; border: 1px solid #3a1a1a; }
         .msg.success { background: #1a2a1a; color: #6bff9e; border: 1px solid #1a3a1a; }
 
-        /* ── Switch row (login ↔ signup) ── */
+        /* ── Switch row ── */
         .switch-row {
             text-align: center; font-size: 12px;
-            color: #888; margin-top: 14px;
+            color: #666; margin-top: 12px;
         }
         .switch-row button {
-            color: #10a37f; background: none; border: none;
+            color: var(--accent); background: none; border: none;
             padding: 0; cursor: pointer; font-size: 12px;
         }
         .switch-row button:hover { text-decoration: underline; }
-        .switch-row button:focus-visible {
-            outline: 2px solid #10a37f;
-            outline-offset: 2px;
-            border-radius: 2px;
-        }
 
-        /* ── Cloudflare Turnstile ── */
+        /* ── Turnstile ── */
         #cf-turnstile-container {
             margin-top: 8px;
             display: flex;
@@ -212,14 +733,12 @@
         #cf-turnstile-container iframe { border-radius: 8px; }
 
         .captcha-status {
-            font-size: 11px;
-            text-align: center;
-            margin-top: 4px;
-            color: #555;
+            font-size: 11px; text-align: center;
+            margin-top: 4px; color: #444;
             min-height: 16px;
         }
-        .captcha-status.ready       { color: #10a37f; }
-        .captcha-status.loading     { color: #888; }
+        .captcha-status.ready       { color: var(--accent); }
+        .captcha-status.loading     { color: #666; }
         .captcha-status.error-state { color: #ff6b6b; }
 
         /* ── Password visibility toggle ── */
@@ -228,62 +747,35 @@
             display: flex;
             align-items: center;
         }
-        .pw-wrap input {
-            width: 100%;
-            padding-right: 40px !important;
-        }
+        .pw-wrap input { width: 100%; padding-right: 40px !important; }
         .pw-toggle {
-            position: absolute;
-            right: 10px;
-            background: none;
-            border: none;
-            padding: 4px;
-            cursor: pointer;
-            color: #555;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            position: absolute; right: 10px;
+            background: none; border: none;
+            padding: 4px; cursor: pointer;
+            color: #444;
+            display: flex; align-items: center; justify-content: center;
             border-radius: 4px;
             transition: color 0.2s, opacity 0.2s;
-            flex-shrink: 0;
-            opacity: 0;
-            pointer-events: none;
+            flex-shrink: 0; opacity: 0; pointer-events: none;
         }
-        .pw-toggle.visible {
-            opacity: 1;
-            pointer-events: auto;
-        }
+        .pw-toggle.visible { opacity: 1; pointer-events: auto; }
         .pw-toggle:hover { color: #aaa; }
-        .pw-toggle:focus-visible {
-            outline: 2px solid #10a37f;
-            outline-offset: 2px;
-        }
 
-        /* ── Confirm password status icon ── */
+        /* ── Confirm status ── */
         .confirm-status {
-            position: absolute;
-            right: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.2s;
+            position: absolute; right: 10px;
+            display: flex; align-items: center; justify-content: center;
+            pointer-events: none; opacity: 0; transition: opacity 0.2s;
         }
         .confirm-status.show { opacity: 1; }
-        .confirm-status .icon-match    { display: none; color: #10a37f; }
+        .confirm-status .icon-match    { display: none; color: var(--accent); }
         .confirm-status .icon-mismatch { display: none; color: #ff6b6b; }
         .confirm-status .icon-required {
-            display: none;
-            width: 18px; height: 18px;
-            background: #ff6b6b;
-            border-radius: 50%;
-            align-items: center;
-            justify-content: center;
-            font-size: 11px;
-            font-weight: 700;
-            color: #fff;
-            line-height: 1;
+            display: none; width: 18px; height: 18px;
+            background: #ff6b6b; border-radius: 50%;
+            align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 700;
+            color: #fff; line-height: 1;
         }
         .confirm-status.state-match    .icon-match    { display: flex; }
         .confirm-status.state-mismatch .icon-mismatch { display: flex; }
@@ -291,330 +783,714 @@
 
         /* ── Password strength meter ── */
         .pw-strength {
-            height: 4px; border-radius: 2px;
-            background: #1e1e1e; margin-top: 6px; overflow: hidden;
+            height: 3px; border-radius: 2px;
+            background: #1a1a1a; margin-top: 6px; overflow: hidden;
         }
         .pw-strength-bar {
             height: 100%; width: 0%;
             border-radius: 2px;
             transition: width 0.3s, background 0.3s;
         }
-        .pw-hint { font-size: 11px; color: #666; margin-top: 4px; }
+        .pw-hint { font-size: 11px; color: #555; margin-top: 4px; }
 
         /* ── Reset password screen ── */
         #resetScreen { display: none; }
         .reset-icon {
             width: 52px; height: 52px;
-            background: #10a37f22;
-            border: 1px solid #10a37f44;
+            background: rgba(16,163,127,0.1);
+            border: 1px solid rgba(16,163,127,0.2);
             border-radius: 14px;
             display: flex; align-items: center; justify-content: center;
             margin: 0 auto 14px;
         }
-        .reset-icon svg { color: #10a37f; }
+        .reset-icon svg { color: var(--accent); }
+
+        /* ════════════════════════════════════════
+           FOOTER
+        ════════════════════════════════════════ */
+        footer {
+            background: #0f0f0f;
+            border-top: 1px solid var(--border);
+        }
+
+        /* Big brand name above footer */
+        .footer-brand-name {
+            text-align: center;
+            padding: 4rem 2rem 0;
+            overflow: hidden;
+        }
+        .footer-brand-letters {
+            font-size: clamp(5rem, 18vw, 14rem);
+            font-weight: 900;
+            letter-spacing: -4px;
+            line-height: 1;
+            background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            user-select: none;
+            /* Scanline/stripe effect */
+            position: relative;
+        }
+        .footer-brand-letters::after {
+            content: attr(data-text);
+            position: absolute;
+            inset: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 3px,
+                rgba(0,0,0,0.4) 3px,
+                rgba(0,0,0,0.4) 4px
+            );
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .footer-inner {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 3rem 2rem 2rem;
+            display: grid;
+            grid-template-columns: 1.5fr 1fr 1fr;
+            gap: 3rem;
+        }
+
+        .footer-col h4 {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: #444;
+            margin-bottom: 1rem;
+        }
+        .footer-col p {
+            font-size: 13px;
+            color: #333;
+            line-height: 1.7;
+        }
+
+        .footer-links {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .footer-links a {
+            font-size: 13px;
+            color: #444;
+            text-decoration: none;
+            transition: color 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .footer-links a:hover { color: var(--text); }
+
+        .social-links {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .social-links a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            color: #444;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .social-links a:hover { color: var(--text); }
+        .social-links svg { flex-shrink: 0; }
+
+        .footer-bottom {
+            border-top: 1px solid var(--border);
+            padding: 1.25rem 2rem;
+            max-width: 1100px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .footer-bottom p {
+            font-size: 12px;
+            color: #333;
+        }
+        .footer-bottom p span { color: #555; }
+
+        /* ════════════════════════════════════════
+           RESPONSIVE
+        ════════════════════════════════════════ */
+        @media (max-width: 768px) {
+            .footer-inner {
+                grid-template-columns: 1fr 1fr;
+            }
+            .footer-col:first-child {
+                grid-column: 1 / -1;
+            }
+            .nav-links { display: none; }
+            .nav-inner { gap: 1rem; }
+        }
+        @media (max-width: 500px) {
+            .footer-inner { grid-template-columns: 1fr; }
+            .nav-auth .btn-ghost { display: none; }
+        }
     </style>
 
-    <!--
-        KEY: Use ?onload=onTurnstileLoad (defer, no async).
-        Guarantees onTurnstileLoad() fires after the SDK is fully ready,
-        eliminating the DOMContentLoaded race condition.
-    -->
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad" defer></script>
 </head>
 
 <body>
 
-    <!-- ═══════════════════════════════════════════════
-         MAIN CARD
-    ═══════════════════════════════════════════════ -->
-    <main class="card" id="mainCard">
+    <!-- ════════════════════════════════════════
+         NAVBAR
+    ════════════════════════════════════════ -->
+    <nav aria-label="Main navigation">
+        <div class="nav-inner">
 
-        <!-- ── AUTH SCREEN ── -->
-        <section id="authScreen" aria-label="Sign in or create account">
+            <!-- Logo -->
+            <a class="nav-logo" href="#" onclick="return false;" aria-label="Catura AI home">
+                <img class="nav-logo-img" src="static/logo.png" alt="Catura AI logo">
+                <span class="nav-logo-text">Catura<span>.</span>AI</span>
+            </a>
 
-            <!-- Brand / logo -->
-            <div class="logo-area">
-                <div class="logo-box">
-                    <img src="static/logo.png" alt="Catura AI logo">
-                </div>
-                <h1>Log in to Catura AI</h1>
-                <p>Your AI assistant, always there for you</p>
+            <!-- Center links -->
+            <ul class="nav-links" role="list">
+                <li>
+                    <a id="nav-home" class="active" href="#"
+                       onclick="showPage('home'); return false;"
+                       aria-current="page">Home</a>
+                </li>
+                <li>
+                    <a id="nav-about" href="#"
+                       onclick="showPage('about'); return false;">About</a>
+                </li>
+            </ul>
+
+            <!-- Auth buttons -->
+            <div class="nav-auth">
+                <button class="btn-ghost" onclick="openModal('login')" aria-label="Log in">Log in</button>
+                <button class="btn-primary" onclick="openModal('signup')" aria-label="Sign up">Sign up</button>
             </div>
 
-            <!-- ── Tab bar ── -->
-            <div
-                class="tabs"
-                role="tablist"
-                aria-label="Authentication options"
-            >
-                <button
-                    class="tab"
-                    id="tab-login"
-                    type="button"
-                    role="tab"
-                    aria-selected="true"
-                    aria-controls="panel-login"
-                    onclick="switchTab('login')"
-                >Login</button>
-                <button
-                    class="tab"
-                    id="tab-signup"
-                    type="button"
-                    role="tab"
-                    aria-selected="false"
-                    aria-controls="panel-signup"
-                    onclick="switchTab('signup')"
-                >Sign up</button>
-            </div>
+        </div>
+    </nav>
 
-            <!-- ── OAuth buttons ── -->
-            <button class="oauth-btn" type="button" onclick="doGitHub()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
-                    <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.38.6.11.82-.26.82-.58 0-.28-.01-1.03-.02-2.02-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02.005 2.04.14 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.21.7.82.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/>
-                </svg>
-                Continue with GitHub
-            </button>
+    <!-- ════════════════════════════════════════
+         MAIN
+    ════════════════════════════════════════ -->
+    <main>
 
-            <button class="oauth-btn" type="button" onclick="doGoogle()">
-                <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
-                    <path fill="#EA4335" d="M24 9.5c3.1 0 5.6 1.1 7.6 2.9l5.6-5.6C33.6 3.5 29.1 1.5 24 1.5 14.9 1.5 7.2 7.1 4 14.9l6.6 5.1C12.3 13.7 17.6 9.5 24 9.5z"/>
-                    <path fill="#4285F4" d="M46.5 24c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.9 7.2l7.6 5.9C43.8 37 46.5 31 46.5 24z"/>
-                    <path fill="#FBBC05" d="M10.6 28.6A14.6 14.6 0 0 1 9.5 24c0-1.6.3-3.2.8-4.6L3.7 14.3A22.5 22.5 0 0 0 1.5 24c0 3.6.9 7.1 2.5 10.1l6.6-5.5z"/>
-                    <path fill="#34A853" d="M24 46.5c5.1 0 9.4-1.7 12.5-4.6l-7.6-5.9c-1.7 1.1-3.8 1.8-4.9 1.8-6.4 0-11.7-4.3-13.6-10l-6.6 5.1C7.2 40.9 14.9 46.5 24 46.5z"/>
-                </svg>
-                Continue with Google
-            </button>
+        <!-- ══ HOME PAGE ══ -->
+        <div id="page-home" class="page active">
 
-            <div class="divider" role="separator">or</div>
-
-            <!-- ── Login / Sign-up form panels ── -->
-            <div
-                id="panel-login"
-                role="tabpanel"
-                aria-labelledby="tab-login"
-            >
-                <!-- Email -->
-                <div class="field">
-                    <label for="email">Email address</label>
-                    <input
-                        type="email"
-                        id="email"
-                        name="email"
-                        placeholder="you@example.com"
-                        autocomplete="email"
-                        required
-                        aria-required="true"
-                        inputmode="email"
-                    >
-                </div>
-
-                <!-- Password (with forgot link shown in login mode) -->
-                <div class="field">
-                    <div class="field-row">
-                        <label for="password">Password</label>
-                        <button
-                            class="forgot"
-                            id="forgotBtn"
-                            type="button"
-                            onclick="doForgot()"
-                            aria-label="Send password reset email"
-                        >I forgot my password</button>
+            <!-- Hero -->
+            <section class="hero" aria-label="Catura AI — Hero">
+                <div class="hero-content">
+                    <div class="hero-badge" aria-label="Now live">
+                        <span class="hero-badge-dot" aria-hidden="true"></span>
+                        Now live — Free to use
                     </div>
-                    <div class="pw-wrap">
-                        <input
-                            type="password"
-                            id="password"
-                            name="password"
-                            placeholder="••••••••"
-                            autocomplete="current-password"
-                            required
-                            aria-required="true"
-                            oninput="onPasswordInput(this.value)"
-                        >
-                        <button type="button" class="pw-toggle" id="pwToggleBtn" onclick="togglePw('password', this)" aria-label="Show password">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+
+                    <h1>
+                        Think smarter with<br>
+                        <span class="accent">Catura AI</span>
+                    </h1>
+
+                    <p class="hero-sub">
+                        An intelligent AI assistant built to help you every day —
+                        answer questions, write content, analyse problems,
+                        and keep up with you at any pace.
+                    </p>
+
+                    <div class="hero-cta">
+                        <button class="btn-hero-primary" onclick="openModal('signup')">
+                            Start for free
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                        </button>
+                        <button class="btn-hero-secondary" onclick="openModal('login')">
+                            Log in
                         </button>
                     </div>
-                    <div
-                        class="pw-strength"
-                        id="signupPwStrength"
-                        role="progressbar"
-                        aria-label="Password strength"
-                        aria-valuemin="0"
-                        aria-valuemax="100"
-                        aria-valuenow="0"
-                        hidden
-                    >
-                        <div class="pw-strength-bar" id="signupPwBar"></div>
-                    </div>
-                    <p class="pw-hint" id="signupPwHint" aria-live="polite" hidden></p>
-                </div><!-- /field password -->
+                </div>
+            </section>
 
-                <!-- Confirm password (sign-up only) -->
-                <div class="field" id="confirmField" hidden>
-                    <label for="confirm">Confirm password</label>
-                    <div class="pw-wrap">
-                        <input
-                            type="password"
-                            id="confirm"
-                            name="confirm"
-                            placeholder="Repeat password"
-                            autocomplete="new-password"
-                            oninput="onConfirmInput(this.value)"
-                            onblur="onConfirmBlur()"
-                        >
-                        <!-- Status icon: shown instead of eye button -->
-                        <span class="confirm-status" id="confirmStatus" aria-live="polite" aria-label="">
-                            <!-- green tick: passwords match -->
-                            <svg class="icon-match" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-                            <!-- red cross: passwords don't match -->
-                            <svg class="icon-mismatch" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                            <!-- red ! badge: confirm empty but password has value -->
-                            <span class="icon-required" aria-hidden="true">!</span>
-                        </span>
+            <!-- Stats -->
+            <div class="stats-section" aria-label="Catura AI stats">
+                <div class="stats-inner">
+                    <div>
+                        <div class="stat-value">100<span>%</span></div>
+                        <div class="stat-label">Free to use</div>
+                    </div>
+                    <div>
+                        <div class="stat-value"><span>∞</span></div>
+                        <div class="stat-label">Conversations</div>
+                    </div>
+                    <div>
+                        <div class="stat-value">24<span>/7</span></div>
+                        <div class="stat-label">Always available</div>
+                    </div>
+                    <div>
+                        <div class="stat-value"><span>&lt;</span>1s</div>
+                        <div class="stat-label">Response time</div>
                     </div>
                 </div>
+            </div>
 
-                <!--
-                    CRITICAL: Must ALWAYS remain in the DOM and never be hidden
-                    with display:none — Turnstile cannot render into hidden elements.
-                -->
-                <div id="cf-turnstile-container" aria-label="Security verification"></div>
-                <p
-                    class="captcha-status"
-                    id="captchaStatus"
-                    role="status"
-                    aria-live="polite"
-                ></p>
-
-                <button
-                    class="submit"
-                    id="submitBtn"
-                    type="button"
-                    onclick="doSubmit()"
-                >Log in</button>
-
-                <div
-                    class="msg"
-                    id="msg"
-                    role="alert"
-                    aria-live="assertive"
-                    aria-atomic="true"
-                ></div>
-
-                <p class="switch-row" id="switchRow">
-                    Don't have an account?
-                    <button
-                        type="button"
-                        id="switchLink"
-                        onclick="switchTab('signup')"
-                        aria-label="Switch to sign up"
-                    >Sign up</button>
+            <!-- Features -->
+            <section class="features-section" aria-label="What Catura AI can do">
+                <div class="section-label">Capabilities</div>
+                <h2 class="section-title">Built for your everyday workflow</h2>
+                <p class="section-desc">
+                    Catura AI goes beyond simple Q&amp;A. It thinks with you —
+                    whether you're writing, coding, learning, or planning.
                 </p>
-            </div><!-- /panel-login -->
 
-        </section><!-- /authScreen -->
+                <div class="features-grid" role="list">
+                    <div class="feature-card" role="listitem">
+                        <div class="feature-icon" aria-hidden="true">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        </div>
+                        <div class="feature-title">Instant Answers</div>
+                        <p class="feature-desc">
+                            Get accurate, context-aware answers to any question in under a second.
+                            No searching, no scrolling — just ask.
+                        </p>
+                    </div>
+                    <div class="feature-card" role="listitem">
+                        <div class="feature-icon" aria-hidden="true">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                        </div>
+                        <div class="feature-title">Code & Debug</div>
+                        <p class="feature-desc">
+                            Write, explain, and debug code across any language.
+                            Paste your snippet and get a clean fix with an explanation.
+                        </p>
+                    </div>
+                    <div class="feature-card" role="listitem">
+                        <div class="feature-icon" aria-hidden="true">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                        </div>
+                        <div class="feature-title">Writing Assistant</div>
+                        <p class="feature-desc">
+                            Draft emails, essays, summaries, creative stories,
+                            or professional reports — tailored to your tone and style.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- How it's different -->
+            <section class="diff-section" aria-label="How Catura AI is different">
+                <div class="section-label">Why Catura</div>
+                <h2 class="section-title">Different by design</h2>
+                <p class="section-desc">
+                    We didn't build another chatbot wrapper. Catura AI is
+                    crafted with speed, privacy, and simplicity at its core.
+                </p>
+
+                <div class="diff-list">
+                    <div class="diff-item">
+                        <div class="diff-num">01</div>
+                        <div class="diff-content">
+                            <h3>No paywalls, no limitations</h3>
+                            <p>Catura AI is completely free to use. No credit card, no token limits, no hidden fees.
+                               We believe powerful AI should be accessible to everyone, not just those who can pay.</p>
+                        </div>
+                    </div>
+                    <div class="diff-item">
+                        <div class="diff-num">02</div>
+                        <div class="diff-content">
+                            <h3>Fast & focused interface</h3>
+                            <p>No bloated dashboards or confusing settings. Catura AI opens instantly and gets out of
+                               your way so you can focus entirely on the conversation and the work.</p>
+                        </div>
+                    </div>
+                    <div class="diff-item">
+                        <div class="diff-num">03</div>
+                        <div class="diff-content">
+                            <h3>Built with care, not hype</h3>
+                            <p>Catura AI is independently developed with a focus on quality and honesty.
+                               No marketing fluff — just a reliable assistant that does what it says it does.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </div><!-- /page-home -->
 
 
-        <!-- ── RESET PASSWORD SCREEN (shown when arriving via reset email link) ── -->
-        <section id="resetScreen" aria-label="Set new password" hidden>
+        <!-- ══ ABOUT PAGE ══ -->
+        <div id="page-about" class="page">
 
-            <div class="logo-area">
-                <div class="reset-icon" aria-hidden="true">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            <div class="about-hero">
+                <div class="section-label" style="margin-bottom:1rem;">About</div>
+                <h1>Built by one person,<br>for everyone</h1>
+                <p>Catura AI started as a personal project to make AI genuinely useful for everyday tasks —
+                   without subscriptions, without complexity.</p>
+            </div>
+
+            <div class="about-content">
+                <div class="about-grid">
+                    <div class="about-card">
+                        <div class="about-card-label">Mission</div>
+                        <h2>Make AI accessible</h2>
+                        <p>
+                            Catura AI was created with one clear goal: give everyone access to a smart,
+                            reliable AI assistant — completely free. Most AI tools lock their best features
+                            behind expensive plans. We don't. Catura AI is free, fast, and built to be
+                            useful from the first message.
+                        </p>
+                    </div>
+                    <div class="about-card">
+                        <div class="about-card-label">Technology</div>
+                        <h2>What powers it</h2>
+                        <p>
+                            Catura AI is built on modern language model infrastructure with a custom
+                            interface designed for speed and clarity. It uses secure authentication
+                            via Supabase, bot protection via Cloudflare Turnstile, and a lightweight
+                            frontend with zero unnecessary dependencies.
+                        </p>
+                    </div>
+                    <div class="about-card">
+                        <div class="about-card-label">Privacy</div>
+                        <h2>Your data, kept simple</h2>
+                        <p>
+                            We collect only what is needed to run your account. No selling of data,
+                            no tracking across the web, no third-party ad networks. Your conversations
+                            are yours. We're transparent about what we store and why.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Creator card -->
+                <div class="creator-section" aria-label="About the creator">
+                    <div class="creator-avatar" aria-hidden="true">🛠</div>
+                    <div class="creator-info">
+                        <h3>The Creator</h3>
+                        <div class="creator-role">Founder &amp; Developer</div>
+                        <p>
+                            Hello,<br> I'm <b>Anirban Das</b>. 
+                            I'm a 21-year-old BCA student from India, and Catura AI is a project I've been building since 2025.
+                            The idea started with a simple question: what if I could build the AI assistant I always wanted to use? 
+                            I was fascinated by artificial intelligence and dreamed of creating something that wasn't just powerful, but genuinely useful in everyday life.
+                            Building Catura AI hasn't been easy. I've faced countless challenges—from backend issues and API integrations to frontend bugs and endless debugging sessions. 
+                            Every feature, improvement, and update has been built and maintained by me, often through long nights of learning, testing, and refining. 
+                            What makes Catura AI different is its philosophy. It's completely free to use, with no credit card requirements, no hidden fees, and no unnecessary barriers. 
+                            I believe advanced AI tools should be available to everyone, <b>especially people who can't afford expensive subscriptions.</b>
+                            My goal isn't to create another complicated AI platform. I want Catura AI to feel simple, approachable, and reliable. When someone uses it, 
+                            I want them to feel like they're talking to a helpful friend—always available, always ready to assist, and focused on providing clear, direct answers.
+                            Catura AI is not backed by investors or a large company. 
+                            It's an independent project built with curiosity, passion, and a commitment to <b>making AI more accessible for everyone.</b>
+                            Thank you for being part of the journey.
+
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /page-about -->
+
+    </main>
+
+
+    <!-- ════════════════════════════════════════
+         FOOTER
+    ════════════════════════════════════════ -->
+    <footer aria-label="Site footer">
+
+        <!-- Big brand name -->
+        <div class="footer-brand-name" aria-hidden="true">
+            <div class="footer-brand-letters" data-text="CATURA">CATURA</div>
+        </div>
+
+        <div class="footer-inner">
+
+            <!-- Col 1 — Brand blurb -->
+            <div class="footer-col">
+                <h4>Catura AI</h4>
+                <p>
+                    Your intelligent everyday AI assistant.<br>
+                    Free, fast, and built to help you think better.
+                </p>
+            </div>
+
+            <!-- Col 2 — Navigation -->
+            <div class="footer-col">
+                <h4>Navigate</h4>
+                <ul class="footer-links">
+                    <li>
+                        <a href="#" onclick="showPage('home'); return false;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+                            Home
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" onclick="showPage('about'); return false;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+                            About
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" onclick="openModal('login'); return false;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+                            Log in
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" onclick="openModal('signup'); return false;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+                            Sign up
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Col 3 — Contact / social -->
+            <div class="footer-col">
+                <h4>Contact</h4>
+                <ul class="social-links">
+                    <li>
+                        <a href="https://github.com/" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.38.6.11.82-.26.82-.58 0-.28-.01-1.03-.02-2.02-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02.005 2.04.14 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.21.7.82.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/>
+                            </svg>
+                            GitHub
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://linkedin.com/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/>
+                            </svg>
+                            LinkedIn
+                        </a>
+                    </li>
+                    <li>
+                        <a href="mailto:hello@catura.ai" aria-label="Email contact">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                            hello@catura.ai
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+        </div><!-- /footer-inner -->
+
+        <div class="footer-bottom">
+            <p>© <span id="copy-year"></span> Catura AI. All rights reserved.</p>
+            <p><span>Made with care ❤️ &amp; curiosity By Anirban</span></p>
+        </div>
+
+    </footer>
+
+
+    <!-- ════════════════════════════════════════
+         AUTH MODAL
+    ════════════════════════════════════════ -->
+    <div
+        class="modal-overlay"
+        id="authModal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Sign in or create account"
+        onclick="handleOverlayClick(event)"
+    >
+        <div class="modal-card" id="authModalCard">
+
+            <button class="modal-close" onclick="closeModal()" aria-label="Close">✕</button>
+
+            <!-- ── AUTH SCREEN ── -->
+            <section id="authScreen" aria-label="Sign in or create account">
+
+                <div class="logo-area">
+                    <div class="logo-box">
+                        <img src="static/logo.png" alt="Catura AI logo">
+                    </div>
+                    <h1>Log in to Catura AI</h1>
+                    <p>Your AI assistant, always there for you</p>
+                </div>
+
+                <div class="tabs" role="tablist" aria-label="Authentication options">
+                    <button class="tab" id="tab-login" type="button" role="tab"
+                        aria-selected="true" aria-controls="panel-login"
+                        onclick="switchTab('login')">Login</button>
+                    <button class="tab" id="tab-signup" type="button" role="tab"
+                        aria-selected="false" aria-controls="panel-signup"
+                        onclick="switchTab('signup')">Sign up</button>
+                </div>
+
+                <button class="oauth-btn" type="button" onclick="doGitHub()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+                        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.38.6.11.82-.26.82-.58 0-.28-.01-1.03-.02-2.02-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02.005 2.04.14 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.21.7.82.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/>
                     </svg>
+                    Continue with GitHub
+                </button>
+
+                <button class="oauth-btn" type="button" onclick="doGoogle()">
+                    <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                        <path fill="#EA4335" d="M24 9.5c3.1 0 5.6 1.1 7.6 2.9l5.6-5.6C33.6 3.5 29.1 1.5 24 1.5 14.9 1.5 7.2 7.1 4 14.9l6.6 5.1C12.3 13.7 17.6 9.5 24 9.5z"/>
+                        <path fill="#4285F4" d="M46.5 24c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.9 7.2l7.6 5.9C43.8 37 46.5 31 46.5 24z"/>
+                        <path fill="#FBBC05" d="M10.6 28.6A14.6 14.6 0 0 1 9.5 24c0-1.6.3-3.2.8-4.6L3.7 14.3A22.5 22.5 0 0 0 1.5 24c0 3.6.9 7.1 2.5 10.1l6.6-5.5z"/>
+                        <path fill="#34A853" d="M24 46.5c5.1 0 9.4-1.7 12.5-4.6l-7.6-5.9c-1.7 1.1-3.8 1.8-4.9 1.8-6.4 0-11.7-4.3-13.6-10l-6.6 5.1C7.2 40.9 14.9 46.5 24 46.5z"/>
+                    </svg>
+                    Continue with Google
+                </button>
+
+                <div class="divider" role="separator">or</div>
+
+                <div id="panel-login" role="tabpanel" aria-labelledby="tab-login">
+
+                    <div class="field">
+                        <label for="email">Email address</label>
+                        <input type="email" id="email" name="email"
+                            placeholder="you@example.com"
+                            autocomplete="email" required aria-required="true" inputmode="email">
+                    </div>
+
+                    <div class="field">
+                        <div class="field-row">
+                            <label for="password">Password</label>
+                            <button class="forgot" id="forgotBtn" type="button"
+                                onclick="doForgot()" aria-label="Send password reset email">
+                                I forgot my password
+                            </button>
+                        </div>
+                        <div class="pw-wrap">
+                            <input type="password" id="password" name="password"
+                                placeholder="••••••••"
+                                autocomplete="current-password" required aria-required="true"
+                                oninput="onPasswordInput(this.value)">
+                            <button type="button" class="pw-toggle" id="pwToggleBtn"
+                                onclick="togglePw('password', this)" aria-label="Show password">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="pw-strength" id="signupPwStrength"
+                            role="progressbar" aria-label="Password strength"
+                            aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden>
+                            <div class="pw-strength-bar" id="signupPwBar"></div>
+                        </div>
+                        <p class="pw-hint" id="signupPwHint" aria-live="polite" hidden></p>
+                    </div>
+
+                    <div class="field" id="confirmField" hidden>
+                        <label for="confirm">Confirm password</label>
+                        <div class="pw-wrap">
+                            <input type="password" id="confirm" name="confirm"
+                                placeholder="Repeat password"
+                                autocomplete="new-password"
+                                oninput="onConfirmInput(this.value)"
+                                onblur="onConfirmBlur()">
+                            <span class="confirm-status" id="confirmStatus" aria-live="polite" aria-label="">
+                                <svg class="icon-match" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                                <svg class="icon-mismatch" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                <span class="icon-required" aria-hidden="true">!</span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div id="cf-turnstile-container" aria-label="Security verification"></div>
+                    <p class="captcha-status" id="captchaStatus" role="status" aria-live="polite"></p>
+
+                    <button class="submit" id="submitBtn" type="button" onclick="doSubmit()">Log in</button>
+
+                    <div class="msg" id="msg" role="alert" aria-live="assertive" aria-atomic="true"></div>
+
+                    <p class="switch-row" id="switchRow">
+                        Don't have an account?
+                        <button type="button" id="switchLink"
+                            onclick="switchTab('signup')"
+                            aria-label="Switch to sign up">Sign up</button>
+                    </p>
                 </div>
-                <h1>Set new password</h1>
-                <p>Choose a strong password for your account</p>
-            </div>
 
-            <div class="field">
-                <label for="newPassword">New password</label>
-                <div class="pw-wrap">
-                    <input
-                        type="password"
-                        id="newPassword"
-                        name="newPassword"
-                        placeholder="••••••••"
-                        autocomplete="new-password"
-                        required
-                        aria-required="true"
-                        oninput="checkStrength(this.value)"
-                    >
-                    <button type="button" class="pw-toggle" onclick="togglePw('newPassword', this)" aria-label="Show new password">
-                        <svg id="eye-newPassword" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                    </button>
+            </section><!-- /authScreen -->
+
+
+            <!-- ── RESET PASSWORD SCREEN ── -->
+            <section id="resetScreen" aria-label="Set new password" hidden>
+
+                <div class="logo-area">
+                    <div class="reset-icon" aria-hidden="true">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                    </div>
+                    <h1>Set new password</h1>
+                    <p>Choose a strong password for your account</p>
                 </div>
-                <div
-                    class="pw-strength"
-                    role="progressbar"
-                    aria-label="Password strength"
-                    aria-valuemin="0"
-                    aria-valuemax="100"
-                    aria-valuenow="0"
-                    id="pwStrengthBar"
-                >
-                    <div class="pw-strength-bar" id="strengthBar"></div>
+
+                <div class="field">
+                    <label for="newPassword">New password</label>
+                    <div class="pw-wrap">
+                        <input type="password" id="newPassword" name="newPassword"
+                            placeholder="••••••••" autocomplete="new-password"
+                            required aria-required="true"
+                            oninput="checkStrength(this.value)">
+                        <button type="button" class="pw-toggle" onclick="togglePw('newPassword', this)" aria-label="Show new password">
+                            <svg id="eye-newPassword" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="pw-strength" role="progressbar" aria-label="Password strength"
+                        aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="pwStrengthBar">
+                        <div class="pw-strength-bar" id="strengthBar"></div>
+                    </div>
+                    <p class="pw-hint" id="strengthHint" aria-live="polite">At least 6 characters</p>
                 </div>
-                <p class="pw-hint" id="strengthHint" aria-live="polite">At least 6 characters</p>
-            </div>
 
-            <div class="field">
-                <label for="newConfirm">Confirm new password</label>
-                <div class="pw-wrap">
-                    <input
-                        type="password"
-                        id="newConfirm"
-                        name="newConfirm"
-                        placeholder="Repeat password"
-                        autocomplete="new-password"
-                        required
-                        aria-required="true"
-                    >
-                    <button type="button" class="pw-toggle" onclick="togglePw('newConfirm', this)" aria-label="Show confirm new password">
-                        <svg id="eye-newConfirm" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                    </button>
+                <div class="field">
+                    <label for="newConfirm">Confirm new password</label>
+                    <div class="pw-wrap">
+                        <input type="password" id="newConfirm" name="newConfirm"
+                            placeholder="Repeat password" autocomplete="new-password"
+                            required aria-required="true">
+                        <button type="button" class="pw-toggle" onclick="togglePw('newConfirm', this)" aria-label="Show confirm new password">
+                            <svg id="eye-newConfirm" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
-            </div>
 
-            <button
-                class="submit"
-                id="resetBtn"
-                type="button"
-                onclick="doResetPassword()"
-            >Update password</button>
+                <button class="submit" id="resetBtn" type="button" onclick="doResetPassword()">Update password</button>
 
-            <div
-                class="msg"
-                id="resetMsg"
-                role="alert"
-                aria-live="assertive"
-                aria-atomic="true"
-            ></div>
+                <div class="msg" id="resetMsg" role="alert" aria-live="assertive" aria-atomic="true"></div>
 
-        </section><!-- /resetScreen -->
+            </section><!-- /resetScreen -->
 
-    </main><!-- /card -->
+        </div><!-- /modal-card -->
+    </div><!-- /modal-overlay -->
 
 
-    <!-- ═══════════════════════════════════════════════
+    <!-- ════════════════════════════════════════
          SCRIPTS
-    ═══════════════════════════════════════════════ -->
-    <!-- Use explicit UMD build URL to avoid CDN serving stale version -->
+    ════════════════════════════════════════ -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
     <script>
         // ═══════════════════════════════════════════════════════
-        // CONFIGURATION — replace with your actual values
+        // CONFIG
         // ═══════════════════════════════════════════════════════
         const SUPABASE_URL       = "https://zhrjmnrfklzuxmfbdqhg.supabase.co";
         const SUPABASE_KEY       = "sb_publishable_aIbByN1rFc9V3AH41Kyz6A_e1XppA1Z";
         const TURNSTILE_SITE_KEY = "0x4AAAAAADDHFTkeFyoi79mt";
 
         // ═══════════════════════════════════════════════════════
-        // SUPABASE CLIENT
+        // SUPABASE
         // ═══════════════════════════════════════════════════════
         const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -627,7 +1503,10 @@
 
         function onTurnstileLoad() {
             turnstileReady = true;
-            initTurnstile();
+            // Only init if modal is open
+            if (document.getElementById('authModal').classList.contains('open')) {
+                initTurnstile();
+            }
         }
 
         function onTurnstileSuccess(token) {
@@ -646,7 +1525,7 @@
             if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
         }
 
-        function onTurnstileError(code) {
+        function onTurnstileError() {
             turnstileToken = null;
             const status = document.getElementById('captchaStatus');
             if (status) {
@@ -656,16 +1535,13 @@
         }
 
         function initTurnstile() {
-            if (!window.turnstile) return; // onTurnstileLoad will call us when ready
-
+            if (!window.turnstile) return;
             if (turnstileWidgetId !== null) {
                 window.turnstile.reset(turnstileWidgetId);
                 return;
             }
-
             const container = document.getElementById('cf-turnstile-container');
             if (!container) return;
-
             turnstileWidgetId = window.turnstile.render(container, {
                 sitekey:            TURNSTILE_SITE_KEY,
                 callback:           onTurnstileSuccess,
@@ -679,7 +1555,61 @@
         }
 
         // ═══════════════════════════════════════════════════════
-        // DETECT PASSWORD-RESET FLOW (arriving from email link)
+        // FOOTER YEAR
+        // ═══════════════════════════════════════════════════════
+        document.getElementById('copy-year').textContent = new Date().getFullYear();
+
+        // ═══════════════════════════════════════════════════════
+        // PAGE NAVIGATION
+        // ═══════════════════════════════════════════════════════
+        function showPage(name) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById('page-' + name).classList.add('active');
+            document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
+            const link = document.getElementById('nav-' + name);
+            if (link) {
+                link.classList.add('active');
+                link.setAttribute('aria-current', 'page');
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // MODAL
+        // ═══════════════════════════════════════════════════════
+        function openModal(tab) {
+            document.getElementById('authModal').classList.add('open');
+            document.body.style.overflow = 'hidden';
+            switchTab(tab || 'login');
+            // Init turnstile once modal is visible
+            setTimeout(() => {
+                if (turnstileReady) initTurnstile();
+            }, 50);
+        }
+
+        function closeModal() {
+            document.getElementById('authModal').classList.remove('open');
+            document.body.style.overflow = '';
+        }
+
+        function handleOverlayClick(e) {
+            if (e.target === document.getElementById('authModal')) closeModal();
+        }
+
+        // Keyboard: Escape closes modal
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                closeModal();
+                return;
+            }
+            if (e.key === 'Enter' && document.getElementById('authModal').classList.contains('open')) {
+                if (!document.getElementById('resetScreen').hidden) doResetPassword();
+                else doSubmit();
+            }
+        });
+
+        // ═══════════════════════════════════════════════════════
+        // DETECT PASSWORD-RESET FLOW
         // ═══════════════════════════════════════════════════════
         function getHashParams() {
             return Object.fromEntries(new URLSearchParams(window.location.hash.substring(1)));
@@ -698,24 +1628,15 @@
                 resetScreen.hidden  = false;
                 resetScreen.style.display = 'block';
                 history.replaceState(null, '', window.location.pathname);
+                openModal();
             });
         } else {
-            // Normal flow: redirect if already logged in
             sb.auth.onAuthStateChange((event, session) => {
                 if (event === 'SIGNED_IN' && session) window.location.href = '/';
             });
             sb.auth.getSession().then(({ data }) => {
                 if (data.session) window.location.href = '/';
             });
-
-            // Init Turnstile if SDK already loaded
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', () => {
-                    if (turnstileReady) initTurnstile();
-                });
-            } else {
-                if (turnstileReady) initTurnstile();
-            }
         }
 
         // ═══════════════════════════════════════════════════════
@@ -727,58 +1648,50 @@
             currentTab    = tab;
             const isLogin = tab === 'login';
 
-            // Update ARIA tab state
             document.getElementById('tab-login').setAttribute('aria-selected',  isLogin ? 'true' : 'false');
             document.getElementById('tab-signup').setAttribute('aria-selected', isLogin ? 'false' : 'true');
 
-            // Show/hide conditional fields
-            document.getElementById('confirmField').hidden             = isLogin;
-            document.getElementById('forgotBtn').hidden                = !isLogin;
-            document.getElementById('submitBtn').textContent           = isLogin ? 'Log in' : 'Create account';
+            document.getElementById('confirmField').hidden   = isLogin;
+            document.getElementById('forgotBtn').hidden      = !isLogin;
+            document.getElementById('submitBtn').textContent = isLogin ? 'Log in' : 'Create account';
             document.getElementById('submitBtn').setAttribute(
                 'aria-label', isLogin ? 'Log in to Catura AI' : 'Create a new Catura AI account'
             );
 
-            // Update autocomplete on password field
             document.getElementById('password').setAttribute(
                 'autocomplete', isLogin ? 'current-password' : 'new-password'
             );
 
-            // Update switch-row
-            const switchRow = document.getElementById('switchRow');
+            const switchRow  = document.getElementById('switchRow');
             const switchLink = document.getElementById('switchLink');
             if (isLogin) {
                 switchRow.firstChild.textContent = "Don't have an account? ";
                 switchLink.textContent = 'Sign up';
                 switchLink.setAttribute('aria-label', 'Switch to sign up');
-                switchLink.setAttribute('onclick', "switchTab('signup')");
+                switchLink.onclick = () => switchTab('signup');
             } else {
                 switchRow.firstChild.textContent = 'Already have an account? ';
                 switchLink.textContent = 'Log in';
                 switchLink.setAttribute('aria-label', 'Switch to log in');
-                switchLink.setAttribute('onclick', "switchTab('login')");
+                switchLink.onclick = () => switchTab('login');
             }
 
             clearMsg('msg');
 
-            // Reset eye button state
-            const pwInput = document.getElementById('password');
+            const pwInput  = document.getElementById('password');
             const pwToggle = document.getElementById('pwToggleBtn');
-            pwInput.value = '';
-            pwInput.type  = 'password';
+            pwInput.value  = '';
+            pwInput.type   = 'password';
             pwToggle.classList.remove('visible');
             pwToggle.querySelector('svg').innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
 
-            // Reset confirm field and its status
             const confirmInput = document.getElementById('confirm');
             confirmInput.value = '';
             const confirmStatus = document.getElementById('confirmStatus');
             confirmStatus.classList.remove('show', 'state-match', 'state-mismatch', 'state-required');
 
-            // Reset strength meter + identifier panel
             checkSignupStrength('');
 
-            // Tokens are single-use — reset on tab switch
             if (turnstileWidgetId !== null) {
                 window.turnstile.reset(turnstileWidgetId);
                 turnstileToken = null;
@@ -800,18 +1713,16 @@
         }
 
         // ═══════════════════════════════════════════════════════
-        // SUBMIT (Login or Sign Up)
+        // SUBMIT
         // ═══════════════════════════════════════════════════════
         async function doSubmit() {
             const email    = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
             const btn      = document.getElementById('submitBtn');
 
-            if (!email || !password) {
+            if (!email || !password)
                 return showMsg('msg', 'Please fill in all fields.', 'error');
-            }
 
-            // Wait up to 15s for Turnstile (mobile on slow connections can take 8-12 s)
             if (!turnstileToken) {
                 btn.disabled    = true;
                 btn.textContent = 'Verifying browser…';
@@ -838,7 +1749,6 @@
                     options: { captchaToken: turnstileToken }
                 });
 
-                // Tokens are one-time-use — always clear after attempt
                 turnstileToken = null;
                 if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
 
@@ -857,7 +1767,6 @@
                     options: { captchaToken: turnstileToken }
                 });
 
-                // Always clear + reset after every attempt
                 turnstileToken = null;
                 if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
 
@@ -876,14 +1785,14 @@
                 if (turnstileToken) { resolve(true); return; }
                 const start = Date.now();
                 const iv = setInterval(() => {
-                    if (turnstileToken)               { clearInterval(iv); resolve(true);  }
+                    if (turnstileToken)                      { clearInterval(iv); resolve(true);  }
                     else if (Date.now() - start > timeoutMs) { clearInterval(iv); resolve(false); }
                 }, 100);
             });
         }
 
         // ═══════════════════════════════════════════════════════
-        // OAUTH — no CAPTCHA needed (Supabase skips it for OAuth)
+        // OAUTH
         // ═══════════════════════════════════════════════════════
         async function doGitHub() {
             await sb.auth.signInWithOAuth({
@@ -912,66 +1821,53 @@
         }
 
         // ═══════════════════════════════════════════════════════
-        // PASSWORD VISIBILITY TOGGLE
+        // PASSWORD TOGGLE
         // ═══════════════════════════════════════════════════════
         function togglePw(inputId, btn) {
-            const input = document.getElementById(inputId);
-            const isHidden = input.type === 'password';
-            input.type = isHidden ? 'text' : 'password';
-            btn.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+            const input  = document.getElementById(inputId);
+            const isHide = input.type === 'password';
+            input.type   = isHide ? 'text' : 'password';
+            btn.setAttribute('aria-label', isHide ? 'Hide password' : 'Show password');
             const svg = btn.querySelector('svg');
-            if (isHidden) {
+            if (isHide) {
                 svg.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
             } else {
                 svg.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
             }
         }
 
-        // Called on every keystroke in #password
         function onPasswordInput(pw) {
-            // Show/hide eye button based on whether there's any value
             const btn = document.getElementById('pwToggleBtn');
             if (pw.length > 0) {
                 btn.classList.add('visible');
             } else {
                 btn.classList.remove('visible');
-                // Reset eye to closed state when cleared
                 const input = document.getElementById('password');
-                input.type = 'password';
-                const svg = btn.querySelector('svg');
+                input.type  = 'password';
+                const svg   = btn.querySelector('svg');
                 svg.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
             }
-            // Run strength meter (only relevant in signup mode)
             checkSignupStrength(pw);
-            // Update confirm status if confirm has a value
             const confirmVal = document.getElementById('confirm').value;
             if (currentTab === 'signup') updateConfirmStatus(pw, confirmVal, false);
         }
 
-        // Called on every keystroke in #confirm
         function onConfirmInput(confirmVal) {
             const pw = document.getElementById('password').value;
             updateConfirmStatus(pw, confirmVal, false);
         }
 
-        // Called when #confirm loses focus
         function onConfirmBlur() {
             const pw      = document.getElementById('password').value;
             const confirm = document.getElementById('confirm').value;
             updateConfirmStatus(pw, confirm, true);
         }
 
-        // Updates the confirm status icon
-        // showRequired=true means: show ! only when confirm is empty (on blur)
         function updateConfirmStatus(pw, confirmVal, showRequired) {
             const status = document.getElementById('confirmStatus');
-            // Remove all state classes
             status.classList.remove('show', 'state-match', 'state-mismatch', 'state-required');
-
-            if (!pw) return; // no main password typed yet — hide everything
-
+            if (!pw) return;
             if (confirmVal.length > 0) {
-                // User is typing in confirm field
                 if (confirmVal === pw) {
                     status.classList.add('show', 'state-match');
                     status.setAttribute('aria-label', 'Passwords match');
@@ -980,25 +1876,14 @@
                     status.setAttribute('aria-label', 'Passwords do not match');
                 }
             } else if (showRequired) {
-                // Confirm is empty and user blurred — show required !
                 status.classList.add('show', 'state-required');
                 status.setAttribute('aria-label', 'Confirm password is required');
             }
         }
 
-        // Enter key support
-        document.addEventListener('keydown', e => {
-            if (e.key === 'Enter') {
-                if (isRecovery) doResetPassword();
-                else doSubmit();
-            }
-        });
-
         // ═══════════════════════════════════════════════════════
-        // PASSWORD STRENGTH + IDENTIFIER ENGINE (signup)
+        // PASSWORD STRENGTH — COMMON LIST
         // ═══════════════════════════════════════════════════════
-
-        // Top-200 most common passwords (abbreviated representative set)
         const COMMON_PASSWORDS = new Set([
             'password','password1','password123','123456','1234567','12345678','123456789',
             '1234567890','qwerty','qwerty123','qwertyuiop','abc123','letmein','monkey',
@@ -1010,29 +1895,13 @@
             'pass123','mypass','changeme','secret','access','michael','jessica','ashley',
             '696969','batman1','passw0rd','p@ssword','pa$$word','p@$$w0rd','password!',
             'Pa$sw0rd','admin123','welcome1','welcome123','abc12345','qwerty1','qwerty12',
-            'qwerty1234','1q2w3e4r','1q2w3e4r5','1q2w3e4r5t','1234abcd','12345abcde',
-            '123456abcde','password1234','password12345','password123456','letmein123',
-            'letmein1234','letmein12345','letmein123456','monkey123','monkey1234',
-            'monkey12345','monkey123456','dragon123','dragon1234',
-            'dragon12345','dragon123456','sunshine123','sunshine1234','sunshine12345',
-            'sunshine123456','princess123','princess1234','princess12345','princess123456','welcome1234','welcome12345','welcome123456',
-            'shadow123','shadow1234','shadow12345','shadow123456','superman123','superman1234',
-            'superman12345','superman123456','batman123','batman1234','batman12345','batman123456','football123','football1234','football12345','football123456','baseball123','baseball1234','baseball12345',
-            'baseball123456','soccer123','soccer1234','soccer12345','soccer123456','iloveyou123','iloveyou1234','iloveyou12345','iloveyou123456','trustno1123','admin1234','admin12345','admin123456','login123',
-            'login1234','login12345','login123456','pass1234','pass12345','pass123456',
-            'hello1234','hello12345','hello123456','test1234','test12345','test123456',
-            '11111111','22222222','33333333','44444444','55555555','66666666','77777777',
-            '88888888','99999999','00000000','12341234','43214321','1234512345','5432154321','123456123456','654321654321',
-            
         ]);
 
-        // Common keyboard row patterns
         const KEYBOARD_ROWS = ['qwertyuiop','asdfghjkl','zxcvbnm','1234567890'];
 
         function isKeyboardPattern(pw) {
             const lower = pw.toLowerCase();
             for (const row of KEYBOARD_ROWS) {
-                // Check for any 4+ consecutive chars from a keyboard row (forward or backward)
                 for (let len = 4; len <= row.length; len++) {
                     for (let i = 0; i <= row.length - len; i++) {
                         const chunk = row.substring(i, i + len);
@@ -1044,7 +1913,6 @@
         }
 
         function isSequential(pw) {
-            // Detects runs like abcde, 12345, zyxwv, 54321
             const lower = pw.toLowerCase();
             for (let i = 0; i < lower.length - 3; i++) {
                 const codes = [lower.charCodeAt(i), lower.charCodeAt(i+1), lower.charCodeAt(i+2), lower.charCodeAt(i+3)];
@@ -1055,7 +1923,6 @@
         }
 
         function hasRepeatedChars(pw) {
-            // 3+ same char in a row, or >40% identical chars
             if (/(.)\1{2,}/.test(pw)) return true;
             const freq = {};
             for (const c of pw) freq[c] = (freq[c] || 0) + 1;
@@ -1064,32 +1931,22 @@
         }
 
         function checkSignupStrength(pw) {
-            const bar    = document.getElementById('signupPwBar');
-            const hint   = document.getElementById('signupPwHint');
-            const wrap   = document.getElementById('signupPwStrength');
-
+            const bar  = document.getElementById('signupPwBar');
+            const hint = document.getElementById('signupPwHint');
+            const wrap = document.getElementById('signupPwStrength');
             if (!pw) {
-                wrap.hidden = true;
-                hint.hidden = true;
+                wrap.hidden = true; hint.hidden = true;
                 wrap.setAttribute('aria-valuenow', '0');
                 return;
             }
-
-            wrap.hidden = false;
-            hint.hidden = false;
-
-            // ── Score calculation (weighted) ──
+            wrap.hidden = false; hint.hidden = false;
             let score = 0;
-
             if (pw.length >= 6)  score += 1;
             if (pw.length >= 10) score += 1;
             if (pw.length >= 14) score += 1;
-
             if (/[A-Z]/.test(pw))        score += 1;
             if (/[0-9]/.test(pw))        score += 1;
             if (/[^A-Za-z0-9]/.test(pw)) score += 1;
-
-            // Penalties
             const lower = pw.toLowerCase();
             if (COMMON_PASSWORDS.has(lower))  score = Math.max(0, score - 3);
             if (isSequential(pw))             score = Math.max(0, score - 2);
@@ -1097,7 +1954,6 @@
             if (isKeyboardPattern(pw))        score = Math.max(0, score - 1);
             if (/^[0-9]+$/.test(pw))          score = Math.max(0, score - 1);
             if (/^[a-zA-Z]+$/.test(pw))       score = Math.max(0, score - 1);
-
             const levels = [
                 { pct: '8%',   color: '#e03030', label: 'Very Poor — easily guessed' },
                 { pct: '20%',  color: '#e06c6c', label: 'Poor — try adding variety' },
@@ -1107,7 +1963,6 @@
                 { pct: '100%', color: '#10a37f', label: 'Very Strong 🔒' },
             ];
             const lvl = levels[Math.min(score, 5)];
-
             bar.style.width      = lvl.pct;
             bar.style.background = lvl.color;
             hint.textContent     = lvl.label;
@@ -1116,20 +1971,18 @@
         }
 
         // ═══════════════════════════════════════════════════════
-        // PASSWORD STRENGTH METER (reset password screen)
+        // STRENGTH METER — RESET SCREEN
         // ═══════════════════════════════════════════════════════
         function checkStrength(pw) {
             const bar  = document.getElementById('strengthBar');
             const hint = document.getElementById('strengthHint');
             const wrap = document.getElementById('pwStrengthBar');
-
-            let score = 0;
+            let score  = 0;
             if (pw.length >= 6)          score++;
             if (pw.length >= 10)         score++;
             if (/[A-Z]/.test(pw))        score++;
             if (/[0-9]/.test(pw))        score++;
             if (/[^A-Za-z0-9]/.test(pw)) score++;
-
             const levels = [
                 { pct: '0%',   color: '#333',    label: 'At least 6 characters' },
                 { pct: '25%',  color: '#e06c6c', label: 'Weak' },
@@ -1145,22 +1998,18 @@
         }
 
         // ═══════════════════════════════════════════════════════
-        // PASSWORD RESET (from email link)
+        // RESET PASSWORD
         // ═══════════════════════════════════════════════════════
         async function doResetPassword() {
             const newPw  = document.getElementById('newPassword').value;
             const confPw = document.getElementById('newConfirm').value;
             const btn    = document.getElementById('resetBtn');
-
             if (!newPw || !confPw)  return showMsg('resetMsg', 'Please fill in both fields.', 'error');
             if (newPw !== confPw)   return showMsg('resetMsg', 'Passwords do not match.', 'error');
             if (newPw.length < 6)   return showMsg('resetMsg', 'Password must be at least 6 characters.', 'error');
-
             btn.disabled    = true;
             btn.textContent = 'Updating…';
-
             const { error } = await sb.auth.updateUser({ password: newPw });
-
             if (error) {
                 showMsg('resetMsg', error.message, 'error');
                 btn.disabled    = false;
