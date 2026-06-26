@@ -18,21 +18,14 @@
     <link rel="icon" type="image/png" href="static/logos.png">
 
     <style>
-        /* ── Reset ── */
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-        html {
-            -webkit-text-size-adjust: 100%;
-            -webkit-tap-highlight-color: transparent;
-        }
-
+        html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
         .sr-only {
             position: absolute; width: 1px; height: 1px;
             padding: 0; margin: -1px; overflow: hidden;
             clip: rect(0,0,0,0); white-space: nowrap; border: 0;
         }
 
-        /* ── CSS Variables ── */
         :root {
             --bg: #0a0a0a;
             --bg-secondary: #111111;
@@ -62,9 +55,7 @@
             overflow-x: hidden;
         }
 
-        /* ════════════════════════════════════════
-           NAVBAR
-        ════════════════════════════════════════ */
+        /* ════ NAVBAR ════ */
         nav {
             position: fixed;
             top: 0; left: 0; right: 0;
@@ -75,7 +66,6 @@
             border-bottom: 1px solid var(--border);
             padding-top: var(--safe-top);
         }
-
         .nav-inner {
             max-width: 1200px;
             margin: 0 auto;
@@ -86,160 +76,79 @@
             justify-content: space-between;
             gap: 1rem;
         }
-
-        /* Logo */
         .nav-logo {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            text-decoration: none;
-            flex-shrink: 0;
+            display: flex; align-items: center; gap: 8px;
+            text-decoration: none; flex-shrink: 0;
         }
-        .nav-logo-img {
-            width: 30px; height: 30px;
-            border-radius: 7px;
-            object-fit: contain;
-        }
-        .nav-logo-text {
-            font-size: 15px;
-            font-weight: 700;
-            color: var(--text);
-            letter-spacing: -0.3px;
-            white-space: nowrap;
-        }
+        .nav-logo-img { width: 30px; height: 30px; border-radius: 7px; object-fit: contain; }
+        .nav-logo-text { font-size: 15px; font-weight: 700; color: var(--text); letter-spacing: -0.3px; white-space: nowrap; }
         .nav-logo-text span { color: var(--accent); }
-
-        /* Center nav links */
-        .nav-links {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            list-style: none;
-        }
+        .nav-links { display: flex; align-items: center; gap: 4px; list-style: none; }
         .nav-links a {
-            padding: 6px 16px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--text-muted);
-            text-decoration: none;
+            padding: 6px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
+            color: var(--text-muted); text-decoration: none;
             transition: color 0.2s, background 0.2s;
-            cursor: pointer;
-            border: none;
-            background: none;
-            display: block;
+            cursor: pointer; border: none; background: none; display: block;
         }
         .nav-links a:hover { color: var(--text); background: rgba(255,255,255,0.04); }
         .nav-links a.active { color: var(--text); background: rgba(255,255,255,0.07); }
-
-        /* Right auth buttons */
-        .nav-auth {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            flex-shrink: 0;
-        }
+        .nav-auth { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
         .btn-ghost {
-            padding: 7px 14px;
-            border-radius: 8px;
-            border: 1px solid var(--border-light);
-            background: transparent;
-            color: var(--text);
-            font-size: 12px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: background 0.2s, border-color 0.2s;
-            min-height: 36px;
-            white-space: nowrap;
+            padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border-light);
+            background: transparent; color: var(--text); font-size: 12px; font-weight: 500;
+            cursor: pointer; transition: background 0.2s, border-color 0.2s;
+            min-height: 36px; white-space: nowrap;
         }
         .btn-ghost:hover { background: rgba(255,255,255,0.05); border-color: #3a3a3a; }
         .btn-primary {
-            padding: 7px 14px;
-            border-radius: 8px;
-            border: none;
-            background: var(--accent);
-            color: #fff;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s, box-shadow 0.2s;
-            min-height: 36px;
-            white-space: nowrap;
+            padding: 7px 14px; border-radius: 8px; border: none;
+            background: var(--accent); color: #fff; font-size: 12px; font-weight: 600;
+            cursor: pointer; transition: background 0.2s, box-shadow 0.2s;
+            min-height: 36px; white-space: nowrap;
         }
         .btn-primary:hover { background: var(--accent-dim); box-shadow: 0 0 20px var(--accent-glow); }
 
-        /* ════════════════════════════════════════
-           MAIN CONTENT AREA
-        ════════════════════════════════════════ */
-        main {
-            flex: 1;
-            padding-top: calc(60px + var(--safe-top));
-        }
-
-        /* ── PAGES ── */
+        /* ════ MAIN ════ */
+        main { flex: 1; padding-top: calc(60px + var(--safe-top)); }
         .page { display: none; }
         .page.active { display: block; }
 
-        /* ════════════════════════════════════════
-           HOME PAGE
-        ════════════════════════════════════════ */
-        /* Hero */
+        /* ════ HERO ════ */
         .hero {
             min-height: calc(100dvh - 60px - var(--safe-top));
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            padding: 3rem 1.25rem;
-            position: relative;
-            overflow: hidden;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            text-align: center; padding: 3rem 1.25rem;
+            position: relative; overflow: hidden;
         }
-
-        /* Subtle background grid */
         .hero::before {
             content: '';
-            position: absolute;
-            inset: 0;
+            position: absolute; inset: 0;
             background-image:
                 linear-gradient(rgba(16,163,127,0.04) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(16,163,127,0.04) 1px, transparent 1px);
             background-size: 60px 60px;
             mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black 40%, transparent 100%);
         }
-
-        /* Glow orb */
         .hero::after {
             content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
+            position: absolute; top: 50%; left: 50%;
             transform: translate(-50%, -60%);
-            width: 400px;
-            height: 400px;
+            width: 400px; height: 400px;
             background: radial-gradient(circle, rgba(16,163,127,0.08) 0%, transparent 70%);
             pointer-events: none;
         }
-
         .hero-content { position: relative; z-index: 1; max-width: 720px; width: 100%; }
-
         .hero-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 5px 12px;
-            border-radius: 100px;
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 5px 12px; border-radius: 100px;
             border: 1px solid rgba(16,163,127,0.3);
             background: rgba(16,163,127,0.08);
-            font-size: 11px;
-            font-weight: 500;
-            color: var(--accent);
-            margin-bottom: 1.5rem;
-            letter-spacing: 0.5px;
+            font-size: 11px; font-weight: 500; color: var(--accent);
+            margin-bottom: 1.5rem; letter-spacing: 0.5px;
         }
         .hero-badge-dot {
-            width: 6px; height: 6px;
-            border-radius: 50%;
+            width: 6px; height: 6px; border-radius: 50%;
             background: var(--accent);
             animation: pulse-dot 2s ease-in-out infinite;
         }
@@ -247,832 +156,378 @@
             0%, 100% { opacity: 1; transform: scale(1); }
             50% { opacity: 0.5; transform: scale(0.8); }
         }
-
         .hero h1 {
             font-size: clamp(2rem, 8vw, 4.5rem);
-            font-weight: 800;
-            line-height: 1.1;
-            letter-spacing: -1.5px;
+            font-weight: 800; line-height: 1.1; letter-spacing: -1.5px;
             margin-bottom: 1.25rem;
             background: linear-gradient(135deg, #ffffff 0%, #a0a0a0 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
         }
         .hero h1 .accent {
             background: linear-gradient(135deg, #10a37f, #7ee8cc);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
         }
-
         .hero-sub {
-            font-size: clamp(0.95rem, 3.5vw, 1.2rem);
-            color: var(--text-muted);
-            line-height: 1.6;
-            max-width: 560px;
-            margin: 0 auto 2rem;
-            padding: 0 0.5rem;
+            font-size: clamp(0.95rem, 3.5vw, 1.2rem); color: var(--text-muted);
+            line-height: 1.6; max-width: 560px; margin: 0 auto 2rem; padding: 0 0.5rem;
+        }
+        .hero-cta { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+        .btn-hero-primary {
+            padding: 12px 24px; border-radius: 10px; border: none;
+            background: var(--accent); color: #fff; font-size: 14px; font-weight: 600;
+            cursor: pointer; transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
+            display: flex; align-items: center; gap: 8px; min-height: 44px;
+        }
+        .btn-hero-primary:hover { background: var(--accent-dim); box-shadow: 0 0 30px rgba(16,163,127,0.3); transform: translateY(-1px); }
+        .btn-hero-secondary {
+            padding: 12px 24px; border-radius: 10px;
+            border: 1px solid var(--border-light);
+            background: rgba(255,255,255,0.03); color: var(--text);
+            font-size: 14px; font-weight: 500; cursor: pointer;
+            transition: background 0.2s, border-color 0.2s, transform 0.15s; min-height: 44px;
+        }
+        .btn-hero-secondary:hover { background: rgba(255,255,255,0.07); border-color: #3a3a3a; transform: translateY(-1px); }
+
+        /* ════ STATS ════ */
+        .stats-section { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 2.5rem 1.25rem; }
+        .stats-inner {
+            max-width: 900px; margin: 0 auto;
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 1.75rem; text-align: center;
+        }
+        .stat-value { font-size: clamp(1.6rem, 5vw, 2.2rem); font-weight: 800; color: var(--text); letter-spacing: -1px; }
+        .stat-value span { color: var(--accent); }
+        .stat-label { font-size: 11px; color: var(--text-muted); margin-top: 4px; letter-spacing: 0.5px; }
+
+        /* ════════════════════════════════════════
+           MODELS MARQUEE — REDESIGNED
+        ════════════════════════════════════════ */
+        .models-section {
+            padding: 3.5rem 0;
+            border-bottom: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
+            background: var(--bg);
         }
 
-        .hero-cta {
+        .models-section-label {
+            text-align: center;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: #3a3a3a;
+            margin-bottom: 2rem;
+        }
+
+        /* Fade edges — wider for stronger haze effect */
+        .marquee-wrapper {
+            position: relative;
+            width: 100%;
+            overflow: hidden;
+            /* Strong fade on both sides so logos emerge/disappear smoothly */
+            -webkit-mask-image: linear-gradient(
+                to right,
+                transparent 0%,
+                rgba(0,0,0,0.3) 6%,
+                rgba(0,0,0,0.7) 12%,
+                black 20%,
+                black 80%,
+                rgba(0,0,0,0.7) 88%,
+                rgba(0,0,0,0.3) 94%,
+                transparent 100%
+            );
+            mask-image: linear-gradient(
+                to right,
+                transparent 0%,
+                rgba(0,0,0,0.3) 6%,
+                rgba(0,0,0,0.7) 12%,
+                black 20%,
+                black 80%,
+                rgba(0,0,0,0.7) 88%,
+                rgba(0,0,0,0.3) 94%,
+                transparent 100%
+            );
+        }
+
+        /* The scrolling track — seamless: SET1 + SET2 side by side, scroll exactly 50% */
+        .marquee-track {
+            display: flex;
+            align-items: center;
+            width: max-content;
+            /* gap: 0 — items carry their own spacing via padding */
+            animation: marquee-scroll 35s linear infinite;
+            will-change: transform;
+        }
+        .marquee-track.paused { animation-play-state: paused; }
+
+        @keyframes marquee-scroll {
+            0%   { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        /* Each brand pill */
+        .marquee-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 13px;
+            padding: 12px 32px;
+            border-radius: 14px;
+            cursor: default;
+            transition: background 0.25s, border-color 0.25s;
+            white-space: nowrap;
+            flex-shrink: 0;
+            border: 1px solid transparent;
+            /* spacing between items */
+            margin: 0 8px;
+            user-select: none;
+        }
+        .marquee-item:hover {
+            background: rgba(255,255,255,0.04);
+            border-color: #2a2a2a;
+        }
+
+        /* Logo container — bigger, clean */
+        .marquee-item-logo {
+            width: 32px;
+            height: 32px;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 10px;
-            flex-wrap: wrap;
+            flex-shrink: 0;
+            /* transparent background */
+            background: transparent;
         }
-        .btn-hero-primary {
-            padding: 12px 24px;
-            border-radius: 10px;
-            border: none;
-            background: var(--accent);
-            color: #fff;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            min-height: 44px;
-        }
-        .btn-hero-primary:hover {
-            background: var(--accent-dim);
-            box-shadow: 0 0 30px rgba(16,163,127,0.3);
-            transform: translateY(-1px);
-        }
-        .btn-hero-secondary {
-            padding: 12px 24px;
-            border-radius: 10px;
-            border: 1px solid var(--border-light);
-            background: rgba(255,255,255,0.03);
-            color: var(--text);
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: background 0.2s, border-color 0.2s, transform 0.15s;
-            min-height: 44px;
-        }
-        .btn-hero-secondary:hover {
-            background: rgba(255,255,255,0.07);
-            border-color: #3a3a3a;
-            transform: translateY(-1px);
+        .marquee-item-logo svg {
+            width: 100%;
+            height: 100%;
+            display: block;
         }
 
-        /* Features section */
-        .features-section {
-            max-width: 1100px;
-            margin: 0 auto;
-            padding: 4rem 1.25rem;
-        }
-
-        .section-label {
-            font-size: 11px;
-            font-weight: 600;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            color: var(--accent);
-            margin-bottom: 0.75rem;
-        }
-        .section-title {
-            font-size: clamp(1.6rem, 6vw, 2.8rem);
+        /* Brand name — bigger, bolder, white/light-grey only */
+        .marquee-item-name {
+            font-size: 16px;
             font-weight: 700;
-            letter-spacing: -0.8px;
-            line-height: 1.2;
-            margin-bottom: 0.75rem;
+            color: #c0c0c0;
+            letter-spacing: -0.3px;
+            transition: color 0.25s;
         }
-        .section-desc {
-            font-size: 14px;
-            color: var(--text-muted);
-            line-height: 1.7;
-            max-width: 560px;
-            margin-bottom: 2.5rem;
+        .marquee-item:hover .marquee-item-name { color: #e8e8e8; }
+
+        /* Dot separator */
+        .marquee-sep {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: #252525;
+            flex-shrink: 0;
+            margin: 0 4px;
         }
 
+        /* ════ FEATURES ════ */
+        .features-section { max-width: 1100px; margin: 0 auto; padding: 4rem 1.25rem; }
+        .section-label { font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 0.75rem; }
+        .section-title { font-size: clamp(1.6rem, 6vw, 2.8rem); font-weight: 700; letter-spacing: -0.8px; line-height: 1.2; margin-bottom: 0.75rem; }
+        .section-desc { font-size: 14px; color: var(--text-muted); line-height: 1.7; max-width: 560px; margin-bottom: 2.5rem; }
         .features-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 1px;
-            background: var(--border);
-            border-radius: 16px;
-            overflow: hidden;
-            border: 1px solid var(--border);
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1px; background: var(--border); border-radius: 16px;
+            overflow: hidden; border: 1px solid var(--border);
         }
-        .feature-card {
-            background: var(--bg-card);
-            padding: 1.75rem;
-            transition: background 0.2s;
-            position: relative;
-        }
+        .feature-card { background: var(--bg-card); padding: 1.75rem; transition: background 0.2s; position: relative; }
         .feature-card:hover { background: #181818; }
         .feature-icon {
-            width: 42px; height: 42px;
-            border-radius: 10px;
-            background: var(--accent-glow);
-            border: 1px solid rgba(16,163,127,0.2);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 1rem;
-            color: var(--accent);
+            width: 42px; height: 42px; border-radius: 10px;
+            background: var(--accent-glow); border: 1px solid rgba(16,163,127,0.2);
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 1rem; color: var(--accent);
         }
-        .feature-title {
-            font-size: 15px;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-            color: var(--text);
-        }
-        .feature-desc {
-            font-size: 13px;
-            color: var(--text-muted);
-            line-height: 1.65;
-        }
+        .feature-title { font-size: 15px; font-weight: 600; margin-bottom: 0.5rem; color: var(--text); }
+        .feature-desc { font-size: 13px; color: var(--text-muted); line-height: 1.65; }
 
-        /* Stats row */
-        .stats-section {
-            border-top: 1px solid var(--border);
-            border-bottom: 1px solid var(--border);
-            padding: 2.5rem 1.25rem;
-        }
-        .stats-inner {
-            max-width: 900px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 1.75rem;
-            text-align: center;
-        }
-        .stat-value {
-            font-size: clamp(1.6rem, 5vw, 2.2rem);
-            font-weight: 800;
-            color: var(--text);
-            letter-spacing: -1px;
-        }
-        .stat-value span { color: var(--accent); }
-        .stat-label {
-            font-size: 11px;
-            color: var(--text-muted);
-            margin-top: 4px;
-            letter-spacing: 0.5px;
-        }
-
-        /* How it's different */
-        .diff-section {
-            max-width: 1100px;
-            margin: 0 auto;
-            padding: 4rem 1.25rem;
-        }
-        .diff-list {
-            display: flex;
-            flex-direction: column;
-            gap: 0;
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            overflow: hidden;
-        }
-        .diff-item {
-            display: flex;
-            align-items: flex-start;
-            gap: 1.25rem;
-            padding: 1.5rem 1.25rem;
-            border-bottom: 1px solid var(--border);
-            transition: background 0.2s;
-        }
+        /* ════ DIFF ════ */
+        .diff-section { max-width: 1100px; margin: 0 auto; padding: 4rem 1.25rem; }
+        .diff-list { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+        .diff-item { display: flex; align-items: flex-start; gap: 1.25rem; padding: 1.5rem 1.25rem; border-bottom: 1px solid var(--border); transition: background 0.2s; }
         .diff-item:last-child { border-bottom: none; }
         .diff-item:hover { background: rgba(255,255,255,0.02); }
-        .diff-num {
-            font-size: 11px;
-            font-weight: 700;
-            color: var(--accent);
-            letter-spacing: 1px;
-            padding-top: 2px;
-            flex-shrink: 0;
-            width: 22px;
-        }
-        .diff-content h3 {
-            font-size: 15px;
-            font-weight: 600;
-            margin-bottom: 0.4rem;
-        }
-        .diff-content p {
-            font-size: 13px;
-            color: var(--text-muted);
-            line-height: 1.65;
-        }
+        .diff-num { font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: 1px; padding-top: 2px; flex-shrink: 0; width: 22px; }
+        .diff-content h3 { font-size: 15px; font-weight: 600; margin-bottom: 0.4rem; }
+        .diff-content p { font-size: 13px; color: var(--text-muted); line-height: 1.65; }
 
-        /* ════════════════════════════════════════
-           ABOUT PAGE
-        ════════════════════════════════════════ */
-        .about-hero {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 4rem 1.25rem 3rem;
-            text-align: center;
-        }
-        .about-hero h1 {
-            font-size: clamp(1.8rem, 7vw, 3.5rem);
-            font-weight: 800;
-            letter-spacing: -1.2px;
-            line-height: 1.15;
-            margin-bottom: 1.25rem;
-        }
-        .about-hero p {
-            font-size: 15px;
-            color: var(--text-muted);
-            line-height: 1.7;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        .about-content {
-            max-width: 1100px;
-            margin: 0 auto;
-            padding: 1.5rem 1.25rem 4rem;
-        }
-
+        /* ════ ABOUT ════ */
+        .about-hero { max-width: 800px; margin: 0 auto; padding: 4rem 1.25rem 3rem; text-align: center; }
+        .about-hero h1 { font-size: clamp(1.8rem, 7vw, 3.5rem); font-weight: 800; letter-spacing: -1.2px; line-height: 1.15; margin-bottom: 1.25rem; }
+        .about-hero p { font-size: 15px; color: var(--text-muted); line-height: 1.7; max-width: 600px; margin: 0 auto; }
+        .about-content { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1.25rem 4rem; }
         .about-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 1px;
-            background: var(--border);
-            border-radius: 16px;
-            overflow: hidden;
-            border: 1px solid var(--border);
-            margin-bottom: 2.5rem;
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1px; background: var(--border); border-radius: 16px;
+            overflow: hidden; border: 1px solid var(--border); margin-bottom: 2.5rem;
         }
-
-        .about-card {
-            background: var(--bg-card);
-            padding: 2rem 1.5rem;
-        }
-        .about-card-label {
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            color: var(--accent);
-            margin-bottom: 0.75rem;
-        }
-        .about-card h2 {
-            font-size: 1.3rem;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-            margin-bottom: 0.75rem;
-        }
-        .about-card p {
-            font-size: 13px;
-            color: var(--text-muted);
-            line-height: 1.75;
-        }
-
-        .creator-section {
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 1.75rem 1.5rem;
-            display: flex;
-            align-items: flex-start;
-            gap: 1.25rem;
-            flex-wrap: wrap;
-        }
-        .creator-avatar {
-            width: 56px; height: 56px;
-            border-radius: 14px;
-            background: var(--accent-glow);
-            border: 1px solid rgba(16,163,127,0.25);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 26px;
-            flex-shrink: 0;
-        }
+        .about-card { background: var(--bg-card); padding: 2rem 1.5rem; }
+        .about-card-label { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 0.75rem; }
+        .about-card h2 { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 0.75rem; }
+        .about-card p { font-size: 13px; color: var(--text-muted); line-height: 1.75; }
+        .creator-section { border: 1px solid var(--border); border-radius: 16px; padding: 1.75rem 1.5rem; display: flex; align-items: flex-start; gap: 1.25rem; flex-wrap: wrap; }
+        .creator-avatar { width: 56px; height: 56px; border-radius: 14px; background: var(--accent-glow); border: 1px solid rgba(16,163,127,0.25); display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0; }
         .creator-info { flex: 1; min-width: 200px; }
-        .creator-info h3 {
-            font-size: 17px;
-            font-weight: 700;
-            margin-bottom: 4px;
-        }
-        .creator-info .creator-role {
-            font-size: 11px;
-            color: var(--accent);
-            font-weight: 500;
-            margin-bottom: 0.75rem;
-        }
-        .creator-info p {
-            font-size: 13px;
-            color: var(--text-muted);
-            line-height: 1.7;
-        }
+        .creator-info h3 { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+        .creator-info .creator-role { font-size: 11px; color: var(--accent); font-weight: 500; margin-bottom: 0.75rem; }
+        .creator-info p { font-size: 13px; color: var(--text-muted); line-height: 1.7; }
 
-        /* ════════════════════════════════════════
-           AUTH MODAL OVERLAY
-        ════════════════════════════════════════ */
+        /* ════ MODAL ════ */
         .modal-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            z-index: 200;
-            background: rgba(0,0,0,0.7);
-            backdrop-filter: blur(8px);
+            display: none; position: fixed; inset: 0; z-index: 200;
+            background: rgba(0,0,0,0.7); backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
-            align-items: center;
-            justify-content: center;
-            padding: 1rem;
+            align-items: center; justify-content: center; padding: 1rem;
         }
-        .modal-overlay.open {
-            display: flex;
-        }
-
+        .modal-overlay.open { display: flex; }
         .modal-card {
-            background: #141414;
-            border: 1px solid var(--border-light);
-            border-radius: 20px;
-            padding: 1.75rem;
-            width: 100%;
-            max-width: 400px;
+            background: #141414; border: 1px solid var(--border-light);
+            border-radius: 20px; padding: 1.75rem; width: 100%; max-width: 400px;
             position: relative;
             animation: modal-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-            max-height: calc(100dvh - 2rem);
-            overflow-y: auto;
+            max-height: calc(100dvh - 2rem); overflow-y: auto;
             -webkit-overflow-scrolling: touch;
         }
         @keyframes modal-in {
             from { opacity: 0; transform: scale(0.92) translateY(10px); }
             to   { opacity: 1; transform: scale(1) translateY(0); }
         }
-
         .modal-close {
-            position: absolute;
-            top: 14px; right: 14px;
-            width: 32px; height: 32px;
-            border-radius: 8px;
-            border: none;
-            background: rgba(255,255,255,0.05);
-            color: var(--text-muted);
-            cursor: pointer;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 16px;
-            transition: background 0.2s, color 0.2s;
-            z-index: 5;
+            position: absolute; top: 14px; right: 14px;
+            width: 32px; height: 32px; border-radius: 8px; border: none;
+            background: rgba(255,255,255,0.05); color: var(--text-muted);
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            font-size: 16px; transition: background 0.2s, color 0.2s; z-index: 5;
         }
         .modal-close:hover { background: rgba(255,255,255,0.1); color: var(--text); }
-
-        /* ── Logo / brand area ── */
-        .logo-area {
-            text-align: center;
-            margin-bottom: 1.25rem;
-        }
-        .logo-box {
-            width: 48px; height: 48px;
-            border-radius: 12px;
-            display: flex; align-items: center; justify-content: center;
-            margin: 0 auto 10px;
-            background: transparent;
-        }
+        .logo-area { text-align: center; margin-bottom: 1.25rem; }
+        .logo-box { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; background: transparent; }
         .logo-box img { width: 100%; height: 100%; object-fit: contain; }
         .logo-area h1 { font-size: 16px; font-weight: 700; margin-bottom: 3px; }
         .logo-area p  { font-size: 12px; color: #888; }
-
-        /* ── Tab bar ── */
-        .tabs {
-            display: flex;
-            background: #0d0d0d;
-            border-radius: 10px;
-            padding: 3px;
-            gap: 3px;
-            margin-bottom: 1.25rem;
-        }
-        .tab {
-            flex: 1; padding: 9px 8px;
-            border-radius: 7px; border: none;
-            font-size: 13px; font-weight: 500;
-            cursor: pointer; transition: background 0.2s, color 0.2s;
-            background: transparent; color: #666;
-            min-height: 38px;
-        }
+        .tabs { display: flex; background: #0d0d0d; border-radius: 10px; padding: 3px; gap: 3px; margin-bottom: 1.25rem; }
+        .tab { flex: 1; padding: 9px 8px; border-radius: 7px; border: none; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.2s, color 0.2s; background: transparent; color: #666; min-height: 38px; }
         .tab[aria-selected="true"] { background: var(--accent); color: #fff; }
         .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-        /* ── OAuth buttons ── */
-        .oauth-btn {
-            display: flex; align-items: center; gap: 10px;
-            padding: 11px 14px;
-            width: 100%;
-            background: #0d0d0d; border: 1px solid var(--border-light);
-            border-radius: 10px; color: var(--text);
-            font-size: 13px; cursor: pointer;
-            transition: background 0.15s;
-            margin-bottom: 8px;
-            min-height: 44px;
-        }
+        .oauth-btn { display: flex; align-items: center; gap: 10px; padding: 11px 14px; width: 100%; background: #0d0d0d; border: 1px solid var(--border-light); border-radius: 10px; color: var(--text); font-size: 13px; cursor: pointer; transition: background 0.15s; margin-bottom: 8px; min-height: 44px; }
         .oauth-btn:hover { background: #1a1a1a; }
         .oauth-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
         .oauth-btn svg { flex-shrink: 0; }
-
-        /* ── Divider ── */
-        .divider {
-            display: flex; align-items: center; gap: 10px;
-            margin: 0.75rem 0; color: #333; font-size: 11px;
-        }
-        .divider::before, .divider::after {
-            content: ''; flex: 1;
-            height: 1px; background: var(--border);
-        }
-
-        /* ── Form fields ── */
-        label {
-            display: block;
-            font-size: 12px; color: #888;
-            margin-bottom: 5px;
-        }
+        .divider { display: flex; align-items: center; gap: 10px; margin: 0.75rem 0; color: #333; font-size: 11px; }
+        .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+        label { display: block; font-size: 12px; color: #888; margin-bottom: 5px; }
         .field { margin-bottom: 10px; }
-        .field-row {
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 5px;
-        }
+        .field-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
         .field-row label { margin-bottom: 0; }
-
-        .forgot {
-            font-size: 12px; color: var(--accent);
-            cursor: pointer; background: none; border: none; padding: 0;
-            min-height: 24px;
-        }
+        .forgot { font-size: 12px; color: var(--accent); cursor: pointer; background: none; border: none; padding: 0; min-height: 24px; }
         .forgot:hover { text-decoration: underline; }
-
-        input[type="email"],
-        input[type="password"],
-        input[type="text"] {
-            width: 100%; padding: 11px 13px;
-            background: #0d0d0d; border: 1px solid var(--border-light);
-            border-radius: 10px; color: var(--text);
-            font-size: 14px; outline: none;
-            transition: border-color 0.2s;
-            min-height: 44px;
-            -webkit-appearance: none;
-            appearance: none;
+        input[type="email"], input[type="password"], input[type="text"] {
+            width: 100%; padding: 11px 13px; background: #0d0d0d;
+            border: 1px solid var(--border-light); border-radius: 10px;
+            color: var(--text); font-size: 14px; outline: none;
+            transition: border-color 0.2s; min-height: 44px;
+            -webkit-appearance: none; appearance: none;
         }
         input:focus { border-color: var(--accent); }
         input[aria-invalid="true"] { border-color: #ff6b6b; }
-
-        /* ── Submit button ── */
-        .submit {
-            width: 100%; padding: 12px;
-            background: var(--accent); border: none;
-            border-radius: 10px; color: #fff;
-            font-size: 14px; font-weight: 600;
-            cursor: pointer; margin-top: 12px;
-            transition: background 0.2s;
-            min-height: 46px;
-        }
+        .submit { width: 100%; padding: 12px; background: var(--accent); border: none; border-radius: 10px; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 12px; transition: background 0.2s; min-height: 46px; }
         .submit:hover    { background: var(--accent-dim); }
         .submit:disabled { background: #1a4a3a; cursor: not-allowed; }
-
-        /* ── Status / error message ── */
-        .msg {
-            margin-top: 10px; padding: 9px 12px;
-            border-radius: 8px; font-size: 12px;
-            text-align: center;
-        }
+        .msg { margin-top: 10px; padding: 9px 12px; border-radius: 8px; font-size: 12px; text-align: center; }
         .msg:empty { display: none; }
         .msg.error   { background: #2a1a1a; color: #ff6b6b; border: 1px solid #3a1a1a; }
         .msg.success { background: #1a2a1a; color: #6bff9e; border: 1px solid #1a3a1a; }
-
-        /* ── Switch row ── */
-        .switch-row {
-            text-align: center; font-size: 12px;
-            color: #666; margin-top: 12px;
-        }
-        .switch-row button {
-            color: var(--accent); background: none; border: none;
-            padding: 0; cursor: pointer; font-size: 12px;
-            min-height: 24px;
-        }
+        .switch-row { text-align: center; font-size: 12px; color: #666; margin-top: 12px; }
+        .switch-row button { color: var(--accent); background: none; border: none; padding: 0; cursor: pointer; font-size: 12px; min-height: 24px; }
         .switch-row button:hover { text-decoration: underline; }
-
-        /* ── Turnstile ── */
-        #cf-turnstile-container {
-            margin-top: 8px;
-            display: flex;
-            justify-content: center;
-            min-height: 65px;
-        }
+        #cf-turnstile-container { margin-top: 8px; display: flex; justify-content: center; min-height: 65px; }
         #cf-turnstile-container iframe { border-radius: 8px; max-width: 100%; }
-
-        .captcha-status {
-            font-size: 11px; text-align: center;
-            margin-top: 4px; color: #444;
-            min-height: 16px;
-        }
+        .captcha-status { font-size: 11px; text-align: center; margin-top: 4px; color: #444; min-height: 16px; }
         .captcha-status.ready       { color: var(--accent); }
         .captcha-status.loading     { color: #666; }
         .captcha-status.error-state { color: #ff6b6b; }
-
-        /* ── Password visibility toggle ── */
-        .pw-wrap {
-            position: relative;
-            display: flex;
-            align-items: center;
-        }
+        .pw-wrap { position: relative; display: flex; align-items: center; }
         .pw-wrap input { width: 100%; padding-right: 40px !important; }
-        .pw-toggle {
-            position: absolute; right: 8px;
-            background: none; border: none;
-            padding: 6px; cursor: pointer;
-            color: #444;
-            display: flex; align-items: center; justify-content: center;
-            border-radius: 4px;
-            transition: color 0.2s, opacity 0.2s;
-            flex-shrink: 0; opacity: 0; pointer-events: none;
-            min-width: 32px; min-height: 32px;
-        }
+        .pw-toggle { position: absolute; right: 8px; background: none; border: none; padding: 6px; cursor: pointer; color: #444; display: flex; align-items: center; justify-content: center; border-radius: 4px; transition: color 0.2s, opacity 0.2s; flex-shrink: 0; opacity: 0; pointer-events: none; min-width: 32px; min-height: 32px; }
         .pw-toggle.visible { opacity: 1; pointer-events: auto; }
         .pw-toggle:hover { color: #aaa; }
-
-        /* ── Confirm status ── */
-        .confirm-status {
-            position: absolute; right: 10px;
-            display: flex; align-items: center; justify-content: center;
-            pointer-events: none; opacity: 0; transition: opacity 0.2s;
-        }
+        .confirm-status { position: absolute; right: 10px; display: flex; align-items: center; justify-content: center; pointer-events: none; opacity: 0; transition: opacity 0.2s; }
         .confirm-status.show { opacity: 1; }
         .confirm-status .icon-match    { display: none; color: var(--accent); }
         .confirm-status .icon-mismatch { display: none; color: #ff6b6b; }
-        .confirm-status .icon-required {
-            display: none; width: 18px; height: 18px;
-            background: #ff6b6b; border-radius: 50%;
-            align-items: center; justify-content: center;
-            font-size: 11px; font-weight: 700;
-            color: #fff; line-height: 1;
-        }
+        .confirm-status .icon-required { display: none; width: 18px; height: 18px; background: #ff6b6b; border-radius: 50%; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; line-height: 1; }
         .confirm-status.state-match    .icon-match    { display: flex; }
         .confirm-status.state-mismatch .icon-mismatch { display: flex; }
         .confirm-status.state-required .icon-required { display: flex; }
-
-        /* ── Password strength meter ── */
-        .pw-strength {
-            height: 3px; border-radius: 2px;
-            background: #1a1a1a; margin-top: 6px; overflow: hidden;
-        }
-        .pw-strength-bar {
-            height: 100%; width: 0%;
-            border-radius: 2px;
-            transition: width 0.3s, background 0.3s;
-        }
+        .pw-strength { height: 3px; border-radius: 2px; background: #1a1a1a; margin-top: 6px; overflow: hidden; }
+        .pw-strength-bar { height: 100%; width: 0%; border-radius: 2px; transition: width 0.3s, background 0.3s; }
         .pw-hint { font-size: 11px; color: #555; margin-top: 4px; }
-
-        /* ── Reset password screen ── */
         #resetScreen { display: none; }
-        .reset-icon {
-            width: 48px; height: 48px;
-            background: rgba(16,163,127,0.1);
-            border: 1px solid rgba(16,163,127,0.2);
-            border-radius: 14px;
-            display: flex; align-items: center; justify-content: center;
-            margin: 0 auto 12px;
-        }
+        .reset-icon { width: 48px; height: 48px; background: rgba(16,163,127,0.1); border: 1px solid rgba(16,163,127,0.2); border-radius: 14px; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; }
         .reset-icon svg { color: var(--accent); }
 
-        /* ════════════════════════════════════════
-           FOOTER
-        ════════════════════════════════════════ */
-        footer {
-            background: #0f0f0f;
-            border-top: 1px solid var(--border);
-            padding-bottom: var(--safe-bottom);
-        }
-
-        /* Big brand name above footer */
-        .footer-brand-name {
-            text-align: center;
-            padding: 3rem 1rem 0;
-            overflow: hidden;
-        }
-        .footer-brand-letters {
-            font-size: clamp(3.5rem, 18vw, 14rem);
-            font-weight: 900;
-            letter-spacing: -3px;
-            line-height: 1;
-            background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            user-select: none;
-            /* Scanline/stripe effect */
-            position: relative;
-        }
-        .footer-brand-letters::after {
-            content: attr(data-text);
-            position: absolute;
-            inset: 0;
-            background: repeating-linear-gradient(
-                0deg,
-                transparent,
-                transparent 3px,
-                rgba(0,0,0,0.4) 3px,
-                rgba(0,0,0,0.4) 4px
-            );
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .footer-inner {
-            max-width: 1100px;
-            margin: 0 auto;
-            padding: 2.5rem 1.25rem 1.5rem;
-            display: grid;
-            grid-template-columns: 1.5fr 1fr 1fr;
-            gap: 2rem;
-        }
-
-        .footer-col h4 {
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            color: #444;
-            margin-bottom: 0.75rem;
-        }
-        .footer-col p {
-            font-size: 13px;
-            color: #333;
-            line-height: 1.7;
-        }
-
-        .footer-links {
-            list-style: none;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .footer-links a {
-            font-size: 13px;
-            color: #444;
-            text-decoration: none;
-            transition: color 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            min-height: 24px;
-        }
+        /* ════ FOOTER ════ */
+        footer { background: #0f0f0f; border-top: 1px solid var(--border); padding-bottom: var(--safe-bottom); }
+        .footer-brand-name { text-align: center; padding: 3rem 1rem 0; overflow: hidden; }
+        .footer-brand-letters { font-size: clamp(3.5rem, 18vw, 14rem); font-weight: 900; letter-spacing: -3px; line-height: 1; background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; user-select: none; position: relative; }
+        .footer-brand-letters::after { content: attr(data-text); position: absolute; inset: 0; background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.4) 3px, rgba(0,0,0,0.4) 4px); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+        .footer-inner { max-width: 1100px; margin: 0 auto; padding: 2.5rem 1.25rem 1.5rem; display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 2rem; }
+        .footer-col h4 { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #444; margin-bottom: 0.75rem; }
+        .footer-col p { font-size: 13px; color: #333; line-height: 1.7; }
+        .footer-links { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+        .footer-links a { font-size: 13px; color: #444; text-decoration: none; transition: color 0.2s; display: flex; align-items: center; gap: 8px; min-height: 24px; }
         .footer-links a:hover { color: var(--text); }
-
-        .social-links {
-            list-style: none;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .social-links a {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 13px;
-            color: #444;
-            text-decoration: none;
-            transition: color 0.2s;
-            min-height: 24px;
-        }
+        .social-links { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+        .social-links a { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #444; text-decoration: none; transition: color 0.2s; min-height: 24px; }
         .social-links a:hover { color: var(--text); }
         .social-links svg { flex-shrink: 0; }
-
-        .footer-bottom {
-            border-top: 1px solid var(--border);
-            padding: 1rem 1.25rem;
-            max-width: 1100px;
-            margin: 0 auto;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-        }
-        .footer-bottom p {
-            font-size: 11px;
-            color: #333;
-        }
+        .footer-bottom { border-top: 1px solid var(--border); padding: 1rem 1.25rem; max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
+        .footer-bottom p { font-size: 11px; color: #333; }
         .footer-bottom p span { color: #555; }
 
-        /* ════════════════════════════════════════
-           RESPONSIVE BREAKPOINTS
-        ════════════════════════════════════════ */
-
-        /* Tablets & small desktops */
+        /* ════ RESPONSIVE ════ */
         @media (max-width: 900px) {
-            .footer-inner {
-                grid-template-columns: 1fr 1fr;
-                gap: 2rem;
-            }
-            .footer-col:first-child {
-                grid-column: 1 / -1;
-            }
+            .footer-inner { grid-template-columns: 1fr 1fr; gap: 2rem; }
+            .footer-col:first-child { grid-column: 1 / -1; }
         }
-
-        /* Mobile */
         @media (max-width: 640px) {
-            .nav-inner {
-                padding: 0 1rem;
-                height: 56px;
-            }
-            main {
-                padding-top: calc(56px + var(--safe-top));
-            }
-            .hero {
-                min-height: calc(100dvh - 56px - var(--safe-top));
-                padding: 2rem 1rem;
-            }
-            .hero::after {
-                width: 300px;
-                height: 300px;
-            }
-
-            /* Stack feature cards as single column on mobile */
-            .features-grid {
-                grid-template-columns: 1fr;
-            }
-            .feature-card {
-                padding: 1.5rem;
-            }
-
-            /* Stats: 2x2 on small mobile */
-            .stats-inner {
-                grid-template-columns: 1fr 1fr;
-                gap: 1.5rem;
-            }
-
-            /* About cards stack */
-            .about-grid {
-                grid-template-columns: 1fr;
-            }
-            .about-card {
-                padding: 1.75rem 1.5rem;
-            }
-
-            /* Creator section: stack avatar above text */
-            .creator-section {
-                flex-direction: column;
-                align-items: flex-start;
-                padding: 1.5rem;
-                gap: 1rem;
-            }
-
-            /* Footer big brand: smaller on mobile */
-            .footer-brand-name {
-                padding: 2rem 1rem 0;
-            }
-
-            /* Modal: bottom-sheet style on mobile */
-            .modal-overlay {
-                padding: 0;
-                align-items: flex-end;
-            }
-            .modal-card {
-                max-width: 100%;
-                border-radius: 20px 20px 0 0;
-                max-height: 92dvh;
-                padding: 1.5rem 1.25rem calc(1.5rem + var(--safe-bottom));
-                animation: modal-up 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-            }
-            @keyframes modal-up {
-                from { opacity: 0; transform: translateY(100%); }
-                to   { opacity: 1; transform: translateY(0); }
-            }
-            .modal-close {
-                top: 12px; right: 12px;
-            }
-
-            /* Reduce hero CTA gap on very small screens */
-            .hero-cta {
-                gap: 8px;
-            }
-            .btn-hero-primary,
-            .btn-hero-secondary {
-                padding: 11px 20px;
-                font-size: 13px;
-            }
-        }
-
-        /* Hide center nav links on mobile (only show logo + auth) */
-        @media (max-width: 640px) {
+            .nav-inner { padding: 0 1rem; height: 56px; }
+            main { padding-top: calc(56px + var(--safe-top)); }
+            .hero { min-height: calc(100dvh - 56px - var(--safe-top)); padding: 2rem 1rem; }
+            .hero::after { width: 300px; height: 300px; }
+            .features-grid { grid-template-columns: 1fr; }
+            .feature-card { padding: 1.5rem; }
+            .stats-inner { grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+            .about-grid { grid-template-columns: 1fr; }
+            .about-card { padding: 1.75rem 1.5rem; }
+            .creator-section { flex-direction: column; align-items: flex-start; padding: 1.5rem; gap: 1rem; }
+            .footer-brand-name { padding: 2rem 1rem 0; }
+            .modal-overlay { padding: 0; align-items: flex-end; }
+            .modal-card { max-width: 100%; border-radius: 20px 20px 0 0; max-height: 92dvh; padding: 1.5rem 1.25rem calc(1.5rem + var(--safe-bottom)); animation: modal-up 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+            @keyframes modal-up { from { opacity: 0; transform: translateY(100%); } to { opacity: 1; transform: translateY(0); } }
+            .modal-close { top: 12px; right: 12px; }
+            .hero-cta { gap: 8px; }
+            .btn-hero-primary, .btn-hero-secondary { padding: 11px 20px; font-size: 13px; }
             .nav-links { display: none; }
             .nav-auth { gap: 6px; }
             .btn-ghost { padding: 7px 12px; font-size: 11px; }
             .btn-primary { padding: 7px 14px; font-size: 12px; }
+            .marquee-item { padding: 10px 18px; margin: 0 4px; }
+            .marquee-item-name { font-size: 14px; }
+            .marquee-item-logo { width: 26px; height: 26px; }
         }
-
-        /* Very small screens */
         @media (max-width: 380px) {
             .nav-logo-text { font-size: 14px; }
             .nav-logo-img { width: 28px; height: 28px; }
             .hero h1 { letter-spacing: -1px; }
-            .btn-ghost { display: none; } /* hide login text, keep only signup */
+            .btn-ghost { display: none; }
         }
-
-        /* iOS: prevent zoom on input focus */
         @supports (-webkit-touch-callout: none) {
-            input[type="email"],
-            input[type="password"],
-            input[type="text"] {
-                font-size: 16px;
-            }
+            input[type="email"], input[type="password"], input[type="text"] { font-size: 16px; }
         }
     </style>
 
@@ -1081,45 +536,24 @@
 
 <body>
 
-    <!-- ════════════════════════════════════════
-         NAVBAR
-    ════════════════════════════════════════ -->
     <nav aria-label="Main navigation">
         <div class="nav-inner">
-
-            <!-- Logo -->
             <a class="nav-logo" href="#" onclick="return false;" aria-label="Catura AI home">
                 <img class="nav-logo-img" src="static/logo.png" alt="Catura AI logo">
                 <span class="nav-logo-text">Catura<span>.</span>AI</span>
             </a>
-
-            <!-- Center links -->
             <ul class="nav-links" role="list">
-                <li>
-                    <a id="nav-home" class="active" href="#"
-                       onclick="showPage('home'); return false;"
-                       aria-current="page">Home</a>
-                </li>
-                <li>
-                    <a id="nav-about" href="#"
-                       onclick="showPage('about'); return false;">About</a>
-                </li>
+                <li><a id="nav-home" class="active" href="#" onclick="showPage('home'); return false;" aria-current="page">Home</a></li>
+                <li><a id="nav-about" href="#" onclick="showPage('about'); return false;">About</a></li>
             </ul>
-
-            <!-- Auth buttons -->
             <div class="nav-auth">
                 <button class="btn-ghost" onclick="openModal('login')" aria-label="Log in">Log in</button>
                 <button class="btn-primary" onclick="openModal('signup')" aria-label="Sign up">Sign up</button>
             </div>
-
         </div>
     </nav>
 
-    <!-- ════════════════════════════════════════
-         MAIN
-    ════════════════════════════════════════ -->
     <main>
-
         <!-- ══ HOME PAGE ══ -->
         <div id="page-home" class="page active">
 
@@ -1130,26 +564,18 @@
                         <span class="hero-badge-dot" aria-hidden="true"></span>
                         Now live — Free to use
                     </div>
-
-                    <h1>
-                        Think smarter with<br>
-                        <span class="accent">Catura AI</span>
-                    </h1>
-
+                    <h1>Think smarter with<br><span class="accent">Catura AI</span></h1>
                     <p class="hero-sub">
                         An intelligent AI assistant built to help you every day —
                         answer questions, write content, analyse problems,
                         and keep up with you at any pace.
                     </p>
-
                     <div class="hero-cta">
                         <button class="btn-hero-primary" onclick="openModal('signup')">
                             Start for free
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                         </button>
-                        <button class="btn-hero-secondary" onclick="openModal('login')">
-                            Log in
-                        </button>
+                        <button class="btn-hero-secondary" onclick="openModal('login')">Log in</button>
                     </div>
                 </div>
             </section>
@@ -1157,64 +583,286 @@
             <!-- Stats -->
             <div class="stats-section" aria-label="Catura AI stats">
                 <div class="stats-inner">
-                    <div>
-                        <div class="stat-value">100<span>%</span></div>
-                        <div class="stat-label">Free to use</div>
-                    </div>
-                    <div>
-                        <div class="stat-value"><span>∞</span></div>
-                        <div class="stat-label">Conversations</div>
-                    </div>
-                    <div>
-                        <div class="stat-value">24<span>/7</span></div>
-                        <div class="stat-label">Always available</div>
-                    </div>
-                    <div>
-                        <div class="stat-value"><span>&lt;</span>1s</div>
-                        <div class="stat-label">Response time</div>
-                    </div>
+                    <div><div class="stat-value">100<span>%</span></div><div class="stat-label">Free to use</div></div>
+                    <div><div class="stat-value"><span>∞</span></div><div class="stat-label">Conversations</div></div>
+                    <div><div class="stat-value">24<span>/7</span></div><div class="stat-label">Always available</div></div>
+                    <div><div class="stat-value"><span>&lt;</span>1s</div><div class="stat-label">Response time</div></div>
                 </div>
             </div>
+
+            <!-- ════ MODELS MARQUEE ════ -->
+            <div class="models-section" aria-label="AI models and providers">
+                <p class="models-section-label">Models we use</p>
+
+                <div class="marquee-wrapper" id="marqueeWrapper">
+                    <div class="marquee-track" id="marqueeTrack">
+
+                        <!-- ══ SET 1 ══ -->
+
+                        <!-- OpenAI -->
+                        <div class="marquee-item" onmouseenter="pauseMarquee()" onmouseleave="resumeMarquee()">
+                            <div class="marquee-item-logo" aria-hidden="true">
+                                <!-- OpenAI logo — exact rosette/knot shape from provided image, grayscale -->
+                                <svg viewBox="0 0 41 41" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M37.532 16.87a9.963 9.963 0 0 0-.856-8.184 10.078 10.078 0 0 0-10.855-4.835 9.964 9.964 0 0 0-6.75-3.001 10.079 10.079 0 0 0-9.617 6.977 9.967 9.967 0 0 0-6.69 4.839 10.081 10.081 0 0 0 1.24 11.817 9.965 9.965 0 0 0 .856 8.185 10.079 10.079 0 0 0 10.855 4.835 9.965 9.965 0 0 0 6.75 3.001 10.081 10.081 0 0 0 9.617-6.979 9.967 9.967 0 0 0 6.69-4.837 10.079 10.079 0 0 0-1.24-11.818zm-17.753 24.744a7.474 7.474 0 0 1-4.799-1.735c.061-.033.168-.091.237-.134l7.964-4.6a1.294 1.294 0 0 0 .655-1.134V19.054l3.366 1.944a.12.12 0 0 1 .066.092v9.299a7.505 7.505 0 0 1-7.49 7.225zM4.686 34.062a7.471 7.471 0 0 1-.894-5.023c.06.036.162.099.237.141l7.964 4.6a1.297 1.297 0 0 0 1.308 0l9.724-5.614v3.888a.12.12 0 0 1-.048.103L14.759 36.8a7.505 7.505 0 0 1-10.073-2.738zm-2.43-17.905a7.474 7.474 0 0 1 3.905-3.282c0 .068-.004.19-.004.274v9.201a1.294 1.294 0 0 0 .654 1.132l9.723 5.614-3.366 1.944a.12.12 0 0 1-.114.012L4.502 26.677a7.505 7.505 0 0 1-2.246-10.52zm27.658 6.437l-9.724-5.615 3.367-1.943a.121.121 0 0 1 .114-.012l8.048 4.648a7.498 7.498 0 0 1-1.158 13.528v-9.476a1.293 1.293 0 0 0-.647-1.13zm3.35-5.043c-.059-.037-.162-.099-.236-.141l-7.965-4.6a1.298 1.298 0 0 0-1.308 0l-9.723 5.614v-3.888a.12.12 0 0 1 .048-.103l8.048-4.648a7.498 7.498 0 0 1 11.136 7.766zm-21.063 6.929l-3.367-1.944a.12.12 0 0 1-.065-.092v-9.299a7.497 7.497 0 0 1 12.293-5.756 6.94 6.94 0 0 0-.236.134l-7.965 4.6a1.294 1.294 0 0 0-.654 1.132l-.006 11.225zm1.829-3.943l4.33-2.501 4.332 2.497v4.998l-4.331 2.5-4.331-2.5V21.537z" fill="#c8c8c8"/>
+                                </svg>
+                            </div>
+                            <span class="marquee-item-name">OpenAI</span>
+                        </div>
+
+                        <div class="marquee-sep" aria-hidden="true"></div>
+
+                        <!-- Google -->
+                        <div class="marquee-item" onmouseenter="pauseMarquee()" onmouseleave="resumeMarquee()">
+                            <div class="marquee-item-logo" aria-hidden="true">
+                                <!-- Google G logo — accurate shape, grayscale/white tones, transparent bg -->
+                                <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M24 9.5c3.1 0 5.6 1.1 7.6 2.9l5.6-5.6C33.6 3.5 29.1 1.5 24 1.5 14.9 1.5 7.2 7.1 4 14.9l6.6 5.1C12.3 13.7 17.6 9.5 24 9.5z" fill="#d0d0d0"/>
+                                    <path d="M46.5 24c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.9 7.2l7.6 5.9C43.8 37 46.5 31 46.5 24z" fill="#b0b0b0"/>
+                                    <path d="M10.6 28.6A14.6 14.6 0 0 1 9.5 24c0-1.6.3-3.2.8-4.6L3.7 14.3A22.5 22.5 0 0 0 1.5 24c0 3.6.9 7.1 2.5 10.1l6.6-5.5z" fill="#c0c0c0"/>
+                                    <path d="M24 46.5c5.1 0 9.4-1.7 12.5-4.6l-7.6-5.9c-1.7 1.1-3.8 1.8-4.9 1.8-6.4 0-11.7-4.3-13.6-10l-6.6 5.1C7.2 40.9 14.9 46.5 24 46.5z" fill="#a8a8a8"/>
+                                    <!-- Horizontal bar of the G -->
+                                    <path d="M24 19.5h22.1v9H24z" fill="#e0e0e0"/>
+                                </svg>
+                            </div>
+                            <span class="marquee-item-name">Google</span>
+                        </div>
+
+                        <div class="marquee-sep" aria-hidden="true"></div>
+
+                        <!-- Poolside -->
+                        <div class="marquee-item" onmouseenter="pauseMarquee()" onmouseleave="resumeMarquee()">
+                            <div class="marquee-item-logo" aria-hidden="true">
+                                <!-- Poolside logo — globe with umbrella shape, grayscale, transparent bg -->
+                                <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <circle cx="50" cy="50" r="44" stroke="#c0c0c0" stroke-width="5" fill="none"/>
+                                    <path d="M10 50 Q50 5 90 50" fill="#aaa" stroke="none"/>
+                                    <path d="M10 50 Q30 28 50 50" fill="#888" stroke="none"/>
+                                    <line x1="50" y1="50" x2="50" y2="82" stroke="#bbb" stroke-width="5" stroke-linecap="round"/>
+                                    <path d="M50 82 Q50 90 43 90" stroke="#bbb" stroke-width="5" fill="none" stroke-linecap="round"/>
+                                    <path d="M8 52 Q50 62 92 52" stroke="#999" stroke-width="3" fill="none"/>
+                                    <path d="M18 30 Q50 22 82 30" stroke="#777" stroke-width="2.5" fill="none"/>
+                                </svg>
+                            </div>
+                            <span class="marquee-item-name">Poolside</span>
+                        </div>
+
+                        <div class="marquee-sep" aria-hidden="true"></div>
+
+                        <!-- z.ai -->
+                        <div class="marquee-item" onmouseenter="pauseMarquee()" onmouseleave="resumeMarquee()">
+                            <div class="marquee-item-logo" aria-hidden="true">
+                                <!-- Z.ai logo — dark rounded square with bold italic Z, matching provided image -->
+                                <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <rect width="100" height="100" rx="18" fill="#2a2a2a"/>
+                                    <!-- Top horizontal bar of Z (with italic slant) -->
+                                    <polygon points="18,18 82,18 70,32 18,32" fill="#e0e0e0"/>
+                                    <!-- Diagonal stroke of Z -->
+                                    <polygon points="70,32 82,18 32,68 18,68" fill="#e0e0e0"/>
+                                    <!-- Bottom horizontal bar of Z -->
+                                    <polygon points="32,68 82,82 82,68 18,68 18,82 70,82" fill="#e0e0e0"/>
+                                </svg>
+                            </div>
+                            <span class="marquee-item-name">z.ai</span>
+                        </div>
+
+                        <div class="marquee-sep" aria-hidden="true"></div>
+
+                        <!-- Groq -->
+                        <div class="marquee-item" onmouseenter="pauseMarquee()" onmouseleave="resumeMarquee()">
+                            <div class="marquee-item-logo" aria-hidden="true">
+                                <!-- Groq logo — circle with stylised "9/g" numeral, grayscale version of brand icon -->
+                                <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <circle cx="50" cy="50" r="50" fill="#3a3a3a"/>
+                                    <!-- The "9" shape: circle top + tail dropping down-left -->
+                                    <!-- Circle part of the 9 -->
+                                    <circle cx="50" cy="40" r="17" fill="none" stroke="#d8d8d8" stroke-width="9"/>
+                                    <!-- Vertical tail of the 9 going down and curving left -->
+                                    <path d="M67 40 L67 62 Q67 74 54 74" stroke="#d8d8d8" stroke-width="9" fill="none" stroke-linecap="round"/>
+                                </svg>
+                            </div>
+                            <span class="marquee-item-name">Groq</span>
+                        </div>
+
+                        <div class="marquee-sep" aria-hidden="true"></div>
+
+                        <!-- Nvidia -->
+                        <div class="marquee-item" onmouseenter="pauseMarquee()" onmouseleave="resumeMarquee()">
+                            <div class="marquee-item-logo" aria-hidden="true">
+                                <!-- Nvidia logo — concentric eye arcs left, filled block right, grayscale -->
+                                <svg viewBox="0 0 200 150" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <!-- Right filled rectangle block -->
+                                    <rect x="100" y="8" width="92" height="134" rx="3" fill="#b0b0b0"/>
+                                    <!-- Outer left arc (largest) -->
+                                    <path d="M100 8 C72 8 40 30 12 75 C40 120 72 142 100 142 L100 122 C76 122 52 104 28 75 C52 46 76 28 100 28 Z" fill="#c8c8c8"/>
+                                    <!-- Middle left arc -->
+                                    <path d="M100 28 C80 28 58 44 36 75 C58 106 80 122 100 122 L100 102 C84 102 66 88 48 75 C66 62 84 48 100 48 Z" fill="#a0a0a0"/>
+                                    <!-- Inner left arc -->
+                                    <path d="M100 48 C87 48 70 58 56 75 C70 92 87 102 100 102 L100 82 C92 82 82 78 74 75 C82 72 92 68 100 68 Z" fill="#787878"/>
+                                    <!-- Eye cutout on right side (dark shape carved into the rect) -->
+                                    <path d="M100 28 C122 28 148 46 168 75 C148 104 122 122 100 122 Z" fill="#1e1e1e"/>
+                                    <!-- Inner pupil highlight on right -->
+                                    <path d="M100 68 C114 68 132 71 144 75 C132 79 114 82 100 82 Z" fill="#888"/>
+                                    <!-- Center pupil dot -->
+                                    <ellipse cx="100" cy="75" rx="10" ry="11" fill="#2e2e2e"/>
+                                </svg>
+                            </div>
+                            <span class="marquee-item-name">Nvidia</span>
+                        </div>
+
+                        <div class="marquee-sep" aria-hidden="true"></div>
+
+                        <!-- Cohere -->
+                        <div class="marquee-item" onmouseenter="pauseMarquee()" onmouseleave="resumeMarquee()">
+                            <div class="marquee-item-logo" aria-hidden="true">
+                                <!-- Cohere logo — 3 organic blobs: large top dark, small bottom-left salmon, medium bottom-right lavender; all in grayscale -->
+                                <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <!-- Large top blob (dark forest green → dark gray) -->
+                                    <path d="M8 8 Q8 4 14 4 L72 5 Q88 5 86 20 L80 44 Q78 54 64 52 L16 48 Q4 46 6 32 Z" fill="#666"/>
+                                    <!-- Small bottom-left blob (salmon/coral → medium gray) -->
+                                    <ellipse cx="24" cy="76" rx="17" ry="16" fill="#999"/>
+                                    <!-- Medium bottom-right blob (lavender → light gray) -->
+                                    <path d="M46 58 Q44 52 55 52 L78 53 Q92 53 92 67 L90 82 Q88 94 76 93 L56 91 Q44 89 44 77 Z" fill="#b8b8b8"/>
+                                </svg>
+                            </div>
+                            <span class="marquee-item-name">Cohere</span>
+                        </div>
+
+                        <div class="marquee-sep" aria-hidden="true"></div>
+
+                        <!-- ══ SET 2 — exact duplicate for seamless loop ══ -->
+
+                        <!-- OpenAI -->
+                        <div class="marquee-item" onmouseenter="pauseMarquee()" onmouseleave="resumeMarquee()">
+                            <div class="marquee-item-logo" aria-hidden="true">
+                                <svg viewBox="0 0 41 41" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M37.532 16.87a9.963 9.963 0 0 0-.856-8.184 10.078 10.078 0 0 0-10.855-4.835 9.964 9.964 0 0 0-6.75-3.001 10.079 10.079 0 0 0-9.617 6.977 9.967 9.967 0 0 0-6.69 4.839 10.081 10.081 0 0 0 1.24 11.817 9.965 9.965 0 0 0 .856 8.185 10.079 10.079 0 0 0 10.855 4.835 9.965 9.965 0 0 0 6.75 3.001 10.081 10.081 0 0 0 9.617-6.979 9.967 9.967 0 0 0 6.69-4.837 10.079 10.079 0 0 0-1.24-11.818zm-17.753 24.744a7.474 7.474 0 0 1-4.799-1.735c.061-.033.168-.091.237-.134l7.964-4.6a1.294 1.294 0 0 0 .655-1.134V19.054l3.366 1.944a.12.12 0 0 1 .066.092v9.299a7.505 7.505 0 0 1-7.49 7.225zM4.686 34.062a7.471 7.471 0 0 1-.894-5.023c.06.036.162.099.237.141l7.964 4.6a1.297 1.297 0 0 0 1.308 0l9.724-5.614v3.888a.12.12 0 0 1-.048.103L14.759 36.8a7.505 7.505 0 0 1-10.073-2.738zm-2.43-17.905a7.474 7.474 0 0 1 3.905-3.282c0 .068-.004.19-.004.274v9.201a1.294 1.294 0 0 0 .654 1.132l9.723 5.614-3.366 1.944a.12.12 0 0 1-.114.012L4.502 26.677a7.505 7.505 0 0 1-2.246-10.52zm27.658 6.437l-9.724-5.615 3.367-1.943a.121.121 0 0 1 .114-.012l8.048 4.648a7.498 7.498 0 0 1-1.158 13.528v-9.476a1.293 1.293 0 0 0-.647-1.13zm3.35-5.043c-.059-.037-.162-.099-.236-.141l-7.965-4.6a1.298 1.298 0 0 0-1.308 0l-9.723 5.614v-3.888a.12.12 0 0 1 .048-.103l8.048-4.648a7.498 7.498 0 0 1 11.136 7.766zm-21.063 6.929l-3.367-1.944a.12.12 0 0 1-.065-.092v-9.299a7.497 7.497 0 0 1 12.293-5.756 6.94 6.94 0 0 0-.236.134l-7.965 4.6a1.294 1.294 0 0 0-.654 1.132l-.006 11.225zm1.829-3.943l4.33-2.501 4.332 2.497v4.998l-4.331 2.5-4.331-2.5V21.537z" fill="#c8c8c8"/>
+                                </svg>
+                            </div>
+                            <span class="marquee-item-name">OpenAI</span>
+                        </div>
+
+                        <div class="marquee-sep" aria-hidden="true"></div>
+
+                        <!-- Google -->
+                        <div class="marquee-item" onmouseenter="pauseMarquee()" onmouseleave="resumeMarquee()">
+                            <div class="marquee-item-logo" aria-hidden="true">
+                                <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M24 9.5c3.1 0 5.6 1.1 7.6 2.9l5.6-5.6C33.6 3.5 29.1 1.5 24 1.5 14.9 1.5 7.2 7.1 4 14.9l6.6 5.1C12.3 13.7 17.6 9.5 24 9.5z" fill="#d0d0d0"/>
+                                    <path d="M46.5 24c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.9 7.2l7.6 5.9C43.8 37 46.5 31 46.5 24z" fill="#b0b0b0"/>
+                                    <path d="M10.6 28.6A14.6 14.6 0 0 1 9.5 24c0-1.6.3-3.2.8-4.6L3.7 14.3A22.5 22.5 0 0 0 1.5 24c0 3.6.9 7.1 2.5 10.1l6.6-5.5z" fill="#c0c0c0"/>
+                                    <path d="M24 46.5c5.1 0 9.4-1.7 12.5-4.6l-7.6-5.9c-1.7 1.1-3.8 1.8-4.9 1.8-6.4 0-11.7-4.3-13.6-10l-6.6 5.1C7.2 40.9 14.9 46.5 24 46.5z" fill="#a8a8a8"/>
+                                    <path d="M24 19.5h22.1v9H24z" fill="#e0e0e0"/>
+                                </svg>
+                            </div>
+                            <span class="marquee-item-name">Google</span>
+                        </div>
+
+                        <div class="marquee-sep" aria-hidden="true"></div>
+
+                        <!-- Poolside -->
+                        <div class="marquee-item" onmouseenter="pauseMarquee()" onmouseleave="resumeMarquee()">
+                            <div class="marquee-item-logo" aria-hidden="true">
+                                <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <circle cx="50" cy="50" r="44" stroke="#c0c0c0" stroke-width="5" fill="none"/>
+                                    <path d="M10 50 Q50 5 90 50" fill="#aaa" stroke="none"/>
+                                    <path d="M10 50 Q30 28 50 50" fill="#888" stroke="none"/>
+                                    <line x1="50" y1="50" x2="50" y2="82" stroke="#bbb" stroke-width="5" stroke-linecap="round"/>
+                                    <path d="M50 82 Q50 90 43 90" stroke="#bbb" stroke-width="5" fill="none" stroke-linecap="round"/>
+                                    <path d="M8 52 Q50 62 92 52" stroke="#999" stroke-width="3" fill="none"/>
+                                    <path d="M18 30 Q50 22 82 30" stroke="#777" stroke-width="2.5" fill="none"/>
+                                </svg>
+                            </div>
+                            <span class="marquee-item-name">Poolside</span>
+                        </div>
+
+                        <div class="marquee-sep" aria-hidden="true"></div>
+
+                        <!-- z.ai -->
+                        <div class="marquee-item" onmouseenter="pauseMarquee()" onmouseleave="resumeMarquee()">
+                            <div class="marquee-item-logo" aria-hidden="true">
+                                <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <rect width="100" height="100" rx="18" fill="#2a2a2a"/>
+                                    <polygon points="18,18 82,18 70,32 18,32" fill="#e0e0e0"/>
+                                    <polygon points="70,32 82,18 32,68 18,68" fill="#e0e0e0"/>
+                                    <polygon points="32,68 82,82 82,68 18,68 18,82 70,82" fill="#e0e0e0"/>
+                                </svg>
+                            </div>
+                            <span class="marquee-item-name">z.ai</span>
+                        </div>
+
+                        <div class="marquee-sep" aria-hidden="true"></div>
+
+                        <!-- Groq -->
+                        <div class="marquee-item" onmouseenter="pauseMarquee()" onmouseleave="resumeMarquee()">
+                            <div class="marquee-item-logo" aria-hidden="true">
+                                <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <circle cx="50" cy="50" r="50" fill="#3a3a3a"/>
+                                    <circle cx="50" cy="40" r="17" fill="none" stroke="#d8d8d8" stroke-width="9"/>
+                                    <path d="M67 40 L67 62 Q67 74 54 74" stroke="#d8d8d8" stroke-width="9" fill="none" stroke-linecap="round"/>
+                                </svg>
+                            </div>
+                            <span class="marquee-item-name">Groq</span>
+                        </div>
+
+                        <div class="marquee-sep" aria-hidden="true"></div>
+
+                        <!-- Nvidia -->
+                        <div class="marquee-item" onmouseenter="pauseMarquee()" onmouseleave="resumeMarquee()">
+                            <div class="marquee-item-logo" aria-hidden="true">
+                                <svg viewBox="0 0 200 150" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <rect x="100" y="8" width="92" height="134" rx="3" fill="#b0b0b0"/>
+                                    <path d="M100 8 C72 8 40 30 12 75 C40 120 72 142 100 142 L100 122 C76 122 52 104 28 75 C52 46 76 28 100 28 Z" fill="#c8c8c8"/>
+                                    <path d="M100 28 C80 28 58 44 36 75 C58 106 80 122 100 122 L100 102 C84 102 66 88 48 75 C66 62 84 48 100 48 Z" fill="#a0a0a0"/>
+                                    <path d="M100 48 C87 48 70 58 56 75 C70 92 87 102 100 102 L100 82 C92 82 82 78 74 75 C82 72 92 68 100 68 Z" fill="#787878"/>
+                                    <path d="M100 28 C122 28 148 46 168 75 C148 104 122 122 100 122 Z" fill="#1e1e1e"/>
+                                    <path d="M100 68 C114 68 132 71 144 75 C132 79 114 82 100 82 Z" fill="#888"/>
+                                    <ellipse cx="100" cy="75" rx="10" ry="11" fill="#2e2e2e"/>
+                                </svg>
+                            </div>
+                            <span class="marquee-item-name">Nvidia</span>
+                        </div>
+
+                        <div class="marquee-sep" aria-hidden="true"></div>
+
+                        <!-- Cohere -->
+                        <div class="marquee-item" onmouseenter="pauseMarquee()" onmouseleave="resumeMarquee()">
+                            <div class="marquee-item-logo" aria-hidden="true">
+                                <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M8 8 Q8 4 14 4 L72 5 Q88 5 86 20 L80 44 Q78 54 64 52 L16 48 Q4 46 6 32 Z" fill="#666"/>
+                                    <ellipse cx="24" cy="76" rx="17" ry="16" fill="#999"/>
+                                    <path d="M46 58 Q44 52 55 52 L78 53 Q92 53 92 67 L90 82 Q88 94 76 93 L56 91 Q44 89 44 77 Z" fill="#b8b8b8"/>
+                                </svg>
+                            </div>
+                            <span class="marquee-item-name">Cohere</span>
+                        </div>
+
+                        <div class="marquee-sep" aria-hidden="true"></div>
+
+                    </div><!-- /marquee-track -->
+                </div><!-- /marquee-wrapper -->
+            </div><!-- /models-section -->
 
             <!-- Features -->
             <section class="features-section" aria-label="What Catura AI can do">
                 <div class="section-label">Capabilities</div>
                 <h2 class="section-title">Built for your everyday workflow</h2>
-                <p class="section-desc">
-                    Catura AI goes beyond simple Q&amp;A. It thinks with you —
-                    whether you're writing, coding, learning, or planning.
-                </p>
-
+                <p class="section-desc">Catura AI goes beyond simple Q&amp;A. It thinks with you — whether you're writing, coding, learning, or planning.</p>
                 <div class="features-grid" role="list">
                     <div class="feature-card" role="listitem">
-                        <div class="feature-icon" aria-hidden="true">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                        </div>
+                        <div class="feature-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
                         <div class="feature-title">Instant Answers</div>
-                        <p class="feature-desc">
-                            Get accurate, context-aware answers to any question in under a second.
-                            No searching, no scrolling — just ask.
-                        </p>
+                        <p class="feature-desc">Get accurate, context-aware answers to any question in under a second. No searching, no scrolling — just ask.</p>
                     </div>
                     <div class="feature-card" role="listitem">
-                        <div class="feature-icon" aria-hidden="true">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-                        </div>
+                        <div class="feature-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
                         <div class="feature-title">Code & Debug</div>
-                        <p class="feature-desc">
-                            Write, explain, and debug code across any language.
-                            Paste your snippet and get a clean fix with an explanation.
-                        </p>
+                        <p class="feature-desc">Write, explain, and debug code across any language. Paste your snippet and get a clean fix with an explanation.</p>
                     </div>
                     <div class="feature-card" role="listitem">
-                        <div class="feature-icon" aria-hidden="true">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                        </div>
+                        <div class="feature-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
                         <div class="feature-title">Writing Assistant</div>
-                        <p class="feature-desc">
-                            Draft emails, essays, summaries, creative stories,
-                            or professional reports — tailored to your tone and style.
-                        </p>
+                        <p class="feature-desc">Draft emails, essays, summaries, creative stories, or professional reports — tailored to your tone and style.</p>
                     </div>
                 </div>
             </section>
@@ -1223,307 +871,124 @@
             <section class="diff-section" aria-label="How Catura AI is different">
                 <div class="section-label">Why Catura</div>
                 <h2 class="section-title">Different by design</h2>
-                <p class="section-desc">
-                    We didn't build another chatbot wrapper. Catura AI is
-                    crafted with speed, privacy, and simplicity at its core.
-                </p>
-
+                <p class="section-desc">We didn't build another chatbot wrapper. Catura AI is crafted with speed, privacy, and simplicity at its core.</p>
                 <div class="diff-list">
-                    <div class="diff-item">
-                        <div class="diff-num">01</div>
-                        <div class="diff-content">
-                            <h3>No paywalls, no limitations</h3>
-                            <p>Catura AI is completely free to use. No credit card, no token limits, no hidden fees.
-                               We believe powerful AI should be accessible to everyone, not just those who can pay.</p>
-                        </div>
-                    </div>
-                    <div class="diff-item">
-                        <div class="diff-num">02</div>
-                        <div class="diff-content">
-                            <h3>Fast & focused interface</h3>
-                            <p>No bloated dashboards or confusing settings. Catura AI opens instantly and gets out of
-                               your way so you can focus entirely on the conversation and the work.</p>
-                        </div>
-                    </div>
-                    <div class="diff-item">
-                        <div class="diff-num">03</div>
-                        <div class="diff-content">
-                            <h3>Built with care, not hype</h3>
-                            <p>Catura AI is independently developed with a focus on quality and honesty.
-                               No marketing fluff — just a reliable assistant that does what it says it does.</p>
-                        </div>
-                    </div>
+                    <div class="diff-item"><div class="diff-num">01</div><div class="diff-content"><h3>No paywalls, no limitations</h3><p>Catura AI is completely free to use. No credit card, no token limits, no hidden fees. We believe powerful AI should be accessible to everyone, not just those who can pay.</p></div></div>
+                    <div class="diff-item"><div class="diff-num">02</div><div class="diff-content"><h3>Fast & focused interface</h3><p>No bloated dashboards or confusing settings. Catura AI opens instantly and gets out of your way so you can focus entirely on the conversation and the work.</p></div></div>
+                    <div class="diff-item"><div class="diff-num">03</div><div class="diff-content"><h3>Built with care, not hype</h3><p>Catura AI is independently developed with a focus on quality and honesty. No marketing fluff — just a reliable assistant that does what it says it does.</p></div></div>
                 </div>
             </section>
 
         </div><!-- /page-home -->
 
-
         <!-- ══ ABOUT PAGE ══ -->
         <div id="page-about" class="page">
-
             <div class="about-hero">
                 <div class="section-label" style="margin-bottom:0.75rem;">About</div>
                 <h1>Built by one person,<br>for everyone</h1>
-                <p>Catura AI started as a personal project to make AI genuinely useful for everyday tasks —
-                   without subscriptions, without complexity.</p>
+                <p>Catura AI started as a personal project to make AI genuinely useful for everyday tasks — without subscriptions, without complexity.</p>
             </div>
-
             <div class="about-content">
                 <div class="about-grid">
-                    <div class="about-card">
-                        <div class="about-card-label">Mission</div>
-                        <h2>Make AI accessible</h2>
-                        <p>
-                            Catura AI was created with one clear goal: give everyone access to a smart,
-                            reliable AI assistant — completely free. Most AI tools lock their best features
-                            behind expensive plans. We don't. Catura AI is free, fast, and built to be
-                            useful from the first message.
-                        </p>
-                    </div>
-                    <div class="about-card">
-                        <div class="about-card-label">Technology</div>
-                        <h2>What powers it</h2>
-                        <p>
-                            Catura AI is built on modern language model infrastructure with a custom
-                            interface designed for speed and clarity. It uses secure authentication
-                            via Supabase, bot protection via Cloudflare Turnstile, and a lightweight
-                            frontend with zero unnecessary dependencies.
-                        </p>
-                    </div>
-                    <div class="about-card">
-                        <div class="about-card-label">Privacy</div>
-                        <h2>Your data, kept simple</h2>
-                        <p>
-                            We collect only what is needed to run your account. No selling of data,
-                            no tracking across the web, no third-party ad networks. Your conversations
-                            are yours. We're transparent about what we store and why.
-                        </p>
-                    </div>
+                    <div class="about-card"><div class="about-card-label">Mission</div><h2>Make AI accessible</h2><p>Catura AI was created with one clear goal: give everyone access to a smart, reliable AI assistant — completely free. Most AI tools lock their best features behind expensive plans. We don't. Catura AI is free, fast, and built to be useful from the first message.</p></div>
+                    <div class="about-card"><div class="about-card-label">Technology</div><h2>What powers it</h2><p>Catura AI is built on modern language model infrastructure with a custom interface designed for speed and clarity. It uses secure authentication via Supabase, bot protection via Cloudflare Turnstile, and a lightweight frontend with zero unnecessary dependencies.</p></div>
+                    <div class="about-card"><div class="about-card-label">Privacy</div><h2>Your data, kept simple</h2><p>We collect only what is needed to run your account. No selling of data, no tracking across the web, no third-party ad networks. Your conversations are yours. We're transparent about what we store and why.</p></div>
                 </div>
-
-                <!-- Creator card -->
                 <div class="creator-section" aria-label="About the creator">
                     <div class="creator-avatar" aria-hidden="true">🛠</div>
                     <div class="creator-info">
                         <h3>The Creator</h3>
                         <div class="creator-role">Founder &amp; Developer</div>
-                        <p>
-                            Hello,<br> I'm <b>Anirban Das</b>. 
-                            I'm a 21-year-old BCA student from India, and Catura AI is a project I've been building since 2025.
-                            The idea started with a simple question: what if I could build the AI assistant I always wanted to use? 
-                            I was fascinated by artificial intelligence and dreamed of creating something that wasn't just powerful, but genuinely useful in everyday life.
-                            Building Catura AI hasn't been easy. I've faced countless challenges—from backend issues and API integrations to frontend bugs and endless debugging sessions. 
-                            Every feature, improvement, and update has been built and maintained by me, often through long nights of learning, testing, and refining. 
-                            What makes Catura AI different is its philosophy. It's completely free to use, with no credit card requirements, no hidden fees, and no unnecessary barriers. 
-                            I believe advanced AI tools should be available to everyone, <b>especially people who can't afford expensive subscriptions.</b>
-                            My goal isn't to create another complicated AI platform. I want Catura AI to feel simple, approachable, and reliable. When someone uses it, 
-                            I want them to feel like they're talking to a helpful friend—always available, always ready to assist, and focused on providing clear, direct answers.
-                            Catura AI is not backed by investors or a large company. 
-                            It's an independent project built with curiosity, passion, and a commitment to <b>making AI more accessible for everyone.</b>
-                            Thank you for being part of the journey.
-
-                        </p>
+                        <p>Hello,<br> I'm <b>Anirban Das</b>. I'm a 21-year-old BCA student from India, and Catura AI is a project I've been building since 2025. The idea started with a simple question: what if I could build the AI assistant I always wanted to use? I was fascinated by artificial intelligence and dreamed of creating something that wasn't just powerful, but genuinely useful in everyday life. Building Catura AI hasn't been easy. I've faced countless challenges—from backend issues and API integrations to frontend bugs and endless debugging sessions. Every feature, improvement, and update has been built and maintained by me, often through long nights of learning, testing, and refining. What makes Catura AI different is its philosophy. It's completely free to use, with no credit card requirements, no hidden fees, and no unnecessary barriers. I believe advanced AI tools should be available to everyone, <b>especially people who can't afford expensive subscriptions.</b> My goal isn't to create another complicated AI platform. I want Catura AI to feel simple, approachable, and reliable. When someone uses it, I want them to feel like they're talking to a helpful friend—always available, always ready to assist, and focused on providing clear, direct answers. Catura AI is not backed by investors or a large company. It's an independent project built with curiosity, passion, and a commitment to <b>making AI more accessible for everyone.</b> Thank you for being part of the journey.</p>
                     </div>
                 </div>
             </div>
-
         </div><!-- /page-about -->
-
     </main>
 
-
-    <!-- ════════════════════════════════════════
-         FOOTER
-    ════════════════════════════════════════ -->
+    <!-- ════ FOOTER ════ -->
     <footer aria-label="Site footer">
-
-        <!-- Big brand name -->
         <div class="footer-brand-name" aria-hidden="true">
             <div class="footer-brand-letters" data-text="CATURA">CATURA</div>
         </div>
-
         <div class="footer-inner">
-
-            <!-- Col 1 — Brand blurb -->
             <div class="footer-col">
                 <h4>Catura AI</h4>
-                <p>
-                    Your intelligent everyday AI assistant.<br>
-                    Free, fast, and built to help you think better.
-                </p>
+                <p>Your intelligent everyday AI assistant.<br>Free, fast, and built to help you think better.</p>
             </div>
-
-            <!-- Col 2 — Navigation -->
             <div class="footer-col">
                 <h4>Navigate</h4>
                 <ul class="footer-links">
-                    <li>
-                        <a href="#" onclick="showPage('home'); return false;">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
-                            Home
-                        </a>
-                    </li>
-                    <li>
-                        <a href="#" onclick="showPage('about'); return false;">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
-                            About
-                        </a>
-                    </li>
-                    <li>
-                        <a href="#" onclick="openModal('login'); return false;">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
-                            Log in
-                        </a>
-                    </li>
-                    <li>
-                        <a href="#" onclick="openModal('signup'); return false;">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
-                            Sign up
-                        </a>
-                    </li>
+                    <li><a href="#" onclick="showPage('home'); return false;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>Home</a></li>
+                    <li><a href="#" onclick="showPage('about'); return false;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>About</a></li>
+                    <li><a href="#" onclick="openModal('login'); return false;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>Log in</a></li>
+                    <li><a href="#" onclick="openModal('signup'); return false;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>Sign up</a></li>
                 </ul>
             </div>
-
-            <!-- Col 3 — Contact / social -->
             <div class="footer-col">
                 <h4>Contact</h4>
                 <ul class="social-links">
-                    <li>
-                        <a href="https://github.com/" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.38.6.11.82-.26.82-.58 0-.28-.01-1.03-.02-2.02-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02.005 2.04.14 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.21.7.82.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/>
-                            </svg>
-                            GitHub
-                        </a>
-                    </li>
-                    <li>
-                        <a href="https://linkedin.com/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/>
-                            </svg>
-                            LinkedIn
-                        </a>
-                    </li>
-                    <li>
-                        <a href="mailto:hello@catura.ai" aria-label="Email contact">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                            hello@catura.ai
-                        </a>
-                    </li>
+                    <li><a href="https://github.com/" target="_blank" rel="noopener noreferrer" aria-label="GitHub"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.38.6.11.82-.26.82-.58 0-.28-.01-1.03-.02-2.02-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02.005 2.04.14 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.21.7.82.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/></svg>GitHub</a></li>
+                    <li><a href="https://linkedin.com/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>LinkedIn</a></li>
+                    <li><a href="mailto:hello@catura.ai" aria-label="Email contact"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>hello@catura.ai</a></li>
                 </ul>
             </div>
-
-        </div><!-- /footer-inner -->
-
+        </div>
         <div class="footer-bottom">
             <p>© <span id="copy-year"></span> Catura AI. All rights reserved.</p>
             <p><span>Made with care ❤️ &amp; curiosity By Anirban</span></p>
         </div>
-
     </footer>
 
-
-    <!-- ════════════════════════════════════════
-         AUTH MODAL
-    ════════════════════════════════════════ -->
-    <div
-        class="modal-overlay"
-        id="authModal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Sign in or create account"
-        onclick="handleOverlayClick(event)"
-    >
+    <!-- ════ AUTH MODAL ════ -->
+    <div class="modal-overlay" id="authModal" role="dialog" aria-modal="true" aria-label="Sign in or create account" onclick="handleOverlayClick(event)">
         <div class="modal-card" id="authModalCard">
-
             <button class="modal-close" onclick="closeModal()" aria-label="Close">✕</button>
 
-            <!-- ── AUTH SCREEN ── -->
             <section id="authScreen" aria-label="Sign in or create account">
-
                 <div class="logo-area">
-                    <div class="logo-box">
-                        <img src="static/logo.png" alt="Catura AI logo">
-                    </div>
+                    <div class="logo-box"><img src="static/logo.png" alt="Catura AI logo"></div>
                     <h1>Log in to Catura AI</h1>
                     <p>Your AI assistant, always there for you</p>
                 </div>
-
                 <div class="tabs" role="tablist" aria-label="Authentication options">
-                    <button class="tab" id="tab-login" type="button" role="tab"
-                        aria-selected="true" aria-controls="panel-login"
-                        onclick="switchTab('login')">Login</button>
-                    <button class="tab" id="tab-signup" type="button" role="tab"
-                        aria-selected="false" aria-controls="panel-signup"
-                        onclick="switchTab('signup')">Sign up</button>
+                    <button class="tab" id="tab-login" type="button" role="tab" aria-selected="true" aria-controls="panel-login" onclick="switchTab('login')">Login</button>
+                    <button class="tab" id="tab-signup" type="button" role="tab" aria-selected="false" aria-controls="panel-signup" onclick="switchTab('signup')">Sign up</button>
                 </div>
-
                 <button class="oauth-btn" type="button" onclick="doGitHub()">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
-                        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.38.6.11.82-.26.82-.58 0-.28-.01-1.03-.02-2.02-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02.005 2.04.14 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.21.7.82.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/>
-                    </svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.38.6.11.82-.26.82-.58 0-.28-.01-1.03-.02-2.02-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02.005 2.04.14 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.21.7.82.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/></svg>
                     Continue with GitHub
                 </button>
-
                 <button class="oauth-btn" type="button" onclick="doGoogle()">
-                    <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
-                        <path fill="#EA4335" d="M24 9.5c3.1 0 5.6 1.1 7.6 2.9l5.6-5.6C33.6 3.5 29.1 1.5 24 1.5 14.9 1.5 7.2 7.1 4 14.9l6.6 5.1C12.3 13.7 17.6 9.5 24 9.5z"/>
-                        <path fill="#4285F4" d="M46.5 24c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.9 7.2l7.6 5.9C43.8 37 46.5 31 46.5 24z"/>
-                        <path fill="#FBBC05" d="M10.6 28.6A14.6 14.6 0 0 1 9.5 24c0-1.6.3-3.2.8-4.6L3.7 14.3A22.5 22.5 0 0 0 1.5 24c0 3.6.9 7.1 2.5 10.1l6.6-5.5z"/>
-                        <path fill="#34A853" d="M24 46.5c5.1 0 9.4-1.7 12.5-4.6l-7.6-5.9c-1.7 1.1-3.8 1.8-4.9 1.8-6.4 0-11.7-4.3-13.6-10l-6.6 5.1C7.2 40.9 14.9 46.5 24 46.5z"/>
-                    </svg>
+                    <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path fill="#EA4335" d="M24 9.5c3.1 0 5.6 1.1 7.6 2.9l5.6-5.6C33.6 3.5 29.1 1.5 24 1.5 14.9 1.5 7.2 7.1 4 14.9l6.6 5.1C12.3 13.7 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.9 7.2l7.6 5.9C43.8 37 46.5 31 46.5 24z"/><path fill="#FBBC05" d="M10.6 28.6A14.6 14.6 0 0 1 9.5 24c0-1.6.3-3.2.8-4.6L3.7 14.3A22.5 22.5 0 0 0 1.5 24c0 3.6.9 7.1 2.5 10.1l6.6-5.5z"/><path fill="#34A853" d="M24 46.5c5.1 0 9.4-1.7 12.5-4.6l-7.6-5.9c-1.7 1.1-3.8 1.8-4.9 1.8-6.4 0-11.7-4.3-13.6-10l-6.6 5.1C7.2 40.9 14.9 46.5 24 46.5z"/></svg>
                     Continue with Google
                 </button>
-
                 <div class="divider" role="separator">or</div>
-
                 <div id="panel-login" role="tabpanel" aria-labelledby="tab-login">
-
                     <div class="field">
                         <label for="email">Email address</label>
-                        <input type="email" id="email" name="email"
-                            placeholder="you@example.com"
-                            autocomplete="email" required aria-required="true" inputmode="email">
+                        <input type="email" id="email" name="email" placeholder="you@example.com" autocomplete="email" required aria-required="true" inputmode="email">
                     </div>
-
                     <div class="field">
                         <div class="field-row">
                             <label for="password">Password</label>
-                            <button class="forgot" id="forgotBtn" type="button"
-                                onclick="doForgot()" aria-label="Send password reset email">
-                                I forgot my password
-                            </button>
+                            <button class="forgot" id="forgotBtn" type="button" onclick="doForgot()" aria-label="Send password reset email">I forgot my password</button>
                         </div>
                         <div class="pw-wrap">
-                            <input type="password" id="password" name="password"
-                                placeholder="••••••••"
-                                autocomplete="current-password" required aria-required="true"
-                                oninput="onPasswordInput(this.value)">
-                            <button type="button" class="pw-toggle" id="pwToggleBtn"
-                                onclick="togglePw('password', this)" aria-label="Show password">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                    <circle cx="12" cy="12" r="3"/>
-                                </svg>
+                            <input type="password" id="password" name="password" placeholder="••••••••" autocomplete="current-password" required aria-required="true" oninput="onPasswordInput(this.value)">
+                            <button type="button" class="pw-toggle" id="pwToggleBtn" onclick="togglePw('password', this)" aria-label="Show password">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                             </button>
                         </div>
-                        <div class="pw-strength" id="signupPwStrength"
-                            role="progressbar" aria-label="Password strength"
-                            aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden>
+                        <div class="pw-strength" id="signupPwStrength" role="progressbar" aria-label="Password strength" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden>
                             <div class="pw-strength-bar" id="signupPwBar"></div>
                         </div>
                         <p class="pw-hint" id="signupPwHint" aria-live="polite" hidden></p>
                     </div>
-
                     <div class="field" id="confirmField" hidden>
                         <label for="confirm">Confirm password</label>
                         <div class="pw-wrap">
-                            <input type="password" id="confirm" name="confirm"
-                                placeholder="Repeat password"
-                                autocomplete="new-password"
-                                oninput="onConfirmInput(this.value)"
-                                onblur="onConfirmBlur()">
+                            <input type="password" id="confirm" name="confirm" placeholder="Repeat password" autocomplete="new-password" oninput="onConfirmInput(this.value)" onblur="onConfirmBlur()">
                             <span class="confirm-status" id="confirmStatus" aria-live="polite" aria-label="">
                                 <svg class="icon-match" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
                                 <svg class="icon-mismatch" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1531,630 +996,303 @@
                             </span>
                         </div>
                     </div>
-
                     <div id="cf-turnstile-container" aria-label="Security verification"></div>
                     <p class="captcha-status" id="captchaStatus" role="status" aria-live="polite"></p>
-
                     <button class="submit" id="submitBtn" type="button" onclick="doSubmit()">Log in</button>
-
                     <div class="msg" id="msg" role="alert" aria-live="assertive" aria-atomic="true"></div>
-
                     <p class="switch-row" id="switchRow">
                         Don't have an account?
-                        <button type="button" id="switchLink"
-                            onclick="switchTab('signup')"
-                            aria-label="Switch to sign up">Sign up</button>
+                        <button type="button" id="switchLink" onclick="switchTab('signup')" aria-label="Switch to sign up">Sign up</button>
                     </p>
                 </div>
+            </section>
 
-            </section><!-- /authScreen -->
-
-
-            <!-- ── RESET PASSWORD SCREEN ── -->
             <section id="resetScreen" aria-label="Set new password" hidden>
-
                 <div class="logo-area">
                     <div class="reset-icon" aria-hidden="true">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                        </svg>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                     </div>
                     <h1>Set new password</h1>
                     <p>Choose a strong password for your account</p>
                 </div>
-
                 <div class="field">
                     <label for="newPassword">New password</label>
                     <div class="pw-wrap">
-                        <input type="password" id="newPassword" name="newPassword"
-                            placeholder="••••••••" autocomplete="new-password"
-                            required aria-required="true"
-                            oninput="checkStrength(this.value)">
+                        <input type="password" id="newPassword" name="newPassword" placeholder="••••••••" autocomplete="new-password" required aria-required="true" oninput="checkStrength(this.value)">
                         <button type="button" class="pw-toggle" onclick="togglePw('newPassword', this)" aria-label="Show new password">
-                            <svg id="eye-newPassword" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                <circle cx="12" cy="12" r="3"/>
-                            </svg>
+                            <svg id="eye-newPassword" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                         </button>
                     </div>
-                    <div class="pw-strength" role="progressbar" aria-label="Password strength"
-                        aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="pwStrengthBar">
+                    <div class="pw-strength" role="progressbar" aria-label="Password strength" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="pwStrengthBar">
                         <div class="pw-strength-bar" id="strengthBar"></div>
                     </div>
                     <p class="pw-hint" id="strengthHint" aria-live="polite">At least 6 characters</p>
                 </div>
-
                 <div class="field">
                     <label for="newConfirm">Confirm new password</label>
                     <div class="pw-wrap">
-                        <input type="password" id="newConfirm" name="newConfirm"
-                            placeholder="Repeat password" autocomplete="new-password"
-                            required aria-required="true">
+                        <input type="password" id="newConfirm" name="newConfirm" placeholder="Repeat password" autocomplete="new-password" required aria-required="true">
                         <button type="button" class="pw-toggle" onclick="togglePw('newConfirm', this)" aria-label="Show confirm new password">
-                            <svg id="eye-newConfirm" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                <circle cx="12" cy="12" r="3"/>
-                            </svg>
+                            <svg id="eye-newConfirm" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                         </button>
                     </div>
                 </div>
-
                 <button class="submit" id="resetBtn" type="button" onclick="doResetPassword()">Update password</button>
-
                 <div class="msg" id="resetMsg" role="alert" aria-live="assertive" aria-atomic="true"></div>
+            </section>
+        </div>
+    </div>
 
-            </section><!-- /resetScreen -->
-
-        </div><!-- /modal-card -->
-    </div><!-- /modal-overlay -->
-
-
-    <!-- ════════════════════════════════════════
-         SCRIPTS
-    ════════════════════════════════════════ -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-
     <script>
-        // ═══════════════════════════════════════════════════════
-        // CONFIG
-        // ═══════════════════════════════════════════════════════
         const SUPABASE_URL       = "https://zhrjmnrfklzuxmfbdqhg.supabase.co";
         const SUPABASE_KEY       = "sb_publishable_aIbByN1rFc9V3AH41Kyz6A_e1XppA1Z";
         const TURNSTILE_SITE_KEY = "0x4AAAAAADDHFTkeFyoi79mt";
-
-        // ═══════════════════════════════════════════════════════
-        // SUPABASE
-        // ═══════════════════════════════════════════════════════
         const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // ═══════════════════════════════════════════════════════
-        // TURNSTILE STATE
-        // ═══════════════════════════════════════════════════════
         let turnstileToken    = null;
         let turnstileWidgetId = null;
         let turnstileReady    = false;
 
         function onTurnstileLoad() {
             turnstileReady = true;
-            // Only init if modal is open
-            if (document.getElementById('authModal').classList.contains('open')) {
-                initTurnstile();
-            }
+            if (document.getElementById('authModal').classList.contains('open')) initTurnstile();
         }
-
         function onTurnstileSuccess(token) {
             turnstileToken = token;
-            const status = document.getElementById('captchaStatus');
-            if (status) { status.textContent = ''; status.className = 'captcha-status ready'; }
+            const s = document.getElementById('captchaStatus');
+            if (s) { s.textContent = ''; s.className = 'captcha-status ready'; }
         }
-
         function onTurnstileExpired() {
             turnstileToken = null;
-            const status = document.getElementById('captchaStatus');
-            if (status) {
-                status.textContent = 'Re-verifying browser…';
-                status.className   = 'captcha-status loading';
-            }
+            const s = document.getElementById('captchaStatus');
+            if (s) { s.textContent = 'Re-verifying browser…'; s.className = 'captcha-status loading'; }
             if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
         }
-
         function onTurnstileError() {
             turnstileToken = null;
-            const status = document.getElementById('captchaStatus');
-            if (status) {
-                status.textContent = 'CAPTCHA error — please refresh the page';
-                status.className   = 'captcha-status error-state';
-            }
+            const s = document.getElementById('captchaStatus');
+            if (s) { s.textContent = 'CAPTCHA error — please refresh the page'; s.className = 'captcha-status error-state'; }
         }
-
         function initTurnstile() {
             if (!window.turnstile) return;
-            if (turnstileWidgetId !== null) {
-                window.turnstile.reset(turnstileWidgetId);
-                return;
-            }
-            const container = document.getElementById('cf-turnstile-container');
-            if (!container) return;
-            turnstileWidgetId = window.turnstile.render(container, {
-                sitekey:            TURNSTILE_SITE_KEY,
-                callback:           onTurnstileSuccess,
+            if (turnstileWidgetId !== null) { window.turnstile.reset(turnstileWidgetId); return; }
+            const c = document.getElementById('cf-turnstile-container');
+            if (!c) return;
+            turnstileWidgetId = window.turnstile.render(c, {
+                sitekey: TURNSTILE_SITE_KEY,
+                callback: onTurnstileSuccess,
                 'expired-callback': onTurnstileExpired,
-                'error-callback':   onTurnstileError,
-                appearance:         'always',
-                theme:              'dark',
-                execution:          'render',
-                size:               'normal',
+                'error-callback': onTurnstileError,
+                appearance: 'always', theme: 'dark', execution: 'render', size: 'normal',
             });
         }
 
-        // ═══════════════════════════════════════════════════════
-        // FOOTER YEAR
-        // ═══════════════════════════════════════════════════════
         document.getElementById('copy-year').textContent = new Date().getFullYear();
 
-        // ═══════════════════════════════════════════════════════
-        // PAGE NAVIGATION
-        // ═══════════════════════════════════════════════════════
+        /* ── Marquee ── */
+        function pauseMarquee()  { const t = document.getElementById('marqueeTrack'); if (t) t.classList.add('paused'); }
+        function resumeMarquee() { const t = document.getElementById('marqueeTrack'); if (t) t.classList.remove('paused'); }
+
+        /* ── Pages ── */
         function showPage(name) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById('page-' + name).classList.add('active');
             document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
-            const link = document.getElementById('nav-' + name);
-            if (link) {
-                link.classList.add('active');
-                link.setAttribute('aria-current', 'page');
-            }
+            const l = document.getElementById('nav-' + name);
+            if (l) { l.classList.add('active'); l.setAttribute('aria-current', 'page'); }
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // ═══════════════════════════════════════════════════════
-        // MODAL
-        // ═══════════════════════════════════════════════════════
+        /* ── Modal ── */
         function openModal(tab) {
             document.getElementById('authModal').classList.add('open');
             document.body.style.overflow = 'hidden';
             switchTab(tab || 'login');
-            // Init turnstile once modal is visible
-            setTimeout(() => {
-                if (turnstileReady) initTurnstile();
-            }, 50);
+            setTimeout(() => { if (turnstileReady) initTurnstile(); }, 50);
         }
-
-        function closeModal() {
-            document.getElementById('authModal').classList.remove('open');
-            document.body.style.overflow = '';
-        }
-
-        function handleOverlayClick(e) {
-            if (e.target === document.getElementById('authModal')) closeModal();
-        }
-
-        // Keyboard: Escape closes modal
+        function closeModal() { document.getElementById('authModal').classList.remove('open'); document.body.style.overflow = ''; }
+        function handleOverlayClick(e) { if (e.target === document.getElementById('authModal')) closeModal(); }
         document.addEventListener('keydown', e => {
-            if (e.key === 'Escape') {
-                closeModal();
-                return;
-            }
+            if (e.key === 'Escape') { closeModal(); return; }
             if (e.key === 'Enter' && document.getElementById('authModal').classList.contains('open')) {
                 if (!document.getElementById('resetScreen').hidden) doResetPassword();
                 else doSubmit();
             }
         });
 
-        // ═══════════════════════════════════════════════════════
-        // DETECT PASSWORD-RESET FLOW
-        // ═══════════════════════════════════════════════════════
-        function getHashParams() {
-            return Object.fromEntries(new URLSearchParams(window.location.hash.substring(1)));
-        }
-
+        /* ── Recovery ── */
+        function getHashParams() { return Object.fromEntries(new URLSearchParams(window.location.hash.substring(1))); }
         const hashParams = getHashParams();
         const isRecovery = hashParams.type === 'recovery' && hashParams.access_token;
-
         if (isRecovery) {
-            sb.auth.setSession({
-                access_token:  hashParams.access_token,
-                refresh_token: hashParams.refresh_token || ''
-            }).then(() => {
-                document.getElementById('authScreen').hidden  = true;
-                const resetScreen = document.getElementById('resetScreen');
-                resetScreen.hidden  = false;
-                resetScreen.style.display = 'block';
+            sb.auth.setSession({ access_token: hashParams.access_token, refresh_token: hashParams.refresh_token || '' }).then(() => {
+                document.getElementById('authScreen').hidden = true;
+                const r = document.getElementById('resetScreen');
+                r.hidden = false; r.style.display = 'block';
                 history.replaceState(null, '', window.location.pathname);
                 openModal();
             });
         } else {
-            sb.auth.onAuthStateChange((event, session) => {
-                if (event === 'SIGNED_IN' && session) window.location.href = '/';
-            });
-            sb.auth.getSession().then(({ data }) => {
-                if (data.session) window.location.href = '/';
-            });
+            sb.auth.onAuthStateChange((event, session) => { if (event === 'SIGNED_IN' && session) window.location.href = '/'; });
+            sb.auth.getSession().then(({ data }) => { if (data.session) window.location.href = '/'; });
         }
 
-        // ═══════════════════════════════════════════════════════
-        // TAB SWITCHING
-        // ═══════════════════════════════════════════════════════
+        /* ── Tabs ── */
         let currentTab = 'login';
-
         function switchTab(tab) {
-            currentTab    = tab;
+            currentTab = tab;
             const isLogin = tab === 'login';
-
             document.getElementById('tab-login').setAttribute('aria-selected',  isLogin ? 'true' : 'false');
             document.getElementById('tab-signup').setAttribute('aria-selected', isLogin ? 'false' : 'true');
-
             document.getElementById('confirmField').hidden   = isLogin;
             document.getElementById('forgotBtn').hidden      = !isLogin;
             document.getElementById('submitBtn').textContent = isLogin ? 'Log in' : 'Create account';
-            document.getElementById('submitBtn').setAttribute(
-                'aria-label', isLogin ? 'Log in to Catura AI' : 'Create a new Catura AI account'
-            );
-
-            document.getElementById('password').setAttribute(
-                'autocomplete', isLogin ? 'current-password' : 'new-password'
-            );
-
-            const switchRow  = document.getElementById('switchRow');
-            const switchLink = document.getElementById('switchLink');
-            if (isLogin) {
-                switchRow.firstChild.textContent = "Don't have an account? ";
-                switchLink.textContent = 'Sign up';
-                switchLink.setAttribute('aria-label', 'Switch to sign up');
-                switchLink.onclick = () => switchTab('signup');
-            } else {
-                switchRow.firstChild.textContent = 'Already have an account? ';
-                switchLink.textContent = 'Log in';
-                switchLink.setAttribute('aria-label', 'Switch to log in');
-                switchLink.onclick = () => switchTab('login');
-            }
-
+            document.getElementById('submitBtn').setAttribute('aria-label', isLogin ? 'Log in to Catura AI' : 'Create a new Catura AI account');
+            document.getElementById('password').setAttribute('autocomplete', isLogin ? 'current-password' : 'new-password');
+            const sr = document.getElementById('switchRow'), sl = document.getElementById('switchLink');
+            if (isLogin) { sr.firstChild.textContent = "Don't have an account? "; sl.textContent = 'Sign up'; sl.setAttribute('aria-label','Switch to sign up'); sl.onclick = () => switchTab('signup'); }
+            else          { sr.firstChild.textContent = 'Already have an account? '; sl.textContent = 'Log in'; sl.setAttribute('aria-label','Switch to log in'); sl.onclick = () => switchTab('login'); }
             clearMsg('msg');
-
-            const pwInput  = document.getElementById('password');
-            const pwToggle = document.getElementById('pwToggleBtn');
-            pwInput.value  = '';
-            pwInput.type   = 'password';
-            pwToggle.classList.remove('visible');
-            pwToggle.querySelector('svg').innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
-
-            const confirmInput = document.getElementById('confirm');
-            confirmInput.value = '';
-            const confirmStatus = document.getElementById('confirmStatus');
-            confirmStatus.classList.remove('show', 'state-match', 'state-mismatch', 'state-required');
-
+            const pi = document.getElementById('password'), pt = document.getElementById('pwToggleBtn');
+            pi.value = ''; pi.type = 'password'; pt.classList.remove('visible');
+            pt.querySelector('svg').innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+            document.getElementById('confirm').value = '';
+            const cs = document.getElementById('confirmStatus');
+            cs.classList.remove('show','state-match','state-mismatch','state-required');
             checkSignupStrength('');
-
-            if (turnstileWidgetId !== null) {
-                window.turnstile.reset(turnstileWidgetId);
-                turnstileToken = null;
-            }
+            if (turnstileWidgetId !== null) { window.turnstile.reset(turnstileWidgetId); turnstileToken = null; }
         }
 
-        // ═══════════════════════════════════════════════════════
-        // MESSAGE HELPERS
-        // ═══════════════════════════════════════════════════════
-        function showMsg(id, text, type) {
-            const el = document.getElementById(id);
-            el.textContent = text;
-            el.className   = 'msg ' + type;
-        }
-        function clearMsg(id) {
-            const el = document.getElementById(id);
-            el.textContent = '';
-            el.className   = 'msg';
-        }
+        /* ── Messages ── */
+        function showMsg(id, text, type) { const e = document.getElementById(id); e.textContent = text; e.className = 'msg ' + type; }
+        function clearMsg(id)            { const e = document.getElementById(id); e.textContent = ''; e.className = 'msg'; }
 
-        // ═══════════════════════════════════════════════════════
-        // SUBMIT
-        // ═══════════════════════════════════════════════════════
+        /* ── Submit ── */
         async function doSubmit() {
-            const email    = document.getElementById('email').value.trim();
+            const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
-            const btn      = document.getElementById('submitBtn');
-
-            if (!email || !password)
-                return showMsg('msg', 'Please fill in all fields.', 'error');
-
+            const btn = document.getElementById('submitBtn');
+            if (!email || !password) return showMsg('msg', 'Please fill in all fields.', 'error');
             if (!turnstileToken) {
-                btn.disabled    = true;
-                btn.textContent = 'Verifying browser…';
+                btn.disabled = true; btn.textContent = 'Verifying browser…';
                 const ok = await waitForTurnstile(15000);
-                btn.disabled    = false;
-                btn.textContent = currentTab === 'login' ? 'Log in' : 'Create account';
-                if (!ok) {
-                    if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
-                    else initTurnstile();
-                    return showMsg('msg', 'CAPTCHA timed out. Please wait and try again.', 'error');
-                }
+                btn.disabled = false; btn.textContent = currentTab === 'login' ? 'Log in' : 'Create account';
+                if (!ok) { if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId); else initTurnstile(); return showMsg('msg', 'CAPTCHA timed out. Please wait and try again.', 'error'); }
             }
-
             if (currentTab === 'signup') {
                 const confirm = document.getElementById('confirm').value;
                 if (password !== confirm) return showMsg('msg', 'Passwords do not match.', 'error');
                 if (password.length < 6)  return showMsg('msg', 'Password must be at least 6 characters.', 'error');
-
-                btn.disabled    = true;
-                btn.textContent = 'Creating account…';
-
-                const { error } = await sb.auth.signUp({
-                    email, password,
-                    options: { captchaToken: turnstileToken }
-                });
-
-                turnstileToken = null;
-                if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
-
-                btn.disabled    = false;
-                btn.textContent = 'Create account';
-
+                btn.disabled = true; btn.textContent = 'Creating account…';
+                const { error } = await sb.auth.signUp({ email, password, options: { captchaToken: turnstileToken } });
+                turnstileToken = null; if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
+                btn.disabled = false; btn.textContent = 'Create account';
                 if (error) showMsg('msg', error.message, 'error');
                 else showMsg('msg', '✅ Account created! Check your email to confirm, then log in.', 'success');
-
             } else {
-                btn.disabled    = true;
-                btn.textContent = 'Logging in…';
-
-                const { error } = await sb.auth.signInWithPassword({
-                    email, password,
-                    options: { captchaToken: turnstileToken }
-                });
-
-                turnstileToken = null;
-                if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
-
-                if (error) {
-                    btn.disabled    = false;
-                    btn.textContent = 'Log in';
-                    showMsg('msg', error.message, 'error');
-                } else {
-                    window.location.href = '/';
-                }
+                btn.disabled = true; btn.textContent = 'Logging in…';
+                const { error } = await sb.auth.signInWithPassword({ email, password, options: { captchaToken: turnstileToken } });
+                turnstileToken = null; if (turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
+                if (error) { btn.disabled = false; btn.textContent = 'Log in'; showMsg('msg', error.message, 'error'); }
+                else window.location.href = '/';
             }
         }
 
-        function waitForTurnstile(timeoutMs) {
+        function waitForTurnstile(ms) {
             return new Promise(resolve => {
                 if (turnstileToken) { resolve(true); return; }
                 const start = Date.now();
                 const iv = setInterval(() => {
-                    if (turnstileToken)                      { clearInterval(iv); resolve(true);  }
-                    else if (Date.now() - start > timeoutMs) { clearInterval(iv); resolve(false); }
+                    if (turnstileToken)                { clearInterval(iv); resolve(true);  }
+                    else if (Date.now()-start > ms)    { clearInterval(iv); resolve(false); }
                 }, 100);
             });
         }
 
-        // ═══════════════════════════════════════════════════════
-        // OAUTH
-        // ═══════════════════════════════════════════════════════
-        async function doGitHub() {
-            await sb.auth.signInWithOAuth({
-                provider: 'github',
-                options: { redirectTo: window.location.origin }
-            });
-        }
-        async function doGoogle() {
-            await sb.auth.signInWithOAuth({
-                provider: 'google',
-                options: { redirectTo: window.location.origin }
-            });
-        }
+        /* ── OAuth ── */
+        async function doGitHub() { await sb.auth.signInWithOAuth({ provider: 'github', options: { redirectTo: window.location.origin } }); }
+        async function doGoogle() { await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } }); }
 
-        // ═══════════════════════════════════════════════════════
-        // FORGOT PASSWORD
-        // ═══════════════════════════════════════════════════════
+        /* ── Forgot ── */
         async function doForgot() {
             const email = document.getElementById('email').value.trim();
             if (!email) return showMsg('msg', 'Enter your email above first.', 'error');
-            const { error } = await sb.auth.resetPasswordForEmail(email, {
-                redirectTo: window.location.origin + '/auth'
-            });
+            const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/auth' });
             if (error) showMsg('msg', error.message, 'error');
             else showMsg('msg', '✅ Reset email sent! Check your inbox.', 'success');
         }
 
-        // ═══════════════════════════════════════════════════════
-        // PASSWORD TOGGLE
-        // ═══════════════════════════════════════════════════════
+        /* ── Password toggle ── */
         function togglePw(inputId, btn) {
-            const input  = document.getElementById(inputId);
+            const input = document.getElementById(inputId);
             const isHide = input.type === 'password';
-            input.type   = isHide ? 'text' : 'password';
+            input.type = isHide ? 'text' : 'password';
             btn.setAttribute('aria-label', isHide ? 'Hide password' : 'Show password');
             const svg = btn.querySelector('svg');
-            if (isHide) {
-                svg.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
-            } else {
-                svg.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
-            }
+            if (isHide) svg.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+            else        svg.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
         }
-
         function onPasswordInput(pw) {
             const btn = document.getElementById('pwToggleBtn');
-            if (pw.length > 0) {
-                btn.classList.add('visible');
-            } else {
+            if (pw.length > 0) { btn.classList.add('visible'); }
+            else {
                 btn.classList.remove('visible');
-                const input = document.getElementById('password');
-                input.type  = 'password';
-                const svg   = btn.querySelector('svg');
-                svg.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+                const inp = document.getElementById('password'); inp.type = 'password';
+                btn.querySelector('svg').innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
             }
             checkSignupStrength(pw);
-            const confirmVal = document.getElementById('confirm').value;
-            if (currentTab === 'signup') updateConfirmStatus(pw, confirmVal, false);
+            if (currentTab === 'signup') updateConfirmStatus(pw, document.getElementById('confirm').value, false);
         }
-
-        function onConfirmInput(confirmVal) {
-            const pw = document.getElementById('password').value;
-            updateConfirmStatus(pw, confirmVal, false);
-        }
-
-        function onConfirmBlur() {
-            const pw      = document.getElementById('password').value;
-            const confirm = document.getElementById('confirm').value;
-            updateConfirmStatus(pw, confirm, true);
-        }
-
-        function updateConfirmStatus(pw, confirmVal, showRequired) {
-            const status = document.getElementById('confirmStatus');
-            status.classList.remove('show', 'state-match', 'state-mismatch', 'state-required');
+        function onConfirmInput(v)  { updateConfirmStatus(document.getElementById('password').value, v, false); }
+        function onConfirmBlur()    { updateConfirmStatus(document.getElementById('password').value, document.getElementById('confirm').value, true); }
+        function updateConfirmStatus(pw, cv, showRequired) {
+            const s = document.getElementById('confirmStatus');
+            s.classList.remove('show','state-match','state-mismatch','state-required');
             if (!pw) return;
-            if (confirmVal.length > 0) {
-                if (confirmVal === pw) {
-                    status.classList.add('show', 'state-match');
-                    status.setAttribute('aria-label', 'Passwords match');
-                } else {
-                    status.classList.add('show', 'state-mismatch');
-                    status.setAttribute('aria-label', 'Passwords do not match');
-                }
-            } else if (showRequired) {
-                status.classList.add('show', 'state-required');
-                status.setAttribute('aria-label', 'Confirm password is required');
-            }
+            if (cv.length > 0) {
+                if (cv === pw) { s.classList.add('show','state-match'); s.setAttribute('aria-label','Passwords match'); }
+                else           { s.classList.add('show','state-mismatch'); s.setAttribute('aria-label','Passwords do not match'); }
+            } else if (showRequired) { s.classList.add('show','state-required'); s.setAttribute('aria-label','Confirm password is required'); }
         }
 
-        // ═══════════════════════════════════════════════════════
-        // PASSWORD STRENGTH — COMMON LIST
-        // ═══════════════════════════════════════════════════════
-        const COMMON_PASSWORDS = new Set([
-            'password','password1','password123','123456','1234567','12345678','123456789',
-            '1234567890','qwerty','qwerty123','qwertyuiop','abc123','letmein','monkey',
-            'dragon','master','sunshine','princess','welcome','shadow','superman','batman',
-            'football','baseball','soccer','iloveyou','trustno1','admin','login','pass',
-            'hello','hello123','test','test123','111111','222222','333333','444444',
-            '555555','666666','777777','888888','999999','000000','123123','321321',
-            '112233','445566','654321','987654','1q2w3e','zxcvbn','asdfgh','qazwsx',
-            'pass123','mypass','changeme','secret','access','michael','jessica','ashley',
-            '696969','batman1','passw0rd','p@ssword','pa$$word','p@$$w0rd','password!',
-            'Pa$sw0rd','admin123','welcome1','welcome123','abc12345','qwerty1','qwerty12',
-        ]);
-
+        /* ── Strength ── */
+        const COMMON_PASSWORDS = new Set(['password','password1','password123','123456','1234567','12345678','123456789','1234567890','qwerty','qwerty123','qwertyuiop','abc123','letmein','monkey','dragon','master','sunshine','princess','welcome','shadow','superman','batman','football','baseball','soccer','iloveyou','trustno1','admin','login','pass','hello','hello123','test','test123','111111','222222','333333','444444','555555','666666','777777','888888','999999','000000','123123','321321','112233','445566','654321','987654','1q2w3e','zxcvbn','asdfgh','qazwsx','pass123','mypass','changeme','secret','access','michael','jessica','ashley','696969','batman1','passw0rd','p@ssword','pa$$word','p@$$w0rd','password!','Pa$sw0rd','admin123','welcome1','welcome123','abc12345','qwerty1','qwerty12']);
         const KEYBOARD_ROWS = ['qwertyuiop','asdfghjkl','zxcvbnm','1234567890'];
-
-        function isKeyboardPattern(pw) {
-            const lower = pw.toLowerCase();
-            for (const row of KEYBOARD_ROWS) {
-                for (let len = 4; len <= row.length; len++) {
-                    for (let i = 0; i <= row.length - len; i++) {
-                        const chunk = row.substring(i, i + len);
-                        if (lower.includes(chunk) || lower.includes(chunk.split('').reverse().join(''))) return true;
-                    }
-                }
-            }
-            return false;
-        }
-
-        function isSequential(pw) {
-            const lower = pw.toLowerCase();
-            for (let i = 0; i < lower.length - 3; i++) {
-                const codes = [lower.charCodeAt(i), lower.charCodeAt(i+1), lower.charCodeAt(i+2), lower.charCodeAt(i+3)];
-                const diffs = [codes[1]-codes[0], codes[2]-codes[1], codes[3]-codes[2]];
-                if (diffs.every(d => d === 1) || diffs.every(d => d === -1)) return true;
-            }
-            return false;
-        }
-
-        function hasRepeatedChars(pw) {
-            if (/(.)\1{2,}/.test(pw)) return true;
-            const freq = {};
-            for (const c of pw) freq[c] = (freq[c] || 0) + 1;
-            const maxFreq = Math.max(...Object.values(freq));
-            return pw.length >= 6 && maxFreq / pw.length > 0.45;
-        }
-
+        function isKeyboardPattern(pw) { const l=pw.toLowerCase(); for(const r of KEYBOARD_ROWS){for(let len=4;len<=r.length;len++){for(let i=0;i<=r.length-len;i++){const c=r.substring(i,i+len);if(l.includes(c)||l.includes(c.split('').reverse().join('')))return true;}}}return false;}
+        function isSequential(pw)      { const l=pw.toLowerCase();for(let i=0;i<l.length-3;i++){const c=[l.charCodeAt(i),l.charCodeAt(i+1),l.charCodeAt(i+2),l.charCodeAt(i+3)];const d=[c[1]-c[0],c[2]-c[1],c[3]-c[2]];if(d.every(x=>x===1)||d.every(x=>x===-1))return true;}return false;}
+        function hasRepeatedChars(pw)  { if(/(.)\1{2,}/.test(pw))return true;const f={};for(const c of pw)f[c]=(f[c]||0)+1;return pw.length>=6&&Math.max(...Object.values(f))/pw.length>0.45;}
         function checkSignupStrength(pw) {
-            const bar  = document.getElementById('signupPwBar');
-            const hint = document.getElementById('signupPwHint');
-            const wrap = document.getElementById('signupPwStrength');
-            if (!pw) {
-                wrap.hidden = true; hint.hidden = true;
-                wrap.setAttribute('aria-valuenow', '0');
-                return;
-            }
-            wrap.hidden = false; hint.hidden = false;
-            let score = 0;
-            if (pw.length >= 6)  score += 1;
-            if (pw.length >= 10) score += 1;
-            if (pw.length >= 14) score += 1;
-            if (/[A-Z]/.test(pw))        score += 1;
-            if (/[0-9]/.test(pw))        score += 1;
-            if (/[^A-Za-z0-9]/.test(pw)) score += 1;
-            const lower = pw.toLowerCase();
-            if (COMMON_PASSWORDS.has(lower))  score = Math.max(0, score - 3);
-            if (isSequential(pw))             score = Math.max(0, score - 2);
-            if (hasRepeatedChars(pw))         score = Math.max(0, score - 1);
-            if (isKeyboardPattern(pw))        score = Math.max(0, score - 1);
-            if (/^[0-9]+$/.test(pw))          score = Math.max(0, score - 1);
-            if (/^[a-zA-Z]+$/.test(pw))       score = Math.max(0, score - 1);
-            const levels = [
-                { pct: '8%',   color: '#e03030', label: 'Very Poor — easily guessed' },
-                { pct: '20%',  color: '#e06c6c', label: 'Poor — try adding variety' },
-                { pct: '45%',  color: '#e0a46c', label: 'Fair — could be stronger' },
-                { pct: '72%',  color: '#d4e06c', label: 'Good — almost there' },
-                { pct: '88%',  color: '#7ec87e', label: 'Strong — well done!' },
-                { pct: '100%', color: '#10a37f', label: 'Very Strong 🔒' },
-            ];
-            const lvl = levels[Math.min(score, 5)];
-            bar.style.width      = lvl.pct;
-            bar.style.background = lvl.color;
-            hint.textContent     = lvl.label;
-            hint.style.color     = lvl.color;
-            wrap.setAttribute('aria-valuenow', parseInt(lvl.pct));
+            const bar=document.getElementById('signupPwBar'),hint=document.getElementById('signupPwHint'),wrap=document.getElementById('signupPwStrength');
+            if(!pw){wrap.hidden=true;hint.hidden=true;wrap.setAttribute('aria-valuenow','0');return;}
+            wrap.hidden=false;hint.hidden=false;
+            let s=0;
+            if(pw.length>=6)s++;if(pw.length>=10)s++;if(pw.length>=14)s++;
+            if(/[A-Z]/.test(pw))s++;if(/[0-9]/.test(pw))s++;if(/[^A-Za-z0-9]/.test(pw))s++;
+            if(COMMON_PASSWORDS.has(pw.toLowerCase()))s=Math.max(0,s-3);
+            if(isSequential(pw))s=Math.max(0,s-2);if(hasRepeatedChars(pw))s=Math.max(0,s-1);if(isKeyboardPattern(pw))s=Math.max(0,s-1);
+            if(/^[0-9]+$/.test(pw))s=Math.max(0,s-1);if(/^[a-zA-Z]+$/.test(pw))s=Math.max(0,s-1);
+            const lvls=[{pct:'8%',color:'#e03030',label:'Very Poor — easily guessed'},{pct:'20%',color:'#e06c6c',label:'Poor — try adding variety'},{pct:'45%',color:'#e0a46c',label:'Fair — could be stronger'},{pct:'72%',color:'#d4e06c',label:'Good — almost there'},{pct:'88%',color:'#7ec87e',label:'Strong — well done!'},{pct:'100%',color:'#10a37f',label:'Very Strong 🔒'}];
+            const l=lvls[Math.min(s,5)];bar.style.width=l.pct;bar.style.background=l.color;hint.textContent=l.label;hint.style.color=l.color;wrap.setAttribute('aria-valuenow',parseInt(l.pct));
         }
-
-        // ═══════════════════════════════════════════════════════
-        // STRENGTH METER — RESET SCREEN
-        // ═══════════════════════════════════════════════════════
         function checkStrength(pw) {
-            const bar  = document.getElementById('strengthBar');
-            const hint = document.getElementById('strengthHint');
-            const wrap = document.getElementById('pwStrengthBar');
-            let score  = 0;
-            if (pw.length >= 6)          score++;
-            if (pw.length >= 10)         score++;
-            if (/[A-Z]/.test(pw))        score++;
-            if (/[0-9]/.test(pw))        score++;
-            if (/[^A-Za-z0-9]/.test(pw)) score++;
-            const levels = [
-                { pct: '0%',   color: '#333',    label: 'At least 6 characters' },
-                { pct: '25%',  color: '#e06c6c', label: 'Weak' },
-                { pct: '50%',  color: '#e0a46c', label: 'Fair' },
-                { pct: '75%',  color: '#d4e06c', label: 'Good' },
-                { pct: '100%', color: '#10a37f', label: 'Strong' },
-            ];
-            const lvl = levels[Math.min(score, 4)];
-            bar.style.width      = lvl.pct;
-            bar.style.background = lvl.color;
-            hint.textContent     = lvl.label;
-            if (wrap) wrap.setAttribute('aria-valuenow', parseInt(lvl.pct) || 0);
+            const bar=document.getElementById('strengthBar'),hint=document.getElementById('strengthHint'),wrap=document.getElementById('pwStrengthBar');
+            let s=0;if(pw.length>=6)s++;if(pw.length>=10)s++;if(/[A-Z]/.test(pw))s++;if(/[0-9]/.test(pw))s++;if(/[^A-Za-z0-9]/.test(pw))s++;
+            const lvls=[{pct:'0%',color:'#333',label:'At least 6 characters'},{pct:'25%',color:'#e06c6c',label:'Weak'},{pct:'50%',color:'#e0a46c',label:'Fair'},{pct:'75%',color:'#d4e06c',label:'Good'},{pct:'100%',color:'#10a37f',label:'Strong'}];
+            const l=lvls[Math.min(s,4)];bar.style.width=l.pct;bar.style.background=l.color;hint.textContent=l.label;if(wrap)wrap.setAttribute('aria-valuenow',parseInt(l.pct)||0);
         }
 
-        // ═══════════════════════════════════════════════════════
-        // RESET PASSWORD
-        // ═══════════════════════════════════════════════════════
+        /* ── Reset password ── */
         async function doResetPassword() {
-            const newPw  = document.getElementById('newPassword').value;
-            const confPw = document.getElementById('newConfirm').value;
-            const btn    = document.getElementById('resetBtn');
-            if (!newPw || !confPw)  return showMsg('resetMsg', 'Please fill in both fields.', 'error');
-            if (newPw !== confPw)   return showMsg('resetMsg', 'Passwords do not match.', 'error');
-            if (newPw.length < 6)   return showMsg('resetMsg', 'Password must be at least 6 characters.', 'error');
-            btn.disabled    = true;
-            btn.textContent = 'Updating…';
-            const { error } = await sb.auth.updateUser({ password: newPw });
-            if (error) {
-                showMsg('resetMsg', error.message, 'error');
-                btn.disabled    = false;
-                btn.textContent = 'Update password';
-            } else {
-                showMsg('resetMsg', '✅ Password updated! Redirecting…', 'success');
-                await sb.auth.signOut();
-                setTimeout(() => { window.location.href = '/auth'; }, 2000);
-            }
+            const np=document.getElementById('newPassword').value,cp=document.getElementById('newConfirm').value,btn=document.getElementById('resetBtn');
+            if(!np||!cp) return showMsg('resetMsg','Please fill in both fields.','error');
+            if(np!==cp)  return showMsg('resetMsg','Passwords do not match.','error');
+            if(np.length<6) return showMsg('resetMsg','Password must be at least 6 characters.','error');
+            btn.disabled=true;btn.textContent='Updating…';
+            const{error}=await sb.auth.updateUser({password:np});
+            if(error){showMsg('resetMsg',error.message,'error');btn.disabled=false;btn.textContent='Update password';}
+            else{showMsg('resetMsg','✅ Password updated! Redirecting…','success');await sb.auth.signOut();setTimeout(()=>{window.location.href='/auth';},2000);}
         }
     </script>
-
 </body>
 </html>
