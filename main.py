@@ -7,7 +7,7 @@ import os
 import uuid
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from supabase import create_client, Client
 import base64
 import io
@@ -257,7 +257,7 @@ app = FastAPI()
 # ✅ CORS MIDDLEWARE
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://catura.duckdns.org", "https://my-ai-assistant-9bbd.onrender.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -349,7 +349,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.264"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.265"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -359,7 +359,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.264", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.265", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -593,7 +593,7 @@ import re as _re
 import asyncio
 from pydantic import BaseModel as _BaseModel
 from typing import Optional as _Optional, List as _List, Any as _Any, Dict as _Dict
-from datetime import datetime as _dt
+from datetime import datetime as _dt, timezone as _tz
 
 # ── PII Sanitizer (mirrors frontend) ─────────────────────────
 _PII_PATTERNS = [
