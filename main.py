@@ -326,9 +326,8 @@ def home():
 
 @app.get("/auth.html")
 def auth_page_html():
-    p = os.path.join(BASE_DIR, "auth.html")
-    if not os.path.isfile(p): return JSONResponse({"error": "auth.html not found"}, status_code=404)
-    return FileResponse(p, media_type="text/html")
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/auth", status_code=301)
 
 @app.get("/auth")
 def auth_page():
@@ -350,7 +349,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.257"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.258"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -360,7 +359,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.257", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.258", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
