@@ -1533,7 +1533,7 @@ window.logoutUser = async function () {
         cancelLabel: 'Stay',
         onConfirm: async () => {
             await supabaseClient.auth.signOut();
-            window.location.href = "/auth.html";
+            window.location.href = "/auth";
         }
     });
 };
@@ -3006,7 +3006,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     await getUser();
 
     if (!currentUser) {
-        window.location.href = "/auth.html";
+        window.location.href = "/auth";
         return;
     }
 
