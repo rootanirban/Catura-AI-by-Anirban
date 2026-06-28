@@ -349,7 +349,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.265"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.266"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -359,7 +359,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.265", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.266", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -2666,8 +2666,11 @@ def call_openrouter_stream(model_id, messages, api_key, file_urls=None, vision_i
                 "model": model_id,
                 "messages": messages,
                 "stream": True,
-                "temperature": 0.3,
+                # ✅ FIXED: Nemotron 3 Ultra is a reasoning model — needs temp=1 + reasoning param
+                # All other OpenRouter models keep temp=0.3
+                "temperature": 1.0 if "nemotron-3-ultra" in model_id else 0.3,
                 "max_tokens": 8192,
+                **({"reasoning": {"effort": "high"}} if "nemotron-3-ultra" in model_id else {}),
                 **({"provider": {"order": ["OpenAI"], "allow_fallbacks": True}} if "gpt-oss" in model_id else {}),
             },
             stream=True,
@@ -2772,12 +2775,16 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
                 "role": gemini_role,
                 "parts": [{"text": msg["content"]}]
             })
+        # ✅ FIXED: A4B = Adaptive Budget Thinking model — needs thinkingConfig + temp=1.0
+        # gemma-4-26b-a4b-it and gemma-4-31b-it both support thinking via thinkingConfig
+        IS_THINKING_GEMMA = "a4b" in model_id or "31b" in model_id
         payload = {
             "system_instruction": {"parts": [{"text": system_prompt}]},
             "contents": contents,
             "generationConfig": {
-                "temperature": 0.3,
+                "temperature": 1.0 if IS_THINKING_GEMMA else 0.3,  # thinking requires temp=1.0
                 "maxOutputTokens": 16000,
+                **({"thinkingConfig": {"thinkingBudget": -1}} if IS_THINKING_GEMMA else {}),
             }
         }
         url = (
@@ -2871,7 +2878,7 @@ def call_poolside_stream(messages, api_key):
                 "model": "poolside/laguna-m.1",
                 "messages": messages,
                 "stream": True,
-                "temperature": 0.3,
+                "temperature": 0.7,  # ✅ FIXED: 0.3 was too conservative for a reasoning model; Poolside recommends 0.7
                 "max_tokens": 8000,
             },
             stream=True,
@@ -3141,7 +3148,8 @@ async def chat_post(request: Request):
             "laguna":      [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna M.1
             "laguna_lite": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2
             "cohere":       ["cohere/north-mini-code:free"],
-            "omni":  ["nvidia/nemotron-nano-12b-v2-vl:free"],
+            "nemotron":     ["nvidia/nemotron-3-ultra-550b-a55b:free"],  # ✅ FIXED: was missing from POST, fell back to dagr pool
+            "omni":         ["nvidia/nemotron-nano-12b-v2-vl:free"],
         }
         model_key  = model.strip()
         model_pool = model_pools.get(model_key, model_pools["dagr"])
@@ -3644,7 +3652,8 @@ async def chat_post(request: Request):
             laguna_system = system_prompts.get("laguna", system_prompts["dagr"])
 
             def generate_laguna():
-                full_reply = ""
+                full_reply     = ""
+                full_reasoning = ""  # ✅ NEW: silently accumulate reasoning_content for memory preservation
 
                 tool_result_l = None
                 if intent != "general" and not file_urls:
@@ -3692,17 +3701,34 @@ async def chat_post(request: Request):
                             choices = chunk.get("choices")
                             if not choices:
                                 continue
-                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            delta = choices[0].get("delta") or {}
+
+                            # ✅ FIXED: Collect reasoning_content silently — never sent to user
+                            reasoning_token = delta.get("reasoning_content") or ""
+                            if reasoning_token:
+                                full_reasoning += reasoning_token
+
+                            # Only visible content goes to user; strip any leaked <think> tags
+                            token = delta.get("content") or ""
                             if token:
-                                full_reply += token
-                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                                token = re.sub(r'<think>.*?</think>', '', token, flags=re.DOTALL)
+                                if token:
+                                    full_reply += token
+                                    yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
                     print(f"❌ [Laguna] stream exception: {e}")
 
                 if full_reply.strip():
-                    active_memory.append({"role": "assistant", "content": full_reply})
+                    # ✅ FIXED: Preserve reasoning in memory history — Poolside says this is critical
+                    # for peak multi-turn quality ("designed to work best with preserved thinking")
+                    memory_content = (
+                        f"<think>{full_reasoning}</think>{full_reply}"
+                        if full_reasoning.strip()
+                        else full_reply
+                    )
+                    active_memory.append({"role": "assistant", "content": memory_content})
                     if not ghost_mode and len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
                 yield "data: [DONE]\n\n"
@@ -3751,6 +3777,7 @@ async def chat_post(request: Request):
                     yield f"data: {json.dumps({'error': 'Laguna Lite unavailable: POOLSIDE_API_KEY not set'})}\n\n"
                     yield "data: [DONE]\n\n"
                     return
+                full_reasoning_ll = ""  # ✅ NEW: silently accumulate reasoning_content for memory preservation
                 try:
                     resp_ll = requests.post(
                         "https://inference.poolside.ai/v1/chat/completions",
@@ -3762,7 +3789,7 @@ async def chat_post(request: Request):
                             "model": "poolside/laguna-xs.2",
                             "messages": laguna_lite_messages,
                             "stream": True,
-                            "temperature": 0.3,
+                            "temperature": 0.7,  # ✅ FIXED: 0.3 → 0.7 for reasoning model
                             "max_tokens": 8000,
                         },
                         stream=True,
@@ -3795,18 +3822,34 @@ async def chat_post(request: Request):
                             choices = chunk.get("choices")
                             if not choices:
                                 continue
-                            token = (choices[0].get("delta") or {}).get("content") or ""
-                            token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', token)
+                            delta = choices[0].get("delta") or {}
+
+                            # ✅ FIXED: Collect reasoning_content silently — never sent to user
+                            reasoning_token_ll = delta.get("reasoning_content") or ""
+                            if reasoning_token_ll:
+                                full_reasoning_ll += reasoning_token_ll
+
+                            # Only visible content goes to user; strip leaked <think> and chat template tags
+                            token = delta.get("content") or ""
                             if token:
-                                full_reply += token
-                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                                token = re.sub(r'<think>.*?</think>', '', token, flags=re.DOTALL)
+                                token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', token)
+                                if token:
+                                    full_reply += token
+                                    yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
                     print(f"❌ [Laguna Lite] stream exception: {e}")
 
                 if full_reply.strip():
-                    active_memory.append({"role": "assistant", "content": full_reply})
+                    # ✅ FIXED: Preserve reasoning in memory history for peak multi-turn quality
+                    memory_content_ll = (
+                        f"<think>{full_reasoning_ll}</think>{full_reply}"
+                        if full_reasoning_ll.strip()
+                        else full_reply
+                    )
+                    active_memory.append({"role": "assistant", "content": memory_content_ll})
                     if not ghost_mode and len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
                 yield "data: [DONE]\n\n"
@@ -4122,11 +4165,15 @@ async def chat_post(request: Request):
                             token  = (choice.get("delta") or {}).get("content") or ""
                             finish = choice.get("finish_reason")
                             if token:
-                                full_reply += token
-                                leg_tokens += 1
-                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                                if leg_tokens % 50 == 0:
-                                    yield ": heartbeat\n\n"
+                                # ✅ FIXED: Strip <think>...</think> blocks from Nemotron 3 Ultra output
+                                if "nemotron-3-ultra" in current_model:
+                                    token = re.sub(r'<think>.*?</think>', '', token, flags=re.DOTALL)
+                                if token:
+                                    full_reply += token
+                                    leg_tokens += 1
+                                    yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                                    if leg_tokens % 50 == 0:
+                                        yield ": heartbeat\n\n"
                             if finish == "stop":
                                 finished_cleanly = True
                                 break
@@ -4799,7 +4846,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             laguna_messages_get = [{"role": "system", "content": laguna_system_get}] + active_memory[-20:]
 
             def generate_laguna_get():
-                full_reply = ""
+                full_reply          = ""
+                full_reasoning_get  = ""  # ✅ NEW: silently accumulate reasoning_content
                 if tool_result:
                     yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
                     sp = build_sources_payload(tool_result)
@@ -4828,16 +4876,29 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             choices = chunk.get("choices")
                             if not choices:
                                 continue
-                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            delta = choices[0].get("delta") or {}
+                            # ✅ FIXED: Collect reasoning_content silently
+                            r_tok = delta.get("reasoning_content") or ""
+                            if r_tok:
+                                full_reasoning_get += r_tok
+                            token = delta.get("content") or ""
                             if token:
-                                full_reply += token
-                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                                token = re.sub(r'<think>.*?</think>', '', token, flags=re.DOTALL)
+                                if token:
+                                    full_reply += token
+                                    yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
                     print(f"❌ [Laguna GET] stream exception: {e}")
                 if full_reply.strip():
-                    active_memory.append({"role": "assistant", "content": full_reply})
+                    # ✅ FIXED: Preserve reasoning in memory for peak multi-turn quality
+                    memory_content_get = (
+                        f"<think>{full_reasoning_get}</think>{full_reply}"
+                        if full_reasoning_get.strip()
+                        else full_reply
+                    )
+                    active_memory.append({"role": "assistant", "content": memory_content_get})
                     if not ghost_mode and len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
                 yield "data: [DONE]\n\n"
@@ -4866,6 +4927,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                     yield f"data: {json.dumps({'error': 'Laguna Lite unavailable: POOLSIDE_API_KEY not set'})}\n\n"
                     yield "data: [DONE]\n\n"
                     return
+                full_reasoning_ll_get = ""  # ✅ NEW: silently accumulate reasoning_content
                 try:
                     resp_ll_get = requests.post(
                         "https://inference.poolside.ai/v1/chat/completions",
@@ -4877,7 +4939,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             "model": "poolside/laguna-xs.2",
                             "messages": laguna_lite_messages_get,
                             "stream": True,
-                            "temperature": 0.3,
+                            "temperature": 0.7,  # ✅ FIXED: 0.3 → 0.7 for reasoning model
                             "max_tokens": 8000,
                         },
                         stream=True,
@@ -4909,17 +4971,30 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             choices = chunk.get("choices")
                             if not choices:
                                 continue
-                            token = (choices[0].get("delta") or {}).get("content") or ""
-                            token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', token)
+                            delta = choices[0].get("delta") or {}
+                            # ✅ FIXED: Collect reasoning_content silently
+                            r_tok_get = delta.get("reasoning_content") or ""
+                            if r_tok_get:
+                                full_reasoning_ll_get += r_tok_get
+                            token = delta.get("content") or ""
                             if token:
-                                full_reply += token
-                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                                token = re.sub(r'<think>.*?</think>', '', token, flags=re.DOTALL)
+                                token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', token)
+                                if token:
+                                    full_reply += token
+                                    yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
                     print(f"❌ [Laguna Lite GET] stream exception: {e}")
                 if full_reply.strip():
-                    active_memory.append({"role": "assistant", "content": full_reply})
+                    # ✅ FIXED: Preserve reasoning in memory for peak multi-turn quality
+                    memory_content_ll_get = (
+                        f"<think>{full_reasoning_ll_get}</think>{full_reply}"
+                        if full_reasoning_ll_get.strip()
+                        else full_reply
+                    )
+                    active_memory.append({"role": "assistant", "content": memory_content_ll_get})
                     if not ghost_mode and len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
                 yield "data: [DONE]\n\n"
