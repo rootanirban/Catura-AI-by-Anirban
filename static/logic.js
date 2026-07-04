@@ -425,10 +425,27 @@ async function loadMemoryState() {
 async function loadUserMemories() {
     if (!currentUser) return;
     try {
-        const resp = await fetch(`/api/memory/load?user_id=${currentUser.id}`);
+        const headers = await _authHeaders();
+        if (!headers) return;
+        const resp = await fetch(`/api/memory/load`, { headers });
         const data = await resp.json();
         if (data.ok) userMemories = (data.memories || []).map(m => m.memory_text);
     } catch (e) { console.warn('[Memory] loadUserMemories error:', e); }
+}
+
+// ── Shared helper: builds headers with the current Supabase bearer token ────
+// Memory endpoints require auth; the server derives user_id from this token
+// rather than trusting anything the client sends.
+async function _authHeaders(extra = {}) {
+    try {
+        const { data: sessionData } = await supabaseClient.auth.getSession();
+        const accessToken = sessionData?.session?.access_token;
+        if (!accessToken) return null;
+        return { ...extra, "Authorization": `Bearer ${accessToken}` };
+    } catch (e) {
+        console.warn('[Memory] could not get auth session:', e);
+        return null;
+    }
 }
 
 async function saveMemoryEnabled(enabled) {
@@ -481,11 +498,12 @@ async function maybeExtractAndSaveMemory(userMessage) {
 
     // ── AI-powered extraction via /api/memory/extract ─────────────────────────
     try {
+        const headers = await _authHeaders({ 'Content-Type': 'application/json' });
+        if (!headers) { await _memoryDirectFallback(userMessage); return; }
         const resp = await fetch('/api/memory/extract', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({
-                user_id: currentUser.id,
                 message: userMessage.trim().slice(0, 800),
                 existing_memories: userMemories.slice(0, 30)
             })
@@ -560,10 +578,12 @@ async function _memoryDirectFallback(userMessage) {
     // Save each fact via backend save-direct endpoint
     for (const fact of factsToSave) {
         try {
+            const headers = await _authHeaders({ 'Content-Type': 'application/json' });
+            if (!headers) continue;
             const r = await fetch('/api/memory/save-direct', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: currentUser.id, memory_text: fact })
+                headers,
+                body: JSON.stringify({ memory_text: fact })
             });
             const d = await r.json();
             if (d.ok) {
@@ -598,10 +618,12 @@ window.clearAllMemories = async function() {
         confirmLabel: 'Clear all',
         onConfirm: async () => {
             try {
+                const headers = await _authHeaders({ 'Content-Type': 'application/json' });
+                if (!headers) { showToast('❌ Please log in again'); return; }
                 const resp = await fetch('/api/memory/clear', {
                     method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: currentUser.id })
+                    headers,
+                    body: JSON.stringify({})
                 });
                 if ((await resp.json()).ok) {
                     userMemories = [];
@@ -618,7 +640,9 @@ window.clearAllMemories = async function() {
 window.viewSavedMemories = async function() {
     if (!currentUser) { showToast('Please log in first'); return; }
     try {
-        const resp = await fetch(`/api/memory/load?user_id=${currentUser.id}`);
+        const headers = await _authHeaders();
+        if (!headers) { showToast('❌ Please log in again'); return; }
+        const resp = await fetch(`/api/memory/load`, { headers });
         const data = await resp.json();
         const memories = data.memories || [];
         if (memories.length === 0) {
@@ -659,7 +683,9 @@ window.deleteOneMemory = async function(id, btn) {
     if (!currentUser) return;
     try {
         const deletedText = btn.closest('div[style]')?.querySelector('span')?.textContent?.trim();
-        const resp = await fetch(`/api/memory/delete-one?id=${id}&user_id=${currentUser.id}`, { method: 'DELETE' });
+        const headers = await _authHeaders();
+        if (!headers) { showToast('❌ Please log in again'); return; }
+        const resp = await fetch(`/api/memory/delete-one?id=${id}`, { method: 'DELETE', headers });
         if ((await resp.json()).ok) {
             btn.closest('div[style]').remove();
             // Properly remove from local array so memory context stays in sync

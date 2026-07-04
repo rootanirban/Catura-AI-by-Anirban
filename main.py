@@ -375,7 +375,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.268"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.269"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -385,45 +385,56 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.268", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.269", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
 from typing import List as _MemList
 
 class MemorySaveRequest(_MemBaseModel):
-    user_id: str
     memory_text: str
+    user_id: str | None = None   # optional legacy field; ignored if it doesn't match the authed user
 
 class MemoryClearRequest(_MemBaseModel):
-    user_id: str
+    user_id: str | None = None   # optional legacy field; ignored if it doesn't match the authed user
 
 class MemoryExtractRequest(_MemBaseModel):
-    user_id: str
     message: str
     existing_memories: list = []
+    user_id: str | None = None   # optional legacy field; ignored if it doesn't match the authed user
+
+# Small helper: if the client still sends a user_id, it must match the authenticated
+# user or we reject outright. Otherwise we always use the token's user_id.
+def _resolve_owner(auth: dict, client_supplied_user_id: str | None) -> str:
+    if client_supplied_user_id and client_supplied_user_id != auth["user_id"]:
+        raise HTTPException(status_code=403, detail="user_id does not match authenticated user")
+    return auth["user_id"]
 
 # ── 🧠 MEMORY ENDPOINTS ───────────────────────────────────────────────────────
 
 @app.post("/api/memory/save")
-async def save_memory(req: MemorySaveRequest):
+async def save_memory(req: MemorySaveRequest, auth: dict = Depends(require_auth)):
     try:
-        if not req.user_id or not req.memory_text.strip():
+        user_id = _resolve_owner(auth, req.user_id)
+        if not req.memory_text.strip():
             return JSONResponse({"ok": False, "error": "Missing fields"}, status_code=400)
         _supabase_admin.table("user_memories").insert({
-            "user_id": req.user_id,
+            "user_id": user_id,
             "memory_text": req.memory_text.strip()[:500],
             "created_at": datetime.utcnow().isoformat()
         }).execute()
         return JSONResponse({"ok": True})
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"❌ [Memory] save error: {e}")
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 
 @app.get("/api/memory/load")
-async def load_memory(user_id: str):
+async def load_memory(auth: dict = Depends(require_auth)):
     try:
+        user_id = auth["user_id"]
         result = _supabase_admin.table("user_memories") \
             .select("id, memory_text, created_at") \
             .eq("user_id", user_id) \
@@ -436,17 +447,21 @@ async def load_memory(user_id: str):
 
 
 @app.delete("/api/memory/clear")
-async def clear_memory(req: MemoryClearRequest):
+async def clear_memory(req: MemoryClearRequest, auth: dict = Depends(require_auth)):
     try:
-        _supabase_admin.table("user_memories").delete().eq("user_id", req.user_id).execute()
+        user_id = _resolve_owner(auth, req.user_id)
+        _supabase_admin.table("user_memories").delete().eq("user_id", user_id).execute()
         return JSONResponse({"ok": True})
+    except HTTPException:
+        raise
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 
 @app.delete("/api/memory/delete-one")
-async def delete_one_memory(id: str, user_id: str):
+async def delete_one_memory(id: str, auth: dict = Depends(require_auth)):
     try:
+        user_id = auth["user_id"]
         _supabase_admin.table("user_memories").delete().eq("id", id).eq("user_id", user_id).execute()
         return JSONResponse({"ok": True})
     except Exception as e:
@@ -454,10 +469,11 @@ async def delete_one_memory(id: str, user_id: str):
 
 
 @app.post("/api/memory/extract")
-async def extract_and_save_memory(req: MemoryExtractRequest):
+async def extract_and_save_memory(req: MemoryExtractRequest, auth: dict = Depends(require_auth)):
     """AI-powered: extract personal facts from a message, save new ones to Supabase."""
     try:
-        if not req.user_id or not req.message.strip():
+        user_id = _resolve_owner(auth, req.user_id)
+        if not req.message.strip():
             return JSONResponse({"ok": False, "facts": []})
 
         existing_str = "\n".join(f"- {m}" for m in req.existing_memories[:30]) if req.existing_memories else "None yet."
@@ -557,7 +573,7 @@ async def extract_and_save_memory(req: MemoryExtractRequest):
                 continue
             try:
                 _supabase_admin.table("user_memories").insert({
-                    "user_id": req.user_id,
+                    "user_id": user_id,
                     "memory_text": fact,
                     "created_at": datetime.utcnow().isoformat()
                 }).execute()
@@ -565,7 +581,7 @@ async def extract_and_save_memory(req: MemoryExtractRequest):
             except Exception as save_err:
                 print(f"❌ [Memory] save in extract: {save_err}")
 
-        print(f"🧠 [Memory] extracted {len(saved_facts)} facts for {req.user_id[:8]}")
+        print(f"🧠 [Memory] extracted {len(saved_facts)} facts for {user_id[:8]}")
         return JSONResponse({"ok": True, "facts": saved_facts})
 
     except Exception as e:
@@ -574,19 +590,22 @@ async def extract_and_save_memory(req: MemoryExtractRequest):
 
 # ── Guaranteed direct save — no AI, no models, just write to Supabase ────────
 @app.post("/api/memory/save-direct")
-async def save_memory_direct(req: MemorySaveRequest):
+async def save_memory_direct(req: MemorySaveRequest, auth: dict = Depends(require_auth)):
     """Saves a fact directly to Supabase — used as frontend fallback when AI extraction fails."""
     try:
-        if not req.user_id or not req.memory_text.strip():
+        user_id = _resolve_owner(auth, req.user_id)
+        if not req.memory_text.strip():
             return JSONResponse({"ok": False})
         fact = req.memory_text.strip()[:500]
         _supabase_admin.table("user_memories").insert({
-            "user_id": req.user_id,
+            "user_id": user_id,
             "memory_text": fact,
             "created_at": datetime.utcnow().isoformat()
         }).execute()
-        print(f"🧠 [Memory] direct-saved: '{fact[:60]}' for {req.user_id[:8]}")
+        print(f"🧠 [Memory] direct-saved: '{fact[:60]}' for {user_id[:8]}")
         return JSONResponse({"ok": True, "fact": fact})
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"❌ [Memory] direct-save error: {e}")
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
