@@ -16,6 +16,29 @@ from duckduckgo_search import DDGS
 from wiki import search_wikipedia
 import re
 
+# ── Centralized session cookie helper ─────────────────────────────────────────
+# Every place in this file that issues the session_id cookie must go through
+# this helper so the security flags stay consistent. Never hand-construct a
+# "session_id=..." Set-Cookie string anywhere else.
+SESSION_COOKIE_MAX_AGE = 31536000  # 1 year, in seconds
+
+def build_session_cookie(session_id: str) -> str:
+    """Builds the hardened Set-Cookie header value for the session cookie.
+
+    Flags:
+      - Secure    -> cookie is only ever sent over HTTPS, never plain HTTP.
+      - HttpOnly  -> not readable via document.cookie, so XSS can't steal it.
+      - SameSite=Strict -> not sent on cross-site requests (tighter than Lax).
+    """
+    return (
+        f"session_id={session_id}; Path=/; SameSite=Strict; "
+        f"Max-Age={SESSION_COOKIE_MAX_AGE}; Secure; HttpOnly"
+    )
+
+def set_session_cookie(response, session_id: str) -> None:
+    """Attaches the hardened session cookie to a Response/StreamingResponse object."""
+    response.headers["Set-Cookie"] = build_session_cookie(session_id)
+
 # ── Production Search Engine (Tavily + Serper + Firecrawl + Cohere) ──────────
 try:
     from web_search_engine import (
@@ -465,7 +488,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.272"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.273"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -475,7 +498,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.272", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.273", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3264,7 +3287,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 yield f"data: {json.dumps({'token': 'I was created by Anirban.'}, ensure_ascii=False)}\n\n"
                 yield "data: [DONE]\n\n"
             return StreamingResponse(quick(), media_type="text/event-stream",
-                headers=_rl({"Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"}))
+                headers=_rl({"Set-Cookie": build_session_cookie(session_id)}))
 
         if session_id not in user_memory:
             user_memory[session_id] = []
@@ -3814,7 +3837,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 media_type="text/event-stream",
                 headers=_rl({
                     "Cache-Control": "no-cache",
-                    "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000",
+                    "Set-Cookie": build_session_cookie(session_id),
                 })
             )
 
@@ -3892,7 +3915,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 media_type="text/event-stream",
                 headers=_rl({
                     "Cache-Control": "no-cache",
-                    "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000",
+                    "Set-Cookie": build_session_cookie(session_id),
                 })
             )
 
@@ -3996,7 +4019,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 media_type="text/event-stream",
                 headers=_rl({
                     "Cache-Control": "no-cache",
-                    "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000",
+                    "Set-Cookie": build_session_cookie(session_id),
                 })
             )
 
@@ -4074,7 +4097,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 media_type="text/event-stream",
                 headers=_rl({
                     "Cache-Control": "no-cache",
-                    "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000",
+                    "Set-Cookie": build_session_cookie(session_id),
                 })
             )
 
@@ -4154,7 +4177,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 media_type="text/event-stream",
                 headers=_rl({
                     "Cache-Control": "no-cache",
-                    "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000",
+                    "Set-Cookie": build_session_cookie(session_id),
                 })
             )
 
@@ -4226,7 +4249,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 media_type="text/event-stream",
                 headers=_rl({
                     "Cache-Control": "no-cache",
-                    "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000",
+                    "Set-Cookie": build_session_cookie(session_id),
                 })
             )
 
@@ -4347,7 +4370,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             media_type="text/event-stream",
             headers=_rl({
                 "Cache-Control": "no-cache",
-                "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000",
+                "Set-Cookie": build_session_cookie(session_id),
             })
         )
 
@@ -4377,7 +4400,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 yield f"data: {json.dumps({'token': 'I was created by Anirban.'}, ensure_ascii=False)}\n\n"
                 yield "data: [DONE]\n\n"
             return StreamingResponse(quick(), media_type="text/event-stream",
-                headers={"Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"})
+                headers={"Set-Cookie": build_session_cookie(session_id)})
 
         if session_id not in user_memory:
             user_memory[session_id] = []
@@ -5025,7 +5048,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             return StreamingResponse(
                 generate_laguna_get(), media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache",
-                         "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"}
+                         "Set-Cookie": build_session_cookie(session_id)}
             )
 
         # ── LAGUNA LITE: Poolside API (POOLSIDE_API_KEY) — Laguna XS.2 — GET handler ──
@@ -5107,7 +5130,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             return StreamingResponse(
                 generate_laguna_lite_get(), media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache",
-                         "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"}
+                         "Set-Cookie": build_session_cookie(session_id)}
             )
 
         # ── GLM: Z.ai API (ZAI_API_KEY) — glm-4.7-flash (GET handler) ──
@@ -5163,7 +5186,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             return StreamingResponse(
                 generate_glm_get(), media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache",
-                         "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"}
+                         "Set-Cookie": build_session_cookie(session_id)}
             )
 
         # ── NIVO: Groq API — isolated from all other models ──
@@ -5218,7 +5241,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             return StreamingResponse(
                 generate_nivo_get(), media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache",
-                         "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"}
+                         "Set-Cookie": build_session_cookie(session_id)}
             )
 
         # ── SAMBHAV: llama-3.3-70b-versatile via Groq API (GET handler) ──
@@ -5273,7 +5296,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             return StreamingResponse(
                 generate_sambhav_get(), media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache",
-                         "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"}
+                         "Set-Cookie": build_session_cookie(session_id)}
             )
 
         # Apply tool routing for GET requests too
@@ -5343,7 +5366,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 media_type="text/event-stream",
                 headers={
                     "Cache-Control": "no-cache",
-                    "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000",
+                    "Set-Cookie": build_session_cookie(session_id),
                 }
             )
 
@@ -5417,7 +5440,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
         return StreamingResponse(
             generate(), media_type="text/event-stream",
             headers={"Cache-Control": "no-cache",
-                     "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"}
+                     "Set-Cookie": build_session_cookie(session_id)}
         )
     except Exception as e:
         return JSONResponse(content={"error": str(e)})
