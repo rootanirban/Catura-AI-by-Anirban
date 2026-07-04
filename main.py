@@ -254,6 +254,17 @@ def build_file_context_for_prompt(file_urls: list) -> tuple:
 
 app = FastAPI()
 
+# ✅ ROUTE-LEVEL RATE LIMITING (slowapi) — separate from the custom /chat
+# per-user-per-model quota above. This covers /api/memory/*, /generate-title,
+# and /search with simple per-IP limits.
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # ✅ CORS MIDDLEWARE
 app.add_middleware(
     CORSMiddleware,
@@ -306,6 +317,85 @@ async def require_auth(authorization: str = Header(default=None)) -> dict:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     return {"user_id": user.id, "email": user.email}
+
+# ============================================================
+# ✅ BOUNDED LRU DICT — generic helper for in-memory caches/trackers
+# so nothing here grows unbounded on a long-running Render instance.
+# ============================================================
+import time as _rl_time
+import threading as _rl_threading
+from collections import OrderedDict as _RL_OrderedDict
+
+
+class LRUDict(_RL_OrderedDict):
+    """
+    Ordinary dict semantics, but bounded: once `maxsize` keys are stored,
+    the least-recently-used key is evicted on the next insert. Access via
+    __getitem__ or get_touch() refreshes recency.
+    """
+    def __init__(self, maxsize=5000, *args, **kwargs):
+        self.maxsize = maxsize
+        super().__init__(*args, **kwargs)
+
+    def __getitem__(self, key):
+        value = super().__getitem__(key)
+        self.move_to_end(key)
+        return value
+
+    def __setitem__(self, key, value):
+        if key in self:
+            self.move_to_end(key)
+        super().__setitem__(key, value)
+        if len(self) > self.maxsize:
+            self.popitem(last=False)  # evict oldest / least-recently-used
+
+    def get_touch(self, key, default=None):
+        if key in self:
+            self.move_to_end(key)
+            return super().__getitem__(key)
+        return default
+
+
+# ============================================================
+# ✅ FAIR-USE QUOTA — 15 messages per model per rolling 20-minute window
+# Keyed on "user_id:model" so each model has its own independent counter.
+# In-memory + a lock: fine for a single Render instance. If this app ever
+# scales to multiple instances/dynos, this must move to Redis (e.g.
+# INCR + PEXPIRE or a sorted-set sliding-window) since each instance would
+# otherwise track its own independent counters and users could get up to
+# N_instances × 15 messages per window by hitting different instances.
+# ============================================================
+CHAT_RATE_LIMIT = 15            # messages
+CHAT_RATE_WINDOW_SECONDS = 20 * 60   # 20 minutes, rolling — not a fixed clock reset
+
+_chat_rate_store: "LRUDict" = LRUDict(maxsize=20000)   # "user_id:model" -> [timestamps]
+_chat_rate_lock = _rl_threading.Lock()
+
+
+def _chat_quota_check(user_id: str, model: str):
+    """
+    Call once, at the very start of /chat, before any upstream AI call.
+    Returns (allowed, remaining, reset_epoch_seconds, retry_after_seconds).
+    """
+    key = f"{user_id}:{model}"
+    now = _rl_time.time()
+    with _chat_rate_lock:
+        timestamps = _chat_rate_store.get_touch(key, [])
+        # Rolling window — each timestamp expires independently 20 min after it was recorded
+        timestamps = [ts for ts in timestamps if now - ts < CHAT_RATE_WINDOW_SECONDS]
+
+        if len(timestamps) >= CHAT_RATE_LIMIT:
+            oldest = timestamps[0]
+            reset_epoch = oldest + CHAT_RATE_WINDOW_SECONDS
+            retry_after = max(1, int(round(reset_epoch - now)))
+            _chat_rate_store[key] = timestamps  # keep pruned list; don't record this rejected attempt
+            return False, 0, reset_epoch, retry_after
+
+        timestamps.append(now)
+        _chat_rate_store[key] = timestamps
+        remaining = CHAT_RATE_LIMIT - len(timestamps)
+        reset_epoch = timestamps[0] + CHAT_RATE_WINDOW_SECONDS
+        return True, remaining, reset_epoch, 0
 
 # ✅ RENDER APP URL
 APP_URL = os.getenv("APP_URL", "https://my-ai-assistant-9bbd.onrender.com/")
@@ -375,7 +465,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.269"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.270"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -385,7 +475,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.269", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.270", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -413,7 +503,8 @@ def _resolve_owner(auth: dict, client_supplied_user_id: str | None) -> str:
 # ── 🧠 MEMORY ENDPOINTS ───────────────────────────────────────────────────────
 
 @app.post("/api/memory/save")
-async def save_memory(req: MemorySaveRequest, auth: dict = Depends(require_auth)):
+@limiter.limit("10/minute")
+async def save_memory(request: Request, req: MemorySaveRequest, auth: dict = Depends(require_auth)):
     try:
         user_id = _resolve_owner(auth, req.user_id)
         if not req.memory_text.strip():
@@ -432,7 +523,8 @@ async def save_memory(req: MemorySaveRequest, auth: dict = Depends(require_auth)
 
 
 @app.get("/api/memory/load")
-async def load_memory(auth: dict = Depends(require_auth)):
+@limiter.limit("10/minute")
+async def load_memory(request: Request, auth: dict = Depends(require_auth)):
     try:
         user_id = auth["user_id"]
         result = _supabase_admin.table("user_memories") \
@@ -447,7 +539,8 @@ async def load_memory(auth: dict = Depends(require_auth)):
 
 
 @app.delete("/api/memory/clear")
-async def clear_memory(req: MemoryClearRequest, auth: dict = Depends(require_auth)):
+@limiter.limit("10/minute")
+async def clear_memory(request: Request, req: MemoryClearRequest, auth: dict = Depends(require_auth)):
     try:
         user_id = _resolve_owner(auth, req.user_id)
         _supabase_admin.table("user_memories").delete().eq("user_id", user_id).execute()
@@ -459,7 +552,8 @@ async def clear_memory(req: MemoryClearRequest, auth: dict = Depends(require_aut
 
 
 @app.delete("/api/memory/delete-one")
-async def delete_one_memory(id: str, auth: dict = Depends(require_auth)):
+@limiter.limit("10/minute")
+async def delete_one_memory(request: Request, id: str, auth: dict = Depends(require_auth)):
     try:
         user_id = auth["user_id"]
         _supabase_admin.table("user_memories").delete().eq("id", id).eq("user_id", user_id).execute()
@@ -469,7 +563,8 @@ async def delete_one_memory(id: str, auth: dict = Depends(require_auth)):
 
 
 @app.post("/api/memory/extract")
-async def extract_and_save_memory(req: MemoryExtractRequest, auth: dict = Depends(require_auth)):
+@limiter.limit("10/minute")
+async def extract_and_save_memory(request: Request, req: MemoryExtractRequest, auth: dict = Depends(require_auth)):
     """AI-powered: extract personal facts from a message, save new ones to Supabase."""
     try:
         user_id = _resolve_owner(auth, req.user_id)
@@ -590,7 +685,8 @@ async def extract_and_save_memory(req: MemoryExtractRequest, auth: dict = Depend
 
 # ── Guaranteed direct save — no AI, no models, just write to Supabase ────────
 @app.post("/api/memory/save-direct")
-async def save_memory_direct(req: MemorySaveRequest, auth: dict = Depends(require_auth)):
+@limiter.limit("10/minute")
+async def save_memory_direct(request: Request, req: MemorySaveRequest, auth: dict = Depends(require_auth)):
     """Saves a fact directly to Supabase — used as frontend fallback when AI extraction fails."""
     try:
         user_id = _resolve_owner(auth, req.user_id)
@@ -2599,7 +2695,8 @@ async def detect_intent_endpoint(q: str):
 # ✅ LEGACY WEB SEARCH ENDPOINT (keep for backward compat)
 # ============================================================
 @app.get("/search")
-async def web_search_endpoint(q: str, max_results: int = 5):
+@limiter.limit("30/minute")
+async def web_search_endpoint(request: Request, q: str, max_results: int = 5):
     result = tool_web_search(q, max_results)
     return {"results": result.get("results", []), "query": q}
 
@@ -3026,6 +3123,7 @@ def call_zai_stream(messages, api_key):
 # Generates a short, descriptive chat title from the first message
 # ============================================================
 @app.post("/generate-title")
+@limiter.limit("30/minute")
 async def generate_title(request: Request):
     try:
         body    = await request.json()
@@ -3113,6 +3211,40 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
         # Legacy web_results from frontend removed — backend handles all search internally
         web_results = []
 
+        # ── FAIR-USE QUOTA: 15 messages per model per rolling 20-minute window ──
+        # Checked before any upstream AI call so a blocked request never burns
+        # OpenRouter/Groq/Poolside/Gemini/Z.ai credits.
+        _rl_allowed, _rl_remaining, _rl_reset_epoch, _rl_retry_after = _chat_quota_check(
+            auth["user_id"], model
+        )
+        if not _rl_allowed:
+            _minutes = max(1, round(_rl_retry_after / 60))
+            return JSONResponse(
+                {
+                    "error": "rate_limited",
+                    "model": model,
+                    "message": (
+                        f"You've reached the message limit for this model. "
+                        f"Try again in {_minutes} minute{'s' if _minutes != 1 else ''}."
+                    ),
+                    "retry_after_seconds": _rl_retry_after,
+                },
+                status_code=429,
+                headers={
+                    "X-RateLimit-Remaining": "0",
+                    "X-RateLimit-Reset": str(int(_rl_reset_epoch)),
+                    "Retry-After": str(_rl_retry_after),
+                },
+            )
+
+        # Small closure: every successful /chat response (there are many return
+        # points below, one per streaming branch) stamps the same quota headers
+        # so the frontend can show "X/15 messages left" without waiting for a 429.
+        def _rl(headers_dict: dict) -> dict:
+            headers_dict["X-RateLimit-Remaining"] = str(_rl_remaining)
+            headers_dict["X-RateLimit-Reset"] = str(int(_rl_reset_epoch))
+            return headers_dict
+
         session_id = request.cookies.get("session_id")
         if not session_id:
             session_id = str(uuid.uuid4())
@@ -3129,7 +3261,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 yield f"data: {json.dumps({'token': 'I was created by Anirban.'}, ensure_ascii=False)}\n\n"
                 yield "data: [DONE]\n\n"
             return StreamingResponse(quick(), media_type="text/event-stream",
-                headers={"Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"})
+                headers=_rl({"Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000"}))
 
         if session_id not in user_memory:
             user_memory[session_id] = []
@@ -3677,10 +3809,10 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             return StreamingResponse(
                 generate_sambhav(),
                 media_type="text/event-stream",
-                headers={
+                headers=_rl({
                     "Cache-Control": "no-cache",
                     "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000",
-                }
+                })
             )
 
         # ── LAGUNA: Poolside API (POOLSIDE_API_KEY) — isolated from all other models ──
@@ -3755,10 +3887,10 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             return StreamingResponse(
                 generate_laguna(),
                 media_type="text/event-stream",
-                headers={
+                headers=_rl({
                     "Cache-Control": "no-cache",
                     "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000",
-                }
+                })
             )
 
         # ── LAGUNA LITE: Poolside API (POOLSIDE_API_KEY) — Laguna XS.2 — isolated from all other models ──
@@ -3859,10 +3991,10 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             return StreamingResponse(
                 generate_laguna_lite(),
                 media_type="text/event-stream",
-                headers={
+                headers=_rl({
                     "Cache-Control": "no-cache",
                     "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000",
-                }
+                })
             )
 
         # ── GLM: Z.ai API (ZAI_API_KEY) — glm-4.7-flash (free tier) ──
@@ -3937,10 +4069,10 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             return StreamingResponse(
                 generate_glm(),
                 media_type="text/event-stream",
-                headers={
+                headers=_rl({
                     "Cache-Control": "no-cache",
                     "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000",
-                }
+                })
             )
 
         # ── NIVO: Groq API (GROQ_API_KEY) — isolated from all other models ──
@@ -4017,10 +4149,10 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             return StreamingResponse(
                 generate_nivo(),
                 media_type="text/event-stream",
-                headers={
+                headers=_rl({
                     "Cache-Control": "no-cache",
                     "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000",
-                }
+                })
             )
 
         # ── GEMMA: Google AI Studio direct streaming (bypass OpenRouter) ──
@@ -4089,10 +4221,10 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             return StreamingResponse(
                 generate_gemma(),
                 media_type="text/event-stream",
-                headers={
+                headers=_rl({
                     "Cache-Control": "no-cache",
                     "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000",
-                }
+                })
             )
 
         def generate():
@@ -4210,10 +4342,10 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
         return StreamingResponse(
             generate(),
             media_type="text/event-stream",
-            headers={
+            headers=_rl({
                 "Cache-Control": "no-cache",
                 "Set-Cookie": f"session_id={session_id}; Path=/; SameSite=Lax; Max-Age=31536000",
-            }
+            })
         )
 
     except Exception as e:

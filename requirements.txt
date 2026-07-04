@@ -9,6 +9,7 @@ duckduckgo-search==6.3.7
 tavily-python
 pypdf
 python-docx
+slowapi
 # ── Production Search Engine ────────────────────────────────────────────────
 # (API calls via requests — no extra SDK needed for Serper, Firecrawl, Cohere)
 # All three are called via REST API using the existing `requests` library.
