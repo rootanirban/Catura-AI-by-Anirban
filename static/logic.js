@@ -3185,9 +3185,19 @@ document.addEventListener("DOMContentLoaded", async function () {
                 }
             }
 
+            // ── Attach Supabase auth token so backend can verify the caller ──
+            const { data: sessionData } = await supabaseClient.auth.getSession();
+            const accessToken = sessionData?.session?.access_token;
+            if (!accessToken) {
+                throw new Error("Not authenticated — please sign in again.");
+            }
+
             const res = await fetch("/chat", {
                 method : "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${accessToken}`
+                },
                 signal : activeAbortController ? activeAbortController.signal : undefined,
                 body   : JSON.stringify({
                     prompt    : promptText,

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, File, UploadFile
+from fastapi import FastAPI, Request, File, UploadFile, Depends, HTTPException, Header
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -281,6 +281,32 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 _svc_key = os.getenv("SUPABASE_SERVICE_KEY", "") or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 _supabase_admin: Client = create_client(SUPABASE_URL, _svc_key) if _svc_key else supabase
 
+# ✅ AUTH DEPENDENCY — validates Supabase JWT from Authorization header
+async def require_auth(authorization: str = Header(default=None)) -> dict:
+    """
+    FastAPI dependency that requires a valid Supabase-issued JWT.
+    Expects header: Authorization: Bearer <access_token>
+    Raises 401 if missing/invalid. Returns {"user_id": ..., "email": ...} on success.
+    """
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing or malformed Authorization header")
+
+    token = authorization.split(" ", 1)[1].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+
+    try:
+        # Validate against Supabase using the anon-key client (not the admin client)
+        user_response = supabase.auth.get_user(token)
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="Invalid or expired token") from e
+
+    user = getattr(user_response, "user", None)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    return {"user_id": user.id, "email": user.email}
+
 # ✅ RENDER APP URL
 APP_URL = os.getenv("APP_URL", "https://my-ai-assistant-9bbd.onrender.com/")
 
@@ -349,7 +375,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.267"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.268"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -359,7 +385,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.267", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.268", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3055,7 +3081,7 @@ async def generate_title(request: Request):
 # Full pipeline: intent → tool → context → AI → stream
 # ============================================================
 @app.post("/chat")
-async def chat_post(request: Request):
+async def chat_post(request: Request, auth: dict = Depends(require_auth)):
     try:
         body = await request.json()
         prompt     = body.get("prompt", "")
