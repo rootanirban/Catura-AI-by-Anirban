@@ -465,7 +465,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.271"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.272"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -475,7 +475,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.271", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.272", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -689,7 +689,10 @@ async def extract_and_save_memory(request: Request, req: MemoryExtractRequest, a
 async def save_memory_direct(request: Request, req: MemorySaveRequest, auth: dict = Depends(require_auth)):
     """Saves a fact directly to Supabase — used as frontend fallback when AI extraction fails."""
     try:
-        user_id = _resolve_owner(auth, req.user_id)
+        # user_id is NEVER taken from the client body for this endpoint — the field is
+        # accepted only for schema compatibility and is fully ignored. Always use the
+        # authenticated identity so a forged user_id can't poison another user's AI context.
+        user_id = auth["user_id"]
         if not req.memory_text.strip():
             return JSONResponse({"ok": False})
         fact = req.memory_text.strip()[:500]
