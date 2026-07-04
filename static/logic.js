@@ -607,6 +607,16 @@ async function _memoryDirectFallback(userMessage) {
     }
 }
 
+function escapeHtml(str) {
+    return String(str ?? '').replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    }[c]));
+}
+
 window.clearAllMemories = async function() {
     if (!currentUser) { showToast('Please log in first'); return; }
     showModal({
@@ -665,7 +675,7 @@ window.viewSavedMemories = async function() {
                 <div style="overflow-y:auto;display:flex;flex-direction:column;gap:8px;max-height:50vh;">
                     ${memories.map(m => `
                         <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--bg-surface2,#161616);border-radius:8px;border:1px solid var(--border-subtle,#1e1e1e);">
-                            <span style="font-size:13px;color:var(--text-secondary,#ccc);flex:1;line-height:1.5;">${m.memory_text}</span>
+                            <span style="font-size:13px;color:var(--text-secondary,#ccc);flex:1;line-height:1.5;">${escapeHtml(m.memory_text)}</span>
                             <button onclick="deleteOneMemory('${m.id}',this)" title="Delete" style="background:none;border:none;cursor:pointer;color:#e06c6c;font-size:16px;padding:0;flex-shrink:0;line-height:1;">✕</button>
                         </div>
                     `).join('')}
