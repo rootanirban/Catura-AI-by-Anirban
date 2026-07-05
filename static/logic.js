@@ -1546,6 +1546,7 @@ window.newChat = function () {
     if (app) app.classList.add("greeting-mode");
     
     displayGreeting();
+    if (typeof window.refreshMsgNavTracker === 'function') window.refreshMsgNavTracker();
 
     if (window.innerWidth <= 768) closeSidebar();
     showMainMenu();
@@ -3024,6 +3025,139 @@ document.addEventListener("DOMContentLoaded", async function () {
         });
     })();
 
+    // ============================
+    // 🧭 MESSAGE NAV TRACKER — ChatGPT-style right-edge minimap
+    // ============================
+    (function initMsgNavTracker() {
+        const chatbox = document.getElementById('chatbox');
+        const tracker = document.getElementById('msgNavTracker');
+        const app     = document.getElementById('app');
+        if (!chatbox || !tracker) return;
+
+        const MIN_USER_MESSAGES = 5; // only appears once user has sent MORE than 5 messages
+        let bodyModalOpen = false;   // true whenever a full-screen modal/overlay is present
+        let rafPending = false;
+
+        function isBodyModalOpen() {
+            // Any known overlay/modal pattern currently mounted directly on <body>,
+            // plus the settings overlay when explicitly active.
+            const settingsOverlay = document.getElementById('settingsOverlay');
+            if (settingsOverlay && settingsOverlay.classList.contains('active')) return true;
+            const selectors = [
+                '[id$="Modal"]', '[class$="-modal-overlay"]', '[class*="modal-overlay"]'
+            ];
+            for (const sel of selectors) {
+                const nodes = document.body.querySelectorAll(':scope > ' + sel);
+                if (nodes.length) return true;
+            }
+            return false;
+        }
+
+        function getUserBars() {
+            return Array.from(chatbox.querySelectorAll('.user-msg-wrapper'));
+        }
+
+        function snippetFor(wrapperEl) {
+            const bubble = wrapperEl.querySelector('.message.user');
+            let text = bubble ? bubble.innerText.trim() : '';
+            if (!text) text = '📎 Attachment';
+            return text.length > 60 ? text.slice(0, 60) + '…' : text;
+        }
+
+        function shouldShow() {
+            if (bodyModalOpen) return false;
+            if (app && app.classList.contains('greeting-mode')) return false;
+            const overflows = chatbox.scrollHeight > chatbox.clientHeight + 40;
+            if (!overflows) return false;
+            return getUserBars().length > MIN_USER_MESSAGES;
+        }
+
+        function render() {
+            const bars = getUserBars();
+            tracker.innerHTML = '';
+
+            if (!shouldShow()) {
+                tracker.classList.remove('visible');
+                return;
+            }
+
+            bars.forEach((wrapperEl, idx) => {
+                const bar = document.createElement('div');
+                bar.className = 'msg-nav-bar';
+                bar.setAttribute('role', 'button');
+                bar.setAttribute('tabindex', '0');
+                bar.dataset.index = String(idx);
+
+                const tooltip = document.createElement('span');
+                tooltip.className = 'msg-nav-tooltip';
+                tooltip.textContent = snippetFor(wrapperEl);
+                bar.appendChild(tooltip);
+
+                function jump() {
+                    wrapperEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    wrapperEl.classList.add('msg-nav-flash');
+                    setTimeout(() => wrapperEl.classList.remove('msg-nav-flash'), 900);
+                }
+                bar.addEventListener('click', jump);
+                bar.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); jump(); }
+                });
+
+                tracker.appendChild(bar);
+            });
+
+            tracker.classList.add('visible');
+            updateActiveBar();
+        }
+
+        function updateActiveBar() {
+            const bars = getUserBars();
+            const barEls = tracker.querySelectorAll('.msg-nav-bar');
+            if (!bars.length || !barEls.length) return;
+
+            const boxTop = chatbox.getBoundingClientRect().top;
+            let closestIdx = 0;
+            let closestDist = Infinity;
+            bars.forEach((wrapperEl, idx) => {
+                const dist = Math.abs(wrapperEl.getBoundingClientRect().top - boxTop);
+                if (dist < closestDist) { closestDist = dist; closestIdx = idx; }
+            });
+            barEls.forEach((el, idx) => el.classList.toggle('active', idx === closestIdx));
+        }
+
+        function scheduleRender() {
+            if (rafPending) return;
+            rafPending = true;
+            requestAnimationFrame(() => { rafPending = false; render(); });
+        }
+
+        // Rebuild whenever chat content changes (new/loaded/streamed messages)
+        const chatObserver = new MutationObserver(scheduleRender);
+        chatObserver.observe(chatbox, { childList: true, subtree: false });
+
+        // Track modal/overlay open state on <body> so the tracker hides itself
+        // whenever settings, or any other full-screen section, is opened.
+        const bodyObserver = new MutationObserver(() => {
+            const wasOpen = bodyModalOpen;
+            bodyModalOpen = isBodyModalOpen();
+            if (wasOpen !== bodyModalOpen) scheduleRender();
+        });
+        bodyObserver.observe(document.body, { childList: true, subtree: false, attributes: true, attributeFilter: ['class'] });
+
+        // Reposition the active-bar highlight while the user scrolls the conversation
+        chatbox.addEventListener('scroll', () => {
+            if (tracker.classList.contains('visible')) updateActiveBar();
+        }, { passive: true });
+
+        window.addEventListener('resize', scheduleRender, { passive: true });
+
+        // Expose a manual hook other flows (sendMessage, newChat, loadSession) can call
+        window.refreshMsgNavTracker = scheduleRender;
+
+        // Initial check
+        scheduleRender();
+    })();
+
     // Apply locally-cached theme/font immediately so the page doesn't flash defaults.
     // getUser() → loadSettingsFromCloud() will override these with the cloud values
     // if they differ (e.g. user changed settings on another device).
@@ -3437,6 +3571,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         chatbox.scrollTop = chatbox.scrollHeight;
         if (window.innerWidth <= 768) closeSidebar();
         showMainMenu();
+        if (typeof window.refreshMsgNavTracker === 'function') window.refreshMsgNavTracker();
     }
 
     // ============================
