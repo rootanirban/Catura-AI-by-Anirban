@@ -685,18 +685,24 @@ html { scroll-behavior: smooth; }
     transform: translateY(-50%);
     z-index: 150;
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 6px;
+    flex-direction: row-reverse;
+    align-items: center;
+    gap: 10px;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.2s ease;
-    max-height: 70vh;
-    overflow: visible;
 }
 .msg-nav-tracker.visible {
     opacity: 1;
     pointer-events: auto;
+}
+
+/* Thin bars column — always visible, sits at the very edge */
+.msg-nav-tracker .msg-nav-bars {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
 }
 .msg-nav-tracker .msg-nav-bar {
     width: 18px;
@@ -704,11 +710,10 @@ html { scroll-behavior: smooth; }
     border-radius: 2px;
     background: var(--border-strong, #333);
     cursor: pointer;
-    transition: background 0.15s ease, width 0.15s ease, transform 0.15s ease;
-    position: relative;
+    transition: background 0.15s ease, width 0.15s ease;
 }
-.msg-nav-tracker .msg-nav-bar:hover,
-.msg-nav-tracker .msg-nav-bar:focus-visible {
+.msg-nav-tracker:hover .msg-nav-bar,
+.msg-nav-tracker .msg-nav-bar:hover {
     background: var(--accent, #10a37f);
     width: 26px;
 }
@@ -716,30 +721,57 @@ html { scroll-behavior: smooth; }
     background: var(--accent, #10a37f);
     width: 22px;
 }
-.msg-nav-tracker .msg-nav-bar .msg-nav-tooltip {
-    position: absolute;
-    right: calc(100% + 10px);
-    top: 50%;
-    transform: translateY(-50%) translateX(4px);
+
+/* Hover list panel — hidden until the whole tracker (bars or panel) is hovered */
+.msg-nav-tracker .msg-nav-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-width: 280px;
+    max-height: 60vh;
+    overflow-y: auto;
     background: var(--bg-elevated, #242424);
-    color: var(--text-primary, #e5e5e5);
     border: 1px solid var(--border-strong, #333);
-    padding: 6px 10px;
+    border-radius: 12px;
+    padding: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+    opacity: 0;
+    transform: translateX(6px);
+    pointer-events: none;
+    visibility: hidden;
+    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+}
+.msg-nav-tracker:hover .msg-nav-list,
+.msg-nav-tracker .msg-nav-list:hover,
+.msg-nav-tracker .msg-nav-list:focus-within {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+    visibility: visible;
+}
+.msg-nav-tracker .msg-nav-list::-webkit-scrollbar { width: 4px; }
+.msg-nav-tracker .msg-nav-list::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 4px; }
+
+.msg-nav-tracker .msg-nav-item {
+    padding: 7px 10px;
     border-radius: 8px;
     font-size: 12.5px;
     line-height: 1.3;
+    color: var(--text-secondary, #ccc);
     white-space: nowrap;
-    max-width: 260px;
     overflow: hidden;
     text-overflow: ellipsis;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.4);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.15s ease, transform 0.15s ease;
+    cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease;
 }
-.msg-nav-tracker .msg-nav-bar:hover .msg-nav-tooltip {
-    opacity: 1;
-    transform: translateY(-50%) translateX(0);
+.msg-nav-tracker .msg-nav-item:hover,
+.msg-nav-tracker .msg-nav-item:focus-visible {
+    background: var(--bg-hover, #2a2a2a);
+    color: var(--text-primary, #e5e5e5);
+}
+.msg-nav-tracker .msg-nav-item.active {
+    background: var(--accent-dim, rgba(16,163,127,0.12));
+    color: var(--accent, #10a37f);
 }
 @media (max-width: 768px) {
     .msg-nav-tracker { display: none !important; }

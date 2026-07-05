@@ -3093,30 +3093,45 @@ document.addEventListener("DOMContentLoaded", async function () {
                 return;
             }
 
+            const barsCol = document.createElement('div');
+            barsCol.className = 'msg-nav-bars';
+
+            const listPanel = document.createElement('div');
+            listPanel.className = 'msg-nav-list';
+
+            function jumpTo(wrapperEl) {
+                wrapperEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                wrapperEl.classList.add('msg-nav-flash');
+                setTimeout(() => wrapperEl.classList.remove('msg-nav-flash'), 900);
+            }
+
             bars.forEach((wrapperEl, idx) => {
+                // Thin bar (always visible)
                 const bar = document.createElement('div');
                 bar.className = 'msg-nav-bar';
-                bar.setAttribute('role', 'button');
-                bar.setAttribute('tabindex', '0');
                 bar.dataset.index = String(idx);
+                barsCol.appendChild(bar);
 
-                const tooltip = document.createElement('span');
-                tooltip.className = 'msg-nav-tooltip';
-                tooltip.textContent = snippetFor(wrapperEl);
-                bar.appendChild(tooltip);
+                // Matching row in the hover list panel
+                const item = document.createElement('div');
+                item.className = 'msg-nav-item';
+                item.dataset.index = String(idx);
+                item.setAttribute('role', 'button');
+                item.setAttribute('tabindex', '0');
+                item.textContent = snippetFor(wrapperEl);
 
-                function jump() {
-                    wrapperEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    wrapperEl.classList.add('msg-nav-flash');
-                    setTimeout(() => wrapperEl.classList.remove('msg-nav-flash'), 900);
-                }
-                bar.addEventListener('click', jump);
-                bar.addEventListener('keydown', (e) => {
+                function jump() { jumpTo(wrapperEl); }
+                item.addEventListener('click', jump);
+                item.addEventListener('keydown', (e) => {
                     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); jump(); }
                 });
+                bar.addEventListener('click', jump);
 
-                tracker.appendChild(bar);
+                listPanel.appendChild(item);
             });
+
+            tracker.appendChild(listPanel);
+            tracker.appendChild(barsCol);
 
             tracker.classList.add('visible');
             updateActiveBar();
@@ -3125,6 +3140,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         function updateActiveBar() {
             const bars = getUserBars();
             const barEls = tracker.querySelectorAll('.msg-nav-bar');
+            const itemEls = tracker.querySelectorAll('.msg-nav-item');
             if (!bars.length || !barEls.length) return;
 
             const boxTop = chatbox.getBoundingClientRect().top;
@@ -3135,6 +3151,11 @@ document.addEventListener("DOMContentLoaded", async function () {
                 if (dist < closestDist) { closestDist = dist; closestIdx = idx; }
             });
             barEls.forEach((el, idx) => el.classList.toggle('active', idx === closestIdx));
+            itemEls.forEach((el, idx) => el.classList.toggle('active', idx === closestIdx));
+
+            // Keep the active row in view within the (possibly scrollable) hover list
+            const activeItem = tracker.querySelector('.msg-nav-item.active');
+            if (activeItem) activeItem.scrollIntoView({ block: 'nearest' });
         }
 
         function scheduleRender() {
