@@ -3038,17 +3038,29 @@ document.addEventListener("DOMContentLoaded", async function () {
         let bodyModalOpen = false;   // true whenever a full-screen modal/overlay is present
         let rafPending = false;
 
+        function isElementVisible(el) {
+            if (!el) return false;
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity) === 0) return false;
+            // feedbackModal and similar toggle visibility via an "active"/"open" class rather
+            // than removal from the DOM — rely on actual rendered size as the real signal.
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+        }
+
         function isBodyModalOpen() {
             // Any known overlay/modal pattern currently mounted directly on <body>,
             // plus the settings overlay when explicitly active.
             const settingsOverlay = document.getElementById('settingsOverlay');
-            if (settingsOverlay && settingsOverlay.classList.contains('active')) return true;
+            if (settingsOverlay && settingsOverlay.classList.contains('active') && isElementVisible(settingsOverlay)) return true;
             const selectors = [
                 '[id$="Modal"]', '[class$="-modal-overlay"]', '[class*="modal-overlay"]'
             ];
             for (const sel of selectors) {
                 const nodes = document.body.querySelectorAll(':scope > ' + sel);
-                if (nodes.length) return true;
+                for (const node of nodes) {
+                    if (isElementVisible(node)) return true;
+                }
             }
             return false;
         }
