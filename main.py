@@ -457,46 +457,6 @@ async def add_cache_headers(request: Request, call_next):
 
 
 # ============================================================
-# ✅ CONTENT-SECURITY-POLICY MIDDLEWARE (CRIT-03 / HIGH-03/04/05 defense-in-depth)
-# ============================================================
-# Shipped as Content-Security-Policy-Report-Only for now: browsers will send
-# violation reports (if CSP_REPORT_URI is set) but nothing is actually
-# blocked yet, so this deploy is safe even if the allowlist is incomplete.
-#
-# ⚠️ BEFORE FLIPPING TO ENFORCING: index.html currently has ~40 inline
-# onclick="..." handlers plus two inline <script> blocks (the JSON-LD
-# structured-data block and the service-worker registration snippet). None
-# of that will execute once this is enforcing, because script-src below
-# has no 'unsafe-inline' and no nonce/hash. See point 3 in the chat reply
-# for the full breakdown before you extend/enforce this.
-CSP_REPORT_URI = os.getenv("CSP_REPORT_URI", "")  # e.g. a /csp-report endpoint or report-uri.com collector
-
-_CSP_POLICY = (
-    "default-src 'self'; "
-    "script-src 'self' https://cdn.jsdelivr.net https://www.gstatic.com; "
-    "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
-    "img-src * data:; "
-    "connect-src 'self' https://*.supabase.co https://openrouter.ai"
-    + (f"; report-uri {CSP_REPORT_URI}" if CSP_REPORT_URI else "")
-)
-
-@app.middleware("http")
-async def add_csp_header(request: Request, call_next):
-    response = await call_next(request)
-    # ---- TO ENFORCE LATER --------------------------------------------
-    # 1. Fix the inline-script issues noted above (refactor onclick to
-    #    addEventListener / external JS, or add nonces).
-    # 2. Extend connect-src / script-src / font-src per point 3 findings
-    #    in the chat reply (Firebase RTDB websocket, Google favicons,
-    #    fonts.gstatic.com for font-src, etc).
-    # 3. Rename the header below from "Content-Security-Policy-Report-Only"
-    #    to "Content-Security-Policy" once the report log is clean.
-    # --------------------------------------------------------------------
-    response.headers["Content-Security-Policy-Report-Only"] = _CSP_POLICY
-    return response
-
-
-# ============================================================
 # ✅ STATIC PAGE ROUTES
 # ============================================================
 @app.get("/")
@@ -528,7 +488,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.285"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.286"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -538,7 +498,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.285", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.286", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3188,10 +3148,10 @@ def call_zai_stream(messages, api_key):
 # ✅ HELPER: Call Morph API — morph-minimax3-428b
 # OpenAI-compatible endpoint at api.morphllm.com
 # ============================================================
-def call_morph_stream(messages, api_key):
+def call_morph_stream(messages, api_key, model_id="morph-minimax3-428b"):
     """
     Dedicated Morph streaming function.
-    Uses morph-minimax3-428b via Morph's OpenAI-compatible endpoint.
+    Shared by all Morph-hosted models (MiniMax, GLM-5.2, etc.) via model_id param.
     """
     if not api_key:
         return None, "MORPH_API_KEY not set in environment variables"
@@ -3203,7 +3163,7 @@ def call_morph_stream(messages, api_key):
                 "Content-Type": "application/json",
             },
             json={
-                "model": "morph-minimax3-428b",
+                "model": model_id,
                 "messages": messages,
                 "stream": True,
                 "temperature": 0.7,
@@ -3424,6 +3384,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             "nivo":    [],  # Routed via Groq API (GROQ_API_KEY) — see generate_nivo()
             "glm":     [],  # Routed via Z.ai API (ZAI_API_KEY) — glm-4.7-flash (free)
             "morph":   [],  # Routed via Morph API (MORPH_API_KEY) — morph-minimax3-428b
+            "glm52":   [],  # Routed via Morph API (MORPH_API_KEY) — morph-glm52-744b
             "laguna":      [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna M.1
             "laguna_lite": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2
             "cohere":       ["cohere/north-mini-code:free"],
@@ -3713,6 +3674,26 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
                 "For coding questions, write clean, well-commented code. "
                 "If asked what model or AI you are, say you are Catura AI MiniMax and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+                "Never make up facts. If you don't know something, say so honestly."
+                + NO_TOOL_CALL_RULE
+            ),
+            "glm52": (
+                "Your name is Catura (pronounced kuh-CHUR-uh) GLM-5.2 Model. You are a highly capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI GLM-5.2, built for fast, efficient, and high-quality responses. "
+                "You are clear, direct, and helpful. You speak like a knowledgeable friend — "
+                "never robotic, never sycophantic. "
+                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
+                "'Absolutely!', or similar hollow openers. Just answer directly. "
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+                "Keep answers concise unless the user explicitly asks for detail. "
+                "Use bullet points or headers only when they genuinely improve clarity. "
+                "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
+                "For coding questions, write clean, well-commented code. "
+                "If asked what model or AI you are, say you are Catura AI GLM-5.2 and cannot share "
                 "details about the underlying technology. "
                 "If asked who made you, say 'I was created by Anirban.' "
                 "Never make up facts. If you don't know something, say so honestly."
@@ -4282,6 +4263,84 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 })
             )
 
+        # ── GLM-5.2: Morph API (MORPH_API_KEY) — morph-glm52-744b ──
+        if model_key == "glm52":
+            glm52_key    = os.getenv("MORPH_API_KEY", "")
+            glm52_system = system_prompts.get("glm52", system_prompts["dagr"])
+
+            def generate_glm52():
+                full_reply = ""
+
+                tool_result_glm52 = None
+                if intent != "general" and not file_urls:
+                    yield f"data: {json.dumps({'status': 'tool_running', 'intent': intent})}\n\n"
+                    tool_result_glm52 = run_tool(intent, prompt)
+
+                final_system_glm52 = glm52_system
+                tool_context_glm52 = build_tool_context(tool_result_glm52)
+                if tool_context_glm52:
+                    final_system_glm52 += "\n\n" + tool_context_glm52
+
+                if tool_result_glm52:
+                    badge_payload = json.dumps({"tool_used": tool_result_glm52.get("tool", ""), "intent": intent})
+                    yield f"data: {badge_payload}\n\n"
+                    sp = build_sources_payload(tool_result_glm52)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                glm52_messages = (
+                    [{"role": "system", "content": final_system_glm52}]
+                    + active_memory[-20:]
+                )
+                resp, err = call_morph_stream(glm52_messages, glm52_key, model_id="morph-glm52-744b")
+
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'GLM-5.2 unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+
+                try:
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                print(f"⚠️ [GLM52] mid-stream error: {chunk['error']}")
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            if token:
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, Exception):
+                            continue
+                except Exception as e:
+                    print(f"❌ [GLM52] stream exception: {e}")
+
+                if full_reply.strip():
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_glm52(),
+                media_type="text/event-stream",
+                headers=_rl({
+                    "Cache-Control": "no-cache",
+                    "Set-Cookie": build_session_cookie(session_id),
+                })
+            )
+
         # ── NIVO: Groq API (GROQ_API_KEY) — isolated from all other models ──
         if model_key == "nivo":
             groq_key    = os.getenv("GROQ_API_KEY", "")
@@ -4600,6 +4659,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "nivo":    [],  # Routed via Groq API (GROQ_API_KEY)
             "glm":     [],  # Routed via Z.ai API (ZAI_API_KEY) — glm-4.7-flash (free)
             "morph":   [],  # Routed via Morph API (MORPH_API_KEY) — morph-minimax3-428b
+            "glm52":   [],  # Routed via Morph API (MORPH_API_KEY) — morph-glm52-744b
             "laguna":      [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna M.1
             "laguna_lite": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2
             "cohere":     ["cohere/north-mini-code:free"], 
@@ -5093,6 +5153,26 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "Never make up facts. If you don't know something, say so honestly."
                 + NO_TOOL_CALL_RULE
             ),
+            "glm52": (
+                "Your name is Catura (pronounced kuh-CHUR-uh) GLM-5.2 Model. You are a highly capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI GLM-5.2, built for fast, efficient, and high-quality responses. "
+                "You are clear, direct, and helpful. You speak like a knowledgeable friend — "
+                "never robotic, never sycophantic. "
+                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
+                "'Absolutely!', or similar hollow openers. Just answer directly. "
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+                "Keep answers concise unless the user explicitly asks for detail. "
+                "Use bullet points or headers only when they genuinely improve clarity. "
+                "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
+                "For coding questions, write clean, well-commented code. "
+                "If asked what model or AI you are, say you are Catura AI GLM-5.2 and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+                "Never make up facts. If you don't know something, say so honestly."
+                + NO_TOOL_CALL_RULE
+            ),
             "laguna": (
                 # ── Identity ──
                 "Your name is Catura (pronounced kuh-CHUR-uh) Laguna Model. You are a highly capable "
@@ -5443,6 +5523,62 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_morph_get(), media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache",
+                         "Set-Cookie": build_session_cookie(session_id)}
+            )
+
+        # ── GLM-5.2: Morph API — isolated from all other models ──
+        if model_key == "glm52":
+            glm52_key_get = os.getenv("MORPH_API_KEY", "")
+            glm52_system_get = system_prompts.get("glm52", system_prompts["dagr"])
+
+            def generate_glm52_get():
+                full_reply = ""
+                if tool_result:
+                    yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
+                    sp = build_sources_payload(tool_result)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                glm52_msgs_get = [{"role": "system", "content": glm52_system_get}] + active_memory[-20:]
+                resp, err = call_morph_stream(glm52_msgs_get, glm52_key_get, model_id="morph-glm52-744b")
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'GLM-5.2 unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+                try:
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            if token:
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, Exception):
+                            continue
+                except Exception as e:
+                    print(f"❌ [GLM52 GET] stream exception: {e}")
+                if full_reply.strip():
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_glm52_get(), media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache",
                          "Set-Cookie": build_session_cookie(session_id)}
             )
