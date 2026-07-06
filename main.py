@@ -457,6 +457,46 @@ async def add_cache_headers(request: Request, call_next):
 
 
 # ============================================================
+# ✅ CONTENT-SECURITY-POLICY MIDDLEWARE (CRIT-03 / HIGH-03/04/05 defense-in-depth)
+# ============================================================
+# Shipped as Content-Security-Policy-Report-Only for now: browsers will send
+# violation reports (if CSP_REPORT_URI is set) but nothing is actually
+# blocked yet, so this deploy is safe even if the allowlist is incomplete.
+#
+# ⚠️ BEFORE FLIPPING TO ENFORCING: index.html currently has ~40 inline
+# onclick="..." handlers plus two inline <script> blocks (the JSON-LD
+# structured-data block and the service-worker registration snippet). None
+# of that will execute once this is enforcing, because script-src below
+# has no 'unsafe-inline' and no nonce/hash. See point 3 in the chat reply
+# for the full breakdown before you extend/enforce this.
+CSP_REPORT_URI = os.getenv("CSP_REPORT_URI", "")  # e.g. a /csp-report endpoint or report-uri.com collector
+
+_CSP_POLICY = (
+    "default-src 'self'; "
+    "script-src 'self' https://cdn.jsdelivr.net https://www.gstatic.com; "
+    "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
+    "img-src * data:; "
+    "connect-src 'self' https://*.supabase.co https://openrouter.ai"
+    + (f"; report-uri {CSP_REPORT_URI}" if CSP_REPORT_URI else "")
+)
+
+@app.middleware("http")
+async def add_csp_header(request: Request, call_next):
+    response = await call_next(request)
+    # ---- TO ENFORCE LATER --------------------------------------------
+    # 1. Fix the inline-script issues noted above (refactor onclick to
+    #    addEventListener / external JS, or add nonces).
+    # 2. Extend connect-src / script-src / font-src per point 3 findings
+    #    in the chat reply (Firebase RTDB websocket, Google favicons,
+    #    fonts.gstatic.com for font-src, etc).
+    # 3. Rename the header below from "Content-Security-Policy-Report-Only"
+    #    to "Content-Security-Policy" once the report log is clean.
+    # --------------------------------------------------------------------
+    response.headers["Content-Security-Policy-Report-Only"] = _CSP_POLICY
+    return response
+
+
+# ============================================================
 # ✅ STATIC PAGE ROUTES
 # ============================================================
 @app.get("/")
@@ -488,7 +528,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.283"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.284"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -498,7 +538,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.283", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.284", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
