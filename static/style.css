@@ -1756,6 +1756,13 @@ html { scroll-behavior: smooth; }
 .history-item:hover .history-title { color: #fff; }
 .history-date { font-size: 11px; color: #555; }
 
+/* Selected/active chat in history list — mirrors .settings-nav-item.active */
+.history-item.active {
+    background: #1e1e1e;
+}
+.history-item.active::before { height: 20px; }
+.history-item.active .history-title { color: #fff; font-weight: 600; }
+
 .no-history {
     padding: 24px; 
     text-align: center; 
@@ -2855,6 +2862,8 @@ html { scroll-behavior: smooth; }
 [data-theme="light"] .sidebar-item.logout:hover { background: rgba(192,57,43,0.07); color: #e74c3c; }
 [data-theme="light"] .history-title { color: #0f1117; }
 [data-theme="light"] .history-date { color: #7a8399; }
+[data-theme="light"] .history-item.active { background: rgba(16,163,127,0.1); }
+[data-theme="light"] .history-item.active .history-title { color: #10a37f; }
 [data-theme="light"] .history-header { color: #7a8399; border-bottom-color: #eaecf0; }
 [data-theme="light"] .no-history { color: #7a8399; }
 [data-theme="light"] .history-accordion-trigger .history-accordion-arrow { color: #aab0c0; }

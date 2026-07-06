@@ -1555,6 +1555,7 @@ window.newChat = function () {
 
     if (window.innerWidth <= 768) closeSidebar();
     showMainMenu();
+    if (typeof window.highlightActiveHistoryItem === 'function') window.highlightActiveHistoryItem(null);
     showToast("New chat started", 2000);
 
     // Auto-focus the input so the user can start typing immediately
@@ -2896,12 +2897,25 @@ function closeAllMenus() {
     document.querySelectorAll(".history-dropdown.open").forEach(d => d.classList.remove("open"));
 }
 
+// Highlight whichever history item matches the currently open session,
+// and clear the highlight from every other one. Safe to call any time
+// (e.g. list not built yet, or session not in the currently loaded list).
+function highlightActiveHistoryItem(sessionId) {
+    const list = document.getElementById("historyAccordionList");
+    if (!list) return;
+    list.querySelectorAll(".history-item").forEach(el => {
+        el.classList.toggle("active", el.dataset.sessionId === sessionId);
+    });
+}
+window.highlightActiveHistoryItem = highlightActiveHistoryItem;
+
 function buildHistoryItem(session, openSessionFn) {
     const date = new Date(session.created_at).toLocaleDateString();
 
     const item = document.createElement("div");
     item.classList.add("sidebar-item", "history-item");
     item.dataset.sessionId = session.session_id;
+    if (session.session_id === currentSessionId) item.classList.add("active");
 
     const info = document.createElement("div");
     info.classList.add("history-info");
@@ -2922,6 +2936,7 @@ function buildHistoryItem(session, openSessionFn) {
     info.onclick = () => {
         const overlay = document.getElementById("settingsOverlay");
         if (overlay) overlay.classList.remove("active");
+        highlightActiveHistoryItem(session.session_id);
         openSessionFn(session.session_id);
     };
 
@@ -2963,7 +2978,7 @@ function buildHistoryItem(session, openSessionFn) {
             e.stopPropagation();
             closeAllMenus();
             const action = btn.dataset.action;
-            if (action === "open")   openSessionFn(session.session_id);
+            if (action === "open") { highlightActiveHistoryItem(session.session_id); openSessionFn(session.session_id); }
             if (action === "rename") renameChat(session.session_id, session.title || "Untitled", titleEl);
             if (action === "delete") deleteSingleChat(session.session_id);
         };
@@ -3629,6 +3644,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         chatbox.scrollTop = chatbox.scrollHeight;
         if (window.innerWidth <= 768) closeSidebar();
         showMainMenu();
+        highlightActiveHistoryItem(sessionId);
         if (typeof window.refreshMsgNavTracker === 'function') window.refreshMsgNavTracker();
     }
 
