@@ -488,7 +488,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.279"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.280"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -498,7 +498,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.279", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.280", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3145,6 +3145,48 @@ def call_zai_stream(messages, api_key):
 
 
 # ============================================================
+# ✅ HELPER: Call Morph API — morph-minimax3-428b
+# OpenAI-compatible endpoint at api.morphllm.com
+# ============================================================
+def call_morph_stream(messages, api_key):
+    """
+    Dedicated Morph streaming function.
+    Uses morph-minimax3-428b via Morph's OpenAI-compatible endpoint.
+    """
+    if not api_key:
+        return None, "MORPH_API_KEY not set in environment variables"
+    try:
+        resp = requests.post(
+            "https://api.morphllm.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "morph-minimax3-428b",
+                "messages": messages,
+                "stream": True,
+                "temperature": 0.7,
+                "max_tokens": 8000,
+            },
+            stream=True,
+            timeout=(10, 120),
+        )
+        if resp.status_code != 200:
+            try:
+                err_body = resp.json()
+                err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
+            except Exception:
+                err_msg = f"HTTP {resp.status_code}"
+            return None, err_msg
+        return resp, None
+    except requests.exceptions.Timeout:
+        return None, "Request timed out"
+    except Exception as e:
+        return None, str(e)
+
+
+# ============================================================
 # 🏷️ TITLE GENERATION ENDPOINT
 # Generates a short, descriptive chat title from the first message
 # ============================================================
@@ -3341,6 +3383,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             "sambhav": [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
             "nivo":    [],  # Routed via Groq API (GROQ_API_KEY) — see generate_nivo()
             "glm":     [],  # Routed via Z.ai API (ZAI_API_KEY) — glm-4.7-flash (free)
+            "morph":   [],  # Routed via Morph API (MORPH_API_KEY) — morph-minimax3-428b
             "laguna":      [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna M.1
             "laguna_lite": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2
             "cohere":       ["cohere/north-mini-code:free"],
@@ -3613,6 +3656,26 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 "Never say 'I don't have real-time data' — if live data is provided in context, use it; "
                 "otherwise give your best knowledge-based answer."
                 + FORMATTING_RULES
+                + NO_TOOL_CALL_RULE
+            ),
+            "morph": (
+                "Your name is Catura (pronounced kuh-CHUR-uh) Morph Model. You are a highly capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI Morph, built for fast, efficient, and high-quality responses. "
+                "You are clear, direct, and helpful. You speak like a knowledgeable friend — "
+                "never robotic, never sycophantic. "
+                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
+                "'Absolutely!', or similar hollow openers. Just answer directly. "
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+                "Keep answers concise unless the user explicitly asks for detail. "
+                "Use bullet points or headers only when they genuinely improve clarity. "
+                "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
+                "For coding questions, write clean, well-commented code. "
+                "If asked what model or AI you are, say you are Catura AI Morph and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+                "Never make up facts. If you don't know something, say so honestly."
                 + NO_TOOL_CALL_RULE
             ),
             "laguna": (
@@ -4101,6 +4164,84 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 })
             )
 
+        # ── MORPH: Morph API (MORPH_API_KEY) — morph-minimax3-428b ──
+        if model_key == "morph":
+            morph_key    = os.getenv("MORPH_API_KEY", "")
+            morph_system = system_prompts.get("morph", system_prompts["dagr"])
+
+            def generate_morph():
+                full_reply = ""
+
+                tool_result_morph = None
+                if intent != "general" and not file_urls:
+                    yield f"data: {json.dumps({'status': 'tool_running', 'intent': intent})}\n\n"
+                    tool_result_morph = run_tool(intent, prompt)
+
+                final_system_morph = morph_system
+                tool_context_morph = build_tool_context(tool_result_morph)
+                if tool_context_morph:
+                    final_system_morph += "\n\n" + tool_context_morph
+
+                if tool_result_morph:
+                    badge_payload = json.dumps({"tool_used": tool_result_morph.get("tool", ""), "intent": intent})
+                    yield f"data: {badge_payload}\n\n"
+                    sp = build_sources_payload(tool_result_morph)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                morph_messages = (
+                    [{"role": "system", "content": final_system_morph}]
+                    + active_memory[-20:]
+                )
+                resp, err = call_morph_stream(morph_messages, morph_key)
+
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'Morph unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+
+                try:
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                print(f"⚠️ [MORPH] mid-stream error: {chunk['error']}")
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            if token:
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, Exception):
+                            continue
+                except Exception as e:
+                    print(f"❌ [MORPH] stream exception: {e}")
+
+                if full_reply.strip():
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_morph(),
+                media_type="text/event-stream",
+                headers=_rl({
+                    "Cache-Control": "no-cache",
+                    "Set-Cookie": build_session_cookie(session_id),
+                })
+            )
+
         # ── NIVO: Groq API (GROQ_API_KEY) — isolated from all other models ──
         if model_key == "nivo":
             groq_key    = os.getenv("GROQ_API_KEY", "")
@@ -4418,6 +4559,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "sambhav": [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
             "nivo":    [],  # Routed via Groq API (GROQ_API_KEY)
             "glm":     [],  # Routed via Z.ai API (ZAI_API_KEY) — glm-4.7-flash (free)
+            "morph":   [],  # Routed via Morph API (MORPH_API_KEY) — morph-minimax3-428b
             "laguna":      [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna M.1
             "laguna_lite": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2
             "cohere":     ["cohere/north-mini-code:free"], 
@@ -4891,6 +5033,26 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "Never make up facts. If you don't know something, say so honestly."
                 + NO_TOOL_CALL_RULE
             ),
+            "morph": (
+                "Your name is Catura (pronounced kuh-CHUR-uh) Morph Model. You are a highly capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI Morph, built for fast, efficient, and high-quality responses. "
+                "You are clear, direct, and helpful. You speak like a knowledgeable friend — "
+                "never robotic, never sycophantic. "
+                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
+                "'Absolutely!', or similar hollow openers. Just answer directly. "
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+                "Keep answers concise unless the user explicitly asks for detail. "
+                "Use bullet points or headers only when they genuinely improve clarity. "
+                "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
+                "For coding questions, write clean, well-commented code. "
+                "If asked what model or AI you are, say you are Catura AI Morph and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+                "Never make up facts. If you don't know something, say so honestly."
+                + NO_TOOL_CALL_RULE
+            ),
             "laguna": (
                 # ── Identity ──
                 "Your name is Catura (pronounced kuh-CHUR-uh) Laguna Model. You are a highly capable "
@@ -5185,6 +5347,62 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_glm_get(), media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache",
+                         "Set-Cookie": build_session_cookie(session_id)}
+            )
+
+        # ── MORPH: Morph API — isolated from all other models ──
+        if model_key == "morph":
+            morph_key_get = os.getenv("MORPH_API_KEY", "")
+            morph_system_get = system_prompts.get("morph", system_prompts["dagr"])
+
+            def generate_morph_get():
+                full_reply = ""
+                if tool_result:
+                    yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
+                    sp = build_sources_payload(tool_result)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                morph_msgs_get = [{"role": "system", "content": morph_system_get}] + active_memory[-20:]
+                resp, err = call_morph_stream(morph_msgs_get, morph_key_get)
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'Morph unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+                try:
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            if token:
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, Exception):
+                            continue
+                except Exception as e:
+                    print(f"❌ [MORPH GET] stream exception: {e}")
+                if full_reply.strip():
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_morph_get(), media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache",
                          "Set-Cookie": build_session_cookie(session_id)}
             )
