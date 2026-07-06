@@ -488,7 +488,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.289"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.290"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -498,7 +498,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.289", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.290", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -2946,6 +2946,7 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
             "generationConfig": {
                 "temperature": 0.3,
                 "maxOutputTokens": 16000,
+                "thinkingConfig": {"thinkingLevel": "high"},
             }
         }
         url = (
