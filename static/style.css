@@ -657,9 +657,11 @@ html { scroll-behavior: smooth; }
     overflow-y: auto;
     overflow-x: hidden;
     width: 100%;
-    max-width: 760px;
-    margin: 0 auto;
+    max-width: none;
+    margin: 0;
     padding: 0 20px;
+    padding-left: max(20px, calc(50% - 380px));
+    padding-right: max(34px, calc(50% - 380px + 14px));
     display: flex;
     flex-direction: column;
     scroll-behavior: smooth;
@@ -688,7 +690,7 @@ html { scroll-behavior: smooth; }
 .msg-nav-tracker .msg-nav-bars {
     position: fixed;
     top: 50%;
-    right: 6px;
+    right: 16px;
     transform: translateY(-50%);
     z-index: 150;
     display: flex;
@@ -727,7 +729,7 @@ html { scroll-behavior: smooth; }
 .msg-nav-tracker .msg-nav-list {
     position: fixed;
     top: 50%;
-    right: 26px;
+    right: 36px;
     transform: translateY(-50%) translateX(6px);
     z-index: 150;
     display: flex;
