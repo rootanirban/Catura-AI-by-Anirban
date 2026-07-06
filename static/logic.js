@@ -371,6 +371,11 @@ async function getUser() {
         if (typeof displayGreeting === 'function') displayGreeting();
         // 🧠 Load memory toggle state + saved memories from Supabase
         await loadMemoryState();
+
+        // 📜 Chat History accordion is open by default on load.
+        // After this, it is fully manual — only toggleHistoryAccordion() (user click)
+        // opens/closes it. Nothing else in the app should auto-close or auto-open it again.
+        if (typeof window.showHistory === 'function') window.showHistory();
     }
 }
 
@@ -1619,11 +1624,9 @@ window.goToProfile = function () {
 // 🧭 MAIN MENU
 // ============================
 window.showMainMenu = function () {
-    // Close history accordion if open
-    const trigger = document.getElementById("historyAccordionTrigger");
-    const list    = document.getElementById("historyAccordionList");
-    if (trigger) trigger.classList.remove("open");
-    if (list)    { list.classList.remove("open"); list.innerHTML = ""; }
+    // NOTE: History accordion open/close state is now fully manual —
+    // controlled only by the user via toggleHistoryAccordion().
+    // It must NOT be auto-closed here (e.g. on new chat, settings close, or session load).
 };
 
 // ============================
