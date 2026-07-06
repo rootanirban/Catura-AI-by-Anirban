@@ -3084,20 +3084,45 @@ document.addEventListener("DOMContentLoaded", async function () {
             return getUserBars().length > MIN_USER_MESSAGES;
         }
 
+        // Build the two persistent pieces once; render() only updates their contents.
+        const barsCol = document.createElement('div');
+        barsCol.className = 'msg-nav-bars';
+        const listPanel = document.createElement('div');
+        listPanel.className = 'msg-nav-list';
+        tracker.appendChild(barsCol);
+        tracker.appendChild(listPanel);
+
+        // Show the list ONLY while the pointer is over the bars or the list itself —
+        // never from hovering the empty space around/between them.
+        let hideTimer = null;
+        function showList() {
+            clearTimeout(hideTimer);
+            listPanel.classList.add('show');
+        }
+        function scheduleHideList() {
+            clearTimeout(hideTimer);
+            hideTimer = setTimeout(() => listPanel.classList.remove('show'), 120);
+        }
+        barsCol.addEventListener('mouseenter', showList);
+        barsCol.addEventListener('mouseleave', scheduleHideList);
+        listPanel.addEventListener('mouseenter', showList);
+        listPanel.addEventListener('mouseleave', scheduleHideList);
+        // Keyboard users: focusing a bar or list item also reveals the list.
+        barsCol.addEventListener('focusin', showList);
+        listPanel.addEventListener('focusin', showList);
+        barsCol.addEventListener('focusout', scheduleHideList);
+        listPanel.addEventListener('focusout', scheduleHideList);
+
         function render() {
             const bars = getUserBars();
-            tracker.innerHTML = '';
+            barsCol.innerHTML = '';
+            listPanel.innerHTML = '';
 
             if (!shouldShow()) {
                 tracker.classList.remove('visible');
+                listPanel.classList.remove('show');
                 return;
             }
-
-            const barsCol = document.createElement('div');
-            barsCol.className = 'msg-nav-bars';
-
-            const listPanel = document.createElement('div');
-            listPanel.className = 'msg-nav-list';
 
             function jumpTo(wrapperEl) {
                 wrapperEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -3130,17 +3155,14 @@ document.addEventListener("DOMContentLoaded", async function () {
                 listPanel.appendChild(item);
             });
 
-            tracker.appendChild(listPanel);
-            tracker.appendChild(barsCol);
-
             tracker.classList.add('visible');
             updateActiveBar();
         }
 
         function updateActiveBar() {
             const bars = getUserBars();
-            const barEls = tracker.querySelectorAll('.msg-nav-bar');
-            const itemEls = tracker.querySelectorAll('.msg-nav-item');
+            const barEls = barsCol.querySelectorAll('.msg-nav-bar');
+            const itemEls = listPanel.querySelectorAll('.msg-nav-item');
             if (!bars.length || !barEls.length) return;
 
             const boxTop = chatbox.getBoundingClientRect().top;
@@ -3154,7 +3176,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             itemEls.forEach((el, idx) => el.classList.toggle('active', idx === closestIdx));
 
             // Keep the active row in view within the (possibly scrollable) hover list
-            const activeItem = tracker.querySelector('.msg-nav-item.active');
+            const activeItem = listPanel.querySelector('.msg-nav-item.active');
             if (activeItem) activeItem.scrollIntoView({ block: 'nearest' });
         }
 

@@ -679,51 +679,57 @@ html { scroll-behavior: smooth; }
    MESSAGE NAV TRACKER (right-edge minimap, ChatGPT-style)
    ============================ */
 .msg-nav-tracker {
-    position: fixed;
-    top: 50%;
-    right: 14px;
-    transform: translateY(-50%);
-    z-index: 150;
-    display: flex;
-    flex-direction: row-reverse;
-    align-items: center;
-    gap: 10px;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s ease;
-}
-.msg-nav-tracker.visible {
-    opacity: 1;
-    pointer-events: auto;
+    /* No box of its own — children position themselves with `fixed`,
+       so there's no invisible hoverable gap between the bars and the list. */
+    display: contents;
 }
 
-/* Thin bars column — always visible, sits at the very edge */
+/* Thin bars column — always visible, pinned right at the very edge */
 .msg-nav-tracker .msg-nav-bars {
+    position: fixed;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
+    z-index: 150;
     display: flex;
     flex-direction: column;
     align-items: flex-end;
     gap: 6px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+.msg-nav-tracker.visible .msg-nav-bars {
+    opacity: 1;
+    pointer-events: auto;
 }
 .msg-nav-tracker .msg-nav-bar {
-    width: 18px;
+    width: 14px;
     height: 2px;
     border-radius: 2px;
     background: var(--border-strong, #333);
     cursor: pointer;
     transition: background 0.15s ease, width 0.15s ease;
 }
-.msg-nav-tracker:hover .msg-nav-bar,
+.msg-nav-tracker .msg-nav-bars:hover .msg-nav-bar,
 .msg-nav-tracker .msg-nav-bar:hover {
     background: var(--accent, #10a37f);
-    width: 26px;
+    width: 20px;
 }
 .msg-nav-tracker .msg-nav-bar.active {
     background: var(--accent, #10a37f);
-    width: 22px;
+    width: 18px;
 }
 
-/* Hover list panel — hidden until the whole tracker (bars or panel) is hovered */
+/* Hover list panel — its own fixed element, positioned just left of the bars.
+   Shown only via JS (.show class) when the pointer is actually over the bars
+   or the panel itself — never from hovering the empty space around them. */
 .msg-nav-tracker .msg-nav-list {
+    position: fixed;
+    top: 50%;
+    right: 26px;
+    transform: translateY(-50%) translateX(6px);
+    z-index: 150;
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -736,18 +742,15 @@ html { scroll-behavior: smooth; }
     padding: 6px;
     box-shadow: 0 8px 24px rgba(0,0,0,0.45);
     opacity: 0;
-    transform: translateX(6px);
-    pointer-events: none;
     visibility: hidden;
+    pointer-events: none;
     transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
 }
-.msg-nav-tracker:hover .msg-nav-list,
-.msg-nav-tracker .msg-nav-list:hover,
-.msg-nav-tracker .msg-nav-list:focus-within {
+.msg-nav-tracker .msg-nav-list.show {
     opacity: 1;
-    transform: translateX(0);
-    pointer-events: auto;
+    transform: translateY(-50%) translateX(0);
     visibility: visible;
+    pointer-events: auto;
 }
 .msg-nav-tracker .msg-nav-list::-webkit-scrollbar { width: 4px; }
 .msg-nav-tracker .msg-nav-list::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 4px; }
@@ -774,7 +777,8 @@ html { scroll-behavior: smooth; }
     color: var(--accent, #10a37f);
 }
 @media (max-width: 768px) {
-    .msg-nav-tracker { display: none !important; }
+    .msg-nav-tracker .msg-nav-bars,
+    .msg-nav-tracker .msg-nav-list { display: none !important; }
 }
 .user-msg-wrapper.msg-nav-flash .message.user {
     animation: msgNavFlash 0.9s ease;
