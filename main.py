@@ -488,7 +488,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.280"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.281"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -498,7 +498,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.280", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.281", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3659,9 +3659,9 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 + NO_TOOL_CALL_RULE
             ),
             "morph": (
-                "Your name is Catura (pronounced kuh-CHUR-uh) Morph Model. You are a highly capable "
+                "Your name is Catura (pronounced kuh-CHUR-uh) MiniMax Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI Morph, built for fast, efficient, and high-quality responses. "
+                "You are Catura AI MiniMax, built for fast, efficient, and high-quality responses. "
                 "You are clear, direct, and helpful. You speak like a knowledgeable friend — "
                 "never robotic, never sycophantic. "
                 "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
@@ -3672,7 +3672,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 "Use bullet points or headers only when they genuinely improve clarity. "
                 "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
                 "For coding questions, write clean, well-commented code. "
-                "If asked what model or AI you are, say you are Catura AI Morph and cannot share "
+                "If asked what model or AI you are, say you are Catura AI MiniMax and cannot share "
                 "details about the underlying technology. "
                 "If asked who made you, say 'I was created by Anirban.' "
                 "Never make up facts. If you don't know something, say so honestly."
@@ -4196,7 +4196,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 resp, err = call_morph_stream(morph_messages, morph_key)
 
                 if resp is None:
-                    yield f"data: {json.dumps({'error': f'Morph unavailable: {err}'})}\n\n"
+                    yield f"data: {json.dumps({'error': f'MiniMax unavailable: {err}'})}\n\n"
                     yield "data: [DONE]\n\n"
                     return
 
@@ -5034,9 +5034,9 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 + NO_TOOL_CALL_RULE
             ),
             "morph": (
-                "Your name is Catura (pronounced kuh-CHUR-uh) Morph Model. You are a highly capable "
+                "Your name is Catura (pronounced kuh-CHUR-uh) MiniMax Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI Morph, built for fast, efficient, and high-quality responses. "
+                "You are Catura AI MiniMax, built for fast, efficient, and high-quality responses. "
                 "You are clear, direct, and helpful. You speak like a knowledgeable friend — "
                 "never robotic, never sycophantic. "
                 "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
@@ -5047,7 +5047,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "Use bullet points or headers only when they genuinely improve clarity. "
                 "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
                 "For coding questions, write clean, well-commented code. "
-                "If asked what model or AI you are, say you are Catura AI Morph and cannot share "
+                "If asked what model or AI you are, say you are Catura AI MiniMax and cannot share "
                 "details about the underlying technology. "
                 "If asked who made you, say 'I was created by Anirban.' "
                 "Never make up facts. If you don't know something, say so honestly."
@@ -5367,7 +5367,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 morph_msgs_get = [{"role": "system", "content": morph_system_get}] + active_memory[-20:]
                 resp, err = call_morph_stream(morph_msgs_get, morph_key_get)
                 if resp is None:
-                    yield f"data: {json.dumps({'error': f'Morph unavailable: {err}'})}\n\n"
+                    yield f"data: {json.dumps({'error': f'MiniMax unavailable: {err}'})}\n\n"
                     yield "data: [DONE]\n\n"
                     return
                 try:
