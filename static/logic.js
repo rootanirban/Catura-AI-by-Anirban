@@ -4399,12 +4399,16 @@ window.toggleMoreModels = function (e) {
 
         // Force a reflow so the browser computes the real height
         void panel.offsetHeight;
-        const panelH = panel.scrollHeight || panel.offsetHeight || 260;
+        const rawH = panel.scrollHeight || panel.offsetHeight || 260;
 
         // Restore (we'll set final values below)
         panel.style.position   = prevPos  || '';
         panel.style.visibility = prevVis  || '';
         panel.style.display    = prevDisplay || '';
+
+        // Claude-style fixed cap: panel never grows past this, list scrolls internally.
+        const PANEL_MAX_H = 360;
+        const panelH = Math.min(rawH, PANEL_MAX_H);
 
         // Horizontal: prefer right of dropdown, fall back to left
         let left = dropRect.right + gap;
@@ -4420,16 +4424,17 @@ window.toggleMoreModels = function (e) {
         const anchoredTop = dropRect.bottom - panelH;
         const clampedTop  = Math.max(margin, anchoredTop);
 
+        let finalH;
         if (anchoredTop < margin) {
             // Not enough vertical room — shrink panel so it fits between
             // viewport top margin and the dropdown bottom.
             const availableH = dropRect.bottom - margin;
-            panel.style.maxHeight = Math.max(availableH, 80) + 'px';
-            panel.style.overflowY = 'auto';
+            finalH = Math.max(Math.min(availableH, PANEL_MAX_H), 80);
         } else {
-            panel.style.maxHeight = '';
-            panel.style.overflowY = '';
+            finalH = panelH;
         }
+        panel.style.maxHeight = finalH + 'px';
+        panel.style.overflowY = 'auto';
 
         panel.style.left = left + 'px';
         panel.style.top  = clampedTop + 'px';
