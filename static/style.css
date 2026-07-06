@@ -2492,6 +2492,21 @@ html { scroll-behavior: smooth; }
         animation: ghostFloat 3s ease-in-out infinite;
     }
 
+    /* 👻 Same rule as the desktop ghost button: only visible on a fresh,
+       empty "New Chat" screen — hides once a message is sent, reappears
+       when a new chat starts. */
+    .mobile-header-ghost {
+        opacity: 1;
+        transform: scale(1);
+        transition: opacity 0.2s ease, transform 0.2s ease, background 0.18s ease, color 0.2s ease;
+        pointer-events: auto;
+    }
+    .app:not(.greeting-mode) .mobile-header-ghost {
+        opacity: 0;
+        transform: scale(0.9);
+        pointer-events: none;
+    }
+
     /* === MAIN APP === */
     .icon-rail { display: none !important; }
     .close-btn { display: block; }
@@ -6050,10 +6065,22 @@ kbd.shortcut-key {
     font-weight: 500;
     font-family: inherit;
     cursor: pointer;
-    transition: background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
+    transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
     letter-spacing: 0.01em;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+}
+
+/* 👻 Only show the Ghost button on a fresh, empty "New Chat" screen —
+   once a message has been sent (app leaves greeting-mode) it fades out,
+   and it reappears the instant a brand-new chat is started. */
+.app:not(.greeting-mode) .ghost-chat-btn {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.92);
+    pointer-events: none;
 }
 .ghost-chat-btn:hover {
     background: rgba(160,190,255,0.08);
