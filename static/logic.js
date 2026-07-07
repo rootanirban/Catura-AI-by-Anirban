@@ -982,13 +982,14 @@ function splitThinking(rawText) {
 }
 
 let _thinkingIdSeq = 0;
-function buildThinkingHTML(thinkingText, expanded) {
+function buildThinkingHTML(thinkingText, expanded, active) {
     const id = `think-block-${Date.now()}-${_thinkingIdSeq++}`;
     const isOpen = !!expanded;
+    const isActive = !!active;
     return `<div class="thinking-block">
-        <button type="button" class="thinking-toggle" aria-expanded="${isOpen}" aria-controls="${id}" onclick="toggleThinking(this)">
+        <button type="button" class="thinking-toggle${isActive ? ' active' : ''}" aria-expanded="${isOpen}" aria-controls="${id}" onclick="toggleThinking(this)">
             <svg class="thinking-arrow" width="10" height="10" viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M2 1l5 4-5 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            <span>Thinking</span>
+            <span class="thinking-label">Thinking</span>
         </button>
         <div class="thinking-content${isOpen ? ' open' : ''}" id="${id}" role="region" aria-label="Model reasoning">
             <div class="thinking-inner">${formatMessage(thinkingText)}</div>
@@ -4039,7 +4040,7 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
         thinkingRAF = true;
         requestAnimationFrame(() => {
             thinkingRAF = false;
-            if (thinkingEl) thinkingEl.innerHTML = buildThinkingHTML(thinkingText, false);
+            if (thinkingEl) thinkingEl.innerHTML = buildThinkingHTML(thinkingText, false, true);
         });
     };
 
