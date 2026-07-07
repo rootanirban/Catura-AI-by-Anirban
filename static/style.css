@@ -3534,6 +3534,128 @@ html { scroll-behavior: smooth; }
     margin-bottom: 2px;
 }
 
+/* ── EFFORT LEVEL hover row + flyout panel ── */
+.effort-level-row {
+    position: relative;
+}
+
+.effort-level-panel {
+    position: absolute;
+    left: calc(100% + 8px);
+    top: -4px;
+    background: #1a1a1a;
+    border: 1px solid #2e2e2e;
+    border-radius: 12px;
+    width: 200px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.75), 0 2px 8px rgba(0,0,0,0.4);
+    z-index: 99999;
+    padding: 4px 0;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(-6px) scale(0.97);
+    transition: opacity 0.18s ease, visibility 0.18s ease, transform 0.18s ease;
+    pointer-events: none;
+}
+
+.effort-level-row:hover .effort-level-panel {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(0) scale(1);
+    pointer-events: all;
+}
+
+.effort-level-panel-title {
+    padding: 8px 14px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid #242424;
+    margin-bottom: 2px;
+}
+
+.effort-level-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 14px;
+    color: #666;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: not-allowed;
+    user-select: none;
+    opacity: 0.6;
+}
+
+.effort-level-name {
+    flex: 1;
+}
+
+.effort-soon-badge {
+    font-size: 10px;
+    font-weight: 600;
+    color: #888;
+    background: #262626;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 2px 6px;
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+/* On touch devices without hover, tapping the row toggles the panel via .open class (JS-assisted fallback) */
+.effort-level-row.open .effort-level-panel {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(0) scale(1);
+    pointer-events: all;
+}
+
+[data-theme="light"] .effort-level-panel {
+    background: #ffffff;
+    border-color: #e2e2e2;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08);
+}
+
+[data-theme="light"] .effort-level-panel-title {
+    color: #999;
+    border-bottom-color: #eee;
+}
+
+[data-theme="light"] .effort-level-option {
+    color: #999;
+}
+
+[data-theme="light"] .effort-soon-badge {
+    color: #888;
+    background: #f0f0f0;
+    border-color: #e0e0e0;
+}
+
+@media (max-width: 768px) {
+    .effort-level-panel {
+        left: 0;
+        top: 100%;
+        width: 100%;
+        position: static;
+        display: none;
+        border: none;
+        box-shadow: none;
+        border-radius: 0;
+        opacity: 1;
+        visibility: visible;
+        transform: none;
+        pointer-events: all;
+    }
+    .effort-level-row.open .effort-level-panel {
+        display: block;
+        border-top: 1px solid #242424;
+    }
+}
+
 /* Back button — shown only in more-models panel on mobile */
 .model-more-back-btn {
     display: none;

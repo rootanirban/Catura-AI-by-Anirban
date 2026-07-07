@@ -4447,6 +4447,22 @@ function closeAllModelMenus() {
     if (row)   row.classList.remove('open');
 }
 
+// ── EFFORT LEVEL row: desktop uses pure CSS hover, mobile needs tap-to-toggle ──
+(function initEffortLevelRow() {
+    const row = document.getElementById('effortLevelRow');
+    if (!row) return;
+    row.addEventListener('click', function (e) {
+        if (window.innerWidth > 768) return; // desktop: hover handles it
+        e.stopPropagation();
+        e.preventDefault();
+        row.classList.toggle('open');
+    });
+    document.addEventListener('click', function (e) {
+        if (window.innerWidth > 768) return;
+        if (!row.contains(e.target)) row.classList.remove('open');
+    });
+})();
+
 window.toggleMoreModels = function (e) {
     if (e) { e.stopPropagation(); e.preventDefault(); }
     const panel = document.getElementById('moreModelsPanel');
