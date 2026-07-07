@@ -488,7 +488,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.293"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.294"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -498,7 +498,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.293", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.294", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -2837,6 +2837,10 @@ def call_openrouter_stream(model_id, messages, api_key, file_urls=None, vision_i
                 "temperature": 0.3,
                 "max_tokens": 8192,
                 **({"provider": {"order": ["OpenAI"], "allow_fallbacks": True}} if "gpt-oss" in model_id else {}),
+                # ✅ Cohere North Mini Code is a reasoning/thinking model — OpenRouter only
+                # runs its thinking pass when a "reasoning" object is explicitly sent.
+                # Scoped to this model only; no other model gets this field.
+                **({"reasoning": {"enabled": True}} if "north-mini-code" in model_id else {}),
             },
             stream=True,
             timeout=(10, 90),
@@ -4620,8 +4624,16 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             choices = chunk.get("choices")
                             if not choices: continue
                             choice = choices[0]
-                            token  = (choice.get("delta") or {}).get("content") or ""
+                            delta  = choice.get("delta") or {}
+                            # ✅ Surface reasoning tokens when a model streams them
+                            # (currently only Cohere North Mini Code, via the
+                            # "reasoning" flag in call_openrouter_stream). Empty/absent
+                            # for every other model in this pool, so no behavior change.
+                            reasoning_token = delta.get("reasoning_content") or delta.get("reasoning") or ""
+                            token  = delta.get("content") or ""
                             finish = choice.get("finish_reason")
+                            if reasoning_token:
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token}, ensure_ascii=False)}\n\n"
                             if token:
                                 full_reply += token
                                 leg_tokens += 1
@@ -5909,8 +5921,14 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             if "error" in chunk: stream_broke = True; break
                             choices = chunk.get("choices")
                             if not choices: continue
-                            token  = (choices[0].get("delta") or {}).get("content") or ""
+                            delta = choices[0].get("delta") or {}
+                            # ✅ Surface reasoning tokens (Cohere North Mini Code only);
+                            # empty/absent for other models in this pool.
+                            reasoning_token = delta.get("reasoning_content") or delta.get("reasoning") or ""
+                            token  = delta.get("content") or ""
                             finish = choices[0].get("finish_reason")
+                            if reasoning_token:
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token}, ensure_ascii=False)}\n\n"
                             if token:
                                 full_reply += token; leg_tokens += 1
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
