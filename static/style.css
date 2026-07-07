@@ -8185,20 +8185,20 @@ body,
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 12px;
+    padding: 4px 2px;
     font-size: 13px;
     font-weight: 500;
     color: var(--text-muted);
-    background: var(--bg-surface3);
-    border: 1px solid var(--border);
-    border-radius: 999px;
+    background: transparent;
+    border: none;
+    border-radius: 0;
     cursor: pointer;
     user-select: none;
-    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    transition: color 0.15s ease;
 }
 
 .thinking-toggle:hover {
-    background: var(--bg-hover);
+    background: transparent;
     color: var(--text-secondary);
 }
 
@@ -8207,8 +8207,13 @@ body,
     outline-offset: 2px;
 }
 
+.thinking-label {
+    font-weight: 700;
+}
+
 .thinking-arrow {
     flex-shrink: 0;
+    order: 2;
     transform: rotate(0deg);
     transition: transform 0.25s ease;
 }
@@ -8247,13 +8252,13 @@ body,
 .thinking-inner > *:last-child { margin-bottom: 0; }
 
 @media (max-width: 768px) {
-    .thinking-toggle { font-size: 12.5px; padding: 5px 10px; }
+    .thinking-toggle { font-size: 12.5px; padding: 4px 2px; }
     .thinking-inner { font-size: 13px; padding: 10px 12px; }
 }
 
 [data-theme="light"] .thinking-toggle {
-    background: var(--bg-surface3);
-    border-color: var(--border);
+    background: transparent;
+    border: none;
     color: var(--text-muted);
 }
 
@@ -8262,30 +8267,11 @@ body,
     border-color: var(--border-subtle);
 }
 
-/* ── THINKING — active/glowing state while reasoning is in progress ── */
+/* ── THINKING — active state while reasoning is in progress: plain text shimmer ── */
 .thinking-toggle.active {
-    border-color: transparent;
-    background: var(--bg-surface3);
+    background: transparent;
+    border: none;
     position: relative;
-    animation: thinking-glow-pulse 2.2s ease-in-out infinite;
-}
-
-.thinking-toggle.active::before {
-    content: "";
-    position: absolute;
-    inset: -1.5px;
-    border-radius: inherit;
-    padding: 1.5px;
-    background: linear-gradient(90deg,
-        rgba(255,255,255,0) 0%,
-        rgba(255,255,255,0.9) 50%,
-        rgba(255,255,255,0) 100%);
-    background-size: 200% 100%;
-    animation: thinking-gradient-shift 2.2s linear infinite;
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    pointer-events: none;
 }
 
 .thinking-toggle.active .thinking-arrow {
@@ -8293,6 +8279,7 @@ body,
 }
 
 .thinking-toggle.active .thinking-label {
+    font-weight: 700;
     background: linear-gradient(90deg,
         var(--text-muted) 0%,
         var(--text-muted) 35%,
@@ -8311,14 +8298,7 @@ body,
     100% { background-position: -200% 50%; }
 }
 
-@keyframes thinking-glow-pulse {
-    0%, 100% { box-shadow: 0 0 4px 0 rgba(255,255,255,0.12); }
-    50%      { box-shadow: 0 0 10px 1px rgba(255,255,255,0.22); }
-}
-
 @media (prefers-reduced-motion: reduce) {
-    .thinking-toggle.active,
-    .thinking-toggle.active::before,
     .thinking-toggle.active .thinking-label {
         animation: none;
     }
