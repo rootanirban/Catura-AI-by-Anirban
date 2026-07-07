@@ -8140,9 +8140,11 @@ body,
     border-radius: inherit;
     padding: 1.5px;
     background: linear-gradient(90deg,
-        #ea4335, #fbbc05, #34a853, #4285f4, #ea4335);
-    background-size: 300% 100%;
-    animation: thinking-gradient-shift 2.4s linear infinite;
+        rgba(255,255,255,0) 0%,
+        rgba(255,255,255,0.9) 50%,
+        rgba(255,255,255,0) 100%);
+    background-size: 200% 100%;
+    animation: thinking-gradient-shift 2.2s linear infinite;
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
@@ -8150,27 +8152,31 @@ body,
 }
 
 .thinking-toggle.active .thinking-arrow {
-    color: #4285f4;
+    color: var(--text-secondary);
 }
 
 .thinking-toggle.active .thinking-label {
     background: linear-gradient(90deg,
-        #ea4335, #fbbc05, #34a853, #4285f4, #ea4335);
-    background-size: 300% 100%;
+        var(--text-muted) 0%,
+        var(--text-muted) 35%,
+        #ffffff 50%,
+        var(--text-muted) 65%,
+        var(--text-muted) 100%);
+    background-size: 200% 100%;
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
-    animation: thinking-gradient-shift 2.4s linear infinite;
+    animation: thinking-gradient-shift 2.2s linear infinite;
 }
 
 @keyframes thinking-gradient-shift {
-    0%   { background-position: 0% 50%; }
-    100% { background-position: 300% 50%; }
+    0%   { background-position: 200% 50%; }
+    100% { background-position: -200% 50%; }
 }
 
 @keyframes thinking-glow-pulse {
-    0%, 100% { box-shadow: 0 0 4px 0 rgba(66,133,244,0.25), 0 0 4px 0 rgba(234,67,53,0.15); }
-    50%      { box-shadow: 0 0 10px 1px rgba(66,133,244,0.35), 0 0 10px 1px rgba(52,168,83,0.25); }
+    0%, 100% { box-shadow: 0 0 4px 0 rgba(255,255,255,0.12); }
+    50%      { box-shadow: 0 0 10px 1px rgba(255,255,255,0.22); }
 }
 
 @media (prefers-reduced-motion: reduce) {
