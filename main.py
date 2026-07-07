@@ -488,7 +488,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.295"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.296"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -498,7 +498,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.295", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.296", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -2790,67 +2790,6 @@ async def delete_account(request: Request):
 # ============================================================
 # ✅ HELPER: Call OpenRouter with streaming
 # ============================================================
-# ============================================================
-# ✅ HELPER: Incremental <think>...</think> splitter for streaming text
-# ============================================================
-# Several backend models (open-weight reasoning models served via
-# OpenRouter/Groq/etc.) emit their chain-of-thought inline as plain
-# <think>...</think> text mixed into normal content deltas — unlike
-# Gemma, which tags reasoning natively via the API's "thought" field.
-# This incrementally splits an arbitrary token stream into
-# (thinking_piece, answer_piece) pairs, tag boundaries included,
-# safely handling tags that get split across chunk boundaries.
-_THINK_OPEN = "<think>"
-_THINK_CLOSE = "</think>"
-
-
-def split_think_incremental(pending, token, in_think):
-    """
-    pending  : leftover buffered text from the previous call (may hold a partial tag)
-    token    : newly-arrived text chunk to process
-    in_think : whether we are currently inside a <think> block
-
-    Returns (thinking_piece, answer_piece, new_pending, new_in_think).
-    """
-    pending += token
-    thinking_piece = ""
-    answer_piece = ""
-
-    while True:
-        if not in_think:
-            idx = pending.find(_THINK_OPEN)
-            if idx == -1:
-                # Keep a small tail that could be the start of "<think>"
-                safe_len = max(0, len(pending) - (len(_THINK_OPEN) - 1))
-                answer_piece += pending[:safe_len]
-                pending = pending[safe_len:]
-                break
-            else:
-                answer_piece += pending[:idx]
-                pending = pending[idx + len(_THINK_OPEN):]
-                in_think = True
-        else:
-            idx = pending.find(_THINK_CLOSE)
-            if idx == -1:
-                safe_len = max(0, len(pending) - (len(_THINK_CLOSE) - 1))
-                thinking_piece += pending[:safe_len]
-                pending = pending[safe_len:]
-                break
-            else:
-                thinking_piece += pending[:idx]
-                pending = pending[idx + len(_THINK_CLOSE):]
-                in_think = False
-
-    return thinking_piece, answer_piece, pending, in_think
-
-
-def flush_think_pending(pending, in_think):
-    """Call once the stream ends to flush whatever is left in the buffer."""
-    if not pending:
-        return "", ""
-    return (pending, "") if in_think else ("", pending)
-
-
 def call_openrouter_stream(model_id, messages, api_key, file_urls=None, vision_images=None):
     """
     Call OpenRouter streaming.
@@ -2898,6 +2837,10 @@ def call_openrouter_stream(model_id, messages, api_key, file_urls=None, vision_i
                 "temperature": 0.3,
                 "max_tokens": 8192,
                 **({"provider": {"order": ["OpenAI"], "allow_fallbacks": True}} if "gpt-oss" in model_id else {}),
+                # ✅ Cohere North Mini Code is a reasoning/thinking model — OpenRouter only
+                # runs its thinking pass when a "reasoning" object is explicitly sent.
+                # Scoped to this model only; no other model gets this field.
+                **({"reasoning": {"enabled": True}} if "north-mini-code" in model_id else {}),
             },
             stream=True,
             timeout=(10, 90),
@@ -3087,6 +3030,13 @@ def call_poolside_stream(messages, api_key):
     Calls Poolside API with streaming using Laguna M.1 model.
     Uses POOLSIDE_API_KEY set on Render. Completely isolated from all
     other models — does NOT touch any other API key.
+
+    Thinking mode: Poolside's hosted API enables `enable_thinking` by
+    default, but we set it explicitly so behavior doesn't silently depend
+    on server-side defaults changing later. Poolside's own recommended
+    sampling for this model is temperature=1.0, top_k=20 (not 0.3) — a low
+    temperature suppresses/degenerates the reasoning trace, which is a
+    likely reason the model "worked without thinking" before.
     """
     if not api_key:
         return None, "POOLSIDE_API_KEY not set in environment variables"
@@ -3101,11 +3051,13 @@ def call_poolside_stream(messages, api_key):
                 "model": "poolside/laguna-m.1",
                 "messages": messages,
                 "stream": True,
-                "temperature": 0.3,
-                "max_tokens": 8000,
+                "temperature": 1.0,
+                "top_k": 20,
+                "max_tokens": 16000,
+                "chat_template_kwargs": {"enable_thinking": True},
             },
             stream=True,
-            timeout=(10, 120),
+            timeout=(10, 180),
         )
         if resp.status_code != 200:
             try:
@@ -3994,6 +3946,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
 
             def generate_laguna():
                 full_reply = ""
+                thinking_open = False  # tracks whether <think> has been opened in full_reply
 
                 tool_result_l = None
                 if intent != "general" and not file_urls:
@@ -4041,14 +3994,28 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             choices = chunk.get("choices")
                             if not choices:
                                 continue
-                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            delta = choices[0].get("delta") or {}
+                            reasoning_token = delta.get("reasoning_content") or ""
+                            token = delta.get("content") or ""
+                            if reasoning_token:
+                                if not thinking_open:
+                                    full_reply += "<think>"
+                                    thinking_open = True
+                                full_reply += reasoning_token
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token}, ensure_ascii=False)}\n\n"
                             if token:
+                                if thinking_open:
+                                    full_reply += "</think>"
+                                    thinking_open = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
                     print(f"❌ [Laguna] stream exception: {e}")
+
+                if thinking_open:
+                    full_reply += "</think>"
 
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
@@ -4111,11 +4078,13 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             "model": "poolside/laguna-xs.2",
                             "messages": laguna_lite_messages,
                             "stream": True,
-                            "temperature": 0.3,
-                            "max_tokens": 8000,
+                            "temperature": 1.0,
+                            "top_k": 20,
+                            "max_tokens": 16000,
+                            "chat_template_kwargs": {"enable_thinking": True},
                         },
                         stream=True,
-                        timeout=(10, 120),
+                        timeout=(10, 180),
                     )
                     if resp_ll.status_code != 200:
                         yield f"data: {json.dumps({'error': f'Laguna Lite unavailable: HTTP {resp_ll.status_code}'})}\n\n"
@@ -4126,6 +4095,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     yield "data: [DONE]\n\n"
                     return
 
+                thinking_open_ll = False
                 try:
                     for line in resp_ll.iter_lines():
                         if not line:
@@ -4144,15 +4114,30 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             choices = chunk.get("choices")
                             if not choices:
                                 continue
-                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            delta = choices[0].get("delta") or {}
+                            reasoning_token = delta.get("reasoning_content") or ""
+                            reasoning_token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', reasoning_token)
+                            token = delta.get("content") or ""
                             token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', token)
+                            if reasoning_token:
+                                if not thinking_open_ll:
+                                    full_reply += "<think>"
+                                    thinking_open_ll = True
+                                full_reply += reasoning_token
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token}, ensure_ascii=False)}\n\n"
                             if token:
+                                if thinking_open_ll:
+                                    full_reply += "</think>"
+                                    thinking_open_ll = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
                     print(f"❌ [Laguna Lite] stream exception: {e}")
+
+                if thinking_open_ll:
+                    full_reply += "</think>"
 
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
@@ -4575,9 +4560,6 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             full_reply   = ""
             pool_index   = 0
             handoffs     = 0
-            think_pending  = ""   # incremental <think> tag splitter state (raw parse state)
-            think_open     = False
-            reply_tag_open = False  # whether <think> has been opened in full_reply
 
             # ── Run tool INSIDE generator so streaming starts immediately ──
             tool_result = None
@@ -4642,24 +4624,20 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             choices = chunk.get("choices")
                             if not choices: continue
                             choice = choices[0]
-                            token  = (choice.get("delta") or {}).get("content") or ""
+                            delta  = choice.get("delta") or {}
+                            # ✅ Surface reasoning tokens when a model streams them
+                            # (currently only Cohere North Mini Code, via the
+                            # "reasoning" flag in call_openrouter_stream). Empty/absent
+                            # for every other model in this pool, so no behavior change.
+                            reasoning_token = delta.get("reasoning_content") or delta.get("reasoning") or ""
+                            token  = delta.get("content") or ""
                             finish = choice.get("finish_reason")
+                            if reasoning_token:
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token}, ensure_ascii=False)}\n\n"
                             if token:
-                                thinking_piece, answer_piece, think_pending, think_open = \
-                                    split_think_incremental(think_pending, token, think_open)
-                                if thinking_piece:
-                                    if not reply_tag_open:
-                                        full_reply += "<think>"
-                                        reply_tag_open = True
-                                    full_reply += thinking_piece
-                                    yield f"data: {json.dumps({'thinking_token': thinking_piece}, ensure_ascii=False)}\n\n"
-                                if answer_piece:
-                                    if reply_tag_open:
-                                        full_reply += "</think>"
-                                        reply_tag_open = False
-                                    full_reply += answer_piece
-                                    yield f"data: {json.dumps({'token': answer_piece}, ensure_ascii=False)}\n\n"
+                                full_reply += token
                                 leg_tokens += 1
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                                 if leg_tokens % 50 == 0:
                                     yield ": heartbeat\n\n"
                             if finish == "stop":
@@ -4675,23 +4653,6 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     stream_broke = True
 
                 if finished_cleanly and full_reply.strip():
-                    tail_thinking, tail_answer = flush_think_pending(think_pending, think_open)
-                    if tail_thinking:
-                        if not reply_tag_open:
-                            full_reply += "<think>"
-                            reply_tag_open = True
-                        full_reply += tail_thinking
-                        yield f"data: {json.dumps({'thinking_token': tail_thinking}, ensure_ascii=False)}\n\n"
-                    if tail_answer:
-                        if reply_tag_open:
-                            full_reply += "</think>"
-                            reply_tag_open = False
-                        full_reply += tail_answer
-                        yield f"data: {json.dumps({'token': tail_answer}, ensure_ascii=False)}\n\n"
-                    if reply_tag_open:
-                        full_reply += "</think>"
-                        reply_tag_open = False
-                    think_pending = ""
                     print(f"✅ [{current_model}] finished. Total: {len(full_reply)} chars")
                     active_memory.append({"role": "assistant", "content": full_reply})
                     if not ghost_mode and len(user_memory[session_id]) > 40:
@@ -4706,22 +4667,6 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 handoffs   += 1
 
             if full_reply.strip():
-                tail_thinking, tail_answer = flush_think_pending(think_pending, think_open)
-                if tail_thinking:
-                    if not reply_tag_open:
-                        full_reply += "<think>"
-                        reply_tag_open = True
-                    full_reply += tail_thinking
-                    yield f"data: {json.dumps({'thinking_token': tail_thinking}, ensure_ascii=False)}\n\n"
-                if tail_answer:
-                    if reply_tag_open:
-                        full_reply += "</think>"
-                        reply_tag_open = False
-                    full_reply += tail_answer
-                    yield f"data: {json.dumps({'token': tail_answer}, ensure_ascii=False)}\n\n"
-                if reply_tag_open:
-                    full_reply += "</think>"
-                    reply_tag_open = False
                 active_memory.append({"role": "assistant", "content": full_reply})
                 if not ghost_mode and len(user_memory[session_id]) > 40:
                     user_memory[session_id] = user_memory[session_id][-40:]
@@ -5410,6 +5355,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             def generate_laguna_get():
                 full_reply = ""
+                thinking_open = False
                 if tool_result:
                     yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
                     sp = build_sources_payload(tool_result)
@@ -5438,14 +5384,27 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             choices = chunk.get("choices")
                             if not choices:
                                 continue
-                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            delta = choices[0].get("delta") or {}
+                            reasoning_token = delta.get("reasoning_content") or ""
+                            token = delta.get("content") or ""
+                            if reasoning_token:
+                                if not thinking_open:
+                                    full_reply += "<think>"
+                                    thinking_open = True
+                                full_reply += reasoning_token
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token}, ensure_ascii=False)}\n\n"
                             if token:
+                                if thinking_open:
+                                    full_reply += "</think>"
+                                    thinking_open = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
                     print(f"❌ [Laguna GET] stream exception: {e}")
+                if thinking_open:
+                    full_reply += "</think>"
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
                     if not ghost_mode and len(user_memory[session_id]) > 40:
@@ -5487,11 +5446,13 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             "model": "poolside/laguna-xs.2",
                             "messages": laguna_lite_messages_get,
                             "stream": True,
-                            "temperature": 0.3,
-                            "max_tokens": 8000,
+                            "temperature": 1.0,
+                            "top_k": 20,
+                            "max_tokens": 16000,
+                            "chat_template_kwargs": {"enable_thinking": True},
                         },
                         stream=True,
-                        timeout=(10, 120),
+                        timeout=(10, 180),
                     )
                     if resp_ll_get.status_code != 200:
                         yield f"data: {json.dumps({'error': f'Laguna Lite unavailable: HTTP {resp_ll_get.status_code}'})}\n\n"
@@ -5502,6 +5463,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                     yield "data: [DONE]\n\n"
                     return
 
+                thinking_open_ll_get = False
                 try:
                     for line in resp_ll_get.iter_lines():
                         if not line:
@@ -5519,15 +5481,29 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             choices = chunk.get("choices")
                             if not choices:
                                 continue
-                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            delta = choices[0].get("delta") or {}
+                            reasoning_token = delta.get("reasoning_content") or ""
+                            reasoning_token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', reasoning_token)
+                            token = delta.get("content") or ""
                             token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', token)
+                            if reasoning_token:
+                                if not thinking_open_ll_get:
+                                    full_reply += "<think>"
+                                    thinking_open_ll_get = True
+                                full_reply += reasoning_token
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token}, ensure_ascii=False)}\n\n"
                             if token:
+                                if thinking_open_ll_get:
+                                    full_reply += "</think>"
+                                    thinking_open_ll_get = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
                     print(f"❌ [Laguna Lite GET] stream exception: {e}")
+                if thinking_open_ll_get:
+                    full_reply += "</think>"
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
                     if not ghost_mode and len(user_memory[session_id]) > 40:
@@ -5909,9 +5885,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             full_reply   = ""
             pool_index   = 0
             handoffs     = 0
-            think_pending  = ""
-            think_open     = False
-            reply_tag_open = False
 
             if tool_result:
                 yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
@@ -5948,24 +5921,17 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             if "error" in chunk: stream_broke = True; break
                             choices = chunk.get("choices")
                             if not choices: continue
-                            token  = (choices[0].get("delta") or {}).get("content") or ""
+                            delta = choices[0].get("delta") or {}
+                            # ✅ Surface reasoning tokens (Cohere North Mini Code only);
+                            # empty/absent for other models in this pool.
+                            reasoning_token = delta.get("reasoning_content") or delta.get("reasoning") or ""
+                            token  = delta.get("content") or ""
                             finish = choices[0].get("finish_reason")
+                            if reasoning_token:
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token}, ensure_ascii=False)}\n\n"
                             if token:
-                                thinking_piece, answer_piece, think_pending, think_open = \
-                                    split_think_incremental(think_pending, token, think_open)
-                                if thinking_piece:
-                                    if not reply_tag_open:
-                                        full_reply += "<think>"
-                                        reply_tag_open = True
-                                    full_reply += thinking_piece
-                                    yield f"data: {json.dumps({'thinking_token': thinking_piece}, ensure_ascii=False)}\n\n"
-                                if answer_piece:
-                                    if reply_tag_open:
-                                        full_reply += "</think>"
-                                        reply_tag_open = False
-                                    full_reply += answer_piece
-                                    yield f"data: {json.dumps({'token': answer_piece}, ensure_ascii=False)}\n\n"
-                                leg_tokens += 1
+                                full_reply += token; leg_tokens += 1
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                             if finish == "stop": finished_cleanly = True; break
                             if finish == "length": stream_broke = True; break
                         except: continue
@@ -5973,20 +5939,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                     stream_broke = True
 
                 if finished_cleanly and full_reply.strip():
-                    tail_thinking, tail_answer = flush_think_pending(think_pending, think_open)
-                    if tail_thinking:
-                        if not reply_tag_open:
-                            full_reply += "<think>"; reply_tag_open = True
-                        full_reply += tail_thinking
-                        yield f"data: {json.dumps({'thinking_token': tail_thinking}, ensure_ascii=False)}\n\n"
-                    if tail_answer:
-                        if reply_tag_open:
-                            full_reply += "</think>"; reply_tag_open = False
-                        full_reply += tail_answer
-                        yield f"data: {json.dumps({'token': tail_answer}, ensure_ascii=False)}\n\n"
-                    if reply_tag_open:
-                        full_reply += "</think>"; reply_tag_open = False
-                    think_pending = ""
                     active_memory.append({"role": "assistant", "content": full_reply})
                     if not ghost_mode and len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
@@ -5995,19 +5947,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 pool_index += 1; handoffs += 1
 
             if full_reply.strip():
-                tail_thinking, tail_answer = flush_think_pending(think_pending, think_open)
-                if tail_thinking:
-                    if not reply_tag_open:
-                        full_reply += "<think>"; reply_tag_open = True
-                    full_reply += tail_thinking
-                    yield f"data: {json.dumps({'thinking_token': tail_thinking}, ensure_ascii=False)}\n\n"
-                if tail_answer:
-                    if reply_tag_open:
-                        full_reply += "</think>"; reply_tag_open = False
-                    full_reply += tail_answer
-                    yield f"data: {json.dumps({'token': tail_answer}, ensure_ascii=False)}\n\n"
-                if reply_tag_open:
-                    full_reply += "</think>"; reply_tag_open = False
                 active_memory.append({"role": "assistant", "content": full_reply})
                 yield "data: [DONE]\n\n"
             else:

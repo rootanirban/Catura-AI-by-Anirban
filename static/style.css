@@ -8125,45 +8125,35 @@ body,
     border-color: var(--border-subtle);
 }
 
-/* ── THINKING — active/glowing state while reasoning is in progress ──
-   .gemma-glow → Gemma 4 31B / Gemma 4 26B A4B only (rainbow moving gradient)
-   .white-glow → every other reasoning model (plain white/light pulsing glow) */
+/* ── THINKING — active/glowing state while reasoning is in progress ── */
 .thinking-toggle.active {
     border-color: transparent;
     background: var(--bg-surface3);
     position: relative;
+    animation: thinking-glow-pulse 2.2s ease-in-out infinite;
 }
 
-/* Shared pulsing box-shadow container (color set per-variant below) */
 .thinking-toggle.active::before {
     content: "";
     position: absolute;
     inset: -1.5px;
     border-radius: inherit;
     padding: 1.5px;
+    background: linear-gradient(90deg,
+        #ea4335, #fbbc05, #34a853, #4285f4, #ea4335);
+    background-size: 300% 100%;
+    animation: thinking-gradient-shift 2.4s linear infinite;
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
     pointer-events: none;
 }
 
-/* ── Gemma variant: Google-style moving rainbow gradient ── */
-.thinking-toggle.gemma-glow {
-    animation: thinking-glow-pulse-color 2.2s ease-in-out infinite;
-}
-
-.thinking-toggle.gemma-glow::before {
-    background: linear-gradient(90deg,
-        #ea4335, #fbbc05, #34a853, #4285f4, #ea4335);
-    background-size: 300% 100%;
-    animation: thinking-gradient-shift 2.4s linear infinite;
-}
-
-.thinking-toggle.gemma-glow .thinking-arrow {
+.thinking-toggle.active .thinking-arrow {
     color: #4285f4;
 }
 
-.thinking-toggle.gemma-glow .thinking-pill-label {
+.thinking-toggle.active .thinking-label {
     background: linear-gradient(90deg,
         #ea4335, #fbbc05, #34a853, #4285f4, #ea4335);
     background-size: 300% 100%;
@@ -8173,57 +8163,20 @@ body,
     animation: thinking-gradient-shift 2.4s linear infinite;
 }
 
-/* ── Other models variant: plain white/light pulsing glow, no color cycling ── */
-.thinking-toggle.white-glow {
-    animation: thinking-glow-pulse-white 1.8s ease-in-out infinite;
-}
-
-.thinking-toggle.white-glow::before {
-    background: rgba(255, 255, 255, 0.55);
-}
-
-.thinking-toggle.white-glow .thinking-arrow {
-    color: #ffffff;
-}
-
-.thinking-toggle.white-glow .thinking-pill-label {
-    animation: thinking-text-pulse-white 1.8s ease-in-out infinite;
-}
-
 @keyframes thinking-gradient-shift {
     0%   { background-position: 0% 50%; }
     100% { background-position: 300% 50%; }
 }
 
-@keyframes thinking-glow-pulse-color {
+@keyframes thinking-glow-pulse {
     0%, 100% { box-shadow: 0 0 4px 0 rgba(66,133,244,0.25), 0 0 4px 0 rgba(234,67,53,0.15); }
     50%      { box-shadow: 0 0 10px 1px rgba(66,133,244,0.35), 0 0 10px 1px rgba(52,168,83,0.25); }
-}
-
-@keyframes thinking-glow-pulse-white {
-    0%, 100% { box-shadow: 0 0 4px 0 rgba(255,255,255,0.18); }
-    50%      { box-shadow: 0 0 10px 2px rgba(255,255,255,0.45); }
-}
-
-@keyframes thinking-text-pulse-white {
-    0%, 100% { color: var(--text-muted); }
-    50%      { color: #ffffff; }
-}
-
-[data-theme="light"] .thinking-toggle.white-glow .thinking-pill-label {
-    animation: thinking-text-pulse-light 1.8s ease-in-out infinite;
-}
-
-@keyframes thinking-text-pulse-light {
-    0%, 100% { color: var(--text-muted); }
-    50%      { color: #4a4f5c; }
 }
 
 @media (prefers-reduced-motion: reduce) {
     .thinking-toggle.active,
     .thinking-toggle.active::before,
-    .thinking-toggle.gemma-glow .thinking-pill-label,
-    .thinking-toggle.white-glow .thinking-pill-label {
+    .thinking-toggle.active .thinking-label {
         animation: none;
     }
 }
