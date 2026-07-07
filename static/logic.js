@@ -4447,19 +4447,47 @@ function closeAllModelMenus() {
     if (row)   row.classList.remove('open');
 }
 
-// ── EFFORT LEVEL row: desktop uses pure CSS hover, mobile needs tap-to-toggle ──
+// ── EFFORT LEVEL row: desktop uses CSS hover + a small close-delay so the
+// panel doesn't vanish while the pointer is travelling toward it; mobile
+// falls back to tap-to-toggle.
 (function initEffortLevelRow() {
-    const row = document.getElementById('effortLevelRow');
-    if (!row) return;
+    const row   = document.getElementById('effortLevelRow');
+    const panel = document.getElementById('effortLevelPanel');
+    if (!row || !panel) return;
+
+    let closeTimer = null;
+    const OPEN_CLASS = 'open';
+    const CLOSE_DELAY = 250; // ms grace period before hiding
+
+    function openPanel() {
+        if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+        row.classList.add(OPEN_CLASS);
+    }
+
+    function scheduleClose() {
+        if (closeTimer) clearTimeout(closeTimer);
+        closeTimer = setTimeout(() => {
+            row.classList.remove(OPEN_CLASS);
+            closeTimer = null;
+        }, CLOSE_DELAY);
+    }
+
+    function isDesktop() { return window.innerWidth > 768; }
+
+    row.addEventListener('mouseenter', () => { if (isDesktop()) openPanel(); });
+    row.addEventListener('mouseleave', () => { if (isDesktop()) scheduleClose(); });
+    panel.addEventListener('mouseenter', () => { if (isDesktop()) openPanel(); });
+    panel.addEventListener('mouseleave', () => { if (isDesktop()) scheduleClose(); });
+
     row.addEventListener('click', function (e) {
-        if (window.innerWidth > 768) return; // desktop: hover handles it
+        if (isDesktop()) return; // desktop: hover handles it
         e.stopPropagation();
         e.preventDefault();
-        row.classList.toggle('open');
+        row.classList.toggle(OPEN_CLASS);
     });
     document.addEventListener('click', function (e) {
-        if (window.innerWidth > 768) return;
-        if (!row.contains(e.target)) row.classList.remove('open');
+        if (isDesktop()) return;
+        if (!row.contains(e.target)) row.classList.remove(OPEN_CLASS);
     });
 })();
 
