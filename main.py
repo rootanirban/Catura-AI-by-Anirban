@@ -488,7 +488,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.300"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.301"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -498,7 +498,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.300", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.301", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3166,6 +3166,16 @@ def call_morph_stream(messages, api_key, model_id="morph-minimax3-428b"):
     """
     Dedicated Morph streaming function.
     Shared by all Morph-hosted models (MiniMax, GLM-5.2, etc.) via model_id param.
+
+    Thinking mode: Morph serves these as open-weight models on a vLLM/SGLang-style
+    stack (same family as Poolside), so we request thinking the same way we do for
+    Laguna — via chat_template_kwargs.enable_thinking. Morph has not published an
+    official doc page confirming this exact field name for morph-glm52-744b /
+    morph-minimax3-428b, so treat this as best-effort: check Render logs after
+    deploying to confirm 'reasoning_content' actually appears in stream chunks.
+    max_tokens raised from 8000 -> 16000 because reasoning tokens eat into the
+    same budget as the final answer; 8000 was likely truncating thinking on
+    complex prompts even before this fix.
     """
     if not api_key:
         return None, "MORPH_API_KEY not set in environment variables"
@@ -3181,10 +3191,11 @@ def call_morph_stream(messages, api_key, model_id="morph-minimax3-428b"):
                 "messages": messages,
                 "stream": True,
                 "temperature": 0.7,
-                "max_tokens": 8000,
+                "max_tokens": 16000,
+                "chat_template_kwargs": {"enable_thinking": True},
             },
             stream=True,
-            timeout=(10, 120),
+            timeout=(10, 150),
         )
         if resp.status_code != 200:
             try:
@@ -4239,6 +4250,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
 
             def generate_morph():
                 full_reply = ""
+                thinking_open_m = False  # tracks whether <think> has been opened in full_reply
 
                 tool_result_morph = None
                 if intent != "general" and not file_urls:
@@ -4286,14 +4298,28 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             choices = chunk.get("choices")
                             if not choices:
                                 continue
-                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            delta_m = choices[0].get("delta") or {}
+                            reasoning_token_m = delta_m.get("reasoning_content") or ""
+                            token = delta_m.get("content") or ""
+                            if reasoning_token_m:
+                                if not thinking_open_m:
+                                    full_reply += "<think>"
+                                    thinking_open_m = True
+                                full_reply += reasoning_token_m
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token_m}, ensure_ascii=False)}\n\n"
                             if token:
+                                if thinking_open_m:
+                                    full_reply += "</think>"
+                                    thinking_open_m = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
                     print(f"❌ [MORPH] stream exception: {e}")
+
+                if thinking_open_m:
+                    full_reply += "</think>"
 
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
@@ -4317,6 +4343,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
 
             def generate_glm52():
                 full_reply = ""
+                thinking_open_g = False  # tracks whether <think> has been opened in full_reply
 
                 tool_result_glm52 = None
                 if intent != "general" and not file_urls:
@@ -4364,14 +4391,28 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             choices = chunk.get("choices")
                             if not choices:
                                 continue
-                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            delta_g = choices[0].get("delta") or {}
+                            reasoning_token_g = delta_g.get("reasoning_content") or ""
+                            token = delta_g.get("content") or ""
+                            if reasoning_token_g:
+                                if not thinking_open_g:
+                                    full_reply += "<think>"
+                                    thinking_open_g = True
+                                full_reply += reasoning_token_g
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token_g}, ensure_ascii=False)}\n\n"
                             if token:
+                                if thinking_open_g:
+                                    full_reply += "</think>"
+                                    thinking_open_g = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
                     print(f"❌ [GLM52] stream exception: {e}")
+
+                if thinking_open_g:
+                    full_reply += "</think>"
 
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
@@ -5579,6 +5620,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             def generate_morph_get():
                 full_reply = ""
+                thinking_open_mg = False
                 if tool_result:
                     yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
                     sp = build_sources_payload(tool_result)
@@ -5608,14 +5650,27 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             choices = chunk.get("choices")
                             if not choices:
                                 continue
-                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            delta_mg = choices[0].get("delta") or {}
+                            reasoning_token_mg = delta_mg.get("reasoning_content") or ""
+                            token = delta_mg.get("content") or ""
+                            if reasoning_token_mg:
+                                if not thinking_open_mg:
+                                    full_reply += "<think>"
+                                    thinking_open_mg = True
+                                full_reply += reasoning_token_mg
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token_mg}, ensure_ascii=False)}\n\n"
                             if token:
+                                if thinking_open_mg:
+                                    full_reply += "</think>"
+                                    thinking_open_mg = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
                     print(f"❌ [MORPH GET] stream exception: {e}")
+                if thinking_open_mg:
+                    full_reply += "</think>"
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
                     if not ghost_mode and len(user_memory[session_id]) > 40:
@@ -5635,6 +5690,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             def generate_glm52_get():
                 full_reply = ""
+                thinking_open_gg = False
                 if tool_result:
                     yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
                     sp = build_sources_payload(tool_result)
@@ -5664,14 +5720,27 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             choices = chunk.get("choices")
                             if not choices:
                                 continue
-                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            delta_gg = choices[0].get("delta") or {}
+                            reasoning_token_gg = delta_gg.get("reasoning_content") or ""
+                            token = delta_gg.get("content") or ""
+                            if reasoning_token_gg:
+                                if not thinking_open_gg:
+                                    full_reply += "<think>"
+                                    thinking_open_gg = True
+                                full_reply += reasoning_token_gg
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token_gg}, ensure_ascii=False)}\n\n"
                             if token:
+                                if thinking_open_gg:
+                                    full_reply += "</think>"
+                                    thinking_open_gg = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
                     print(f"❌ [GLM52 GET] stream exception: {e}")
+                if thinking_open_gg:
+                    full_reply += "</think>"
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
                     if not ghost_mode and len(user_memory[session_id]) > 40:
