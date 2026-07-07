@@ -960,6 +960,62 @@ function repairTruncated(text) {
 //   h1–h6, ul, ol, roman-numeral lists, alpha lists,
 //   nested lists, blockquotes, tables, code, inline formatting.
 // ============================
+// ============================================================
+// 🧠 THINKING DROPDOWN — Gemma reasoning/answer split + collapsible UI
+// ============================================================
+// Canonical persisted format: raw text may contain a single
+// <think>...</think> block (reasoning) followed by the final answer.
+// This is model-agnostic by design — any model's stored output can
+// carry the tag and will render with the same collapsible UI.
+function splitThinking(rawText) {
+    if (!rawText) return { thinking: null, answer: rawText || "" };
+    const m = rawText.match(/<think>([\s\S]*?)<\/think>([\s\S]*)/);
+    if (m && m[1].trim()) {
+        return { thinking: m[1].trim(), answer: m[2].trim() };
+    }
+    // Unclosed tag (e.g. stream cut off mid-thought) — treat all of it as thinking
+    const openOnly = rawText.match(/<think>([\s\S]*)$/);
+    if (openOnly && openOnly[1].trim()) {
+        return { thinking: openOnly[1].trim(), answer: "" };
+    }
+    return { thinking: null, answer: rawText };
+}
+
+let _thinkingIdSeq = 0;
+function buildThinkingHTML(thinkingText, expanded) {
+    const id = `think-block-${Date.now()}-${_thinkingIdSeq++}`;
+    const isOpen = !!expanded;
+    return `<div class="thinking-block">
+        <button type="button" class="thinking-toggle" aria-expanded="${isOpen}" aria-controls="${id}" onclick="toggleThinking(this)">
+            <svg class="thinking-arrow" width="10" height="10" viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M2 1l5 4-5 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Thinking</span>
+        </button>
+        <div class="thinking-content${isOpen ? ' open' : ''}" id="${id}" role="region" aria-label="Model reasoning">
+            <div class="thinking-inner">${formatMessage(thinkingText)}</div>
+        </div>
+    </div>`;
+}
+
+window.toggleThinking = function (btn) {
+    const expanded = btn.getAttribute('aria-expanded') === 'true';
+    btn.setAttribute('aria-expanded', String(!expanded));
+    const content = document.getElementById(btn.getAttribute('aria-controls'));
+    if (content) content.classList.toggle('open', !expanded);
+};
+
+// Renders a finalized bot message (thinking dropdown, if present, + answer body)
+// into botMsg, and stores the raw (tag-inclusive) text on wrapper.dataset.raw.
+function renderBotContent(wrapper, botMsg, rawText) {
+    const { thinking, answer } = splitThinking(rawText);
+    let html = "";
+    if (thinking) {
+        html += buildThinkingHTML(thinking, false);
+    }
+    html += formatMessage(repairTruncated(answer));
+    botMsg.innerHTML = html;
+    if (wrapper) wrapper.dataset.raw = rawText;
+}
+
 function formatMessage(rawText) {
     if (!rawText) return "";
 
@@ -3635,8 +3691,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                 chatbox.appendChild(createUserBubble(msg.content, historyFiles));
             } else {
                 const { wrapper, botMsg } = createBotWrapper();
-                botMsg.innerHTML = formatMessage(repairTruncated(msg.content));
-                wrapper.dataset.raw = msg.content;
+                renderBotContent(wrapper, botMsg, msg.content);
                 chatbox.appendChild(wrapper);
             }
         });
@@ -3951,6 +4006,12 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
     let streamDone  = false;    // SSE stream finished
     let animRunning = false;
 
+    // ── Live "Thinking" box state (Gemma reasoning models) ──────────────────
+    let thinkingText   = "";    // accumulated reasoning text (this stream only)
+    let thinkingClosed = false; // whether the </think> tag has been appended to fullReply
+    let thinkingEl     = null;  // lazily-created collapsible box, sibling before botMsg
+    let thinkingRAF    = false; // throttle flag for re-renders
+
     // Support both old (direct elements) and new (lazy callback) API
     let botMsg  = botMsgInitial;
     let wrapper = wrapperInitial;
@@ -3962,6 +4023,24 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
             gotWrapper = true;
         }
         return { wrapper, botMsg };
+    };
+
+    // Creates (once) and live-updates the collapsed "Thinking" box while
+    // reasoning tokens stream in, ahead of the final answer being ready.
+    const renderLiveThinking = () => {
+        const { botMsg: bm } = getOrCreateWrapper();
+        if (!bm) return;
+        if (!thinkingEl) {
+            thinkingEl = document.createElement("div");
+            thinkingEl.className = "thinking-live-wrap";
+            if (bm.parentNode) bm.parentNode.insertBefore(thinkingEl, bm);
+        }
+        if (thinkingRAF) return;
+        thinkingRAF = true;
+        requestAnimationFrame(() => {
+            thinkingRAF = false;
+            if (thinkingEl) thinkingEl.innerHTML = buildThinkingHTML(thinkingText, false);
+        });
     };
 
     const intentLabels = {
@@ -3991,14 +4070,14 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
                 requestAnimationFrame(drainQueue);
             } else {
                 // stream finished AND queue empty — do final render
-                // Strip inline citation numbers [1][2] from display; keep fullReply raw for storage
+                // Strip inline citation numbers [1][2] from the display copy; keep fullReply
+                // (the return value, incl. <think> tags) raw for storage.
                 // NOTE: Do NOT collapse whitespace (\s{2,} → ' ') here — it destroys newlines
                 // needed for markdown lists, paragraphs, and code blocks.
-                const displayReply = fullReply.replace(/\[\d+\](\[\d+\])*/g, '').trimEnd();
                 animRunning = false;
-                bm.innerHTML = formatMessage(repairTruncated(displayReply));
+                if (thinkingEl) { thinkingEl.remove(); thinkingEl = null; }
+                renderBotContent(wrapper, bm, fullReply.replace(/\[\d+\](\[\d+\])*/g, '').trimEnd());
                 bm.classList.remove("streaming");
-                if (wrapper) wrapper.dataset.raw = fullReply;
                 chatbox.scrollTop = chatbox.scrollHeight;
             }
             return;
@@ -4091,16 +4170,29 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
                     if (data.error) {
                         const sk = document.getElementById("search-skeleton-placeholder");
                         if (sk) sk.remove();
+                        if (thinkingEl) { thinkingEl.remove(); thinkingEl = null; }
                         const { botMsg: bm } = getOrCreateWrapper();
                         if (!fullReply.trim() && bm) bm.innerHTML = `<p style="color:#e06c6c">⚠️ ${data.error}</p>`;
                         streamDone = true;
                         return fullReply || "";
+                    }
+                    if (data.thinking_token) {
+                        // Remove search skeleton the moment real content arrives
+                        const sk = document.getElementById("search-skeleton-placeholder");
+                        if (sk) sk.remove();
+
+                        if (!thinkingText) fullReply += "<think>";
+                        thinkingText += data.thinking_token;
+                        fullReply += data.thinking_token;
+                        renderLiveThinking();
+                        continue;
                     }
                     if (data.token) {
                         // Remove search skeleton the moment real content arrives
                         const sk = document.getElementById("search-skeleton-placeholder");
                         if (sk) sk.remove();
 
+                        if (thinkingText && !thinkingClosed) { fullReply += "</think>"; thinkingClosed = true; }
                         fullReply += data.token;
                         enqueueText(data.token);
                     }
@@ -4112,6 +4204,10 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
     // Clean up skeleton if somehow still present (no tokens arrived)
     const skFallback = document.getElementById("search-skeleton-placeholder");
     if (skFallback) skFallback.remove();
+
+    // Stream ended mid-thought (no answer tokens followed) — close the tag
+    // so storage/history rendering still parses cleanly.
+    if (thinkingText && !thinkingClosed) { fullReply += "</think>"; thinkingClosed = true; }
 
     // Signal animator that no more tokens are coming
     streamDone = true;
@@ -4127,10 +4223,8 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
     if (fullReply.trim()) {
         if (bm) {
             // Only re-render if the drain loop didn't already do it (animRunning was set false there)
-            // Strip citation numbers but preserve all whitespace/newlines for markdown
-            const displayReply = fullReply.replace(/\[\d+\](\[\d+\])*/g, '').trimEnd();
-            bm.innerHTML = formatMessage(repairTruncated(displayReply));
-            if (w) w.dataset.raw = fullReply;
+            if (thinkingEl) { thinkingEl.remove(); thinkingEl = null; }
+            renderBotContent(w, bm, fullReply.replace(/\[\d+\](\[\d+\])*/g, '').trimEnd());
         }
         chatbox.scrollTop = chatbox.scrollHeight;
         return fullReply;

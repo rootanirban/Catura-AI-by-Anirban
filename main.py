@@ -488,7 +488,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.290"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.291"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -498,7 +498,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.290", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.291", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -2946,7 +2946,7 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
             "generationConfig": {
                 "temperature": 0.3,
                 "maxOutputTokens": 16000,
-                "thinkingConfig": {"thinkingLevel": "high"},
+                "thinkingConfig": {"thinkingLevel": "high", "includeThoughts": True},
             }
         }
         url = (
@@ -4429,6 +4429,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
 
             def generate_gemma():
                 full_reply = ""
+                thinking_open = False   # tracks whether <think> tag has been opened in full_reply
 
                 # ── Run tool INSIDE generator ──
                 tool_result_g = None
@@ -4472,13 +4473,27 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             parts = candidates[0].get("content", {}).get("parts", [])
                             for part in parts:
                                 token = part.get("text", "")
-                                if token:
+                                if not token:
+                                    continue
+                                is_thought = bool(part.get("thought"))
+                                if is_thought:
+                                    if not thinking_open:
+                                        full_reply += "<think>"
+                                        thinking_open = True
+                                    full_reply += token
+                                    yield f"data: {json.dumps({'thinking_token': token}, ensure_ascii=False)}\n\n"
+                                else:
+                                    if thinking_open:
+                                        full_reply += "</think>"
+                                        thinking_open = False
                                     full_reply += token
                                     yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
                     print(f"❌ [Gemma POST] stream exception: {e}")
+                if thinking_open:
+                    full_reply += "</think>"
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
                     if not ghost_mode and len(user_memory[session_id]) > 40:
@@ -5713,6 +5728,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             def generate_gemma_get():
                 full_reply = ""
+                thinking_open = False   # tracks whether <think> tag has been opened in full_reply
                 if tool_result:
                     badge_payload = json.dumps({"tool_used": tool_result.get("tool", ""), "intent": intent})
                     yield f"data: {badge_payload}\n\n"
@@ -5743,13 +5759,27 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             parts = candidates[0].get("content", {}).get("parts", [])
                             for part in parts:
                                 token = part.get("text", "")
-                                if token:
+                                if not token:
+                                    continue
+                                is_thought = bool(part.get("thought"))
+                                if is_thought:
+                                    if not thinking_open:
+                                        full_reply += "<think>"
+                                        thinking_open = True
+                                    full_reply += token
+                                    yield f"data: {json.dumps({'thinking_token': token}, ensure_ascii=False)}\n\n"
+                                else:
+                                    if thinking_open:
+                                        full_reply += "</think>"
+                                        thinking_open = False
                                     full_reply += token
                                     yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
                     print(f"❌ [Gemma GET] stream exception: {e}")
+                if thinking_open:
+                    full_reply += "</think>"
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
                     if not ghost_mode and len(user_memory[session_id]) > 40:

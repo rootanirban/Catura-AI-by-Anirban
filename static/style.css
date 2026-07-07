@@ -8033,3 +8033,94 @@ body,
 [data-theme="light"] .sc-row-block {
     background: transparent !important;
 }
+
+/* ============================================================
+   🧠 THINKING DROPDOWN — Gemma reasoning collapsible block
+   ============================================================ */
+.thinking-live-wrap { display: block; }
+
+.thinking-block {
+    margin: 0 0 10px 0;
+    max-width: 100%;
+}
+
+.thinking-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: var(--bg-surface3);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.thinking-toggle:hover {
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+}
+
+.thinking-toggle:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.thinking-arrow {
+    flex-shrink: 0;
+    transform: rotate(0deg);
+    transition: transform 0.25s ease;
+}
+
+.thinking-toggle[aria-expanded="true"] .thinking-arrow {
+    transform: rotate(90deg);
+}
+
+.thinking-content {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition: grid-template-rows 0.25s ease, opacity 0.2s ease;
+}
+
+.thinking-content.open {
+    grid-template-rows: 1fr;
+    opacity: 1;
+}
+
+.thinking-inner {
+    overflow: hidden;
+    min-height: 0;
+    margin-top: 8px;
+    padding: 12px 14px;
+    background: var(--bg-surface2);
+    border: 1px solid var(--border-subtle);
+    border-left: 2px solid var(--border-strong);
+    border-radius: 10px;
+    color: var(--text-muted);
+    font-size: 13.5px;
+    line-height: 1.55;
+}
+
+.thinking-inner > *:first-child { margin-top: 0; }
+.thinking-inner > *:last-child { margin-bottom: 0; }
+
+@media (max-width: 768px) {
+    .thinking-toggle { font-size: 12.5px; padding: 5px 10px; }
+    .thinking-inner { font-size: 13px; padding: 10px 12px; }
+}
+
+[data-theme="light"] .thinking-toggle {
+    background: var(--bg-surface3);
+    border-color: var(--border);
+    color: var(--text-muted);
+}
+
+[data-theme="light"] .thinking-inner {
+    background: var(--bg-surface2);
+    border-color: var(--border-subtle);
+}
