@@ -982,14 +982,19 @@ function splitThinking(rawText) {
 }
 
 let _thinkingIdSeq = 0;
-function buildThinkingHTML(thinkingText, expanded, active) {
+function buildThinkingHTML(thinkingText, expanded, glowKind) {
     const id = `think-block-${Date.now()}-${_thinkingIdSeq++}`;
     const isOpen = !!expanded;
-    const isActive = !!active;
+    // glowKind: 'gemma' -> rainbow moving gradient (Gemma models only)
+    //           'white' -> plain white/light pulsing glow (all other reasoning models)
+    //           falsy   -> static, no glow (finalized/persisted messages)
+    const glowClass = glowKind === 'gemma' ? ' active gemma-glow'
+                     : glowKind === 'white' ? ' active white-glow'
+                     : '';
     return `<div class="thinking-block">
-        <button type="button" class="thinking-toggle${isActive ? ' active' : ''}" aria-expanded="${isOpen}" aria-controls="${id}" onclick="toggleThinking(this)">
+        <button type="button" class="thinking-toggle${glowClass}" aria-expanded="${isOpen}" aria-controls="${id}" onclick="toggleThinking(this)">
             <svg class="thinking-arrow" width="10" height="10" viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M2 1l5 4-5 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            <span class="thinking-label">Thinking</span>
+            <span class="thinking-pill-label">Thinking</span>
         </button>
         <div class="thinking-content${isOpen ? ' open' : ''}" id="${id}" role="region" aria-label="Model reasoning">
             <div class="thinking-inner">${formatMessage(thinkingText)}</div>
@@ -3522,6 +3527,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             let botMsg = null;
             let pendingSources = null;
 
+            const isGemmaModel = (model === 'gemma' || model === 'gemma4');
             const fullReply = await streamWordsWithTools(
                 null, null, reader, decoder, chatbox,
                 (tu) => { toolUsed = tu; },
@@ -3544,7 +3550,8 @@ document.addEventListener("DOMContentLoaded", async function () {
                     }
                 },
                 // onSources: store sources to render after answer
-                (sources) => { pendingSources = sources; }
+                (sources) => { pendingSources = sources; },
+                isGemmaModel
             );
 
             // ── Reset streaming state ────────────────────────────────────────
@@ -3998,7 +4005,7 @@ async function performWebSearch(query) {
 }
 
 // ── streamWordsWithTools — word-queue streaming animator (ChatGPT/Claude style) ──
-async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decoder, chatbox, onToolUsed, onFirstToken, onToolRunning, onSources) {
+async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decoder, chatbox, onToolUsed, onFirstToken, onToolRunning, onSources, isGemmaModel) {
     let buffer      = "";
     let fullReply   = "";       // complete received text (source of truth)
     let displayed   = "";       // what has been rendered so far
@@ -4040,7 +4047,7 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
         thinkingRAF = true;
         requestAnimationFrame(() => {
             thinkingRAF = false;
-            if (thinkingEl) thinkingEl.innerHTML = buildThinkingHTML(thinkingText, false, true);
+            if (thinkingEl) thinkingEl.innerHTML = buildThinkingHTML(thinkingText, false, isGemmaModel ? 'gemma' : 'white');
         });
     };
 
