@@ -488,7 +488,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.301"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.302"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -498,7 +498,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.301", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.302", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3411,6 +3411,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             "morph":   [],  # Routed via Morph API (MORPH_API_KEY) — morph-minimax3-428b
             "glm52":   [],  # Routed via Morph API (MORPH_API_KEY) — morph-glm52-744b
             "laguna":      [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna M.1
+            "laguna_core": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2.1
             "laguna_lite": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2
             "cohere":       ["cohere/north-mini-code:free"],
             "omni":  ["nvidia/nemotron-nano-12b-v2-vl:free"],
@@ -3757,6 +3758,40 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
+            # ── LAGUNA CORE — Laguna XS.2.1 via Poolside (POOLSIDE_API_KEY) ──
+            "laguna_core": (
+                # ── Identity ──
+                "Your name is Catura (pronounced kuh-CHUR-uh) Laguna Core Model. You are a highly capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI Laguna Core, designed for fast, precise, and high-quality responses. "
+
+                # ── Personality & tone ──
+                "You are thoughtful, clear, and direct. You speak like a knowledgeable friend — "
+                "helpful, intelligent, and never robotic or sycophantic. "
+                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
+                "'Absolutely!', or similar hollow openers. Just answer directly. "
+
+                # ── Language behaviour ──
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+
+                # ── Response style ──
+                "Keep answers concise unless the user explicitly asks for detail or a long explanation. "
+                "Use bullet points, numbered lists, or headers only when they genuinely improve clarity. "
+                "For simple questions, give simple answers. Don't pad responses. "
+
+                # ── Identity rules ──
+                "If asked what model or AI you are, say you are Catura AI Laguna Core and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+
+                # ── Hard rules ──
+                "Never make up facts. If you don't know something, say so honestly. "
+                "Never say 'I don't have real-time data' — if live data is provided in context, use it; "
+                "otherwise give your best knowledge-based answer."
+                + FORMATTING_RULES
+                + NO_TOOL_CALL_RULE
+            ),
             # ── LAGUNA LITE — Laguna XS.2 via Poolside (POOLSIDE_API_KEY) ──
             "laguna_lite": (
                 # ── Identity ──
@@ -4036,6 +4071,128 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
 
             return StreamingResponse(
                 generate_laguna(),
+                media_type="text/event-stream",
+                headers=_rl({
+                    "Cache-Control": "no-cache",
+                    "Set-Cookie": build_session_cookie(session_id),
+                })
+            )
+
+        # ── LAGUNA CORE: Poolside API (POOLSIDE_API_KEY) — Laguna XS.2.1 — isolated from all other models ──
+        if model_key == "laguna_core":
+            poolside_key_core = os.getenv("POOLSIDE_API_KEY", "")
+            laguna_core_system = system_prompts.get("laguna_core", system_prompts["dagr"])
+
+            def generate_laguna_core():
+                full_reply = ""
+
+                tool_result_lc = None
+                if intent != "general" and not file_urls:
+                    yield f"data: {json.dumps({'status': 'tool_running', 'intent': intent})}\n\n"
+                    tool_result_lc = run_tool(intent, prompt)
+
+                final_system_lc = laguna_core_system
+                tool_context_lc = build_tool_context(tool_result_lc)
+                if tool_context_lc:
+                    final_system_lc += "\n\n" + tool_context_lc
+
+                if tool_result_lc:
+                    badge_payload = json.dumps({"tool_used": tool_result_lc.get("tool", ""), "intent": intent})
+                    yield f"data: {badge_payload}\n\n"
+                    sp = build_sources_payload(tool_result_lc)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                laguna_core_messages = (
+                    [{"role": "system", "content": final_system_lc}]
+                    + active_memory[-20:]
+                )
+
+                # Call Poolside with Laguna XS.2.1
+                if not poolside_key_core:
+                    yield f"data: {json.dumps({'error': 'Laguna Core unavailable: POOLSIDE_API_KEY not set'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+                try:
+                    resp_lc = requests.post(
+                        "https://inference.poolside.ai/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {poolside_key_core}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": "poolside/laguna-xs.2.1",
+                            "messages": laguna_core_messages,
+                            "stream": True,
+                            "temperature": 1.0,
+                            "top_k": 20,
+                            "max_tokens": 16000,
+                            "chat_template_kwargs": {"enable_thinking": True},
+                        },
+                        stream=True,
+                        timeout=(10, 180),
+                    )
+                    if resp_lc.status_code != 200:
+                        yield f"data: {json.dumps({'error': f'Laguna Core unavailable: HTTP {resp_lc.status_code}'})}\n\n"
+                        yield "data: [DONE]\n\n"
+                        return
+                except Exception as e:
+                    yield f"data: {json.dumps({'error': f'Laguna Core unavailable: {e}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+
+                thinking_open_lc = False
+                try:
+                    for line in resp_lc.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                print(f"⚠️ [Laguna Core] mid-stream error: {chunk['error']}")
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            delta = choices[0].get("delta") or {}
+                            reasoning_token = delta.get("reasoning_content") or ""
+                            reasoning_token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', reasoning_token)
+                            token = delta.get("content") or ""
+                            token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', token)
+                            if reasoning_token:
+                                if not thinking_open_lc:
+                                    full_reply += "<think>"
+                                    thinking_open_lc = True
+                                full_reply += reasoning_token
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token}, ensure_ascii=False)}\n\n"
+                            if token:
+                                if thinking_open_lc:
+                                    full_reply += "</think>"
+                                    thinking_open_lc = False
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, Exception):
+                            continue
+                except Exception as e:
+                    print(f"❌ [Laguna Core] stream exception: {e}")
+
+                if thinking_open_lc:
+                    full_reply += "</think>"
+
+                if full_reply.strip():
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_laguna_core(),
                 media_type="text/event-stream",
                 headers=_rl({
                     "Cache-Control": "no-cache",
@@ -4772,6 +4929,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "morph":   [],  # Routed via Morph API (MORPH_API_KEY) — morph-minimax3-428b
             "glm52":   [],  # Routed via Morph API (MORPH_API_KEY) — morph-glm52-744b
             "laguna":      [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna M.1
+            "laguna_core": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2.1
             "laguna_lite": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2
             "cohere":     ["cohere/north-mini-code:free"], 
             "nemotron":["nvidia/nemotron-3-ultra-550b-a55b:free"],
@@ -5300,6 +5458,22 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "Never make up facts. If you don't know something, say so honestly."
                 + NO_TOOL_CALL_RULE
             ),
+            # ── LAGUNA CORE — Laguna XS.2.1 via Poolside (POOLSIDE_API_KEY) ──
+            "laguna_core": (
+                "Your name is Catura (pronounced kuh-CHUR-uh) Laguna Core Model. You are a highly capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI Laguna Core, designed for fast, precise, and high-quality responses. "
+                "You are thoughtful, clear, and direct. Never start with 'Certainly!', 'Of course!', "
+                "'Great question!', 'Absolutely!', or similar hollow openers. Just answer directly. "
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+                "Keep answers concise unless the user explicitly asks for detail. "
+                "If asked what model or AI you are, say you are Catura AI Laguna Core and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+                "Never make up facts. If you don't know something, say so honestly."
+                + NO_TOOL_CALL_RULE
+            ),
             # ── LAGUNA LITE — Laguna XS.2 via Poolside (POOLSIDE_API_KEY) ──
             "laguna_lite": (
                 "Your name is Catura (pronounced kuh-CHUR-uh) Laguna Lite Model. You are a highly capable "
@@ -5454,6 +5628,105 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_laguna_get(), media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache",
+                         "Set-Cookie": build_session_cookie(session_id)}
+            )
+
+        # ── LAGUNA CORE: Poolside API (POOLSIDE_API_KEY) — Laguna XS.2.1 — GET handler ──
+        if model_key == "laguna_core":
+            poolside_key_core_get = os.getenv("POOLSIDE_API_KEY", "")
+            laguna_core_system_get = system_prompts.get("laguna_core", system_prompts["dagr"])
+            laguna_core_messages_get = [{"role": "system", "content": laguna_core_system_get}] + active_memory[-20:]
+
+            def generate_laguna_core_get():
+                full_reply = ""
+                if tool_result:
+                    yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
+                    sp = build_sources_payload(tool_result)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                if not poolside_key_core_get:
+                    yield f"data: {json.dumps({'error': 'Laguna Core unavailable: POOLSIDE_API_KEY not set'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+                try:
+                    resp_lc_get = requests.post(
+                        "https://inference.poolside.ai/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {poolside_key_core_get}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": "poolside/laguna-xs.2.1",
+                            "messages": laguna_core_messages_get,
+                            "stream": True,
+                            "temperature": 1.0,
+                            "top_k": 20,
+                            "max_tokens": 16000,
+                            "chat_template_kwargs": {"enable_thinking": True},
+                        },
+                        stream=True,
+                        timeout=(10, 180),
+                    )
+                    if resp_lc_get.status_code != 200:
+                        yield f"data: {json.dumps({'error': f'Laguna Core unavailable: HTTP {resp_lc_get.status_code}'})}\n\n"
+                        yield "data: [DONE]\n\n"
+                        return
+                except Exception as e:
+                    yield f"data: {json.dumps({'error': f'Laguna Core unavailable: {e}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+
+                thinking_open_lc_get = False
+                try:
+                    for line in resp_lc_get.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            delta = choices[0].get("delta") or {}
+                            reasoning_token = delta.get("reasoning_content") or ""
+                            reasoning_token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', reasoning_token)
+                            token = delta.get("content") or ""
+                            token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', token)
+                            if reasoning_token:
+                                if not thinking_open_lc_get:
+                                    full_reply += "<think>"
+                                    thinking_open_lc_get = True
+                                full_reply += reasoning_token
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token}, ensure_ascii=False)}\n\n"
+                            if token:
+                                if thinking_open_lc_get:
+                                    full_reply += "</think>"
+                                    thinking_open_lc_get = False
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, Exception):
+                            continue
+                except Exception as e:
+                    print(f"❌ [Laguna Core GET] stream exception: {e}")
+                if thinking_open_lc_get:
+                    full_reply += "</think>"
+                if full_reply.strip():
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_laguna_core_get(), media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache",
                          "Set-Cookie": build_session_cookie(session_id)}
             )
