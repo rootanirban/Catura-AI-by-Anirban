@@ -488,7 +488,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.302"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.303"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -498,7 +498,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.302", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.303", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -4121,7 +4121,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             "Content-Type": "application/json",
                         },
                         json={
-                            "model": "poolside/laguna-xs.2.1",
+                            "model": "poolside/laguna-xs-2.1",
                             "messages": laguna_core_messages,
                             "stream": True,
                             "temperature": 1.0,
@@ -5658,7 +5658,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             "Content-Type": "application/json",
                         },
                         json={
-                            "model": "poolside/laguna-xs.2.1",
+                            "model": "poolside/laguna-xs-2.1",
                             "messages": laguna_core_messages_get,
                             "stream": True,
                             "temperature": 1.0,
