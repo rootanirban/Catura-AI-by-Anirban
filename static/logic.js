@@ -2859,8 +2859,10 @@ window.archiveAllChats = async function () {
                 showToast("❌ Archive failed: " + (error.message || "Check console for details"));
             } else {
                 showToast("✓ All chats archived successfully");
-                if (typeof loadChatHistory === "function") loadChatHistory();
+                if (typeof window.refreshHistoryList === "function") window.refreshHistoryList(true);
+                else if (typeof loadChatHistory === "function") loadChatHistory();
                 else if (typeof showHistory === "function") showHistory();
+                if (typeof window._lsync_broadcast === "function") window._lsync_broadcast("history_changed");
             }
         }
     });
@@ -2894,6 +2896,8 @@ window.clearAllChats = async function () {
             if (app) app.classList.add("greeting-mode");
             displayGreeting();
             closeSettings();
+            if (typeof window.refreshHistoryList === "function") window.refreshHistoryList();
+            if (typeof window._lsync_broadcast === "function") window._lsync_broadcast("history_changed");
         }
     });
 };
@@ -3049,7 +3053,9 @@ window.openArchivedChatsModal = async function () {
         }
         showToast(`✓ Restored ${ids.length} chat${ids.length > 1 ? 's' : ''}`);
         removeRows(ids);
-        if (typeof showHistory === "function") showHistory();
+        if (typeof window.refreshHistoryList === "function") window.refreshHistoryList(true);
+        else if (typeof showHistory === "function") showHistory();
+        if (typeof window._lsync_broadcast === "function") window._lsync_broadcast("history_changed");
     };
 
     deleteBtn.onclick = () => {
@@ -3072,6 +3078,8 @@ window.openArchivedChatsModal = async function () {
                 if (sessErr) { showToast("❌ Failed to delete chats"); return; }
                 showToast(`✓ Deleted ${ids.length} chat${ids.length > 1 ? 's' : ''}`);
                 removeRows(ids);
+                if (typeof window.refreshHistoryList === "function") window.refreshHistoryList();
+                if (typeof window._lsync_broadcast === "function") window._lsync_broadcast("history_changed");
                 if (ids.includes(currentSessionId)) {
                     currentSessionId = generateSessionId();
                     firstMessage = true;
@@ -3120,7 +3128,9 @@ async function deleteSingleChat(sessionId) {
                 displayGreeting();
             }
             showToast("✓ Chat deleted");
-            showHistory();
+            if (typeof window.refreshHistoryList === "function") window.refreshHistoryList(true);
+            else if (typeof showHistory === "function") showHistory();
+            if (typeof window._lsync_broadcast === "function") window._lsync_broadcast("history_changed");
         }
     });
 }
@@ -3140,7 +3150,9 @@ async function archiveSingleChat(sessionId) {
     }
     showToast("✓ Chat archived");
     // Archived chats are hidden from the main history list, refresh it
-    if (typeof showHistory === "function") showHistory();
+    if (typeof window.refreshHistoryList === "function") window.refreshHistoryList(true);
+    else if (typeof showHistory === "function") showHistory();
+    if (typeof window._lsync_broadcast === "function") window._lsync_broadcast("history_changed");
 }
 window.archiveSingleChat = archiveSingleChat;
 
@@ -3163,8 +3175,14 @@ async function renameChat(sessionId, currentTitle, titleEl) {
                 .eq("session_id", sessionId)
                 .eq("user_id", currentUser.id);
             if (error) { showToast("❌ Failed to rename chat"); return; }
-            titleEl.textContent = newTitle.trim();
+            // Update immediately in place (fast path)...
+            if (titleEl && titleEl.isConnected) titleEl.textContent = newTitle.trim();
+            // ...and also do a full refresh so the cached session list, any
+            // duplicate render, or a stale titleEl reference can't leave the
+            // sidebar showing the old title.
+            if (typeof window.refreshHistoryList === "function") window.refreshHistoryList(true);
             showToast("✓ Chat renamed");
+            if (typeof window._lsync_broadcast === "function") window._lsync_broadcast("history_changed");
         }
     });
 }
@@ -3616,7 +3634,18 @@ document.addEventListener("DOMContentLoaded", async function () {
                 title     : chatTitle,
                 user_id   : currentUser.id
             }]);
-            if (error) console.error("❌ Session insert failed:", error.message);
+            if (error) {
+                console.error("❌ Session insert failed:", error.message);
+            } else {
+                // 🔄 Instantly reflect the brand-new chat in the history list
+                // (only rebuilds the DOM if the accordion is already open —
+                // otherwise it'll simply be fresh next time it's opened).
+                if (typeof refreshHistoryList === "function") refreshHistoryList();
+                // Let other open tabs know a new session exists.
+                if (typeof window._lsync_broadcast === "function") {
+                    window._lsync_broadcast("history_changed");
+                }
+            }
 
             // 🏷️ Generate a smart AI title in the background
             const msgForTitle = message || (filesToSend.length ? filesToSend[0].name : '');
@@ -3649,6 +3678,9 @@ document.addEventListener("DOMContentLoaded", async function () {
                                     el.textContent = aiTitle;
                                 }
                             });
+                        }
+                        if (typeof window._lsync_broadcast === "function") {
+                            window._lsync_broadcast("history_changed");
                         }
                     }
                 })
@@ -3969,6 +4001,10 @@ document.addEventListener("DOMContentLoaded", async function () {
     // Cache of loaded sessions for client-side search
     let _cachedSessions = [];
 
+    // Bumped on every fetch — lets an in-flight fetch detect it's been
+    // superseded by a newer one and bail out instead of clobbering fresher data.
+    let _historyFetchToken = 0;
+
     async function openHistoryAccordion() {
         const trigger    = document.getElementById("historyAccordionTrigger");
         const list       = document.getElementById("historyAccordionList");
@@ -3986,11 +4022,19 @@ document.addEventListener("DOMContentLoaded", async function () {
             return;
         }
 
+        const myToken = ++_historyFetchToken;
+
         const { data, error } = await supabaseClient
             .from("chat_sessions").select("*")
             .eq("user_id", currentUser.id)
             .or("archived.is.null,archived.eq.false")
             .order("created_at", { ascending: false });
+
+        // A newer fetch started while this one was in flight — drop this result.
+        if (myToken !== _historyFetchToken) return;
+
+        // Accordion may have been closed while the request was in flight.
+        if (!document.getElementById("historyAccordionList")) return;
 
         if (error) {
             list.innerHTML = `<div style="padding:8px 14px;font-size:12px;color:#e06c6c;">Failed to load history.</div>`;
@@ -4011,6 +4055,38 @@ document.addEventListener("DOMContentLoaded", async function () {
             list.appendChild(item);
         });
     }
+
+    // ============================
+    // 🔄 UNIFIED HISTORY REFRESH
+    // ============================
+    // Call this after ANY mutation (new chat, delete, rename, archive,
+    // restore) so the sidebar list updates immediately without requiring
+    // the user to manually close/reopen the accordion.
+    //
+    //   refreshHistoryList()      → refresh only if the accordion is
+    //                                 currently open (no-op otherwise,
+    //                                 since it re-fetches fresh on open anyway)
+    //   refreshHistoryList(true)  → force it open AND refresh (used when the
+    //                                 action was triggered from inside the
+    //                                 accordion itself, so it's already open)
+    async function refreshHistoryList(forceOpen) {
+        const trigger = document.getElementById("historyAccordionTrigger");
+        const list    = document.getElementById("historyAccordionList");
+        if (!trigger || !list) return;
+
+        const isOpen = trigger.classList.contains("open");
+        if (!isOpen && !forceOpen) return;
+
+        await openHistoryAccordion();
+
+        // Re-apply any active search filter so the refreshed list still
+        // respects what the user was searching for.
+        const searchInput = document.getElementById("historySearchInput");
+        if (searchInput && searchInput.value.trim() && typeof window.filterHistoryList === "function") {
+            window.filterHistoryList(searchInput.value);
+        }
+    }
+    window.refreshHistoryList = refreshHistoryList;
 
     // ── Chat search ──────────────────────────────────────────────────────────
     window.filterHistoryList = function (query) {

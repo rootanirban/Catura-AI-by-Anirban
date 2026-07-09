@@ -149,16 +149,18 @@
         // Debounce — don't hammer Supabase on rapid successive events
         clearTimeout(_historyRefreshTimer);
         _historyRefreshTimer = setTimeout(function () {
-            // showHistory() already handles "already open" guard and re-renders
-            // the list in place — it does NOT clear the main chatbox.
-            if (typeof showHistory === 'function') {
+            // refreshHistoryList() only rebuilds the visible DOM if the
+            // accordion is currently open in THIS tab — otherwise it's a
+            // no-op (the list re-fetches fresh the next time it's opened
+            // anyway), so this is always safe to call.
+            if (typeof window.refreshHistoryList === 'function') {
+                window.refreshHistoryList();
+            } else if (typeof showHistory === 'function') {
+                // Fallback for older logic.js builds without refreshHistoryList
                 const historyPanel = document.getElementById('historyAccordionList');
-                // Only refresh if the history panel is currently open/visible
-                if (historyPanel) {
-                    showHistory();
-                }
+                if (historyPanel) showHistory();
             }
-        }, 800);
+        }, 300);
     }
 
     // ──────────────────────────────────────────────────────────────────────
