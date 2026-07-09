@@ -8406,6 +8406,13 @@ body,
 
 .thinking-label {
     font-weight: 700;
+    order: 1;
+}
+
+.thinking-brain-icon {
+    flex-shrink: 0;
+    order: 0;
+    color: currentColor;
 }
 
 .thinking-arrow {

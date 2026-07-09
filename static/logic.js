@@ -988,6 +988,7 @@ function buildThinkingHTML(thinkingText, expanded, active) {
     const isActive = !!active;
     return `<div class="thinking-block">
         <button type="button" class="thinking-toggle${isActive ? ' active' : ''}" aria-expanded="${isOpen}" aria-controls="${id}" onclick="toggleThinking(this)">
+            <svg class="thinking-brain-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9.5 2a3.5 3.5 0 0 0-3.5 3.5v.126A3.001 3.001 0 0 0 4 8.5v1.09a3.001 3.001 0 0 0-1 5.582V16.5A3.5 3.5 0 0 0 6.5 20a2.5 2.5 0 0 0 2.5-2.5V4.5A2.5 2.5 0 0 0 9.5 2Zm5 0A2.5 2.5 0 0 0 12 4.5v13a2.5 2.5 0 0 0 2.5 2.5A3.5 3.5 0 0 0 18 16.5v-1.328a3.001 3.001 0 0 0-1-5.582V8.5a3.001 3.001 0 0 0-2-2.874V5.5A3.5 3.5 0 0 0 14.5 2Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
             <span class="thinking-label">Thinking</span>
             <svg class="thinking-arrow" width="10" height="10" viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M2 1l5 4-5 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
