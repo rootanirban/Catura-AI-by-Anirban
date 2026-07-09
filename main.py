@@ -488,7 +488,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.304"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.305"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -498,7 +498,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.304", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.305", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -4142,6 +4142,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     return
 
                 thinking_open_lc = False
+                raw_think_open_lc = False  # tracks an unclosed <think> tag arriving inline inside "content"
                 try:
                     for line in resp_lc.iter_lines():
                         if not line:
@@ -4165,6 +4166,37 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             reasoning_token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', reasoning_token)
                             token = delta.get("content") or ""
                             token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', token)
+
+                            # ── Fallback: some Poolside deployments of the newest model don't
+                            # split reasoning into reasoning_content and instead stream raw
+                            # <think>...</think> markers inline inside "content". Parse those
+                            # out here so Laguna Core still gets a proper thinking box instead
+                            # of the tags leaking into the visible answer.
+                            while token:
+                                if raw_think_open_lc:
+                                    end_idx = token.find("</think>")
+                                    if end_idx == -1:
+                                        reasoning_token += token
+                                        token = ""
+                                    else:
+                                        reasoning_token += token[:end_idx]
+                                        token = token[end_idx + len("</think>"):]
+                                        raw_think_open_lc = False
+                                else:
+                                    start_idx = token.find("<think>")
+                                    if start_idx == -1:
+                                        break
+                                    else:
+                                        pre = token[:start_idx]
+                                        token = token[start_idx + len("<think>"):]
+                                        raw_think_open_lc = True
+                                        if pre:
+                                            if thinking_open_lc:
+                                                full_reply += "</think>"
+                                                thinking_open_lc = False
+                                            full_reply += pre
+                                            yield f"data: {json.dumps({'token': pre}, ensure_ascii=False)}\n\n"
+
                             if reasoning_token:
                                 if not thinking_open_lc:
                                     full_reply += "<think>"
@@ -5679,6 +5711,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                     return
 
                 thinking_open_lc_get = False
+                raw_think_open_lc_get = False  # tracks an unclosed <think> tag arriving inline inside "content"
                 try:
                     for line in resp_lc_get.iter_lines():
                         if not line:
@@ -5701,6 +5734,34 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             reasoning_token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', reasoning_token)
                             token = delta.get("content") or ""
                             token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', token)
+
+                            # ── Fallback: parse raw <think>...</think> markers that may
+                            # arrive inline inside "content" instead of a separate field.
+                            while token:
+                                if raw_think_open_lc_get:
+                                    end_idx = token.find("</think>")
+                                    if end_idx == -1:
+                                        reasoning_token += token
+                                        token = ""
+                                    else:
+                                        reasoning_token += token[:end_idx]
+                                        token = token[end_idx + len("</think>"):]
+                                        raw_think_open_lc_get = False
+                                else:
+                                    start_idx = token.find("<think>")
+                                    if start_idx == -1:
+                                        break
+                                    else:
+                                        pre = token[:start_idx]
+                                        token = token[start_idx + len("<think>"):]
+                                        raw_think_open_lc_get = True
+                                        if pre:
+                                            if thinking_open_lc_get:
+                                                full_reply += "</think>"
+                                                thinking_open_lc_get = False
+                                            full_reply += pre
+                                            yield f"data: {json.dumps({'token': pre}, ensure_ascii=False)}\n\n"
+
                             if reasoning_token:
                                 if not thinking_open_lc_get:
                                     full_reply += "<think>"
