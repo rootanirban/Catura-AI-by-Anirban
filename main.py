@@ -488,7 +488,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.314"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.315"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -498,7 +498,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.314", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.315", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3162,7 +3162,7 @@ def call_zai_stream(messages, api_key):
 # ✅ HELPER: Call Morph API — morph-minimax3-428b
 # OpenAI-compatible endpoint at api.morphllm.com
 # ============================================================
-def call_morph_stream(messages, api_key, model_id="morph-minimax3-428b"):
+def call_morph_stream(messages, api_key, model_id="morph-minimax3-428b", reasoning_effort=None):
     """
     Dedicated Morph streaming function.
     Shared by all Morph-hosted models (MiniMax, GLM-5.2, etc.) via model_id param.
@@ -3176,10 +3176,18 @@ def call_morph_stream(messages, api_key, model_id="morph-minimax3-428b"):
     max_tokens raised from 8000 -> 16000 because reasoning tokens eat into the
     same budget as the final answer; 8000 was likely truncating thinking on
     complex prompts even before this fix.
+
+    reasoning_effort: optional, GLM-5.2-only knob ("max" or "high"). Passed as
+    chat_template_kwargs.reasoning_effort. Left as None for MiniMax so its
+    request body stays untouched.
     """
     if not api_key:
         return None, "MORPH_API_KEY not set in environment variables"
     try:
+        template_kwargs = {"enable_thinking": True}
+        if reasoning_effort:
+            template_kwargs["reasoning_effort"] = reasoning_effort
+
         resp = requests.post(
             "https://api.morphllm.com/v1/chat/completions",
             headers={
@@ -3192,7 +3200,7 @@ def call_morph_stream(messages, api_key, model_id="morph-minimax3-428b"):
                 "stream": True,
                 "temperature": 0.7,
                 "max_tokens": 16000,
-                "chat_template_kwargs": {"enable_thinking": True},
+                "chat_template_kwargs": template_kwargs,
             },
             stream=True,
             timeout=(10, 150),
@@ -4567,7 +4575,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     [{"role": "system", "content": final_system_glm52}]
                     + active_memory[-20:]
                 )
-                resp, err = call_morph_stream(glm52_messages, glm52_key, model_id="morph-glm52-744b")
+                resp, err = call_morph_stream(glm52_messages, glm52_key, model_id="morph-glm52-744b", reasoning_effort="max")
 
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'GLM-5.2 unavailable: {err}'})}\n\n"
@@ -6060,7 +6068,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         yield f"data: {sp}\n\n"
 
                 glm52_msgs_get = [{"role": "system", "content": glm52_system_get}] + active_memory[-20:]
-                resp, err = call_morph_stream(glm52_msgs_get, glm52_key_get, model_id="morph-glm52-744b")
+                resp, err = call_morph_stream(glm52_msgs_get, glm52_key_get, model_id="morph-glm52-744b", reasoning_effort="max")
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'GLM-5.2 unavailable: {err}'})}\n\n"
                     yield "data: [DONE]\n\n"
