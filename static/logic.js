@@ -2128,6 +2128,17 @@ window.showSettingsTab = function (tab, clickedEl) {
                         <p class="sc-row-sub">Hide all chats from your history</p>
                     </div>
                 </div>
+                <div class="sc-row" onclick="openArchivedChatsModal()">
+                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="4" width="18" height="5" rx="1.5"></rect>
+                        <path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"></path>
+                        <line x1="10" y1="13" x2="14" y2="13"></line>
+                    </svg>
+                    <div class="sc-row-body">
+                        <p class="sc-row-label">Archive chats</p>
+                        <p class="sc-row-sub">View, restore, or delete archived chats</p>
+                    </div>
+                </div>
                 <div class="sc-row danger" onclick="clearAllChats()">
                     <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="3 6 5 6 21 6"></polyline>
@@ -2888,6 +2899,198 @@ window.clearAllChats = async function () {
 };
 
 // ============================
+// 🗄️ ARCHIVED CHATS MODAL
+// ============================
+window.openArchivedChatsModal = async function () {
+    if (!currentUser) {
+        showToast("Please log in to view archived chats");
+        return;
+    }
+
+    const existing = document.getElementById('archive-modal-overlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'archive-modal-overlay';
+    overlay.innerHTML = `
+        <div class="cm-backdrop" id="archiveModalBackdrop"></div>
+        <div class="archive-dialog" role="dialog" aria-modal="true">
+            <div class="archive-modal-header">
+                <div class="archive-modal-title-wrap">
+                    <h3 class="cm-title">Archive chats</h3>
+                    <p class="cm-subtitle">Restore or permanently delete archived chats</p>
+                </div>
+                <button class="archive-modal-close" id="archiveModalCloseBtn" title="Close" aria-label="Close">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="archive-modal-toolbar">
+                <button class="archive-tool-btn restore" id="archiveRestoreBtn" disabled>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 12a9 9 0 1 0 3-6.7"></path>
+                        <polyline points="3 4 3 9 8 9"></polyline>
+                    </svg>
+                    <span>Restore selected</span>
+                </button>
+                <button class="archive-tool-btn delete" id="archiveDeleteBtn" disabled>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        <line x1="10" y1="11" x2="10" y2="17"></line>
+                        <line x1="14" y1="11" x2="14" y2="17"></line>
+                    </svg>
+                    <span>Delete selected</span>
+                </button>
+            </div>
+            <div class="archive-list" id="archiveList">
+                <div style="padding:24px 14px;text-align:center;font-size:12px;color:#666;">Loading…</div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('cm-visible'));
+
+    function closeArchiveModal() {
+        overlay.classList.remove('cm-visible');
+        setTimeout(() => overlay.remove(), 300);
+        document.removeEventListener('keydown', escHandler);
+    }
+    function escHandler(e) {
+        if (e.key === 'Escape') closeArchiveModal();
+    }
+    document.getElementById('archiveModalCloseBtn').onclick = closeArchiveModal;
+    document.getElementById('archiveModalBackdrop').onclick = closeArchiveModal;
+    document.addEventListener('keydown', escHandler);
+
+    const selected = new Set();
+    const restoreBtn = document.getElementById('archiveRestoreBtn');
+    const deleteBtn = document.getElementById('archiveDeleteBtn');
+    const list = document.getElementById('archiveList');
+
+    function updateToolbar() {
+        const has = selected.size > 0;
+        restoreBtn.disabled = !has;
+        deleteBtn.disabled = !has;
+    }
+
+    function removeRows(ids) {
+        ids.forEach(id => {
+            selected.delete(id);
+            const el = list.querySelector(`.archive-item[data-session-id="${CSS.escape(id)}"]`);
+            if (el) el.remove();
+        });
+        if (!list.querySelector('.archive-item')) {
+            list.innerHTML = `<div class="no-history">No archived chats.</div>`;
+        }
+        updateToolbar();
+    }
+
+    const { data, error } = await supabaseClient
+        .from("chat_sessions").select("*")
+        .eq("user_id", currentUser.id)
+        .eq("archived", true)
+        .order("created_at", { ascending: false });
+
+    // Modal may have been closed while the request was in flight
+    if (!document.getElementById('archive-modal-overlay')) return;
+
+    if (error) {
+        list.innerHTML = `<div style="padding:24px 14px;text-align:center;font-size:12px;color:#e06c6c;">Failed to load archived chats.</div>`;
+        console.error("❌ Archived chats failed:", error.message);
+        return;
+    }
+
+    if (!data || data.length === 0) {
+        list.innerHTML = `<div class="no-history">No archived chats.</div>`;
+        return;
+    }
+
+    list.innerHTML = "";
+    data.forEach(session => {
+        const date = new Date(session.created_at).toLocaleDateString();
+        const row = document.createElement('div');
+        row.classList.add('archive-item');
+        row.dataset.sessionId = session.session_id;
+        row.innerHTML = `
+            <label class="archive-checkbox-wrap">
+                <input type="checkbox" class="archive-checkbox">
+            </label>
+            <div class="archive-item-info">
+                <span class="archive-item-title">${(session.title || "Untitled").replace(/</g, '&lt;')}</span>
+                <span class="archive-item-date">${date}</span>
+            </div>
+        `;
+        const checkbox = row.querySelector('.archive-checkbox');
+        checkbox.onchange = () => {
+            if (checkbox.checked) selected.add(session.session_id);
+            else selected.delete(session.session_id);
+            row.classList.toggle('checked', checkbox.checked);
+            updateToolbar();
+        };
+        list.appendChild(row);
+    });
+
+    restoreBtn.onclick = async () => {
+        if (selected.size === 0) return;
+        const ids = Array.from(selected);
+        restoreBtn.disabled = true; deleteBtn.disabled = true;
+        const { error } = await supabaseClient
+            .from("chat_sessions")
+            .update({ archived: false })
+            .in("session_id", ids)
+            .eq("user_id", currentUser.id);
+        if (error) {
+            showToast("❌ Restore failed");
+            updateToolbar();
+            return;
+        }
+        showToast(`✓ Restored ${ids.length} chat${ids.length > 1 ? 's' : ''}`);
+        removeRows(ids);
+        if (typeof showHistory === "function") showHistory();
+    };
+
+    deleteBtn.onclick = () => {
+        if (selected.size === 0) return;
+        const ids = Array.from(selected);
+        showModal({
+            type: 'confirm',
+            dangerous: true,
+            icon: `<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>`,
+            title: `Delete ${ids.length} chat${ids.length > 1 ? 's' : ''}`,
+            subtitle: 'This action cannot be undone',
+            message: 'These chats and all their messages will be permanently removed.',
+            confirmLabel: 'Delete',
+            onConfirm: async () => {
+                const { error: msgErr } = await supabaseClient.from("messages").delete()
+                    .in("session_id", ids).eq("user_id", currentUser.id);
+                if (msgErr) { showToast("❌ Failed to delete messages"); return; }
+                const { error: sessErr } = await supabaseClient.from("chat_sessions").delete()
+                    .in("session_id", ids).eq("user_id", currentUser.id);
+                if (sessErr) { showToast("❌ Failed to delete chats"); return; }
+                showToast(`✓ Deleted ${ids.length} chat${ids.length > 1 ? 's' : ''}`);
+                removeRows(ids);
+                if (ids.includes(currentSessionId)) {
+                    currentSessionId = generateSessionId();
+                    firstMessage = true;
+                    const chatbox = document.getElementById("chatbox");
+                    const inputArea = document.getElementById("inputArea");
+                    const app = document.getElementById("app");
+                    if (chatbox) chatbox.innerHTML = "";
+                    if (inputArea) { inputArea.classList.remove("bottom"); inputArea.classList.add("center"); }
+                    if (app) app.classList.add("greeting-mode");
+                    displayGreeting();
+                }
+            }
+        });
+    };
+
+    updateToolbar();
+};
+
+// ============================
 // 🗑️ DELETE SINGLE CHAT
 // ============================
 async function deleteSingleChat(sessionId) {
@@ -2921,6 +3124,25 @@ async function deleteSingleChat(sessionId) {
         }
     });
 }
+
+// ============================
+// 🗄️ ARCHIVE SINGLE CHAT
+// ============================
+async function archiveSingleChat(sessionId) {
+    const { error } = await supabaseClient
+        .from("chat_sessions")
+        .update({ archived: true })
+        .eq("session_id", sessionId)
+        .eq("user_id", currentUser.id);
+    if (error) {
+        showToast("❌ Failed to archive chat");
+        return;
+    }
+    showToast("✓ Chat archived");
+    // Archived chats are hidden from the main history list, refresh it
+    if (typeof showHistory === "function") showHistory();
+}
+window.archiveSingleChat = archiveSingleChat;
 
 // ============================
 // ✏️ RENAME CHAT
@@ -3018,6 +3240,10 @@ function buildHistoryItem(session, openSessionFn) {
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
             Rename
         </button>
+        <button class="history-dropdown-item" data-action="archive">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1.5"></rect><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"></path><line x1="10" y1="13" x2="14" y2="13"></line></svg>
+            Archive
+        </button>
         <button class="history-dropdown-item danger" data-action="delete">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
             Delete chat
@@ -3037,6 +3263,7 @@ function buildHistoryItem(session, openSessionFn) {
             const action = btn.dataset.action;
             if (action === "open") { highlightActiveHistoryItem(session.session_id); openSessionFn(session.session_id); }
             if (action === "rename") renameChat(session.session_id, session.title || "Untitled", titleEl);
+            if (action === "archive") archiveSingleChat(session.session_id);
             if (action === "delete") deleteSingleChat(session.session_id);
         };
     });
@@ -3762,6 +3989,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         const { data, error } = await supabaseClient
             .from("chat_sessions").select("*")
             .eq("user_id", currentUser.id)
+            .or("archived.is.null,archived.eq.false")
             .order("created_at", { ascending: false });
 
         if (error) {
