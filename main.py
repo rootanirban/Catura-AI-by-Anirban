@@ -488,7 +488,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.303"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.304"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -498,7 +498,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.303", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.304", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -4161,7 +4161,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             if not choices:
                                 continue
                             delta = choices[0].get("delta") or {}
-                            reasoning_token = delta.get("reasoning_content") or ""
+                            reasoning_token = delta.get("reasoning_content") or delta.get("reasoning") or ""
                             reasoning_token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', reasoning_token)
                             token = delta.get("content") or ""
                             token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', token)
@@ -5697,7 +5697,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             if not choices:
                                 continue
                             delta = choices[0].get("delta") or {}
-                            reasoning_token = delta.get("reasoning_content") or ""
+                            reasoning_token = delta.get("reasoning_content") or delta.get("reasoning") or ""
                             reasoning_token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', reasoning_token)
                             token = delta.get("content") or ""
                             token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', token)
