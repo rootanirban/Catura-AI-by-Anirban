@@ -2425,19 +2425,34 @@ html { scroll-behavior: smooth; }
 
     .mobile-hamburger:active { background: rgba(255,255,255,0.08); }
 
-    .mobile-hamburger span {
-        display: block;
-        width: 20px;
-        height: 1.8px;
-        background: currentColor;
-        border-radius: 2px;
-        transition: transform 0.25s ease, opacity 0.25s ease;
-        transform-origin: center;
+    .mobile-hamburger {
+        position: relative;
     }
 
-    .mobile-hamburger.is-open span:nth-child(1) { transform: translateY(6.8px) rotate(45deg); }
-    .mobile-hamburger.is-open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
-    .mobile-hamburger.is-open span:nth-child(3) { transform: translateY(-6.8px) rotate(-45deg); }
+    .mobile-hamburger .hamburger-icon-panel,
+    .mobile-hamburger .hamburger-icon-close {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(1) rotate(0deg);
+        opacity: 1;
+        transition: opacity 0.22s ease, transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .mobile-hamburger .hamburger-icon-close {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.5) rotate(-45deg);
+    }
+
+    .mobile-hamburger.is-open .hamburger-icon-panel {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.5) rotate(45deg);
+    }
+
+    .mobile-hamburger.is-open .hamburger-icon-close {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1) rotate(0deg);
+    }
 
     /* Centre brand — absolutely positioned so it's always centred */
     .mobile-header-brand {
@@ -3081,7 +3096,8 @@ html { scroll-behavior: smooth; }
 /* ── Mobile header ── */
 [data-theme="light"] .mobile-header { background: transparent !important; border-bottom: none !important; }
 [data-theme="light"] .mobile-header-brand { color: #0f1117; }
-[data-theme="light"] .mobile-hamburger span { background: #555; }
+[data-theme="light"] .mobile-hamburger .hamburger-icon-panel,
+[data-theme="light"] .mobile-hamburger .hamburger-icon-close { color: #555; }
 [data-theme="light"] .mobile-hamburger:active { background: rgba(0,0,0,0.06); }
 [data-theme="light"] .mobile-header-ghost { color: #888; }
 [data-theme="light"] .mobile-header-ghost.ghost-active { color: #4a6fd8; }
@@ -5261,11 +5277,11 @@ kbd.shortcut-key {
     gap: 5px !important;
   }
 
-  .mobile-hamburger span {
+  .mobile-hamburger .hamburger-icon-panel,
+  .mobile-hamburger .hamburger-icon-close {
     width: 20px !important;
-    height: 1.8px !important;
-    background: #bbb !important;
-    border-radius: 2px !important;
+    height: 20px !important;
+    color: #bbb !important;
   }
 
   .mobile-header-ghost {
@@ -5321,39 +5337,31 @@ kbd.shortcut-key {
   .input-area,
   .input-area.center,
   .input-area.bottom {
-    bottom: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    width: 100% !important;
-    padding: 10px 14px 14px 14px !important;
-    padding-bottom: max(14px, env(safe-area-inset-bottom, 14px)) !important;
-    border-radius: 20px 20px 0 0 !important;
-    border: none !important;
-    border-top: 1px solid rgba(255,255,255,0.08) !important;
-    background: rgba(18, 18, 18, 0.98) !important;
+    bottom: max(12px, env(safe-area-inset-bottom, 12px)) !important;
+    left: 10px !important;
+    right: 10px !important;
+    width: auto !important;
+    padding: 10px 14px 12px 14px !important;
+    border-radius: 24px !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    background: rgba(24, 24, 24, 0.98) !important;
     backdrop-filter: blur(16px) !important;
     -webkit-backdrop-filter: blur(16px) !important;
-    box-shadow: 0 -12px 40px rgba(0,0,0,0.5), 0 -1px 0 rgba(255,255,255,0.05) !important;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.45), 0 1px 0 rgba(255,255,255,0.05) !important;
     gap: 0 !important;
     position: fixed !important;
     z-index: 200 !important;
   }
 
-  /* Pill handle above input */
+  /* Pill handle removed — floating box no longer needs a drag hint */
   .input-area::before {
-    content: '';
-    display: block;
-    width: 32px;
-    height: 3px;
-    background: rgba(255,255,255,0.15);
-    border-radius: 2px;
-    margin: 0 auto 10px;
-    flex-shrink: 0;
+    content: none;
+    display: none;
   }
 
   .input-area:focus-within {
-    border-top-color: rgba(16,163,127,0.35) !important;
-    box-shadow: 0 -12px 40px rgba(0,0,0,0.5), 0 -1px 0 rgba(16,163,127,0.2) !important;
+    border-color: rgba(16,163,127,0.35) !important;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.45), 0 1px 0 rgba(16,163,127,0.2) !important;
   }
 
   .input-row-top {
@@ -7365,10 +7373,12 @@ body,
 }
 
 /* Sidebar gets its own transition so the slide animation isn't overridden */
+/* Slight spring/bounce on open — subtle overshoot via cubic-bezier */
 .sidebar {
     transition:
-        transform 0.32s cubic-bezier(0.4, 0, 0.2, 1),
-        margin-left 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.38s cubic-bezier(0.34, 1.56, 0.64, 1),
+        left 0.38s cubic-bezier(0.34, 1.56, 0.64, 1),
+        margin-left 0.38s cubic-bezier(0.34, 1.56, 0.64, 1),
         box-shadow 0.32s ease,
         background 0.22s ease,
         border-color 0.2s ease !important;
@@ -8107,7 +8117,8 @@ body,
     border-bottom: none !important;
 }
 [data-theme="light"] .mobile-header-brand { color: #0f1117 !important; }
-[data-theme="light"] .mobile-hamburger span { background: #555 !important; }
+[data-theme="light"] .mobile-hamburger .hamburger-icon-panel,
+[data-theme="light"] .mobile-hamburger .hamburger-icon-close { color: #555 !important; }
 [data-theme="light"] .mobile-hamburger:active { background: rgba(0,0,0,0.06) !important; }
 [data-theme="light"] .mobile-header-ghost { color: #888 !important; }
 [data-theme="light"] .mobile-header-ghost.ghost-active { color: #4a6fd8 !important; }
