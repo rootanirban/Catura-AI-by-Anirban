@@ -488,7 +488,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.315"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.316"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -498,7 +498,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.315", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.316", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -4381,6 +4381,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
 
             def generate_glm():
                 full_reply = ""
+                thinking_open_glm = False  # tracks whether <think> has been opened in full_reply
 
                 tool_result_glm = None
                 if intent != "general" and not file_urls:
@@ -4428,14 +4429,28 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             choices = chunk.get("choices")
                             if not choices:
                                 continue
-                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            delta_glm = choices[0].get("delta") or {}
+                            reasoning_token_glm = delta_glm.get("reasoning_content") or ""
+                            token = delta_glm.get("content") or ""
+                            if reasoning_token_glm:
+                                if not thinking_open_glm:
+                                    full_reply += "<think>"
+                                    thinking_open_glm = True
+                                full_reply += reasoning_token_glm
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token_glm}, ensure_ascii=False)}\n\n"
                             if token:
+                                if thinking_open_glm:
+                                    full_reply += "</think>"
+                                    thinking_open_glm = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
                     print(f"❌ [GLM] stream exception: {e}")
+
+                if thinking_open_glm:
+                    full_reply += "</think>"
 
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
@@ -5934,6 +5949,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             def generate_glm_get():
                 full_reply = ""
+                thinking_open_glm_get = False  # tracks whether <think> has been opened in full_reply
                 if tool_result:
                     yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
                     sp = build_sources_payload(tool_result)
@@ -5963,14 +5979,27 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             choices = chunk.get("choices")
                             if not choices:
                                 continue
-                            token = (choices[0].get("delta") or {}).get("content") or ""
+                            delta_glm_get = choices[0].get("delta") or {}
+                            reasoning_token_glm_get = delta_glm_get.get("reasoning_content") or ""
+                            token = delta_glm_get.get("content") or ""
+                            if reasoning_token_glm_get:
+                                if not thinking_open_glm_get:
+                                    full_reply += "<think>"
+                                    thinking_open_glm_get = True
+                                full_reply += reasoning_token_glm_get
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token_glm_get}, ensure_ascii=False)}\n\n"
                             if token:
+                                if thinking_open_glm_get:
+                                    full_reply += "</think>"
+                                    thinking_open_glm_get = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
                     print(f"❌ [GLM GET] stream exception: {e}")
+                if thinking_open_glm_get:
+                    full_reply += "</think>"
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
                     if not ghost_mode and len(user_memory[session_id]) > 40:
