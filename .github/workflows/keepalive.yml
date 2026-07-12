@@ -2,7 +2,7 @@ name: Keep Catura AI Alive
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '*/8 * * * *'
   workflow_dispatch:
 
 jobs:
