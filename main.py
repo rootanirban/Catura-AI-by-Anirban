@@ -7,6 +7,7 @@ import os
 import uuid
 import json
 import re
+import time
 from datetime import datetime, timezone
 from supabase import create_client, Client
 import base64
@@ -488,7 +489,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.324"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.325"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -498,7 +499,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.324", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.325", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -2944,13 +2945,19 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
                 "role": gemini_role,
                 "parts": [{"text": msg["content"]}]
             })
+        # NOTE: thinkingConfig is a Gemini-only field. Gemma 4 models
+        # (gemma-4-31b-it / gemma-4-26b-a4b-it) control reasoning via a
+        # <|think|> token baked into the prompt/model, not this API param.
+        # Sending thinkingConfig to Gemma 4 is a known trigger for constant
+        # "500 Internal error encountered" responses from Google's API
+        # (see: discuss.ai.google.dev "Constant 500s with Gemma" / "Constant
+        # 500s on Gemma 4") — so it is intentionally omitted here.
         payload = {
             "system_instruction": {"parts": [{"text": system_prompt}]},
             "contents": contents,
             "generationConfig": {
                 "temperature": 1.0,
                 "maxOutputTokens": 16000,
-                "thinkingConfig": {"thinkingLevel": "high", "includeThoughts": True},
             }
         }
         url = (
@@ -2958,23 +2965,46 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
             f"{model_id}:streamGenerateContent"
             f"?alt=sse&key={GEMINI_API_KEY}"
         )
-        resp = requests.post(
-            url,
-            headers={"Content-Type": "application/json"},
-            json=payload,
-            stream=True,
-            timeout=(10, 120),
-        )
-        if resp.status_code != 200:
+
+        # Gemma 4 on Google AI Studio is known to intermittently return
+        # 500 "Internal error encountered" even with a valid, well-formed
+        # request and quota to spare. Retry a couple of times with a short
+        # backoff before giving up, since these are transient server-side.
+        last_err = "Internal error encountered."
+        for attempt in range(3):
+            try:
+                resp = requests.post(
+                    url,
+                    headers={"Content-Type": "application/json"},
+                    json=payload,
+                    stream=True,
+                    timeout=(10, 120),
+                )
+            except requests.exceptions.Timeout:
+                last_err = "Request timed out"
+                continue
+            except Exception as e:
+                last_err = str(e)
+                continue
+
+            if resp.status_code == 200:
+                return resp, None
+
             try:
                 err_body = resp.json()
-                err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
+                last_err = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
             except Exception:
-                err_msg = f"HTTP {resp.status_code}"
-            return None, err_msg
-        return resp, None
-    except requests.exceptions.Timeout:
-        return None, "Request timed out"
+                last_err = f"HTTP {resp.status_code}"
+
+            # Only worth retrying on server-side errors (500/503), not on
+            # 4xx (bad key, bad request, quota) which will just repeat.
+            if resp.status_code not in (500, 503):
+                return None, last_err
+
+            if attempt < 2:
+                time.sleep(1.5 * (attempt + 1))
+
+        return None, last_err
     except Exception as e:
         return None, str(e)
 
