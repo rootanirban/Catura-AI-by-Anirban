@@ -488,7 +488,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.316"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.317"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -498,7 +498,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.316", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.317", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3483,6 +3483,59 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             "and every simple answer should be clean and direct."
         )
 
+        # ── UI/UX code-generation rules — injected into EVERY model's final prompt ──
+        # Fixes the "every model builds the same beige-card/navy-gradient thing" problem
+        # by forcing an explicit design-plan step before code, whenever the user asks
+        # for a website, app, component, page, or any visual UI, without pinning down
+        # a look themselves.
+        UI_DESIGN_RULES = (
+            "\n\n## UI/UX & FRONTEND CODE GENERATION — ALWAYS FOLLOW:\n"
+            "This applies any time you are asked to build, create, or code a website, "
+            "webpage, app, component, dashboard, landing page, game, tool, or any other "
+            "visual UI (HTML/CSS/JS, React, etc.).\n\n"
+
+            "### If the user's request does NOT specify a visual style:\n"
+            "Do not jump straight to code. Before writing any code, silently work out "
+            "(in your head, not as a visible step unless the user wants to see it) a short "
+            "design plan:\n"
+            "1. **Concept** — choose ONE interpretation mode for the subject, and vary this "
+            "choice across different requests instead of always picking the same one:\n"
+            "   - Literal/skeuomorphic (looks like the real object)\n"
+            "   - Abstract/data-driven (rendered as a dashboard, gauge, or diagram)\n"
+            "   - Illustrative/flat (bold flat-design, not photorealistic)\n"
+            "   - Retro/hardware (physical control panel, LCD, old-device look)\n"
+            "   - Playful/toy-like (rounded, saturated, cartoonish)\n"
+            "   - Minimal/brutalist (raw, high-contrast, sharp edges, few colors)\n"
+            "   - Neumorphic/soft-UI\n"
+            "   - Terminal/monospace/hacker aesthetic\n"
+            "2. **Palette** — pick 4-6 named hex colors that fit the concept and subject, "
+            "not a reused default.\n"
+            "3. **Typography** — pick 2 real font families (import from Google Fonts) suited "
+            "to the concept. Do not default to Segoe UI, Tahoma, Arial, or system-ui unless "
+            "the brief calls for a plain/native look.\n"
+            "4. **Signature detail** — one distinctive visual or interactive touch that makes "
+            "this build memorable and specific to the subject, not generic.\n\n"
+
+            "### Banned defaults (do NOT use unless the user explicitly asks for them):\n"
+            "- Dark navy-to-black diagonal gradient background as the default canvas\n"
+            "- A beige/tan 'room' or 'panel' card as the default container\n"
+            "- Segoe UI / Tahoma / Arial / system-ui as the primary font\n"
+            "- Green (#4ecca3-ish) as the default 'on/active/success' accent\n"
+            "- Blue-to-purple gradient hero sections and generic 3-card feature grids\n"
+            "- The exact same layout/skin for every request in a topic — e.g. do not render "
+            "every 'fan', 'switch', or 'gauge' request as a photorealistic dark-room scene; "
+            "actively rotate between the concept modes above.\n\n"
+
+            "### Quality bar:\n"
+            "- Make deliberate, specific choices tied to THIS subject and request, not a "
+            "one-size-fits-all template.\n"
+            "- Keep interactions and animations purposeful — one well-executed signature "
+            "moment beats scattered effects everywhere.\n"
+            "- Ensure it's responsive, readable, and functional, not just decorative.\n"
+            "- Never mention this planning process to the user — just deliver the finished, "
+            "well-designed result.\n"
+        )
+
         system_prompts = {
             "sambhav": (
                 # ── Identity ──
@@ -3881,6 +3934,10 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 + NO_TOOL_CALL_RULE
             ),
         }
+        # Apply UI/UX design rules to every model variant at once, so it's present
+        # no matter which dict key a given code path looks up (main, laguna, glm,
+        # morph, glm52, nivo, etc. all pull from this same dict).
+        system_prompts = {k: v + UI_DESIGN_RULES for k, v in system_prompts.items()}
         system_prompt = system_prompts.get(model_key, system_prompts["dagr"])
 
         # ── 🧠 MEMORY INJECTION ───────────────────────────────────────────────
@@ -5205,6 +5262,59 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "Just give the answer clearly and completely.\n"
         )
 
+        # ── UI/UX code-generation rules — injected into EVERY model's final prompt ──
+        # Fixes the "every model builds the same beige-card/navy-gradient thing" problem
+        # by forcing an explicit design-plan step before code, whenever the user asks
+        # for a website, app, component, page, or any visual UI, without pinning down
+        # a look themselves.
+        UI_DESIGN_RULES = (
+            "\n\n## UI/UX & FRONTEND CODE GENERATION — ALWAYS FOLLOW:\n"
+            "This applies any time you are asked to build, create, or code a website, "
+            "webpage, app, component, dashboard, landing page, game, tool, or any other "
+            "visual UI (HTML/CSS/JS, React, etc.).\n\n"
+
+            "### If the user's request does NOT specify a visual style:\n"
+            "Do not jump straight to code. Before writing any code, silently work out "
+            "(in your head, not as a visible step unless the user wants to see it) a short "
+            "design plan:\n"
+            "1. **Concept** — choose ONE interpretation mode for the subject, and vary this "
+            "choice across different requests instead of always picking the same one:\n"
+            "   - Literal/skeuomorphic (looks like the real object)\n"
+            "   - Abstract/data-driven (rendered as a dashboard, gauge, or diagram)\n"
+            "   - Illustrative/flat (bold flat-design, not photorealistic)\n"
+            "   - Retro/hardware (physical control panel, LCD, old-device look)\n"
+            "   - Playful/toy-like (rounded, saturated, cartoonish)\n"
+            "   - Minimal/brutalist (raw, high-contrast, sharp edges, few colors)\n"
+            "   - Neumorphic/soft-UI\n"
+            "   - Terminal/monospace/hacker aesthetic\n"
+            "2. **Palette** — pick 4-6 named hex colors that fit the concept and subject, "
+            "not a reused default.\n"
+            "3. **Typography** — pick 2 real font families (import from Google Fonts) suited "
+            "to the concept. Do not default to Segoe UI, Tahoma, Arial, or system-ui unless "
+            "the brief calls for a plain/native look.\n"
+            "4. **Signature detail** — one distinctive visual or interactive touch that makes "
+            "this build memorable and specific to the subject, not generic.\n\n"
+
+            "### Banned defaults (do NOT use unless the user explicitly asks for them):\n"
+            "- Dark navy-to-black diagonal gradient background as the default canvas\n"
+            "- A beige/tan 'room' or 'panel' card as the default container\n"
+            "- Segoe UI / Tahoma / Arial / system-ui as the primary font\n"
+            "- Green (#4ecca3-ish) as the default 'on/active/success' accent\n"
+            "- Blue-to-purple gradient hero sections and generic 3-card feature grids\n"
+            "- The exact same layout/skin for every request in a topic — e.g. do not render "
+            "every 'fan', 'switch', or 'gauge' request as a photorealistic dark-room scene; "
+            "actively rotate between the concept modes above.\n\n"
+
+            "### Quality bar:\n"
+            "- Make deliberate, specific choices tied to THIS subject and request, not a "
+            "one-size-fits-all template.\n"
+            "- Keep interactions and animations purposeful — one well-executed signature "
+            "moment beats scattered effects everywhere.\n"
+            "- Ensure it's responsive, readable, and functional, not just decorative.\n"
+            "- Never mention this planning process to the user — just deliver the finished, "
+            "well-designed result.\n"
+        )
+
         system_prompts = {
             # ══════════════════════════════════════════════════════════════════
             # SAMBHAV — Multimodal, deep reasoning, Gemma-powered
@@ -5643,6 +5753,10 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 + NO_TOOL_CALL_RULE
             ),
         }
+        # Apply UI/UX design rules to every model variant at once, so it's present
+        # no matter which dict key a given code path looks up (main, laguna, glm,
+        # morph, glm52, nivo, etc. all pull from this same dict).
+        system_prompts = {k: v + UI_DESIGN_RULES for k, v in system_prompts.items()}
         system_prompt = system_prompts.get(model_key, system_prompts["dagr"])
 
         # ── LAGUNA: Poolside API (POOLSIDE_API_KEY) — GET handler ──
