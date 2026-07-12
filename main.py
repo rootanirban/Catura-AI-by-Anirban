@@ -488,7 +488,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.319"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.320"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -498,7 +498,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.319", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.320", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3230,12 +3230,16 @@ def call_mistral_stream(messages, api_key, model_id="mistral-large-latest"):
     Uses Mistral's official OpenAI-compatible endpoint. Completely isolated from
     all other models — does NOT touch any other API key.
 
-    Thinking mode: Mistral Large/Medium reason internally before answering, same
-    family behaviour as Laguna/Morph. We request the reasoning trace via
-    chat_template_kwargs.enable_thinking (same convention used for the other
-    vLLM/SGLang-style stacks) so 'reasoning_content' shows up in stream deltas.
-    max_tokens raised to 16000 since reasoning tokens share the same budget as
-    the final answer.
+    NOTE on thinking: Mistral's official hosted API validates requests strictly
+    against its own schema and rejects unrecognized fields with HTTP 422. Unlike
+    Poolside/Morph (self-hosted-style vLLM/SGLang stacks), it does NOT accept
+    chat_template_kwargs — sending it breaks every request. mistral-large-latest
+    and mistral-medium-latest are not reasoning models on Mistral's side and do
+    not emit a 'reasoning_content' field; genuine step-by-step reasoning traces
+    are only exposed by Mistral's separate Magistral model family via a
+    different request shape. So no thinking toggle is sent here — the model
+    still reasons internally before answering, it just doesn't stream that
+    trace separately.
     """
     if not api_key:
         return None, "MISTRAL_API_KEY not set in environment variables"
@@ -3250,13 +3254,11 @@ def call_mistral_stream(messages, api_key, model_id="mistral-large-latest"):
                 "model": model_id,
                 "messages": messages,
                 "stream": True,
-                "temperature": 1.0,
-                "top_p": 0.95,
-                "max_tokens": 16000,
-                "chat_template_kwargs": {"enable_thinking": True},
+                "temperature": 0.7,
+                "max_tokens": 8000,
             },
             stream=True,
-            timeout=(10, 180),
+            timeout=(10, 120),
         )
         if resp.status_code != 200:
             try:
