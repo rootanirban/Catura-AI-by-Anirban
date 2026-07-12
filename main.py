@@ -488,7 +488,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.318"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.319"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -498,7 +498,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.318", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.319", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3229,6 +3229,13 @@ def call_mistral_stream(messages, api_key, model_id="mistral-large-latest"):
     Shared by all Mistral-hosted models (Large, Medium, etc.) via model_id param.
     Uses Mistral's official OpenAI-compatible endpoint. Completely isolated from
     all other models — does NOT touch any other API key.
+
+    Thinking mode: Mistral Large/Medium reason internally before answering, same
+    family behaviour as Laguna/Morph. We request the reasoning trace via
+    chat_template_kwargs.enable_thinking (same convention used for the other
+    vLLM/SGLang-style stacks) so 'reasoning_content' shows up in stream deltas.
+    max_tokens raised to 16000 since reasoning tokens share the same budget as
+    the final answer.
     """
     if not api_key:
         return None, "MISTRAL_API_KEY not set in environment variables"
@@ -3243,11 +3250,13 @@ def call_mistral_stream(messages, api_key, model_id="mistral-large-latest"):
                 "model": model_id,
                 "messages": messages,
                 "stream": True,
-                "temperature": 0.7,
-                "max_tokens": 8000,
+                "temperature": 1.0,
+                "top_p": 0.95,
+                "max_tokens": 16000,
+                "chat_template_kwargs": {"enable_thinking": True},
             },
             stream=True,
-            timeout=(10, 120),
+            timeout=(10, 180),
         )
         if resp.status_code != 200:
             try:
@@ -4803,6 +4812,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
 
             def generate_mlarge():
                 full_reply = ""
+                thinking_open_mlarge = False  # tracks whether <think> has been opened in full_reply
 
                 tool_result_mlarge = None
                 if intent != "general" and not file_urls:
@@ -4851,14 +4861,27 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             if not choices:
                                 continue
                             delta_mlarge = choices[0].get("delta") or {}
+                            reasoning_token_mlarge = delta_mlarge.get("reasoning_content") or ""
                             token = delta_mlarge.get("content") or ""
+                            if reasoning_token_mlarge:
+                                if not thinking_open_mlarge:
+                                    full_reply += "<think>"
+                                    thinking_open_mlarge = True
+                                full_reply += reasoning_token_mlarge
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token_mlarge}, ensure_ascii=False)}\n\n"
                             if token:
+                                if thinking_open_mlarge:
+                                    full_reply += "</think>"
+                                    thinking_open_mlarge = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
                     print(f"❌ [MISTRAL LARGE] stream exception: {e}")
+
+                if thinking_open_mlarge:
+                    full_reply += "</think>"
 
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
@@ -4882,6 +4905,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
 
             def generate_mmed():
                 full_reply = ""
+                thinking_open_mmed = False  # tracks whether <think> has been opened in full_reply
 
                 tool_result_mmed = None
                 if intent != "general" and not file_urls:
@@ -4930,14 +4954,27 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             if not choices:
                                 continue
                             delta_mmed = choices[0].get("delta") or {}
+                            reasoning_token_mmed = delta_mmed.get("reasoning_content") or ""
                             token = delta_mmed.get("content") or ""
+                            if reasoning_token_mmed:
+                                if not thinking_open_mmed:
+                                    full_reply += "<think>"
+                                    thinking_open_mmed = True
+                                full_reply += reasoning_token_mmed
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token_mmed}, ensure_ascii=False)}\n\n"
                             if token:
+                                if thinking_open_mmed:
+                                    full_reply += "</think>"
+                                    thinking_open_mmed = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
                     print(f"❌ [MISTRAL MEDIUM] stream exception: {e}")
+
+                if thinking_open_mmed:
+                    full_reply += "</think>"
 
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
@@ -6559,6 +6596,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             def generate_mlarge_get():
                 full_reply = ""
+                thinking_open_mlarge = False  # tracks whether <think> has been opened in full_reply
                 if tool_result:
                     yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
                     sp = build_sources_payload(tool_result)
@@ -6589,14 +6627,26 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             if not choices:
                                 continue
                             delta_mlarge = choices[0].get("delta") or {}
+                            reasoning_token_mlarge = delta_mlarge.get("reasoning_content") or ""
                             token = delta_mlarge.get("content") or ""
+                            if reasoning_token_mlarge:
+                                if not thinking_open_mlarge:
+                                    full_reply += "<think>"
+                                    thinking_open_mlarge = True
+                                full_reply += reasoning_token_mlarge
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token_mlarge}, ensure_ascii=False)}\n\n"
                             if token:
+                                if thinking_open_mlarge:
+                                    full_reply += "</think>"
+                                    thinking_open_mlarge = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
                     print(f"❌ [MISTRAL LARGE GET] stream exception: {e}")
+                if thinking_open_mlarge:
+                    full_reply += "</think>"
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
                     if not ghost_mode and len(user_memory[session_id]) > 40:
@@ -6616,6 +6666,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             def generate_mmed_get():
                 full_reply = ""
+                thinking_open_mmed = False  # tracks whether <think> has been opened in full_reply
                 if tool_result:
                     yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
                     sp = build_sources_payload(tool_result)
@@ -6646,14 +6697,26 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             if not choices:
                                 continue
                             delta_mmed = choices[0].get("delta") or {}
+                            reasoning_token_mmed = delta_mmed.get("reasoning_content") or ""
                             token = delta_mmed.get("content") or ""
+                            if reasoning_token_mmed:
+                                if not thinking_open_mmed:
+                                    full_reply += "<think>"
+                                    thinking_open_mmed = True
+                                full_reply += reasoning_token_mmed
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token_mmed}, ensure_ascii=False)}\n\n"
                             if token:
+                                if thinking_open_mmed:
+                                    full_reply += "</think>"
+                                    thinking_open_mmed = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
                     print(f"❌ [MISTRAL MEDIUM GET] stream exception: {e}")
+                if thinking_open_mmed:
+                    full_reply += "</think>"
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
                     if not ghost_mode and len(user_memory[session_id]) > 40:
