@@ -489,7 +489,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.327"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.328"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -499,7 +499,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.327", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.328", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3087,7 +3087,7 @@ def call_poolside_stream(messages, api_key):
                 "chat_template_kwargs": {"enable_thinking": True},
             },
             stream=True,
-            timeout=(10, 180),
+            timeout=(15, None),  # no read timeout — let long thinking runs finish
         )
         if resp.status_code != 200:
             try:
@@ -3233,7 +3233,7 @@ def call_morph_stream(messages, api_key, model_id="morph-minimax3-428b", reasoni
                 "chat_template_kwargs": template_kwargs,
             },
             stream=True,
-            timeout=(10, 150),
+            timeout=(15, None),  # no read timeout — let long thinking runs finish
         )
         if resp.status_code != 200:
             try:
@@ -4299,7 +4299,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             "chat_template_kwargs": {"enable_thinking": True},
                         },
                         stream=True,
-                        timeout=(10, 180),
+                        timeout=(15, None),  # no read timeout — let long thinking runs finish
                     )
                     if resp_lc.status_code != 200:
                         yield f"data: {json.dumps({'error': f'Laguna Core unavailable: HTTP {resp_lc.status_code}'})}\n\n"
@@ -6045,7 +6045,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             "chat_template_kwargs": {"enable_thinking": True},
                         },
                         stream=True,
-                        timeout=(10, 180),
+                        timeout=(15, None),  # no read timeout — let long thinking runs finish
                     )
                     if resp_lc_get.status_code != 200:
                         yield f"data: {json.dumps({'error': f'Laguna Core unavailable: HTTP {resp_lc_get.status_code}'})}\n\n"
