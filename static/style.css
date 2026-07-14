@@ -8507,3 +8507,64 @@ body,
         animation: none;
     }
 }
+
+/* ============================
+   📦 USER MESSAGE SHOW MORE / SHOW LESS
+   (mirrors Claude's own long-message collapse behavior)
+============================ */
+.user-text-col {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    max-width: 72%;
+}
+
+.user-text-col .message.user {
+    max-width: 100%;
+}
+
+.message.user.user-collapsed {
+    max-height: 168px;
+    overflow: hidden;
+    position: relative;
+}
+
+.message.user.user-collapsed::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 48px;
+    background: linear-gradient(to bottom, rgba(16,163,127,0) 0%, #0d8c6d 85%);
+    border-radius: 0 0 5px 20px;
+    pointer-events: none;
+}
+
+.user-toggle-btn {
+    align-self: flex-end;
+    margin-top: 6px;
+    margin-right: 4px;
+    background: none;
+    border: none;
+    color: #8e8ea0;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 2px 4px;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    transition: color 0.15s ease;
+}
+
+.user-toggle-btn:hover {
+    color: #d4d4d4;
+}
+
+[data-theme="light"] .user-toggle-btn {
+    color: #6b6b7b;
+}
+
+[data-theme="light"] .user-toggle-btn:hover {
+    color: #333;
+}

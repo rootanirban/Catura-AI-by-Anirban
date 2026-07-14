@@ -1523,7 +1523,32 @@ function createUserBubble(text, files, turnGroupId) {
         const bubble = document.createElement("div");
         bubble.classList.add("message", "user");
         bubble.innerText = text;
-        wrapper.appendChild(bubble);
+
+        // Show more / Show less for long user messages (display-only, like Claude)
+        const isLong = text.length > 400 || (text.match(/\n/g) || []).length > 6;
+        if (isLong) {
+            bubble.classList.add("user-collapsed");
+
+            // Column holder so the toggle sits *under* the bubble, not beside it
+            // (the outer wrapper is a row-flex used for the bubble + hover action buttons)
+            const textCol = document.createElement("div");
+            textCol.classList.add("user-text-col");
+            textCol.appendChild(bubble);
+
+            const toggleBtn = document.createElement("button");
+            toggleBtn.type = "button";
+            toggleBtn.classList.add("user-toggle-btn");
+            toggleBtn.textContent = "Show more";
+            toggleBtn.onclick = () => {
+                const collapsed = bubble.classList.toggle("user-collapsed");
+                toggleBtn.textContent = collapsed ? "Show more" : "Show less";
+            };
+            textCol.appendChild(toggleBtn);
+
+            wrapper.appendChild(textCol);
+        } else {
+            wrapper.appendChild(bubble);
+        }
     }
 
     // Action buttons container (edit + copy, shown on hover)
