@@ -489,7 +489,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.328"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.329"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -499,7 +499,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.328", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.329", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3305,6 +3305,49 @@ def call_mistral_stream(messages, api_key, model_id="mistral-large-latest"):
 
 
 # ============================================================
+# ✅ HELPER: Call Inception Labs API — mercury-2
+# OpenAI-compatible endpoint at api.inceptionlabs.ai (INCEPTION_API_KEY)
+# ============================================================
+def call_inception_stream(messages, api_key, model_id="mercury-2"):
+    """
+    Dedicated Inception Labs streaming function for Mercury 2 (diffusion LLM).
+    Uses Inception's official OpenAI-compatible endpoint. Completely isolated
+    from all other models — does NOT touch any other API key.
+    """
+    if not api_key:
+        return None, "INCEPTION_API_KEY not set in environment variables"
+    try:
+        resp = requests.post(
+            "https://api.inceptionlabs.ai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model_id,
+                "messages": messages,
+                "stream": True,
+                "temperature": 0.7,
+                "max_tokens": 8000,
+            },
+            stream=True,
+            timeout=(10, 120),
+        )
+        if resp.status_code != 200:
+            try:
+                err_body = resp.json()
+                err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
+            except Exception:
+                err_msg = f"HTTP {resp.status_code}"
+            return None, err_msg
+        return resp, None
+    except requests.exceptions.Timeout:
+        return None, "Request timed out"
+    except Exception as e:
+        return None, str(e)
+
+
+# ============================================================
 # 🏷️ TITLE GENERATION ENDPOINT
 # Generates a short, descriptive chat title from the first message
 # ============================================================
@@ -3505,6 +3548,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             "glm52":   [],  # Routed via Morph API (MORPH_API_KEY) — morph-glm52-744b
             "mistral_large":  [],  # Routed via Mistral API (MISTRAL_API_KEY) — mistral-large-latest
             "mistral_medium": [],  # Routed via Mistral API (MISTRAL_API_KEY) — mistral-medium-latest
+            "mercury2": [],  # Routed via Inception Labs API (INCEPTION_API_KEY) — mercury-2
             "laguna":      [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna M.1
             "laguna_core": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2.1
             "cohere":       ["cohere/north-mini-code:free"],
@@ -3908,6 +3952,26 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
                 "For coding questions, write clean, well-commented code. "
                 "If asked what model or AI you are, say you are Catura AI Mistral Medium and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+                "Never make up facts. If you don't know something, say so honestly."
+                + NO_TOOL_CALL_RULE
+            ),
+            "mercury2": (
+                "Your name is Catura (pronounced kuh-CHUR-uh) Mercury 2 Model. You are a highly capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI Mercury 2, built for extremely fast, high-quality responses. "
+                "You are clear, direct, and helpful. You speak like a knowledgeable friend — "
+                "never robotic, never sycophantic. "
+                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
+                "'Absolutely!', or similar hollow openers. Just answer directly. "
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+                "Keep answers concise unless the user explicitly asks for detail. "
+                "Use bullet points or headers only when they genuinely improve clarity. "
+                "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
+                "For coding questions, write clean, well-commented code. "
+                "If asked what model or AI you are, say you are Catura AI Mercury 2 and cannot share "
                 "details about the underlying technology. "
                 "If asked who made you, say 'I was created by Anirban.' "
                 "Never make up facts. If you don't know something, say so honestly."
@@ -4866,6 +4930,99 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 })
             )
 
+        # ── MERCURY 2: Inception Labs API (INCEPTION_API_KEY) — mercury-2 ──
+        if model_key == "mercury2":
+            merc_key    = os.getenv("INCEPTION_API_KEY", "")
+            merc_system = system_prompts.get("mercury2", system_prompts["dagr"])
+
+            def generate_merc():
+                full_reply = ""
+                thinking_open_merc = False  # tracks whether <think> has been opened in full_reply
+
+                tool_result_merc = None
+                if intent != "general" and not file_urls:
+                    yield f"data: {json.dumps({'status': 'tool_running', 'intent': intent})}\n\n"
+                    tool_result_merc = run_tool(intent, prompt)
+
+                final_system_merc = merc_system
+                tool_context_merc = build_tool_context(tool_result_merc)
+                if tool_context_merc:
+                    final_system_merc += "\n\n" + tool_context_merc
+
+                if tool_result_merc:
+                    badge_payload = json.dumps({"tool_used": tool_result_merc.get("tool", ""), "intent": intent})
+                    yield f"data: {badge_payload}\n\n"
+                    sp = build_sources_payload(tool_result_merc)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                merc_messages = (
+                    [{"role": "system", "content": final_system_merc}]
+                    + active_memory[-20:]
+                )
+                resp, err = call_inception_stream(merc_messages, merc_key, model_id="mercury-2")
+
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'Mercury 2 unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+
+                try:
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                print(f"⚠️ [MERCURY 2] mid-stream error: {chunk['error']}")
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            delta_merc = choices[0].get("delta") or {}
+                            reasoning_token_merc = delta_merc.get("reasoning_content") or ""
+                            token = delta_merc.get("content") or ""
+                            if reasoning_token_merc:
+                                if not thinking_open_merc:
+                                    full_reply += "<think>"
+                                    thinking_open_merc = True
+                                full_reply += reasoning_token_merc
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token_merc}, ensure_ascii=False)}\n\n"
+                            if token:
+                                if thinking_open_merc:
+                                    full_reply += "</think>"
+                                    thinking_open_merc = False
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, Exception):
+                            continue
+                except Exception as e:
+                    print(f"❌ [MERCURY 2] stream exception: {e}")
+
+                if thinking_open_merc:
+                    full_reply += "</think>"
+
+                if full_reply.strip():
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_merc(),
+                media_type="text/event-stream",
+                headers=_rl({
+                    "Cache-Control": "no-cache",
+                    "Set-Cookie": build_session_cookie(session_id),
+                })
+            )
+
         # ── NIVO: Groq API (GROQ_API_KEY) — isolated from all other models ──
         if model_key == "nivo":
             groq_key    = os.getenv("GROQ_API_KEY", "")
@@ -5210,6 +5367,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "glm52":   [],  # Routed via Morph API (MORPH_API_KEY) — morph-glm52-744b
             "mistral_large":  [],  # Routed via Mistral API (MISTRAL_API_KEY) — mistral-large-latest
             "mistral_medium": [],  # Routed via Mistral API (MISTRAL_API_KEY) — mistral-medium-latest
+            "mercury2": [],  # Routed via Inception Labs API (INCEPTION_API_KEY) — mercury-2
             "laguna":      [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna M.1
             "laguna_core": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2.1
             "cohere":     ["cohere/north-mini-code:free"], 
@@ -5812,6 +5970,26 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
                 "For coding questions, write clean, well-commented code. "
                 "If asked what model or AI you are, say you are Catura AI Mistral Medium and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+                "Never make up facts. If you don't know something, say so honestly."
+                + NO_TOOL_CALL_RULE
+            ),
+            "mercury2": (
+                "Your name is Catura (pronounced kuh-CHUR-uh) Mercury 2 Model. You are a highly capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI Mercury 2, built for extremely fast, high-quality responses. "
+                "You are clear, direct, and helpful. You speak like a knowledgeable friend — "
+                "never robotic, never sycophantic. "
+                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
+                "'Absolutely!', or similar hollow openers. Just answer directly. "
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+                "Keep answers concise unless the user explicitly asks for detail. "
+                "Use bullet points or headers only when they genuinely improve clarity. "
+                "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
+                "For coding questions, write clean, well-commented code. "
+                "If asked what model or AI you are, say you are Catura AI Mercury 2 and cannot share "
                 "details about the underlying technology. "
                 "If asked who made you, say 'I was created by Anirban.' "
                 "Never make up facts. If you don't know something, say so honestly."
@@ -6484,6 +6662,76 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_mmed_get(), media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache",
+                         "Set-Cookie": build_session_cookie(session_id)}
+            )
+
+        # ── MERCURY 2: Inception Labs API (INCEPTION_API_KEY) — mercury-2 ──
+        if model_key == "mercury2":
+            merc_key_get = os.getenv("INCEPTION_API_KEY", "")
+            merc_system_get = system_prompts.get("mercury2", system_prompts["dagr"])
+
+            def generate_merc_get():
+                full_reply = ""
+                thinking_open_merc = False  # tracks whether <think> has been opened in full_reply
+                if tool_result:
+                    yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
+                    sp = build_sources_payload(tool_result)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                merc_msgs_get = [{"role": "system", "content": merc_system_get}] + active_memory[-20:]
+                resp, err = call_inception_stream(merc_msgs_get, merc_key_get, model_id="mercury-2")
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'Mercury 2 unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+                try:
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            delta_merc = choices[0].get("delta") or {}
+                            reasoning_token_merc = delta_merc.get("reasoning_content") or ""
+                            token = delta_merc.get("content") or ""
+                            if reasoning_token_merc:
+                                if not thinking_open_merc:
+                                    full_reply += "<think>"
+                                    thinking_open_merc = True
+                                full_reply += reasoning_token_merc
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token_merc}, ensure_ascii=False)}\n\n"
+                            if token:
+                                if thinking_open_merc:
+                                    full_reply += "</think>"
+                                    thinking_open_merc = False
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, Exception):
+                            continue
+                except Exception as e:
+                    print(f"❌ [MERCURY 2 GET] stream exception: {e}")
+                if thinking_open_merc:
+                    full_reply += "</think>"
+                if full_reply.strip():
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_merc_get(), media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache",
                          "Set-Cookie": build_session_cookie(session_id)}
             )
