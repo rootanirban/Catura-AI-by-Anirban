@@ -489,7 +489,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.330"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.331"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -499,7 +499,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.330", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.331", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3308,11 +3308,18 @@ def call_mistral_stream(messages, api_key, model_id="mistral-large-latest"):
 # ✅ HELPER: Call Inception Labs API — mercury-2
 # OpenAI-compatible endpoint at api.inceptionlabs.ai (INCEPTION_API_KEY)
 # ============================================================
-def call_inception_stream(messages, api_key, model_id="mercury-2"):
+def call_inception_stream(messages, api_key, model_id="mercury-2", reasoning_effort="high"):
     """
     Dedicated Inception Labs streaming function for Mercury 2 (diffusion LLM).
     Uses Inception's official OpenAI-compatible endpoint. Completely isolated
     from all other models — does NOT touch any other API key.
+
+    Thinking mode: unlike Poolside/Morph (which toggle reasoning via
+    chat_template_kwargs.enable_thinking), Inception's Mercury 2 exposes a
+    top-level `reasoning_effort` field ("instant" | "low" | "medium" | "high").
+    Passing "high" turns on full extended thinking; the model streams its
+    reasoning back in the `reasoning_content` delta field, same shape as
+    Mistral/Morph, so the existing thinking-token parsing just works.
     """
     if not api_key:
         return None, "INCEPTION_API_KEY not set in environment variables"
@@ -3329,6 +3336,7 @@ def call_inception_stream(messages, api_key, model_id="mercury-2"):
                 "stream": True,
                 "temperature": 0.7,
                 "max_tokens": 8000,
+                "reasoning_effort": reasoning_effort,
             },
             stream=True,
             timeout=(10, 120),
@@ -4960,7 +4968,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     [{"role": "system", "content": final_system_merc}]
                     + active_memory[-20:]
                 )
-                resp, err = call_inception_stream(merc_messages, merc_key, model_id="mercury-2")
+                resp, err = call_inception_stream(merc_messages, merc_key, model_id="mercury-2", reasoning_effort="high")
 
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'Mercury 2 unavailable: {err}'})}\n\n"
@@ -6681,7 +6689,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         yield f"data: {sp}\n\n"
 
                 merc_msgs_get = [{"role": "system", "content": merc_system_get}] + active_memory[-20:]
-                resp, err = call_inception_stream(merc_msgs_get, merc_key_get, model_id="mercury-2")
+                resp, err = call_inception_stream(merc_msgs_get, merc_key_get, model_id="mercury-2", reasoning_effort="high")
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'Mercury 2 unavailable: {err}'})}\n\n"
                     yield "data: [DONE]\n\n"
