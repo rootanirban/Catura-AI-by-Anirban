@@ -3333,6 +3333,50 @@ document.addEventListener("click", closeAllMenus);
 document.addEventListener("DOMContentLoaded", async function () {
 
     // ============================
+    // 👻🔗 SYNC "greeting-mode" TO <body> + SHARE CHAT
+    // ============================
+    // The mobile header (ghost + share buttons) lives OUTSIDE #app in the
+    // DOM, so CSS rules scoped to ".app:not(.greeting-mode) ..." never
+    // matched it. Mirroring the class onto <body> lets both the desktop
+    // ghost/share buttons (inside #app) and the mobile header buttons
+    // (outside #app) react identically, no matter where they sit in markup.
+    (function syncGreetingModeToBody() {
+        const appEl = document.getElementById('app');
+        if (!appEl) return;
+        const sync = () => {
+            document.body.classList.toggle('greeting-mode', appEl.classList.contains('greeting-mode'));
+        };
+        sync();
+        new MutationObserver(sync).observe(appEl, { attributes: true, attributeFilter: ['class'] });
+    })();
+
+    // ============================
+    // 🔗 SHARE CHAT
+    // ============================
+    // Shown only once a message has been sent inside a chat (exactly when
+    // the Ghost button fades out) — never on a fresh "New Chat" screen.
+    window.shareChat = async function () {
+        try {
+            const shareUrl = window.location.href;
+            if (navigator.share) {
+                await navigator.share({ title: 'Catura AI Chat', url: shareUrl });
+                return;
+            }
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(shareUrl);
+                if (typeof showToast === 'function') showToast('Chat link copied to clipboard');
+                return;
+            }
+            if (typeof showToast === 'function') showToast('Unable to share on this device');
+        } catch (err) {
+            // AbortError happens when the user just cancels the native share sheet — ignore it
+            if (err && err.name === 'AbortError') return;
+            console.warn('Share failed:', err);
+            if (typeof showToast === 'function') showToast('Share failed');
+        }
+    };
+
+    // ============================
     // ↓ SCROLL TO BOTTOM BUTTON
     // ============================
     (function initScrollToBottom() {

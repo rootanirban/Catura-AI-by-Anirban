@@ -2511,18 +2511,52 @@ html { scroll-behavior: smooth; }
 
     /* 👻 Same rule as the desktop ghost button: only visible on a fresh,
        empty "New Chat" screen — hides once a message is sent, reappears
-       when a new chat starts. */
+       when a new chat starts.
+       NOTE: uses body.greeting-mode (kept in sync with #app via JS) since
+       the mobile header lives outside #app in the DOM. */
     .mobile-header-ghost {
         opacity: 1;
         transform: scale(1);
-        transition: opacity 0.2s ease, transform 0.2s ease, background 0.18s ease, color 0.2s ease;
+        transition: opacity 0.6s ease, transform 0.6s ease, background 0.18s ease, color 0.2s ease;
         pointer-events: auto;
     }
-    .app:not(.greeting-mode) .mobile-header-ghost {
+    body:not(.greeting-mode) .mobile-header-ghost {
         opacity: 0;
         transform: scale(0.9);
         pointer-events: none;
     }
+
+    /* 🔗 Mobile share button — same slot as ghost button, cross-fades in
+       once a message has been sent inside a chat. */
+    .mobile-header-share {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        min-height: 44px;
+        background: transparent;
+        border: none;
+        color: #ccc;
+        cursor: pointer;
+        border-radius: 14px;
+        padding: 0;
+        -webkit-appearance: none;
+        appearance: none;
+        flex-shrink: 0;
+        opacity: 0;
+        transform: scale(0.9);
+        transition: opacity 0.6s ease, transform 0.6s ease, background 0.18s ease, color 0.2s ease;
+        pointer-events: none;
+    }
+    .mobile-header-share:active { background: rgba(255,255,255,0.08); }
+    body:not(.greeting-mode) .mobile-header-share {
+        opacity: 1;
+        transform: scale(1);
+        pointer-events: auto;
+    }
+    [data-theme="light"] .mobile-header-share { color: #333; }
 
     /* === MAIN APP === */
     .icon-rail { display: none !important; }
@@ -6212,7 +6246,7 @@ kbd.shortcut-key {
     font-weight: 500;
     font-family: inherit;
     cursor: pointer;
-    transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
+    transition: opacity 0.6s ease, transform 0.6s ease, background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
     letter-spacing: 0.01em;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
@@ -6222,13 +6256,65 @@ kbd.shortcut-key {
 }
 
 /* 👻 Only show the Ghost button on a fresh, empty "New Chat" screen —
-   once a message has been sent (app leaves greeting-mode) it fades out,
+   once a message has been sent (body leaves greeting-mode) it fades out,
    and it reappears the instant a brand-new chat is started. */
-.app:not(.greeting-mode) .ghost-chat-btn {
+body:not(.greeting-mode) .ghost-chat-btn {
     opacity: 0;
     transform: translateY(-6px) scale(0.92);
     pointer-events: none;
 }
+
+/* ============================
+   🔗 SHARE CHAT BUTTON
+   ============================
+   Sits in the exact same spot as the Ghost button and cross-fades with it:
+   hidden on a fresh "New Chat" screen, fades IN only once a message has
+   been sent inside a chat (i.e. exactly when the Ghost button fades out). */
+.share-chat-btn {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    z-index: 120;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+    color: #ccc;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: opacity 0.6s ease, transform 0.6s ease, background 0.2s, color 0.2s, border-color 0.2s;
+    opacity: 0;
+    transform: translateY(-6px) scale(0.92);
+    pointer-events: none;
+}
+body:not(.greeting-mode) .share-chat-btn {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+}
+.share-chat-btn:hover {
+    background: rgba(160,190,255,0.08);
+    border-color: rgba(160,190,255,0.2);
+    color: #fff;
+}
+.share-icon-svg { color: #eee; }
+[data-theme="light"] .share-chat-btn {
+    background: rgba(0,0,0,0.03);
+    border-color: rgba(0,0,0,0.08);
+    color: #333;
+}
+[data-theme="light"] .share-chat-btn:hover {
+    background: rgba(0,0,0,0.06);
+    border-color: rgba(0,0,0,0.15);
+    color: #000;
+}
+[data-theme="light"] .share-icon-svg { color: #111; }
 .ghost-chat-btn:hover {
     background: rgba(160,190,255,0.08);
     border-color: rgba(160,190,255,0.2);
