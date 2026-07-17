@@ -489,7 +489,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.336"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.337"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -499,7 +499,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.336", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.337", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3253,7 +3253,7 @@ def call_morph_stream(messages, api_key, model_id="morph-minimax3-428b", reasoni
 # ✅ HELPER: Call Mistral API — mistral-large-latest / mistral-medium-latest
 # OpenAI-compatible endpoint at api.mistral.ai (MISTRAL_API_KEY)
 # ============================================================
-def call_mistral_stream(messages, api_key, model_id="mistral-large-latest"):
+def call_mistral_stream(messages, api_key, model_id="mistral-large-latest", reasoning_effort=None):
     """
     Dedicated Mistral streaming function.
     Shared by all Mistral-hosted models (Large, Medium, etc.) via model_id param.
@@ -3264,29 +3264,41 @@ def call_mistral_stream(messages, api_key, model_id="mistral-large-latest"):
     against its own schema and rejects unrecognized fields with HTTP 422. Unlike
     Poolside/Morph (self-hosted-style vLLM/SGLang stacks), it does NOT accept
     chat_template_kwargs — sending it breaks every request. mistral-large-latest
-    and mistral-medium-latest are not reasoning models on Mistral's side and do
-    not emit a 'reasoning_content' field; genuine step-by-step reasoning traces
-    are only exposed by Mistral's separate Magistral model family via a
-    different request shape. So no thinking toggle is sent here — the model
-    still reasons internally before answering, it just doesn't stream that
-    trace separately.
+    is NOT a reasoning model on Mistral's side, so no reasoning_effort is ever
+    sent for it — the model still reasons internally before answering, it just
+    doesn't stream that trace separately.
+
+    mistral-medium-latest (resolves to mistral-medium-3-5) DOES support
+    adjustable reasoning per Mistral's official docs
+    (https://docs.mistral.ai/studio-api/conversations/reasoning) via the
+    top-level `reasoning_effort` param ("high" | "none"). Unlike other
+    providers in this app, Mistral does NOT stream thinking via a flat
+    'reasoning_content' delta field — instead, when reasoning_effort="high",
+    `delta.content` becomes a *list* of chunks: {"type": "thinking", "thinking":
+    [{"type": "text", "text": ...}, ...]} while thinking, then {"type": "text",
+    "text": ...} for the final answer. Callers that pass reasoning_effort must
+    parse delta.content accordingly (see mistral_medium handlers below) instead
+    of relying on the flat 'reasoning_content' field used elsewhere.
     """
     if not api_key:
         return None, "MISTRAL_API_KEY not set in environment variables"
     try:
+        payload = {
+            "model": model_id,
+            "messages": messages,
+            "stream": True,
+            "temperature": 0.7,
+            "max_tokens": 8000,
+        }
+        if reasoning_effort:
+            payload["reasoning_effort"] = reasoning_effort
         resp = requests.post(
             "https://api.mistral.ai/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
             },
-            json={
-                "model": model_id,
-                "messages": messages,
-                "stream": True,
-                "temperature": 0.7,
-                "max_tokens": 8000,
-            },
+            json=payload,
             stream=True,
             timeout=(10, 120),
         )
@@ -4875,7 +4887,10 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     [{"role": "system", "content": final_system_mmed}]
                     + active_memory[-20:]
                 )
-                resp, err = call_mistral_stream(mmed_messages, mmed_key, model_id="mistral-medium-latest")
+                resp, err = call_mistral_stream(
+                    mmed_messages, mmed_key, model_id="mistral-medium-latest",
+                    reasoning_effort="high",
+                )
 
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'Mistral Medium unavailable: {err}'})}\n\n"
@@ -4901,20 +4916,39 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             if not choices:
                                 continue
                             delta_mmed = choices[0].get("delta") or {}
-                            reasoning_token_mmed = delta_mmed.get("reasoning_content") or ""
-                            token = delta_mmed.get("content") or ""
-                            if reasoning_token_mmed:
-                                if not thinking_open_mmed:
-                                    full_reply += "<think>"
-                                    thinking_open_mmed = True
-                                full_reply += reasoning_token_mmed
-                                yield f"data: {json.dumps({'thinking_token': reasoning_token_mmed}, ensure_ascii=False)}\n\n"
-                            if token:
+                            content_mmed = delta_mmed.get("content")
+
+                            # ── Mistral reasoning-model shape: delta.content is a LIST of
+                            # {"type":"thinking","thinking":[{"type":"text","text":...}]} /
+                            # {"type":"text","text":...} chunks while reasoning_effort="high".
+                            # (Falls back to a plain string once thinking ends, or always for
+                            # non-reasoning responses.)
+                            if isinstance(content_mmed, list):
+                                for part in content_mmed:
+                                    ptype = part.get("type")
+                                    if ptype == "thinking":
+                                        for inner in part.get("thinking", []) or []:
+                                            inner_text = inner.get("text", "") if isinstance(inner, dict) else ""
+                                            if inner_text:
+                                                if not thinking_open_mmed:
+                                                    full_reply += "<think>"
+                                                    thinking_open_mmed = True
+                                                full_reply += inner_text
+                                                yield f"data: {json.dumps({'thinking_token': inner_text}, ensure_ascii=False)}\n\n"
+                                    elif ptype == "text":
+                                        text_piece = part.get("text", "")
+                                        if text_piece:
+                                            if thinking_open_mmed:
+                                                full_reply += "</think>"
+                                                thinking_open_mmed = False
+                                            full_reply += text_piece
+                                            yield f"data: {json.dumps({'token': text_piece}, ensure_ascii=False)}\n\n"
+                            elif isinstance(content_mmed, str) and content_mmed:
                                 if thinking_open_mmed:
                                     full_reply += "</think>"
                                     thinking_open_mmed = False
-                                full_reply += token
-                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                                full_reply += content_mmed
+                                yield f"data: {json.dumps({'token': content_mmed}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
@@ -6619,7 +6653,10 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         yield f"data: {sp}\n\n"
 
                 mmed_msgs_get = [{"role": "system", "content": mmed_system_get}] + active_memory[-20:]
-                resp, err = call_mistral_stream(mmed_msgs_get, mmed_key_get, model_id="mistral-medium-latest")
+                resp, err = call_mistral_stream(
+                    mmed_msgs_get, mmed_key_get, model_id="mistral-medium-latest",
+                    reasoning_effort="high",
+                )
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'Mistral Medium unavailable: {err}'})}\n\n"
                     yield "data: [DONE]\n\n"
@@ -6642,20 +6679,37 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             if not choices:
                                 continue
                             delta_mmed = choices[0].get("delta") or {}
-                            reasoning_token_mmed = delta_mmed.get("reasoning_content") or ""
-                            token = delta_mmed.get("content") or ""
-                            if reasoning_token_mmed:
-                                if not thinking_open_mmed:
-                                    full_reply += "<think>"
-                                    thinking_open_mmed = True
-                                full_reply += reasoning_token_mmed
-                                yield f"data: {json.dumps({'thinking_token': reasoning_token_mmed}, ensure_ascii=False)}\n\n"
-                            if token:
+                            content_mmed = delta_mmed.get("content")
+
+                            # ── Mistral reasoning-model shape: delta.content is a LIST of
+                            # {"type":"thinking","thinking":[{"type":"text","text":...}]} /
+                            # {"type":"text","text":...} chunks while reasoning_effort="high".
+                            if isinstance(content_mmed, list):
+                                for part in content_mmed:
+                                    ptype = part.get("type")
+                                    if ptype == "thinking":
+                                        for inner in part.get("thinking", []) or []:
+                                            inner_text = inner.get("text", "") if isinstance(inner, dict) else ""
+                                            if inner_text:
+                                                if not thinking_open_mmed:
+                                                    full_reply += "<think>"
+                                                    thinking_open_mmed = True
+                                                full_reply += inner_text
+                                                yield f"data: {json.dumps({'thinking_token': inner_text}, ensure_ascii=False)}\n\n"
+                                    elif ptype == "text":
+                                        text_piece = part.get("text", "")
+                                        if text_piece:
+                                            if thinking_open_mmed:
+                                                full_reply += "</think>"
+                                                thinking_open_mmed = False
+                                            full_reply += text_piece
+                                            yield f"data: {json.dumps({'token': text_piece}, ensure_ascii=False)}\n\n"
+                            elif isinstance(content_mmed, str) and content_mmed:
                                 if thinking_open_mmed:
                                     full_reply += "</think>"
                                     thinking_open_mmed = False
-                                full_reply += token
-                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                                full_reply += content_mmed
+                                yield f"data: {json.dumps({'token': content_mmed}, ensure_ascii=False)}\n\n"
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
