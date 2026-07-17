@@ -2567,8 +2567,25 @@ html { scroll-behavior: smooth; }
         border-radius: 6px;
     }
 
+    /* Wrapper that pins BOTH the ghost and share buttons to the same
+       top-right slot in the header — they stack on top of each other and
+       cross-fade in place, instead of living in separate flex slots
+       (which used to push Ghost into the center of the header). */
+    .mobile-header-right {
+        position: relative;
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        min-height: 44px;
+        flex-shrink: 0;
+        margin-left: auto;
+    }
+
     /* Ghost button — right side, matches hamburger style */
     .mobile-header-ghost {
+        position: absolute;
+        top: 0;
+        right: 0;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -2619,6 +2636,9 @@ html { scroll-behavior: smooth; }
     /* 🔗 Mobile share button — same slot as ghost button, cross-fades in
        once a message has been sent inside a chat. */
     .mobile-header-share {
+        position: absolute;
+        top: 0;
+        right: 0;
         display: flex;
         align-items: center;
         justify-content: center;
