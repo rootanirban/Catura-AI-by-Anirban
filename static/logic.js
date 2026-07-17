@@ -191,6 +191,7 @@ async function saveAllSettingsToCloud() {
             user_id:          currentUser.id,
             theme:            localStorage.getItem('catura-theme') || 'dark',
             font_size:        localStorage.getItem('catura-font') || 'default',
+            user_msg_color:   localStorage.getItem('catura-usercolor') || 'green',
             call_name:        getUserItem('catura_call_name') || null,
             profile_pic_url:  getUserItem('catura_profile_pic_url') || null,
             profile_pic:      null, // legacy base64 cleared
@@ -290,6 +291,12 @@ async function loadSettingsFromCloud() {
         if (data.font_size) {
             localStorage.setItem('catura-font', data.font_size);
             if (typeof applyFontSize === 'function') applyFontSize(data.font_size);
+        }
+
+        // user message color
+        if (data.user_msg_color) {
+            localStorage.setItem('catura-usercolor', data.user_msg_color);
+            if (typeof applyUserMsgColor === 'function') applyUserMsgColor(data.user_msg_color);
         }
 
         // profile_pic — stored as Supabase Storage public URL (not base64)
@@ -2117,6 +2124,44 @@ window.showSettingsTab = function (tab, clickedEl) {
                         <p class="sc-row-sub">Change how your name appears</p>
                     </div>
                 </div>
+                <div class="sc-row sc-color-row">
+                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="13.5" cy="6.5" r=".5"></circle>
+                        <circle cx="17.5" cy="10.5" r=".5"></circle>
+                        <circle cx="8.5" cy="7.5" r=".5"></circle>
+                        <circle cx="6.5" cy="12.5" r=".5"></circle>
+                        <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"></path>
+                    </svg>
+                    <div class="sc-row-body">
+                        <p class="sc-row-label">User message color</p>
+                        <p class="sc-row-sub">Choose your message bubble color</p>
+                    </div>
+                    <div class="sc-color-dropdown-wrap" id="scColorDropdownWrap">
+                        <div class="sc-color-trigger" id="scColorTrigger">
+                            <span class="sc-color-dot" id="scColorDot"></span>
+                            <span class="sc-color-label" id="scColorLabel">Green</span>
+                            <svg class="sc-color-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </div>
+                        <div class="sc-color-dropdown" id="scColorDropdown">
+                            ${[
+                                ['red', '#e5484d', 'Red'],
+                                ['yellow', '#e0b400', 'Yellow'],
+                                ['green', '#10a37f', 'Green'],
+                                ['brown', '#8a5a3b', 'Brown'],
+                                ['blue', '#3b82f6', 'Blue']
+                            ].map(([key, hex, label]) => `
+                            <div class="sc-color-option" data-usercolor-option="${key}" onclick="setUserMsgColor('${key}')">
+                                <span class="sc-color-dot" style="background:${hex};"></span>
+                                <span>${label}</span>
+                                <svg class="sc-color-option-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            </div>`).join('')}
+                        </div>
+                    </div>
+                </div>
                 <div class="sc-row" onclick="editCaturaCallName()">
                     <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -2704,6 +2749,9 @@ window.showSettingsTab = function (tab, clickedEl) {
     };
 
     content.innerHTML = tabs[tab] || tabs.general;
+
+    // Sync the user message color picker UI to the saved color
+    if (tab === 'profile' && typeof syncUserMsgColorUI === 'function') syncUserMsgColorUI();
 
     // Wire up Memory & context expand/collapse
     if (tab === 'personalization') {
@@ -3608,6 +3656,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     // if they differ (e.g. user changed settings on another device).
     initTheme();
     initFontSize();
+    initUserMsgColor();
     initWebSearchUI();
 
     // ── Sidebar: open on desktop, closed on mobile ────────────────────────
@@ -4240,6 +4289,52 @@ function initTheme() {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
         if ((localStorage.getItem('catura-theme') || 'dark') === 'auto') applyTheme('auto');
     });
+}
+
+// ============================
+// 🎨 USER MESSAGE COLOR SYSTEM
+// ============================
+const USER_MSG_COLORS = {
+    red:    { hex: '#e5484d', label: 'Red' },
+    yellow: { hex: '#e0b400', label: 'Yellow' },
+    green:  { hex: '#10a37f', label: 'Green' },
+    brown:  { hex: '#8a5a3b', label: 'Brown' },
+    blue:   { hex: '#3b82f6', label: 'Blue' }
+};
+
+window.setUserMsgColor = function (color) {
+    if (!USER_MSG_COLORS[color]) return;
+    localStorage.setItem('catura-usercolor', color);
+    applyUserMsgColor(color);
+    if (typeof saveSettingToCloud === 'function') saveSettingToCloud('user_msg_color', color);
+    syncUserMsgColorUI();
+    showToast(`Message color: ${USER_MSG_COLORS[color].label}`, 1500);
+};
+
+function applyUserMsgColor(color) {
+    const root = document.documentElement;
+    if (color && color !== 'green' && USER_MSG_COLORS[color]) {
+        root.setAttribute('data-usercolor', color);
+    } else {
+        root.removeAttribute('data-usercolor');
+    }
+}
+
+function syncUserMsgColorUI() {
+    const color = localStorage.getItem('catura-usercolor') || 'green';
+    const meta = USER_MSG_COLORS[color] || USER_MSG_COLORS.green;
+    const dot = document.getElementById('scColorDot');
+    const label = document.getElementById('scColorLabel');
+    if (dot) dot.style.background = meta.hex;
+    if (label) label.textContent = meta.label;
+    document.querySelectorAll('.sc-color-option').forEach(opt => {
+        opt.classList.toggle('active', opt.getAttribute('data-usercolor-option') === color);
+    });
+}
+
+function initUserMsgColor() {
+    const saved = localStorage.getItem('catura-usercolor') || 'green';
+    applyUserMsgColor(saved);
 }
 
 // ============================
