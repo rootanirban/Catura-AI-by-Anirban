@@ -6497,11 +6497,19 @@ body:not(.greeting-mode) .share-chat-btn {
     .ghost-chat-btn {
         display: none !important;
     }
+    /* Hide the desktop floating share button on mobile — it's in the header now
+       (mobile-header-share). Without this it doubles up with the header icon. */
+    .share-chat-btn {
+        display: none !important;
+    }
     .ghost-banner {
+        position: fixed;
         top: 58px;
         right: 10px;
+        left: auto;
         font-size: 10px;
         padding: 4px 10px;
+        white-space: nowrap;
     }
 }
 
