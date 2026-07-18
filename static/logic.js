@@ -3403,11 +3403,89 @@ document.addEventListener("DOMContentLoaded", async function () {
     // ============================
     // Shown only once a message has been sent inside a chat (exactly when
     // the Ghost button fades out) — never on a fresh "New Chat" screen.
+    // Generates a short, URL-safe random id, e.g. "aB3xQ9zK1m"
+    function generateShareSlug(len) {
+        len = len || 24;
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+        const bytes = new Uint8Array(len);
+        crypto.getRandomValues(bytes);
+        let out = '';
+        for (let i = 0; i < len; i++) out += chars[bytes[i] % chars.length];
+        return out;
+    }
+
     window.shareChat = async function () {
         try {
-            const shareUrl = window.location.href;
+            if (!currentUser || !currentSessionId) {
+                if (typeof showToast === 'function') showToast('Nothing to share yet');
+                return;
+            }
+
+            if (typeof showToast === 'function') showToast('Creating share link…');
+
+            // 1. Pull the current conversation straight from the DB so the
+            //    snapshot exactly matches what's saved (not just DOM state).
+            const { data: msgs, error: msgErr } = await supabaseClient
+                .from('messages')
+                .select('role, content, file_urls, created_at')
+                .eq('session_id', currentSessionId)
+                .eq('user_id', currentUser.id)
+                .order('created_at', { ascending: true });
+
+            if (msgErr || !msgs || msgs.length === 0) {
+                console.warn('Share: no messages to snapshot', msgErr);
+                if (typeof showToast === 'function') showToast('Nothing to share yet');
+                return;
+            }
+
+            // 2. Look up the session title (falls back to a generic label)
+            let title = 'Catura AI Chat';
+            try {
+                const { data: sess } = await supabaseClient
+                    .from('chat_sessions')
+                    .select('title')
+                    .eq('session_id', currentSessionId)
+                    .eq('user_id', currentUser.id)
+                    .single();
+                if (sess && sess.title) title = sess.title;
+            } catch (_) { /* non-fatal */ }
+
+            // 3. Generate a unique slug, retrying on the rare collision
+            let slug = generateShareSlug();
+            for (let i = 0; i < 3; i++) {
+                const { data: existing } = await supabaseClient
+                    .from('shared_chats')
+                    .select('id')
+                    .eq('share_slug', slug)
+                    .maybeSingle();
+                if (!existing) break;
+                slug = generateShareSlug();
+            }
+
+            // 4. Insert the snapshot — this is what makes the link work
+            //    even if the original chat is later edited or deleted.
+            const { error: insertErr } = await supabaseClient
+                .from('shared_chats')
+                .insert([{
+                    share_slug: slug,
+                    owner_id: currentUser.id,
+                    session_id: currentSessionId,
+                    title: title,
+                    messages: msgs,
+                    model_used: (typeof currentModel !== 'undefined' ? currentModel : null)
+                }]);
+
+            if (insertErr) {
+                console.error('Share insert failed:', insertErr.message);
+                if (typeof showToast === 'function') showToast('Share failed');
+                return;
+            }
+
+            // 5. Build the real public link — NOT window.location.href
+            const shareUrl = `${window.location.origin}/share/${slug}`;
+
             if (navigator.share) {
-                await navigator.share({ title: 'Catura AI Chat', url: shareUrl });
+                await navigator.share({ title: title, url: shareUrl });
                 return;
             }
             if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -3417,7 +3495,6 @@ document.addEventListener("DOMContentLoaded", async function () {
             }
             if (typeof showToast === 'function') showToast('Unable to share on this device');
         } catch (err) {
-            // AbortError happens when the user just cancels the native share sheet — ignore it
             if (err && err.name === 'AbortError') return;
             console.warn('Share failed:', err);
             if (typeof showToast === 'function') showToast('Share failed');

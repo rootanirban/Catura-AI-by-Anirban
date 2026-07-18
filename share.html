@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Shared Chat — Catura AI</title>
+    <link rel="icon" type="image/png" href="static/logos.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+    <link rel="stylesheet" href="static/style.css?v=0.0.339">
+    <style>
+        /* Read-only viewer chrome — kept separate so it never fights the main app's CSS */
+        .share-topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;
+            padding:14px 20px;background:rgba(0,0,0,.85);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,.08);}
+        .share-topbar .brand{font-weight:700;font-size:15px;color:#fff;text-decoration:none;display:flex;align-items:center;gap:8px;}
+        .share-topbar .cta{font-size:13px;font-weight:600;color:#000;background:#fff;padding:8px 16px;border-radius:20px;text-decoration:none;}
+        #shareChatbox{max-width:800px;margin:0 auto;padding:24px 16px 80px;}
+        .share-state{max-width:480px;margin:80px auto;text-align:center;color:#9a9a9a;padding:0 20px;}
+        .share-state h2{color:#fff;margin-bottom:8px;}
+        .share-state a{color:#fff;}
+    </style>
+</head>
+<body>
+    <div class="share-topbar">
+        <a href="/" class="brand">Catura AI</a>
+        <a href="/" class="cta">Try Catura AI</a>
+    </div>
+
+    <div id="shareChatbox"></div>
+    <div id="shareState" class="share-state" style="display:none;"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="static/share.js?v=0.0.339"></script>
+</body>
+</html>

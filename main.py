@@ -487,9 +487,20 @@ async def serve_sw():
     if not os.path.isfile(p): return JSONResponse({"error": "service-worker.js not found"}, status_code=404)
     return FileResponse(p, media_type="application/javascript")
 
+@app.get("/share/{slug}")
+def share_page(slug: str):
+    # Serves the read-only viewer shell. The page itself fetches the
+    # actual conversation from Supabase client-side using the slug —
+    # this route just needs to exist so refresh / direct-visit works
+    # (i.e. it's not a client-side-only route that 404s on reload).
+    p = os.path.join(BASE_DIR, "share.html")
+    if not os.path.isfile(p):
+        return JSONResponse({"error": "share.html not found"}, status_code=404)
+    return FileResponse(p, media_type="text/html")
+
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.339"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.340"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -499,7 +510,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.339", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.340", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
