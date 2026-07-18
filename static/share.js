@@ -47,7 +47,10 @@ function renderState(title, message) {
 }
 
 async function loadSharedChat() {
-    const slug = window.location.pathname.split('/share/')[1];
+    // Hardened against trailing slashes / query strings, e.g.
+    // /share/abc123/  or  /share/abc123?utm=x
+    const slug = window.location.pathname.split('/share/')[1]?.split(/[/?#]/)[0];
+
     if (!slug) {
         renderState('Link not found', 'This share link looks incomplete.');
         return;
@@ -88,6 +91,10 @@ async function loadSharedChat() {
             box.appendChild(wrapper);
         }
     });
+
+    if ((data.messages || []).length === 0) {
+        renderState('Nothing to show', 'This shared chat has no messages.');
+    }
 }
 
 document.addEventListener('DOMContentLoaded', loadSharedChat);
