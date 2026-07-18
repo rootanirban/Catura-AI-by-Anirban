@@ -3477,7 +3477,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
             if (insertErr) {
                 console.error('Share insert failed:', insertErr.message);
-                if (typeof showToast === 'function') showToast('Share failed');
+                if (typeof showToast === 'function') showToast('Share failed: ' + insertErr.message);
                 return;
             }
 
