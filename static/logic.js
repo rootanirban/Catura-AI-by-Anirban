@@ -4032,6 +4032,12 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     input.addEventListener("keydown", function (e) {
         if (e.key === "Enter" && !e.shiftKey) {
+            const isMobileInput = window.innerWidth <= 768;
+            if (isMobileInput) {
+                // On mobile, Enter always inserts a new line.
+                // Sending only happens via tapping the send button.
+                return;
+            }
             e.preventDefault();
             const btn = document.getElementById('sendBtn');
             if (btn && btn.disabled && !isStreaming) return;  // empty input
