@@ -489,7 +489,7 @@ async def serve_sw():
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.337"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.338"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -499,7 +499,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.337", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.338", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3568,6 +3568,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             "glm52":   [],  # Routed via Morph API (MORPH_API_KEY) — morph-glm52-744b
             "mistral_large":  [],  # Routed via Mistral API (MISTRAL_API_KEY) — mistral-large-latest
             "mistral_medium": [],  # Routed via Mistral API (MISTRAL_API_KEY) — mistral-medium-latest
+            "mistral_small":  [],  # Routed via Mistral API (MISTRAL_API_KEY) — mistral-small-latest
             "mercury2": [],  # Routed via Inception Labs API (INCEPTION_API_KEY) — mercury-2
             "laguna":      [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna M.1
             "laguna_core": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2.1
@@ -3972,6 +3973,26 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
                 "For coding questions, write clean, well-commented code. "
                 "If asked what model or AI you are, say you are Catura AI Mistral Medium and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+                "Never make up facts. If you don't know something, say so honestly."
+                + NO_TOOL_CALL_RULE
+            ),
+            "mistral_small": (
+                "Your name is Catura (pronounced kuh-CHUR-uh) Mistral Small Model. You are a highly capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI Mistral Small, built for fast, lightweight, and high-quality responses. "
+                "You are clear, direct, and helpful. You speak like a knowledgeable friend — "
+                "never robotic, never sycophantic. "
+                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
+                "'Absolutely!', or similar hollow openers. Just answer directly. "
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+                "Keep answers concise unless the user explicitly asks for detail. "
+                "Use bullet points or headers only when they genuinely improve clarity. "
+                "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
+                "For coding questions, write clean, well-commented code. "
+                "If asked what model or AI you are, say you are Catura AI Mistral Small and cannot share "
                 "details about the underlying technology. "
                 "If asked who made you, say 'I was created by Anirban.' "
                 "Never make up facts. If you don't know something, say so honestly."
@@ -4972,6 +4993,123 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 })
             )
 
+        # ── MISTRAL SMALL: Mistral API (MISTRAL_API_KEY) — mistral-small-latest ──
+        # mistral-small-latest supports adjustable reasoning via reasoning_effort
+        # per https://docs.mistral.ai/studio-api/conversations/reasoning
+        if model_key == "mistral_small":
+            msmall_key    = os.getenv("MISTRAL_API_KEY", "")
+            msmall_system = system_prompts.get("mistral_small", system_prompts["dagr"])
+
+            def generate_msmall():
+                full_reply = ""
+                thinking_open_msmall = False  # tracks whether <think> has been opened in full_reply
+
+                tool_result_msmall = None
+                if intent != "general" and not file_urls:
+                    yield f"data: {json.dumps({'status': 'tool_running', 'intent': intent})}\n\n"
+                    tool_result_msmall = run_tool(intent, prompt)
+
+                final_system_msmall = msmall_system
+                tool_context_msmall = build_tool_context(tool_result_msmall)
+                if tool_context_msmall:
+                    final_system_msmall += "\n\n" + tool_context_msmall
+
+                if tool_result_msmall:
+                    badge_payload = json.dumps({"tool_used": tool_result_msmall.get("tool", ""), "intent": intent})
+                    yield f"data: {badge_payload}\n\n"
+                    sp = build_sources_payload(tool_result_msmall)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                msmall_messages = (
+                    [{"role": "system", "content": final_system_msmall}]
+                    + active_memory[-20:]
+                )
+                resp, err = call_mistral_stream(
+                    msmall_messages, msmall_key, model_id="mistral-small-latest",
+                    reasoning_effort="high",
+                )
+
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'Mistral Small unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+
+                try:
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                print(f"⚠️ [MISTRAL SMALL] mid-stream error: {chunk['error']}")
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            delta_msmall = choices[0].get("delta") or {}
+                            content_msmall = delta_msmall.get("content")
+
+                            # ── Mistral reasoning-model shape: delta.content is a LIST of
+                            # {"type":"thinking","thinking":[{"type":"text","text":...}]} /
+                            # {"type":"text","text":...} chunks while reasoning_effort="high".
+                            # (Falls back to a plain string once thinking ends, or always for
+                            # non-reasoning responses.)
+                            if isinstance(content_msmall, list):
+                                for part in content_msmall:
+                                    ptype = part.get("type")
+                                    if ptype == "thinking":
+                                        for inner in part.get("thinking", []) or []:
+                                            inner_text = inner.get("text", "") if isinstance(inner, dict) else ""
+                                            if inner_text:
+                                                if not thinking_open_msmall:
+                                                    full_reply += "<think>"
+                                                    thinking_open_msmall = True
+                                                full_reply += inner_text
+                                                yield f"data: {json.dumps({'thinking_token': inner_text}, ensure_ascii=False)}\n\n"
+                                    elif ptype == "text":
+                                        text_piece = part.get("text", "")
+                                        if text_piece:
+                                            if thinking_open_msmall:
+                                                full_reply += "</think>"
+                                                thinking_open_msmall = False
+                                            full_reply += text_piece
+                                            yield f"data: {json.dumps({'token': text_piece}, ensure_ascii=False)}\n\n"
+                            elif isinstance(content_msmall, str) and content_msmall:
+                                if thinking_open_msmall:
+                                    full_reply += "</think>"
+                                    thinking_open_msmall = False
+                                full_reply += content_msmall
+                                yield f"data: {json.dumps({'token': content_msmall}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, Exception):
+                            continue
+                except Exception as e:
+                    print(f"❌ [MISTRAL SMALL] stream exception: {e}")
+
+                if thinking_open_msmall:
+                    full_reply += "</think>"
+
+                if full_reply.strip():
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_msmall(),
+                media_type="text/event-stream",
+                headers=_rl({
+                    "Cache-Control": "no-cache",
+                    "Set-Cookie": build_session_cookie(session_id),
+                })
+            )
+
         # ── MERCURY 2: Inception Labs API (INCEPTION_API_KEY) — mercury-2 ──
         if model_key == "mercury2":
             merc_key    = os.getenv("INCEPTION_API_KEY", "")
@@ -5409,6 +5547,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "glm52":   [],  # Routed via Morph API (MORPH_API_KEY) — morph-glm52-744b
             "mistral_large":  [],  # Routed via Mistral API (MISTRAL_API_KEY) — mistral-large-latest
             "mistral_medium": [],  # Routed via Mistral API (MISTRAL_API_KEY) — mistral-medium-latest
+            "mistral_small":  [],  # Routed via Mistral API (MISTRAL_API_KEY) — mistral-small-latest
             "mercury2": [],  # Routed via Inception Labs API (INCEPTION_API_KEY) — mercury-2
             "laguna":      [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna M.1
             "laguna_core": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2.1
@@ -6012,6 +6151,26 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
                 "For coding questions, write clean, well-commented code. "
                 "If asked what model or AI you are, say you are Catura AI Mistral Medium and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+                "Never make up facts. If you don't know something, say so honestly."
+                + NO_TOOL_CALL_RULE
+            ),
+            "mistral_small": (
+                "Your name is Catura (pronounced kuh-CHUR-uh) Mistral Small Model. You are a highly capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI Mistral Small, built for fast, lightweight, and high-quality responses. "
+                "You are clear, direct, and helpful. You speak like a knowledgeable friend — "
+                "never robotic, never sycophantic. "
+                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
+                "'Absolutely!', or similar hollow openers. Just answer directly. "
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+                "Keep answers concise unless the user explicitly asks for detail. "
+                "Use bullet points or headers only when they genuinely improve clarity. "
+                "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
+                "For coding questions, write clean, well-commented code. "
+                "If asked what model or AI you are, say you are Catura AI Mistral Small and cannot share "
                 "details about the underlying technology. "
                 "If asked who made you, say 'I was created by Anirban.' "
                 "Never make up facts. If you don't know something, say so honestly."
@@ -6724,6 +6883,96 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_mmed_get(), media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache",
+                         "Set-Cookie": build_session_cookie(session_id)}
+            )
+
+        # ── MISTRAL SMALL: Mistral API (MISTRAL_API_KEY) — mistral-small-latest ──
+        if model_key == "mistral_small":
+            msmall_key_get = os.getenv("MISTRAL_API_KEY", "")
+            msmall_system_get = system_prompts.get("mistral_small", system_prompts["dagr"])
+
+            def generate_msmall_get():
+                full_reply = ""
+                thinking_open_msmall = False  # tracks whether <think> has been opened in full_reply
+                if tool_result:
+                    yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
+                    sp = build_sources_payload(tool_result)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                msmall_msgs_get = [{"role": "system", "content": msmall_system_get}] + active_memory[-20:]
+                resp, err = call_mistral_stream(
+                    msmall_msgs_get, msmall_key_get, model_id="mistral-small-latest",
+                    reasoning_effort="high",
+                )
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'Mistral Small unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+                try:
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            delta_msmall = choices[0].get("delta") or {}
+                            content_msmall = delta_msmall.get("content")
+
+                            # ── Mistral reasoning-model shape: delta.content is a LIST of
+                            # {"type":"thinking","thinking":[{"type":"text","text":...}]} /
+                            # {"type":"text","text":...} chunks while reasoning_effort="high".
+                            if isinstance(content_msmall, list):
+                                for part in content_msmall:
+                                    ptype = part.get("type")
+                                    if ptype == "thinking":
+                                        for inner in part.get("thinking", []) or []:
+                                            inner_text = inner.get("text", "") if isinstance(inner, dict) else ""
+                                            if inner_text:
+                                                if not thinking_open_msmall:
+                                                    full_reply += "<think>"
+                                                    thinking_open_msmall = True
+                                                full_reply += inner_text
+                                                yield f"data: {json.dumps({'thinking_token': inner_text}, ensure_ascii=False)}\n\n"
+                                    elif ptype == "text":
+                                        text_piece = part.get("text", "")
+                                        if text_piece:
+                                            if thinking_open_msmall:
+                                                full_reply += "</think>"
+                                                thinking_open_msmall = False
+                                            full_reply += text_piece
+                                            yield f"data: {json.dumps({'token': text_piece}, ensure_ascii=False)}\n\n"
+                            elif isinstance(content_msmall, str) and content_msmall:
+                                if thinking_open_msmall:
+                                    full_reply += "</think>"
+                                    thinking_open_msmall = False
+                                full_reply += content_msmall
+                                yield f"data: {json.dumps({'token': content_msmall}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, Exception):
+                            continue
+                except Exception as e:
+                    print(f"❌ [MISTRAL SMALL GET] stream exception: {e}")
+                if thinking_open_msmall:
+                    full_reply += "</think>"
+                if full_reply.strip():
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_msmall_get(), media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache",
                          "Set-Cookie": build_session_cookie(session_id)}
             )
