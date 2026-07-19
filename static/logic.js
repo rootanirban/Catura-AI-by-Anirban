@@ -4958,7 +4958,7 @@ window.toggleModelSelector = function (e) {
             const moreModels = ['apep', 'gemma', 'gemma4', 'nivo', 'laguna', 'laguna_core', 'laguna_lite','nemotron','omni', 'cohere','glm','morph','glm52'];
             if (moreModels.includes(selectedModel)) {
                 requestAnimationFrame(() => {
-                    requestAnimationFrame(() => { toggleMoreModels(null); });
+                    requestAnimationFrame(() => { window.openMoreModels(); });
                 });
             }
         }
@@ -5043,18 +5043,13 @@ function closeAllModelMenus() {
     });
 })();
 
-window.toggleMoreModels = function (e) {
-    if (e) { e.stopPropagation(); e.preventDefault(); }
+window.openMoreModels = function () {
     const panel = document.getElementById('moreModelsPanel');
     const row   = document.getElementById('moreModelsRow');
     if (!panel || !row) return;
 
     const isOpen = panel.classList.contains('open');
-    if (isOpen) {
-        panel.classList.remove('open');
-        row.classList.remove('open');
-        return;
-    }
+    if (isOpen) return;
 
     const isMobile = window.innerWidth <= 768;
 
@@ -5142,6 +5137,81 @@ window.toggleMoreModels = function (e) {
     panel.classList.add('open');
     row.classList.add('open');
 };
+
+window.closeMoreModels = function () {
+    const panel = document.getElementById('moreModelsPanel');
+    const row   = document.getElementById('moreModelsRow');
+    if (panel) panel.classList.remove('open');
+    if (row)   row.classList.remove('open');
+};
+
+// Mobile still uses click/tap to open the "More models" sub-panel.
+// Desktop uses hover only (wired up in initMoreModelsHover below).
+window.toggleMoreModels = function (e) {
+    if (e) { e.stopPropagation(); e.preventDefault(); }
+    const isMobile = window.innerWidth <= 768;
+    if (!isMobile) return; // desktop: hover handles this, ignore clicks
+    const panel = document.getElementById('moreModelsPanel');
+    if (panel && panel.classList.contains('open')) {
+        window.closeMoreModels();
+    } else {
+        window.openMoreModels();
+    }
+};
+
+// ── DESKTOP: "More models" opens on hover (Claude-style), like Effort Level.
+// Stays open while pointer is over the row OR the panel (small close-delay so
+// the pointer can travel between them), and closes instantly on: outside
+// click, or the pointer moving to hover any other sibling model option/row.
+(function initMoreModelsHover() {
+    const row   = document.getElementById('moreModelsRow');
+    const panel = document.getElementById('moreModelsPanel');
+    const dropdown = document.getElementById('modelDropdown');
+    if (!row || !panel || !dropdown) return;
+
+    let closeTimer = null;
+    const CLOSE_DELAY = 250;
+
+    function isDesktop() { return window.innerWidth > 768; }
+
+    function open() {
+        if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+        window.openMoreModels();
+    }
+    function scheduleClose() {
+        if (closeTimer) clearTimeout(closeTimer);
+        closeTimer = setTimeout(() => {
+            window.closeMoreModels();
+            closeTimer = null;
+        }, CLOSE_DELAY);
+    }
+    function closeInstant() {
+        if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+        window.closeMoreModels();
+    }
+
+    row.addEventListener('mouseenter', () => { if (isDesktop()) open(); });
+    row.addEventListener('mouseleave', () => { if (isDesktop()) scheduleClose(); });
+    panel.addEventListener('mouseenter', () => { if (isDesktop()) open(); });
+    panel.addEventListener('mouseleave', () => { if (isDesktop()) scheduleClose(); });
+
+    // Instantly close if the pointer hovers any other item in the main
+    // dropdown (model options, effort level row, etc.) — Claude-style
+    // "only one flyout open at a time".
+    dropdown.querySelectorAll('.model-option, #effortLevelRow').forEach(el => {
+        if (el === row) return;
+        el.addEventListener('mouseenter', () => { if (isDesktop()) closeInstant(); });
+    });
+
+    // Instant close on any click anywhere (outside the panel itself), even
+    // clicks inside the dropdown — matches "as soon as mouse clicked
+    // anywhere it closes instantly".
+    document.addEventListener('click', (e) => {
+        if (!isDesktop()) return;
+        if (panel.contains(e.target)) return; // allow selecting a model inside the panel
+        closeInstant();
+    });
+})();
 
 // Back button: close more-models panel and reopen main dropdown
 window.goBackToMainModels = function (e) {
