@@ -500,7 +500,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.345"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.346"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -510,7 +510,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.345", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.346", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3200,67 +3200,6 @@ def call_zai_stream(messages, api_key):
 
 
 # ============================================================
-# ✅ HELPER: Call Morph API — morph-minimax3-428b
-# OpenAI-compatible endpoint at api.morphllm.com
-# ============================================================
-def call_morph_stream(messages, api_key, model_id="morph-minimax3-428b", reasoning_effort=None):
-    """
-    Dedicated Morph streaming function.
-    Shared by all Morph-hosted models (MiniMax, GLM-5.2, etc.) via model_id param.
-
-    Thinking mode: Morph serves these as open-weight models on a vLLM/SGLang-style
-    stack (same family as Poolside), so we request thinking the same way we do for
-    Laguna — via chat_template_kwargs.enable_thinking. Morph has not published an
-    official doc page confirming this exact field name for morph-glm52-744b /
-    morph-minimax3-428b, so treat this as best-effort: check Render logs after
-    deploying to confirm 'reasoning_content' actually appears in stream chunks.
-    max_tokens raised from 8000 -> 16000 because reasoning tokens eat into the
-    same budget as the final answer; 8000 was likely truncating thinking on
-    complex prompts even before this fix.
-
-    reasoning_effort: optional, GLM-5.2-only knob ("max" or "high"). Passed as
-    chat_template_kwargs.reasoning_effort. Left as None for MiniMax so its
-    request body stays untouched.
-    """
-    if not api_key:
-        return None, "MORPH_API_KEY not set in environment variables"
-    try:
-        template_kwargs = {"enable_thinking": True}
-        if reasoning_effort:
-            template_kwargs["reasoning_effort"] = reasoning_effort
-
-        resp = requests.post(
-            "https://api.morphllm.com/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": model_id,
-                "messages": messages,
-                "stream": True,
-                "temperature": 0.7,
-                "max_tokens": 16000,
-                "chat_template_kwargs": template_kwargs,
-            },
-            stream=True,
-            timeout=(15, None),  # no read timeout — let long thinking runs finish
-        )
-        if resp.status_code != 200:
-            try:
-                err_body = resp.json()
-                err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
-            except Exception:
-                err_msg = f"HTTP {resp.status_code}"
-            return None, err_msg
-        return resp, None
-    except requests.exceptions.Timeout:
-        return None, "Request timed out"
-    except Exception as e:
-        return None, str(e)
-
-
-# ============================================================
 # ✅ HELPER: Call Mistral API — mistral-large-latest / mistral-medium-latest
 # OpenAI-compatible endpoint at api.mistral.ai (MISTRAL_API_KEY)
 # ============================================================
@@ -3575,8 +3514,6 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             "sambhav": [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
             "nivo":    [],  # Routed via Groq API (GROQ_API_KEY) — see generate_nivo()
             "glm":     [],  # Routed via Z.ai API (ZAI_API_KEY) — glm-4.7-flash (free)
-            "morph":   [],  # Routed via Morph API (MORPH_API_KEY) — morph-minimax3-428b
-            "glm52":   [],  # Routed via Morph API (MORPH_API_KEY) — morph-glm52-744b
             "mistral_large":  [],  # Routed via Mistral API (MISTRAL_API_KEY) — mistral-large-latest
             "mistral_medium": [],  # Routed via Mistral API (MISTRAL_API_KEY) — mistral-medium-latest
             "mistral_small":  [],  # Routed via Mistral API (MISTRAL_API_KEY) — mistral-small-latest
@@ -3909,46 +3846,6 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
-            "morph": (
-                "Your name is Catura (pronounced kuh-CHUR-uh) MiniMax Model. You are a highly capable "
-                "AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI MiniMax, built for fast, efficient, and high-quality responses. "
-                "You are clear, direct, and helpful. You speak like a knowledgeable friend — "
-                "never robotic, never sycophantic. "
-                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
-                "'Absolutely!', or similar hollow openers. Just answer directly. "
-                "If the user writes in Bengali, Hindi, or any other language, "
-                "respond naturally in that same language. Match the user's language automatically. "
-                "Keep answers concise unless the user explicitly asks for detail. "
-                "Use bullet points or headers only when they genuinely improve clarity. "
-                "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
-                "For coding questions, write clean, well-commented code. "
-                "If asked what model or AI you are, say you are Catura AI MiniMax and cannot share "
-                "details about the underlying technology. "
-                "If asked who made you, say 'I was created by Anirban.' "
-                "Never make up facts. If you don't know something, say so honestly."
-                + NO_TOOL_CALL_RULE
-            ),
-            "glm52": (
-                "Your name is Catura (pronounced kuh-CHUR-uh) GLM-5.2 Model. You are a highly capable "
-                "AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI GLM-5.2, built for fast, efficient, and high-quality responses. "
-                "You are clear, direct, and helpful. You speak like a knowledgeable friend — "
-                "never robotic, never sycophantic. "
-                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
-                "'Absolutely!', or similar hollow openers. Just answer directly. "
-                "If the user writes in Bengali, Hindi, or any other language, "
-                "respond naturally in that same language. Match the user's language automatically. "
-                "Keep answers concise unless the user explicitly asks for detail. "
-                "Use bullet points or headers only when they genuinely improve clarity. "
-                "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
-                "For coding questions, write clean, well-commented code. "
-                "If asked what model or AI you are, say you are Catura AI GLM-5.2 and cannot share "
-                "details about the underlying technology. "
-                "If asked who made you, say 'I was created by Anirban.' "
-                "Never make up facts. If you don't know something, say so honestly."
-                + NO_TOOL_CALL_RULE
-            ),
             "mistral_large": (
                 "Your name is Catura (pronounced kuh-CHUR-uh) Mistral Large Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
@@ -4144,7 +4041,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
         }
         # Apply UI/UX design rules to every model variant at once, so it's present
         # no matter which dict key a given code path looks up (main, laguna, glm,
-        # morph, glm52, nivo, etc. all pull from this same dict).
+        # nivo, etc. all pull from this same dict).
         system_prompts = {k: v + UI_DESIGN_RULES for k, v in system_prompts.items()}
         system_prompt = system_prompts.get(model_key, system_prompts["dagr"])
 
@@ -4603,192 +4500,6 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
 
             return StreamingResponse(
                 generate_glm(),
-                media_type="text/event-stream",
-                headers=_rl({
-                    "Cache-Control": "no-cache",
-                    "Set-Cookie": build_session_cookie(session_id),
-                })
-            )
-
-        # ── MORPH: Morph API (MORPH_API_KEY) — morph-minimax3-428b ──
-        if model_key == "morph":
-            morph_key    = os.getenv("MORPH_API_KEY", "")
-            morph_system = system_prompts.get("morph", system_prompts["dagr"])
-
-            def generate_morph():
-                full_reply = ""
-                thinking_open_m = False  # tracks whether <think> has been opened in full_reply
-
-                tool_result_morph = None
-                if intent != "general" and not file_urls:
-                    yield f"data: {json.dumps({'status': 'tool_running', 'intent': intent})}\n\n"
-                    tool_result_morph = run_tool(intent, prompt)
-
-                final_system_morph = morph_system
-                tool_context_morph = build_tool_context(tool_result_morph)
-                if tool_context_morph:
-                    final_system_morph += "\n\n" + tool_context_morph
-
-                if tool_result_morph:
-                    badge_payload = json.dumps({"tool_used": tool_result_morph.get("tool", ""), "intent": intent})
-                    yield f"data: {badge_payload}\n\n"
-                    sp = build_sources_payload(tool_result_morph)
-                    if sp:
-                        yield f"data: {sp}\n\n"
-
-                morph_messages = (
-                    [{"role": "system", "content": final_system_morph}]
-                    + active_memory[-20:]
-                )
-                resp, err = call_morph_stream(morph_messages, morph_key)
-
-                if resp is None:
-                    yield f"data: {json.dumps({'error': f'MiniMax unavailable: {err}'})}\n\n"
-                    yield "data: [DONE]\n\n"
-                    return
-
-                try:
-                    for line in resp.iter_lines():
-                        if not line:
-                            continue
-                        decoded = line.decode("utf-8")
-                        if not decoded.startswith("data: "):
-                            continue
-                        payload = decoded[6:]
-                        if payload.strip() == "[DONE]":
-                            break
-                        try:
-                            chunk = json.loads(payload)
-                            if "error" in chunk:
-                                print(f"⚠️ [MORPH] mid-stream error: {chunk['error']}")
-                                break
-                            choices = chunk.get("choices")
-                            if not choices:
-                                continue
-                            delta_m = choices[0].get("delta") or {}
-                            reasoning_token_m = delta_m.get("reasoning_content") or ""
-                            token = delta_m.get("content") or ""
-                            if reasoning_token_m:
-                                if not thinking_open_m:
-                                    full_reply += "<think>"
-                                    thinking_open_m = True
-                                full_reply += reasoning_token_m
-                                yield f"data: {json.dumps({'thinking_token': reasoning_token_m}, ensure_ascii=False)}\n\n"
-                            if token:
-                                if thinking_open_m:
-                                    full_reply += "</think>"
-                                    thinking_open_m = False
-                                full_reply += token
-                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
-                            continue
-                except Exception as e:
-                    print(f"❌ [MORPH] stream exception: {e}")
-
-                if thinking_open_m:
-                    full_reply += "</think>"
-
-                if full_reply.strip():
-                    active_memory.append({"role": "assistant", "content": full_reply})
-                    if not ghost_mode and len(user_memory[session_id]) > 40:
-                        user_memory[session_id] = user_memory[session_id][-40:]
-                yield "data: [DONE]\n\n"
-
-            return StreamingResponse(
-                generate_morph(),
-                media_type="text/event-stream",
-                headers=_rl({
-                    "Cache-Control": "no-cache",
-                    "Set-Cookie": build_session_cookie(session_id),
-                })
-            )
-
-        # ── GLM-5.2: Morph API (MORPH_API_KEY) — morph-glm52-744b ──
-        if model_key == "glm52":
-            glm52_key    = os.getenv("MORPH_API_KEY", "")
-            glm52_system = system_prompts.get("glm52", system_prompts["dagr"])
-
-            def generate_glm52():
-                full_reply = ""
-                thinking_open_g = False  # tracks whether <think> has been opened in full_reply
-
-                tool_result_glm52 = None
-                if intent != "general" and not file_urls:
-                    yield f"data: {json.dumps({'status': 'tool_running', 'intent': intent})}\n\n"
-                    tool_result_glm52 = run_tool(intent, prompt)
-
-                final_system_glm52 = glm52_system
-                tool_context_glm52 = build_tool_context(tool_result_glm52)
-                if tool_context_glm52:
-                    final_system_glm52 += "\n\n" + tool_context_glm52
-
-                if tool_result_glm52:
-                    badge_payload = json.dumps({"tool_used": tool_result_glm52.get("tool", ""), "intent": intent})
-                    yield f"data: {badge_payload}\n\n"
-                    sp = build_sources_payload(tool_result_glm52)
-                    if sp:
-                        yield f"data: {sp}\n\n"
-
-                glm52_messages = (
-                    [{"role": "system", "content": final_system_glm52}]
-                    + active_memory[-20:]
-                )
-                resp, err = call_morph_stream(glm52_messages, glm52_key, model_id="morph-glm52-744b", reasoning_effort="max")
-
-                if resp is None:
-                    yield f"data: {json.dumps({'error': f'GLM-5.2 unavailable: {err}'})}\n\n"
-                    yield "data: [DONE]\n\n"
-                    return
-
-                try:
-                    for line in resp.iter_lines():
-                        if not line:
-                            continue
-                        decoded = line.decode("utf-8")
-                        if not decoded.startswith("data: "):
-                            continue
-                        payload = decoded[6:]
-                        if payload.strip() == "[DONE]":
-                            break
-                        try:
-                            chunk = json.loads(payload)
-                            if "error" in chunk:
-                                print(f"⚠️ [GLM52] mid-stream error: {chunk['error']}")
-                                break
-                            choices = chunk.get("choices")
-                            if not choices:
-                                continue
-                            delta_g = choices[0].get("delta") or {}
-                            reasoning_token_g = delta_g.get("reasoning_content") or ""
-                            token = delta_g.get("content") or ""
-                            if reasoning_token_g:
-                                if not thinking_open_g:
-                                    full_reply += "<think>"
-                                    thinking_open_g = True
-                                full_reply += reasoning_token_g
-                                yield f"data: {json.dumps({'thinking_token': reasoning_token_g}, ensure_ascii=False)}\n\n"
-                            if token:
-                                if thinking_open_g:
-                                    full_reply += "</think>"
-                                    thinking_open_g = False
-                                full_reply += token
-                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
-                            continue
-                except Exception as e:
-                    print(f"❌ [GLM52] stream exception: {e}")
-
-                if thinking_open_g:
-                    full_reply += "</think>"
-
-                if full_reply.strip():
-                    active_memory.append({"role": "assistant", "content": full_reply})
-                    if not ghost_mode and len(user_memory[session_id]) > 40:
-                        user_memory[session_id] = user_memory[session_id][-40:]
-                yield "data: [DONE]\n\n"
-
-            return StreamingResponse(
-                generate_glm52(),
                 media_type="text/event-stream",
                 headers=_rl({
                     "Cache-Control": "no-cache",
@@ -5554,8 +5265,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "sambhav": [],  # Routed via Groq API (llama-3.3-70b-versatile) — see call_sambhav_groq_stream()
             "nivo":    [],  # Routed via Groq API (GROQ_API_KEY)
             "glm":     [],  # Routed via Z.ai API (ZAI_API_KEY) — glm-4.7-flash (free)
-            "morph":   [],  # Routed via Morph API (MORPH_API_KEY) — morph-minimax3-428b
-            "glm52":   [],  # Routed via Morph API (MORPH_API_KEY) — morph-glm52-744b
             "mistral_large":  [],  # Routed via Mistral API (MISTRAL_API_KEY) — mistral-large-latest
             "mistral_medium": [],  # Routed via Mistral API (MISTRAL_API_KEY) — mistral-medium-latest
             "mistral_small":  [],  # Routed via Mistral API (MISTRAL_API_KEY) — mistral-small-latest
@@ -6087,46 +5796,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "Never make up facts. If you don't know something, say so honestly."
                 + NO_TOOL_CALL_RULE
             ),
-            "morph": (
-                "Your name is Catura (pronounced kuh-CHUR-uh) MiniMax Model. You are a highly capable "
-                "AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI MiniMax, built for fast, efficient, and high-quality responses. "
-                "You are clear, direct, and helpful. You speak like a knowledgeable friend — "
-                "never robotic, never sycophantic. "
-                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
-                "'Absolutely!', or similar hollow openers. Just answer directly. "
-                "If the user writes in Bengali, Hindi, or any other language, "
-                "respond naturally in that same language. Match the user's language automatically. "
-                "Keep answers concise unless the user explicitly asks for detail. "
-                "Use bullet points or headers only when they genuinely improve clarity. "
-                "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
-                "For coding questions, write clean, well-commented code. "
-                "If asked what model or AI you are, say you are Catura AI MiniMax and cannot share "
-                "details about the underlying technology. "
-                "If asked who made you, say 'I was created by Anirban.' "
-                "Never make up facts. If you don't know something, say so honestly."
-                + NO_TOOL_CALL_RULE
-            ),
-            "glm52": (
-                "Your name is Catura (pronounced kuh-CHUR-uh) GLM-5.2 Model. You are a highly capable "
-                "AI assistant created by Anirban — an independent developer based in India. "
-                "You are Catura AI GLM-5.2, built for fast, efficient, and high-quality responses. "
-                "You are clear, direct, and helpful. You speak like a knowledgeable friend — "
-                "never robotic, never sycophantic. "
-                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
-                "'Absolutely!', or similar hollow openers. Just answer directly. "
-                "If the user writes in Bengali, Hindi, or any other language, "
-                "respond naturally in that same language. Match the user's language automatically. "
-                "Keep answers concise unless the user explicitly asks for detail. "
-                "Use bullet points or headers only when they genuinely improve clarity. "
-                "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
-                "For coding questions, write clean, well-commented code. "
-                "If asked what model or AI you are, say you are Catura AI GLM-5.2 and cannot share "
-                "details about the underlying technology. "
-                "If asked who made you, say 'I was created by Anirban.' "
-                "Never make up facts. If you don't know something, say so honestly."
-                + NO_TOOL_CALL_RULE
-            ),
             "mistral_large": (
                 "Your name is Catura (pronounced kuh-CHUR-uh) Mistral Large Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
@@ -6326,7 +5995,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
         }
         # Apply UI/UX design rules to every model variant at once, so it's present
         # no matter which dict key a given code path looks up (main, laguna, glm,
-        # morph, glm52, nivo, etc. all pull from this same dict).
+        # nivo, etc. all pull from this same dict).
         system_prompts = {k: v + UI_DESIGN_RULES for k, v in system_prompts.items()}
         system_prompt = system_prompts.get(model_key, system_prompts["dagr"])
 
@@ -6594,146 +6263,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_glm_get(), media_type="text/event-stream",
-                headers={"Cache-Control": "no-cache",
-                         "Set-Cookie": build_session_cookie(session_id)}
-            )
-
-        # ── MORPH: Morph API — isolated from all other models ──
-        if model_key == "morph":
-            morph_key_get = os.getenv("MORPH_API_KEY", "")
-            morph_system_get = system_prompts.get("morph", system_prompts["dagr"])
-
-            def generate_morph_get():
-                full_reply = ""
-                thinking_open_mg = False
-                if tool_result:
-                    yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
-                    sp = build_sources_payload(tool_result)
-                    if sp:
-                        yield f"data: {sp}\n\n"
-
-                morph_msgs_get = [{"role": "system", "content": morph_system_get}] + active_memory[-20:]
-                resp, err = call_morph_stream(morph_msgs_get, morph_key_get)
-                if resp is None:
-                    yield f"data: {json.dumps({'error': f'MiniMax unavailable: {err}'})}\n\n"
-                    yield "data: [DONE]\n\n"
-                    return
-                try:
-                    for line in resp.iter_lines():
-                        if not line:
-                            continue
-                        decoded = line.decode("utf-8")
-                        if not decoded.startswith("data: "):
-                            continue
-                        payload = decoded[6:]
-                        if payload.strip() == "[DONE]":
-                            break
-                        try:
-                            chunk = json.loads(payload)
-                            if "error" in chunk:
-                                break
-                            choices = chunk.get("choices")
-                            if not choices:
-                                continue
-                            delta_mg = choices[0].get("delta") or {}
-                            reasoning_token_mg = delta_mg.get("reasoning_content") or ""
-                            token = delta_mg.get("content") or ""
-                            if reasoning_token_mg:
-                                if not thinking_open_mg:
-                                    full_reply += "<think>"
-                                    thinking_open_mg = True
-                                full_reply += reasoning_token_mg
-                                yield f"data: {json.dumps({'thinking_token': reasoning_token_mg}, ensure_ascii=False)}\n\n"
-                            if token:
-                                if thinking_open_mg:
-                                    full_reply += "</think>"
-                                    thinking_open_mg = False
-                                full_reply += token
-                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
-                            continue
-                except Exception as e:
-                    print(f"❌ [MORPH GET] stream exception: {e}")
-                if thinking_open_mg:
-                    full_reply += "</think>"
-                if full_reply.strip():
-                    active_memory.append({"role": "assistant", "content": full_reply})
-                    if not ghost_mode and len(user_memory[session_id]) > 40:
-                        user_memory[session_id] = user_memory[session_id][-40:]
-                yield "data: [DONE]\n\n"
-
-            return StreamingResponse(
-                generate_morph_get(), media_type="text/event-stream",
-                headers={"Cache-Control": "no-cache",
-                         "Set-Cookie": build_session_cookie(session_id)}
-            )
-
-        # ── GLM-5.2: Morph API — isolated from all other models ──
-        if model_key == "glm52":
-            glm52_key_get = os.getenv("MORPH_API_KEY", "")
-            glm52_system_get = system_prompts.get("glm52", system_prompts["dagr"])
-
-            def generate_glm52_get():
-                full_reply = ""
-                thinking_open_gg = False
-                if tool_result:
-                    yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
-                    sp = build_sources_payload(tool_result)
-                    if sp:
-                        yield f"data: {sp}\n\n"
-
-                glm52_msgs_get = [{"role": "system", "content": glm52_system_get}] + active_memory[-20:]
-                resp, err = call_morph_stream(glm52_msgs_get, glm52_key_get, model_id="morph-glm52-744b", reasoning_effort="max")
-                if resp is None:
-                    yield f"data: {json.dumps({'error': f'GLM-5.2 unavailable: {err}'})}\n\n"
-                    yield "data: [DONE]\n\n"
-                    return
-                try:
-                    for line in resp.iter_lines():
-                        if not line:
-                            continue
-                        decoded = line.decode("utf-8")
-                        if not decoded.startswith("data: "):
-                            continue
-                        payload = decoded[6:]
-                        if payload.strip() == "[DONE]":
-                            break
-                        try:
-                            chunk = json.loads(payload)
-                            if "error" in chunk:
-                                break
-                            choices = chunk.get("choices")
-                            if not choices:
-                                continue
-                            delta_gg = choices[0].get("delta") or {}
-                            reasoning_token_gg = delta_gg.get("reasoning_content") or ""
-                            token = delta_gg.get("content") or ""
-                            if reasoning_token_gg:
-                                if not thinking_open_gg:
-                                    full_reply += "<think>"
-                                    thinking_open_gg = True
-                                full_reply += reasoning_token_gg
-                                yield f"data: {json.dumps({'thinking_token': reasoning_token_gg}, ensure_ascii=False)}\n\n"
-                            if token:
-                                if thinking_open_gg:
-                                    full_reply += "</think>"
-                                    thinking_open_gg = False
-                                full_reply += token
-                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
-                            continue
-                except Exception as e:
-                    print(f"❌ [GLM52 GET] stream exception: {e}")
-                if thinking_open_gg:
-                    full_reply += "</think>"
-                if full_reply.strip():
-                    active_memory.append({"role": "assistant", "content": full_reply})
-                    if not ghost_mode and len(user_memory[session_id]) > 40:
-                        user_memory[session_id] = user_memory[session_id][-40:]
-                yield "data: [DONE]\n\n"
-
-            return StreamingResponse(
-                generate_glm52_get(), media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache",
                          "Set-Cookie": build_session_cookie(session_id)}
             )
