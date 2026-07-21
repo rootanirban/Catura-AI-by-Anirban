@@ -1183,6 +1183,20 @@ html { scroll-behavior: smooth; }
 }
 .code-block code { white-space: pre; color: #cdd6f4; }
 
+/* While a message is actively streaming, its innerHTML is fully replaced on
+   every re-parse tick, which destroys and recreates the <pre> element each
+   time and resets its internal scrollTop back to 0. That makes a capped/
+   scrollable <pre> always snap back to its first lines and fight any attempt
+   to scroll it manually while code is still streaming in. Fix: don't give
+   the code block its own scroll region while streaming — let it grow with
+   the message so the single outer chat scroll (which already sticks to the
+   bottom) is the only scroll container in play. The 400px cap + internal
+   scrollbar return automatically once streaming finishes. */
+.message.bot.streaming .code-block pre {
+    max-height: none;
+    overflow-y: visible;
+}
+
 /* ============================
    THINKING / TYPING
 ============================ */
