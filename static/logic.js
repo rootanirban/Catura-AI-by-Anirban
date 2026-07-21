@@ -4839,12 +4839,26 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
             thinkingEl = document.createElement("div");
             thinkingEl.className = "thinking-live-wrap";
             if (bm.parentNode) bm.parentNode.insertBefore(thinkingEl, bm);
+            // Build the toggle+content shell once, synchronously, so the
+            // dropdown exists and is clickable from the very first token.
+            thinkingEl.innerHTML = buildThinkingHTML(thinkingText, false, true);
         }
         if (thinkingRAF) return;
         thinkingRAF = true;
         requestAnimationFrame(() => {
             thinkingRAF = false;
-            if (thinkingEl) thinkingEl.innerHTML = buildThinkingHTML(thinkingText, false, true);
+            if (!thinkingEl) return;
+            // Patch only the reasoning text in place on subsequent updates.
+            // Rebuilding the whole block (old behaviour) replaced the toggle
+            // button every frame and reset it to "closed", so a user who
+            // opened the dropdown mid-stream had it snap shut instantly —
+            // this is what made it feel impossible to open while thinking.
+            const inner = thinkingEl.querySelector('.thinking-inner');
+            if (inner) {
+                inner.innerHTML = formatMessage(thinkingText);
+            } else {
+                thinkingEl.innerHTML = buildThinkingHTML(thinkingText, false, true);
+            }
         });
     };
 
@@ -4861,6 +4875,30 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
     // ── Word-queue drain loop ────────────────────────────────────────────────
     // Runs on rAF; emits ~2-3 words per frame (~40-50 ms between renders) for
     // a fast but readable pace — similar to ChatGPT / Claude.
+    // ── Stick-to-bottom autoscroll ───────────────────────────────────────────
+    // Only snaps the chat to the bottom while streaming if the user is
+    // already near the bottom (i.e. hasn't manually scrolled up to read
+    // earlier messages or the thinking dropdown). This matches ChatGPT/Claude
+    // behaviour: streaming never fights the user's scroll position, and the
+    // existing "scroll to bottom" button (initScrollToBottom) lets the user
+    // jump back down whenever they want.
+    const STICK_THRESHOLD = 120; // px tolerance from the true bottom
+    let userPinnedToBottom = true;
+
+    (function trackStickToBottom() {
+        if (!chatbox) return;
+        chatbox.addEventListener('scroll', () => {
+            const distFromBottom = chatbox.scrollHeight - chatbox.scrollTop - chatbox.clientHeight;
+            userPinnedToBottom = distFromBottom <= STICK_THRESHOLD;
+        }, { passive: true });
+    })();
+
+    function stickScrollToBottom() {
+        if (!chatbox) return;
+        if (!userPinnedToBottom) return; // user scrolled up on purpose — don't interrupt them
+        chatbox.scrollTop = chatbox.scrollHeight;
+    }
+
     const WORDS_PER_TICK = 2;   // words painted per animation frame
     const RENDER_EVERY   = 2;   // re-parse markdown every N ticks (keeps it smooth)
     let   tickCount      = 0;
@@ -4883,7 +4921,7 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
                 if (thinkingEl) { thinkingEl.remove(); thinkingEl = null; }
                 renderBotContent(wrapper, bm, fullReply.replace(/\[\d+\](\[\d+\])*/g, '').trimEnd());
                 bm.classList.remove("streaming");
-                chatbox.scrollTop = chatbox.scrollHeight;
+                stickScrollToBottom();
             }
             return;
         }
@@ -4912,7 +4950,7 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
             }
         }
 
-        chatbox.scrollTop = chatbox.scrollHeight;
+        stickScrollToBottom();
         requestAnimationFrame(drainQueue);
     };
 
@@ -4968,7 +5006,7 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
                                     <div class="skeleton-line sk-w60"></div>
                                 </div>`;
                             chatbox.appendChild(skeletonWrap);
-                            chatbox.scrollTop = chatbox.scrollHeight;
+                            stickScrollToBottom();
                         }
                         continue;
                     }
@@ -5031,7 +5069,7 @@ async function streamWordsWithTools(botMsgInitial, wrapperInitial, reader, decod
             if (thinkingEl) { thinkingEl.remove(); thinkingEl = null; }
             renderBotContent(w, bm, fullReply.replace(/\[\d+\](\[\d+\])*/g, '').trimEnd());
         }
-        chatbox.scrollTop = chatbox.scrollHeight;
+        stickScrollToBottom();
         return fullReply;
     }
 
