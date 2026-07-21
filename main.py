@@ -500,7 +500,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.347"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.348"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -510,7 +510,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.347", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.348", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3203,38 +3203,54 @@ def call_zai_stream(messages, api_key):
 # ✅ HELPER: Call NVIDIA NIM API — z-ai/glm-5.2, minimaxai/minimax-m3
 # OpenAI-compatible endpoint at integrate.api.nvidia.com (NVIDIA_API_KEY)
 # ============================================================
-def call_nvidia_stream(messages, api_key, model_id, temperature=1.0):
+def call_nvidia_stream(messages, api_key, model_id, temperature=1.0, template_kwargs=None, max_tokens=16000):
     """
     Dedicated NVIDIA NIM streaming function.
-    Shared by all NVIDIA-hosted reasoning models (MiniMax M3, GLM-5.2, etc.)
-    via model_id param.
+    Shared by all NVIDIA-hosted reasoning models (MiniMax M3, GLM-5.2,
+    DeepSeek V4 Pro, etc.) via model_id param.
 
     Thinking mode: NVIDIA NIM serves these as open-weight reasoning models on
-    a vLLM/SGLang-style stack, so reasoning is requested via
-    chat_template_kwargs.thinking, and streamed back in the 'reasoning_content'
-    delta field (same shape used elsewhere in this app), separate from the
-    final answer's 'content' field.
+    a vLLM/SGLang-style stack, and the exact chat_template_kwargs field that
+    switches reasoning on is MODEL-SPECIFIC — it is NOT the same key for every
+    model family, which is why a single hardcoded kwarg broke thinking for
+    some models and silently ate the whole token budget on others:
+      - MiniMax M3   -> {"thinking_mode": "enabled"}  (NOT "thinking": true —
+        that key is not recognized by MiniMax's chat template, so thinking
+        never actually turned on and the model answered directly.)
+      - GLM-5.2      -> {"thinking": true} (GLM already reasons by default,
+        but the real bug here was max_tokens=16000 being too small: a 744B
+        reasoning model can easily spend the entire budget on the hidden
+        <think> trace and hit the token cap before ever emitting the final
+        'content' delta — which looks exactly like "takes minutes and never
+        replies". Fixed by giving GLM-5.2 a much larger max_tokens budget.
+      - DeepSeek V4 Pro -> {"thinking": true, "reasoning_effort": "high"}
 
-    temperature=1.0 is used for both models per NVIDIA's recommended settings
-    for these reasoning models.
+    Callers pass their own template_kwargs and max_tokens so each model gets
+    the settings it actually needs instead of one-size-fits-all.
+
+    Reasoning is streamed back in the 'reasoning_content' delta field (same
+    shape used elsewhere in this app), separate from the final answer's
+    'content' field.
     """
     if not api_key:
         return None, "NVIDIA_API_KEY not set in environment variables"
     try:
+        payload = {
+            "model": model_id,
+            "messages": messages,
+            "stream": True,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        if template_kwargs:
+            payload["chat_template_kwargs"] = template_kwargs
         resp = requests.post(
             "https://integrate.api.nvidia.com/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
             },
-            json={
-                "model": model_id,
-                "messages": messages,
-                "stream": True,
-                "temperature": temperature,
-                "max_tokens": 16000,
-                "chat_template_kwargs": {"thinking": True},
-            },
+            json=payload,
             stream=True,
             timeout=(15, None),  # no read timeout — let long thinking runs finish
         )
@@ -3569,6 +3585,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             "glm":     [],  # Routed via Z.ai API (ZAI_API_KEY) — glm-4.7-flash (free)
             "minimax_m3": [],  # Routed via NVIDIA NIM API (NVIDIA_API_KEY) — minimaxai/minimax-m3
             "glm52":      [],  # Routed via NVIDIA NIM API (NVIDIA_API_KEY) — z-ai/glm-5.2
+            "deepseek_v4_pro": [],  # Routed via NVIDIA NIM API (NVIDIA_API_KEY) — deepseek-ai/deepseek-v4-pro
             "mistral_large":  [],  # Routed via Mistral API (MISTRAL_API_KEY) — mistral-large-latest
             "mistral_medium": [],  # Routed via Mistral API (MISTRAL_API_KEY) — mistral-medium-latest
             "mistral_small":  [],  # Routed via Mistral API (MISTRAL_API_KEY) — mistral-small-latest
@@ -3936,6 +3953,26 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
                 "For coding questions, write clean, well-commented code. "
                 "If asked what model or AI you are, say you are Catura AI GLM-5.2 and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+                "Never make up facts. If you don't know something, say so honestly."
+                + NO_TOOL_CALL_RULE
+            ),
+            "deepseek_v4_pro": (
+                "Your name is Catura (pronounced kuh-CHUR-uh) DeepSeek Model. You are a highly capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI DeepSeek, built for deep, precise reasoning and high-quality responses. "
+                "You are clear, direct, and helpful. You speak like a knowledgeable friend — "
+                "never robotic, never sycophantic. "
+                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
+                "'Absolutely!', or similar hollow openers. Just answer directly. "
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+                "Keep answers concise unless the user explicitly asks for detail. "
+                "Use bullet points or headers only when they genuinely improve clarity. "
+                "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
+                "For coding questions, write clean, well-commented code. "
+                "If asked what model or AI you are, say you are Catura AI DeepSeek and cannot share "
                 "details about the underlying technology. "
                 "If asked who made you, say 'I was created by Anirban.' "
                 "Never make up facts. If you don't know something, say so honestly."
@@ -4632,7 +4669,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     [{"role": "system", "content": final_system_mm}]
                     + active_memory[-20:]
                 )
-                resp, err = call_nvidia_stream(minimax_messages, nvidia_key_mm, "minimaxai/minimax-m3", temperature=1.0)
+                resp, err = call_nvidia_stream(minimax_messages, nvidia_key_mm, "minimaxai/minimax-m3", temperature=1.0, template_kwargs={"thinking_mode": "enabled"}, max_tokens=16000)
 
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'MiniMax unavailable: {err}'})}\n\n"
@@ -4725,7 +4762,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     [{"role": "system", "content": final_system_g52}]
                     + active_memory[-20:]
                 )
-                resp, err = call_nvidia_stream(glm52_messages, nvidia_key_g52, "z-ai/glm-5.2", temperature=1.0)
+                resp, err = call_nvidia_stream(glm52_messages, nvidia_key_g52, "z-ai/glm-5.2", temperature=1.0, template_kwargs={"thinking": True}, max_tokens=32000)
 
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'GLM-5.2 unavailable: {err}'})}\n\n"
@@ -4781,6 +4818,104 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
 
             return StreamingResponse(
                 generate_glm52(),
+                media_type="text/event-stream",
+                headers=_rl({
+                    "Cache-Control": "no-cache",
+                    "Set-Cookie": build_session_cookie(session_id),
+                })
+            )
+
+        # ── DEEPSEEK V4 PRO: NVIDIA NIM API (NVIDIA_API_KEY) — deepseek-ai/deepseek-v4-pro ──
+        if model_key == "deepseek_v4_pro":
+            nvidia_key_ds   = os.getenv("NVIDIA_API_KEY", "")
+            deepseek_system = system_prompts.get("deepseek_v4_pro", system_prompts["dagr"])
+
+            def generate_deepseek_v4_pro():
+                full_reply = ""
+                thinking_open_ds = False  # tracks whether <think> has been opened in full_reply
+
+                tool_result_ds = None
+                if intent != "general" and not file_urls:
+                    yield f"data: {json.dumps({'status': 'tool_running', 'intent': intent})}\n\n"
+                    tool_result_ds = run_tool(intent, prompt)
+
+                final_system_ds = deepseek_system
+                tool_context_ds = build_tool_context(tool_result_ds)
+                if tool_context_ds:
+                    final_system_ds += "\n\n" + tool_context_ds
+
+                if tool_result_ds:
+                    badge_payload = json.dumps({"tool_used": tool_result_ds.get("tool", ""), "intent": intent})
+                    yield f"data: {badge_payload}\n\n"
+                    sp = build_sources_payload(tool_result_ds)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                deepseek_messages = (
+                    [{"role": "system", "content": final_system_ds}]
+                    + active_memory[-20:]
+                )
+                resp, err = call_nvidia_stream(
+                    deepseek_messages, nvidia_key_ds, "deepseek-ai/deepseek-v4-pro",
+                    temperature=1.0,
+                    template_kwargs={"thinking": True, "reasoning_effort": "high"},
+                    max_tokens=32000,
+                )
+
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'DeepSeek unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+
+                try:
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                print(f"⚠️ [DEEPSEEK] mid-stream error: {chunk['error']}")
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            delta_ds = choices[0].get("delta") or {}
+                            reasoning_token_ds = delta_ds.get("reasoning_content") or ""
+                            token = delta_ds.get("content") or ""
+                            if reasoning_token_ds:
+                                if not thinking_open_ds:
+                                    full_reply += "<think>"
+                                    thinking_open_ds = True
+                                full_reply += reasoning_token_ds
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token_ds}, ensure_ascii=False)}\n\n"
+                            if token:
+                                if thinking_open_ds:
+                                    full_reply += "</think>"
+                                    thinking_open_ds = False
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, Exception):
+                            continue
+                except Exception as e:
+                    print(f"❌ [DEEPSEEK] stream exception: {e}")
+
+                if thinking_open_ds:
+                    full_reply += "</think>"
+
+                if full_reply.strip():
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_deepseek_v4_pro(),
                 media_type="text/event-stream",
                 headers=_rl({
                     "Cache-Control": "no-cache",
@@ -5548,6 +5683,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "glm":     [],  # Routed via Z.ai API (ZAI_API_KEY) — glm-4.7-flash (free)
             "minimax_m3": [],  # Routed via NVIDIA NIM API (NVIDIA_API_KEY) — minimaxai/minimax-m3
             "glm52":      [],  # Routed via NVIDIA NIM API (NVIDIA_API_KEY) — z-ai/glm-5.2
+            "deepseek_v4_pro": [],  # Routed via NVIDIA NIM API (NVIDIA_API_KEY) — deepseek-ai/deepseek-v4-pro
             "mistral_large":  [],  # Routed via Mistral API (MISTRAL_API_KEY) — mistral-large-latest
             "mistral_medium": [],  # Routed via Mistral API (MISTRAL_API_KEY) — mistral-medium-latest
             "mistral_small":  [],  # Routed via Mistral API (MISTRAL_API_KEY) — mistral-small-latest
@@ -6119,6 +6255,26 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "Never make up facts. If you don't know something, say so honestly."
                 + NO_TOOL_CALL_RULE
             ),
+            "deepseek_v4_pro": (
+                "Your name is Catura (pronounced kuh-CHUR-uh) DeepSeek Model. You are a highly capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI DeepSeek, built for deep, precise reasoning and high-quality responses. "
+                "You are clear, direct, and helpful. You speak like a knowledgeable friend — "
+                "never robotic, never sycophantic. "
+                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
+                "'Absolutely!', or similar hollow openers. Just answer directly. "
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+                "Keep answers concise unless the user explicitly asks for detail. "
+                "Use bullet points or headers only when they genuinely improve clarity. "
+                "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
+                "For coding questions, write clean, well-commented code. "
+                "If asked what model or AI you are, say you are Catura AI DeepSeek and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+                "Never make up facts. If you don't know something, say so honestly."
+                + NO_TOOL_CALL_RULE
+            ),
             "mistral_large": (
                 "Your name is Catura (pronounced kuh-CHUR-uh) Mistral Large Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
@@ -6605,7 +6761,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         yield f"data: {sp}\n\n"
 
                 minimax_msgs_get = [{"role": "system", "content": minimax_system_get}] + active_memory[-20:]
-                resp, err = call_nvidia_stream(minimax_msgs_get, nvidia_key_mm_get, "minimaxai/minimax-m3", temperature=1.0)
+                resp, err = call_nvidia_stream(minimax_msgs_get, nvidia_key_mm_get, "minimaxai/minimax-m3", temperature=1.0, template_kwargs={"thinking_mode": "enabled"}, max_tokens=16000)
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'MiniMax unavailable: {err}'})}\n\n"
                     yield "data: [DONE]\n\n"
@@ -6675,7 +6831,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         yield f"data: {sp}\n\n"
 
                 glm52_msgs_get = [{"role": "system", "content": glm52_system_get}] + active_memory[-20:]
-                resp, err = call_nvidia_stream(glm52_msgs_get, nvidia_key_g52_get, "z-ai/glm-5.2", temperature=1.0)
+                resp, err = call_nvidia_stream(glm52_msgs_get, nvidia_key_g52_get, "z-ai/glm-5.2", temperature=1.0, template_kwargs={"thinking": True}, max_tokens=32000)
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'GLM-5.2 unavailable: {err}'})}\n\n"
                     yield "data: [DONE]\n\n"
@@ -6726,6 +6882,81 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_glm52_get(), media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache",
+                         "Set-Cookie": build_session_cookie(session_id)}
+            )
+
+        # ── DEEPSEEK V4 PRO: NVIDIA NIM API — isolated from all other models ──
+        if model_key == "deepseek_v4_pro":
+            nvidia_key_ds_get   = os.getenv("NVIDIA_API_KEY", "")
+            deepseek_system_get = system_prompts.get("deepseek_v4_pro", system_prompts["dagr"])
+
+            def generate_deepseek_v4_pro_get():
+                full_reply = ""
+                thinking_open_dsg = False
+                if tool_result:
+                    yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
+                    sp = build_sources_payload(tool_result)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                deepseek_msgs_get = [{"role": "system", "content": deepseek_system_get}] + active_memory[-20:]
+                resp, err = call_nvidia_stream(
+                    deepseek_msgs_get, nvidia_key_ds_get, "deepseek-ai/deepseek-v4-pro",
+                    temperature=1.0,
+                    template_kwargs={"thinking": True, "reasoning_effort": "high"},
+                    max_tokens=32000,
+                )
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'DeepSeek unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+                try:
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            delta_dsg = choices[0].get("delta") or {}
+                            reasoning_token_dsg = delta_dsg.get("reasoning_content") or ""
+                            token = delta_dsg.get("content") or ""
+                            if reasoning_token_dsg:
+                                if not thinking_open_dsg:
+                                    full_reply += "<think>"
+                                    thinking_open_dsg = True
+                                full_reply += reasoning_token_dsg
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token_dsg}, ensure_ascii=False)}\n\n"
+                            if token:
+                                if thinking_open_dsg:
+                                    full_reply += "</think>"
+                                    thinking_open_dsg = False
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, Exception):
+                            continue
+                except Exception as e:
+                    print(f"❌ [DEEPSEEK GET] stream exception: {e}")
+                if thinking_open_dsg:
+                    full_reply += "</think>"
+                if full_reply.strip():
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_deepseek_v4_pro_get(), media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache",
                          "Set-Cookie": build_session_cookie(session_id)}
             )
