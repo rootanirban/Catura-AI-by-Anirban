@@ -500,7 +500,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.349"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.350"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -510,7 +510,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.349", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.350", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -534,6 +534,238 @@ def _resolve_owner(auth: dict, client_supplied_user_id: str | None) -> str:
     if client_supplied_user_id and client_supplied_user_id != auth["user_id"]:
         raise HTTPException(status_code=403, detail="user_id does not match authenticated user")
     return auth["user_id"]
+
+# ============================================================
+# ✅ SKILLS FEATURE — Stage 1: data layer + endpoints
+# Paste this block into main.py right after MemoryExtractRequest
+# class definition (around line 529), BEFORE the memory endpoints
+# or anywhere else at module scope after `_MemBaseModel` is imported.
+# ============================================================
+
+import yaml as _skill_yaml  # add `pyyaml` to requirements.txt if not already present
+
+
+class SkillInstallRequest(_MemBaseModel):
+    source_url: str
+    user_id: str | None = None
+
+
+class SkillToggleRequest(_MemBaseModel):
+    skill_id: str
+    enabled: bool
+
+
+class SkillDeleteRequest(_MemBaseModel):
+    skill_id: str
+
+
+def _parse_skill_md(raw: str, fallback_name: str = "Untitled Skill") -> dict:
+    """
+    Parses a SKILL.md file. Supports YAML frontmatter:
+
+        ---
+        name: rag-blueprint
+        description: Deploy, configure, troubleshoot RAG pipelines.
+        trigger_hint: use when user mentions RAG, retrieval, vector DB
+        ---
+        (full instructions body...)
+
+    Falls back gracefully if no frontmatter is present — uses the first
+    heading as the name and the whole file as content.
+    """
+    name = fallback_name
+    description = ""
+    trigger_hint = ""
+    body = raw.strip()
+
+    if raw.startswith("---"):
+        parts = raw.split("---", 2)
+        if len(parts) >= 3:
+            try:
+                meta = _skill_yaml.safe_load(parts[1]) or {}
+                name = str(meta.get("name", fallback_name)).strip()
+                description = str(meta.get("description", "")).strip()
+                trigger_hint = str(meta.get("trigger_hint", "")).strip()
+            except Exception as e:
+                print(f"⚠️ [Skills] frontmatter parse failed, using raw file: {e}")
+            body = parts[2].strip()
+
+    if not description:
+        # fallback: first non-empty line that isn't a heading marker
+        for line in body.splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                description = line[:200]
+                break
+
+    if name == fallback_name:
+        first_heading = re.search(r"^#\s+(.+)$", body, re.MULTILINE)
+        if first_heading:
+            name = first_heading.group(1).strip()
+
+    return {
+        "name": name or fallback_name,
+        "description": description or "No description provided.",
+        "trigger_hint": trigger_hint,
+        "content": body,
+    }
+
+
+def _slugify(name: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    return slug or "skill"
+
+
+def get_matching_skills(user_id: str, prompt: str, max_skills: int = 2) -> list:
+    """
+    Cheap keyword-based skill router (no extra LLM call, no extra latency).
+    Loads the user's ENABLED skills (own + preinstalled), and returns the
+    top `max_skills` whose name/description/trigger_hint overlap with the
+    user's message. Returns [] if nothing matches — normal replies are
+    completely unaffected.
+    """
+    try:
+        own = _supabase_admin.table("skills") \
+            .select("id, name, description, trigger_hint, content") \
+            .eq("user_id", user_id).eq("enabled", True).execute()
+        preinstalled = _supabase_admin.table("skills") \
+            .select("id, name, description, trigger_hint, content") \
+            .is_("user_id", "null").eq("is_preinstalled", True).eq("enabled", True).execute()
+        all_skills = (own.data or []) + (preinstalled.data or [])
+        if not all_skills:
+            return []
+
+        lower_prompt = prompt.lower()
+        prompt_words = set(re.findall(r"[a-z0-9]+", lower_prompt))
+
+        scored = []
+        for s in all_skills:
+            haystack = f"{s.get('name','')} {s.get('description','')} {s.get('trigger_hint','')}".lower()
+            skill_words = set(re.findall(r"[a-z0-9]+", haystack))
+            skill_words = {w for w in skill_words if len(w) > 3}
+            overlap = prompt_words & skill_words
+            if overlap:
+                scored.append((len(overlap), s))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [s for _, s in scored[:max_skills]]
+    except Exception as e:
+        print(f"⚠️ [Skills] routing error (non-fatal, skipping skills): {e}")
+        return []
+
+
+def build_skill_context(matched_skills: list) -> str:
+    """Formats matched skills into a system-prompt block, capped so it can't blow up token usage."""
+    if not matched_skills:
+        return ""
+    block = (
+        "\n\n## 🛠️ ACTIVE SKILLS\n"
+        "The following skill instructions apply to this message. Follow them precisely "
+        "and let them guide your approach and answer quality:\n\n"
+    )
+    for s in matched_skills:
+        block += f"### Skill: {s.get('name','Unnamed')}\n{s.get('content','')[:6000]}\n\n"
+    return block
+
+
+@app.post("/api/skills/install")
+@limiter.limit("10/minute")
+async def install_skill(request: Request, req: SkillInstallRequest, auth: dict = Depends(require_auth)):
+    """
+    Installs a skill from a URL. Supports:
+      - Direct raw SKILL.md links (raw.githubusercontent.com/.../SKILL.md)
+      - GitHub blob links (auto-converted to raw)
+    """
+    try:
+        user_id = _resolve_owner(auth, req.user_id)
+        url = req.source_url.strip()
+        if not url:
+            return JSONResponse({"ok": False, "error": "Missing source_url"}, status_code=400)
+
+        # Convert github.com/.../blob/... links to raw links automatically
+        fetch_url = url
+        if "github.com" in url and "/blob/" in url:
+            fetch_url = url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
+
+        import httpx as _skills_httpx
+        async with _skills_httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            resp = await client.get(fetch_url)
+            if resp.status_code != 200:
+                return JSONResponse(
+                    {"ok": False, "error": f"Could not fetch skill (HTTP {resp.status_code}). Check the link."},
+                    status_code=400,
+                )
+            raw_content = resp.text
+
+        if len(raw_content.strip()) < 10:
+            return JSONResponse({"ok": False, "error": "Fetched file is empty or invalid."}, status_code=400)
+
+        fallback_name = url.rstrip("/").split("/")[-1].replace(".md", "").replace("-", " ").title()
+        parsed = _parse_skill_md(raw_content, fallback_name=fallback_name)
+
+        row = {
+            "user_id": user_id,
+            "name": parsed["name"][:120],
+            "slug": _slugify(parsed["name"]),
+            "description": parsed["description"][:500],
+            "trigger_hint": parsed["trigger_hint"][:300],
+            "content": parsed["content"][:20000],  # sane cap to protect prompt size
+            "source_url": url,
+            "is_preinstalled": False,
+            "enabled": True,
+            "updated_at": datetime.utcnow().isoformat(),
+        }
+        result = _supabase_admin.table("skills").insert(row).execute()
+        return JSONResponse({"ok": True, "skill": result.data[0] if result.data else row})
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ [Skills] install error: {e}")
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
+@app.get("/api/skills/list")
+@limiter.limit("30/minute")
+async def list_skills(request: Request, auth: dict = Depends(require_auth)):
+    try:
+        user_id = auth["user_id"]
+        own = _supabase_admin.table("skills") \
+            .select("id, name, slug, description, trigger_hint, source_url, is_preinstalled, enabled, created_at") \
+            .eq("user_id", user_id).order("created_at", desc=True).execute()
+        preinstalled = _supabase_admin.table("skills") \
+            .select("id, name, slug, description, trigger_hint, source_url, is_preinstalled, enabled, created_at") \
+            .is_("user_id", "null").eq("is_preinstalled", True).execute()
+        return JSONResponse({"ok": True, "skills": (own.data or []) + (preinstalled.data or [])})
+    except Exception as e:
+        print(f"❌ [Skills] list error: {e}")
+        return JSONResponse({"ok": False, "skills": []})
+
+
+@app.post("/api/skills/toggle")
+@limiter.limit("30/minute")
+async def toggle_skill(request: Request, req: SkillToggleRequest, auth: dict = Depends(require_auth)):
+    try:
+        user_id = auth["user_id"]
+        _supabase_admin.table("skills") \
+            .update({"enabled": req.enabled}) \
+            .eq("id", req.skill_id).eq("user_id", user_id).execute()
+        return JSONResponse({"ok": True})
+    except Exception as e:
+        print(f"❌ [Skills] toggle error: {e}")
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
+@app.delete("/api/skills/delete")
+@limiter.limit("10/minute")
+async def delete_skill(request: Request, id: str, auth: dict = Depends(require_auth)):
+    try:
+        user_id = auth["user_id"]
+        _supabase_admin.table("skills").delete().eq("id", id).eq("user_id", user_id).execute()
+        return JSONResponse({"ok": True})
+    except Exception as e:
+        print(f"❌ [Skills] delete error: {e}")
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 # ── 🧠 MEMORY ENDPOINTS ───────────────────────────────────────────────────────
 
@@ -4194,6 +4426,13 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
         print(f"🎯 [PIPELINE] intent={intent} | model={model_key} | prompt={prompt[:60]}")
 
         # Step 2: build final messages list (tool context added inside generator)
+        # ── 🛠️ SKILLS INJECTION ─────────────────────────────────────────────
+        matched_skills = get_matching_skills(auth["user_id"], prompt)
+        if matched_skills:
+            skill_names = ", ".join(s.get("name", "?") for s in matched_skills)
+            print(f"🛠️ [Skills] matched: {skill_names}")
+            system_prompt = system_prompt + build_skill_context(matched_skills)
+        # ─────────────────────────────────────────────────────────────────────
         base_system_prompt = system_prompt  # save before tool injection
         messages_base = [{"role": "system", "content": system_prompt}] + active_memory[-20:]
         api_key  = os.getenv("OPENROUTER_API_KEY")

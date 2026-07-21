@@ -10,6 +10,8 @@ tavily-python
 pypdf
 python-docx
 slowapi
+pyyaml
+httpx
 # ── Production Search Engine ────────────────────────────────────────────────
 # (API calls via requests — no extra SDK needed for Serper, Firecrawl, Cohere)
 # All three are called via REST API using the existing `requests` library.

@@ -717,6 +717,226 @@ window.deleteOneMemory = async function(id, btn) {
     } catch (e) { showToast('❌ Failed to delete memory'); }
 };
 
+// ============================================================
+// 🛠️ SKILLS FEATURE — frontend (Stage 2 + chat-triggered install)
+// ============================================================
+
+// Keep a lightweight in-memory cache so the settings row subtitle
+// and the panel don't both have to hit the network every time.
+let _skillsCache = null;
+
+async function _fetchSkills(forceRefresh = false) {
+    if (!currentUser) return [];
+    if (_skillsCache && !forceRefresh) return _skillsCache;
+    try {
+        const headers = await _authHeaders();
+        if (!headers) return [];
+        const resp = await fetch('/api/skills/list', { headers });
+        const data = await resp.json();
+        _skillsCache = data.skills || [];
+        return _skillsCache;
+    } catch (e) {
+        console.warn('[Skills] list fetch error:', e);
+        return [];
+    }
+}
+
+window.refreshSkillsCountSub = async function () {
+    const sub = document.getElementById('skillsCountSub');
+    if (!sub) return;
+    const skills = await _fetchSkills();
+    const enabledCount = skills.filter(s => s.enabled).length;
+    sub.textContent = skills.length
+        ? `${enabledCount} of ${skills.length} skill${skills.length === 1 ? '' : 's'} enabled`
+        : 'Install and manage skills Catura can use';
+};
+
+// ── Terminal-style install + manage panel ──────────────────────────────────
+window.openSkillsPanel = async function () {
+    if (!currentUser) { showToast('Please log in first'); return; }
+    const existing = document.getElementById('skillsPanelModal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'skillsPanelModal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;';
+    modal.innerHTML = `
+        <div style="position:absolute;inset:0;background:rgba(0,0,0,0.65);" onclick="document.getElementById('skillsPanelModal').remove()"></div>
+        <div style="position:relative;background:var(--bg-modal,#1a1a1a);border:1px solid var(--border,#2a2a2a);border-radius:14px;padding:24px;width:min(560px,92vw);max-height:80vh;display:flex;flex-direction:column;gap:16px;z-index:1;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+                <h3 style="margin:0;font-size:16px;font-weight:600;color:var(--text-primary,#e5e5e5);">🛠️ Skills</h3>
+                <button onclick="document.getElementById('skillsPanelModal').remove()" style="background:none;border:none;cursor:pointer;color:var(--text-muted,#888);font-size:18px;">✕</button>
+            </div>
+            <p style="margin:0;font-size:12px;color:var(--text-muted,#888);">Paste a skill link below to install it. Catura will use it automatically when relevant.</p>
+
+            <!-- Terminal-style install box -->
+            <div style="background:#0d0d0d;border:1px solid #2a2a2a;border-radius:10px;padding:12px 14px;font-family:'SF Mono',Consolas,monospace;">
+                <div style="display:flex;align-items:center;gap:8px;color:#6ee7a7;font-size:12px;margin-bottom:8px;">
+                    <span>$</span><span>skills install</span>
+                </div>
+                <input id="skillInstallInput" type="text" placeholder="https://raw.githubusercontent.com/.../SKILL.md"
+                    style="width:100%;background:#161616;border:1px solid #2a2a2a;border-radius:6px;padding:9px 10px;color:#e5e5e5;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;"
+                    onkeydown="if(event.key==='Enter') installSkillFromPanel()">
+                <button onclick="installSkillFromPanel()" id="skillInstallBtn"
+                    style="margin-top:10px;width:100%;padding:9px;background:#10a37f;border:none;border-radius:6px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
+                    Install
+                </button>
+                <p id="skillInstallStatus" style="margin:8px 0 0;font-size:12px;color:#888;min-height:14px;"></p>
+            </div>
+
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+                <span style="font-size:12px;font-weight:600;color:var(--text-muted,#888);text-transform:uppercase;letter-spacing:0.04em;">Installed skills</span>
+            </div>
+            <div id="skillsListContainer" style="overflow-y:auto;display:flex;flex-direction:column;gap:8px;max-height:40vh;">
+                <p style="font-size:13px;color:var(--text-muted,#888);">Loading…</p>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+    await _renderSkillsList();
+    document.getElementById('skillInstallInput')?.focus();
+};
+
+async function _renderSkillsList() {
+    const container = document.getElementById('skillsListContainer');
+    if (!container) return;
+    const skills = await _fetchSkills(true);
+    if (skills.length === 0) {
+        container.innerHTML = `<p style="font-size:13px;color:var(--text-muted,#888);">No skills installed yet.</p>`;
+        return;
+    }
+    container.innerHTML = skills.map(s => `
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--bg-surface2,#161616);border-radius:8px;border:1px solid var(--border-subtle,#1e1e1e);">
+            <div style="flex:1;min-width:0;">
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <span style="font-size:13px;font-weight:600;color:var(--text-primary,#e5e5e5);">${escapeHtml(s.name)}</span>
+                    ${s.is_preinstalled ? '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(16,163,127,0.15);color:#10a37f;">preinstalled</span>' : ''}
+                </div>
+                <p style="margin:2px 0 0;font-size:12px;color:var(--text-muted,#888);line-height:1.4;">${escapeHtml(s.description || '')}</p>
+            </div>
+            <label class="toggle-switch" title="Enable/disable" style="flex-shrink:0;">
+                <input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="toggleSkillEnabled('${s.id}', this.checked)">
+                <span class="toggle-slider"></span>
+            </label>
+            ${!s.is_preinstalled ? `<button onclick="deleteSkillFromPanel('${s.id}')" title="Remove" style="background:none;border:none;cursor:pointer;color:#e06c6c;font-size:15px;padding:0;flex-shrink:0;line-height:1.4;">✕</button>` : ''}
+        </div>
+    `).join('');
+}
+
+window.installSkillFromPanel = async function () {
+    const input = document.getElementById('skillInstallInput');
+    const status = document.getElementById('skillInstallStatus');
+    const btn = document.getElementById('skillInstallBtn');
+    const url = input?.value.trim();
+    if (!url) { if (status) status.textContent = 'Paste a skill link first.'; return; }
+
+    if (btn) { btn.disabled = true; btn.textContent = 'Installing…'; }
+    if (status) { status.style.color = '#888'; status.textContent = 'Fetching and parsing skill…'; }
+
+    const result = await _installSkill(url);
+
+    if (btn) { btn.disabled = false; btn.textContent = 'Install'; }
+    if (status) {
+        status.style.color = result.ok ? '#6ee7a7' : '#e06c6c';
+        status.textContent = result.ok ? `✓ Installed: ${result.skill?.name || 'skill'}` : `✗ ${result.error || 'Install failed'}`;
+    }
+    if (result.ok) {
+        if (input) input.value = '';
+        await _renderSkillsList();
+        await refreshSkillsCountSub();
+    }
+};
+
+// Shared install call used by BOTH the panel and the chat-triggered flow
+async function _installSkill(sourceUrl) {
+    if (!currentUser) return { ok: false, error: 'Please log in first' };
+    try {
+        const headers = await _authHeaders({ 'Content-Type': 'application/json' });
+        if (!headers) return { ok: false, error: 'Please log in again' };
+        const resp = await fetch('/api/skills/install', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ source_url: sourceUrl })
+        });
+        const data = await resp.json();
+        return data;
+    } catch (e) {
+        console.warn('[Skills] install error:', e);
+        return { ok: false, error: 'Network error while installing skill' };
+    }
+}
+
+window.toggleSkillEnabled = async function (id, enabled) {
+    try {
+        const headers = await _authHeaders({ 'Content-Type': 'application/json' });
+        if (!headers) { showToast('❌ Please log in again'); return; }
+        const resp = await fetch('/api/skills/toggle', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ skill_id: id, enabled })
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            if (_skillsCache) {
+                const s = _skillsCache.find(x => x.id === id);
+                if (s) s.enabled = enabled;
+            }
+            await refreshSkillsCountSub();
+            showToast(enabled ? '✓ Skill enabled' : 'Skill disabled');
+        } else {
+            showToast('❌ Failed to update skill');
+        }
+    } catch (e) { showToast('❌ Failed to update skill'); }
+};
+
+window.deleteSkillFromPanel = async function (id) {
+    showModal({
+        type: 'confirm', dangerous: true,
+        title: 'Remove skill',
+        subtitle: 'This cannot be undone',
+        message: 'Catura will no longer use this skill.',
+        confirmLabel: 'Remove',
+        onConfirm: async () => {
+            try {
+                const headers = await _authHeaders();
+                if (!headers) { showToast('❌ Please log in again'); return; }
+                const resp = await fetch(`/api/skills/delete?id=${id}`, { method: 'DELETE', headers });
+                const data = await resp.json();
+                if (data.ok) {
+                    showToast('✓ Skill removed');
+                    await _renderSkillsList();
+                    await refreshSkillsCountSub();
+                } else {
+                    showToast('❌ Failed to remove skill');
+                }
+            } catch (e) { showToast('❌ Failed to remove skill'); }
+        }
+    });
+};
+
+// ── Chat-triggered install: "install <link>" typed directly in the message box ──
+// Matches a URL together with an install-intent word/phrase, anywhere in the message.
+// Returns true if it handled (and short-circuited) the send — caller should stop.
+const _SKILL_URL_RX = /(https?:\/\/[^\s]+)/i;
+const _SKILL_INSTALL_INTENT_RX = /\b(install|add)\b.{0,20}\b(skill|this)\b|\binstall\b.{0,60}(https?:\/\/)/i;
+
+async function _maybeHandleChatSkillInstall(message) {
+    if (!message) return false;
+    const urlMatch = message.match(_SKILL_URL_RX);
+    if (!urlMatch) return false;
+    if (!_SKILL_INSTALL_INTENT_RX.test(message)) return false;
+
+    const url = urlMatch[1].replace(/[),.]+$/, ''); // strip trailing punctuation
+    showToast('🛠️ Installing skill…');
+    const result = await _installSkill(url);
+    _skillsCache = null; // force refresh next time panel/subtitle is read
+    if (result.ok) {
+        showToast(`✓ Installed skill: ${result.skill?.name || 'skill'} — Catura will use it when relevant`);
+    } else {
+        showToast(`❌ Couldn't install skill: ${result.error || 'unknown error'}`);
+    }
+    return true;
+}
+
 window.toggleGhostChat = function () {
     ghostChatEnabled = !ghostChatEnabled;
     const btn        = document.getElementById('ghostChatBtn');
@@ -2495,6 +2715,26 @@ window.showSettingsTab = function (tab, clickedEl) {
                         <p class="sc-row-sub">Delete everything Catura has saved — cannot be undone</p>
                     </div>
                 </div>
+            </div>
+
+            <!-- ============================ -->
+            <!-- 🛠️ SKILLS SECTION -->
+            <!-- ============================ -->
+            <div class="sc-section">
+                <div class="sc-section-title">Skills</div>
+
+                <!-- Manage Skills (opens terminal-style install panel) -->
+                <div class="sc-row" onclick="openSkillsPanel()" style="cursor:pointer;">
+                    <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="16 18 22 12 16 6"></polyline>
+                        <polyline points="8 6 2 12 8 18"></polyline>
+                    </svg>
+                    <div class="sc-row-body">
+                        <p class="sc-row-label">Manage Skills</p>
+                        <p class="sc-row-sub" id="skillsCountSub">Install and manage skills Catura can use</p>
+                    </div>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-left:8px;opacity:0.4;"><polyline points="9 18 15 12 9 6"/></svg>
+                </div>
             </div>`,
 
         // ============================
@@ -2755,6 +2995,7 @@ window.showSettingsTab = function (tab, clickedEl) {
 
     // Wire up Memory & context expand/collapse
     if (tab === 'personalization') {
+        if (typeof refreshSkillsCountSub === 'function') refreshSkillsCountSub();
         const allRows = content.querySelectorAll('.sc-section .sc-row');
         allRows.forEach(row => {
             const chevron = row.querySelector('.sc-row-chevron');
@@ -3792,6 +4033,17 @@ document.addEventListener("DOMContentLoaded", async function () {
         const message  = input.value.trim();
         const hasFiles = (typeof attachedFiles !== 'undefined') && attachedFiles.length > 0;
         if (!message && !hasFiles) return;
+
+        // ── 🛠️ Chat-triggered skill install: "install <link>" ──────────────
+        // Short-circuits the normal send flow entirely — this never reaches the model.
+        if (typeof _maybeHandleChatSkillInstall === 'function') {
+            const handled = await _maybeHandleChatSkillInstall(message);
+            if (handled) {
+                input.value = '';
+                if (typeof autoResizeInput === 'function') autoResizeInput();
+                return;
+            }
+        }
 
         // ── Layout transition on first message ──────────────────────────────
         if (firstMessage) {
