@@ -500,7 +500,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.352"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.353"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -510,7 +510,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.352", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.353", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3034,6 +3034,26 @@ async def delete_account(request: Request):
 # ============================================================
 # ✅ HELPER: Call OpenRouter with streaming
 # ============================================================
+# ── Handoff continuation instruction ──────────────────────────────────────────
+# Used whenever a reply got cut off (hit max_tokens / stream broke) and we're
+# handing off to another leg — same model or a different one in the pool.
+# Without this, the next leg only sees a stray "assistant" message sitting in
+# history and has no reason not to just start a brand-new answer from
+# scratch — which is what produced the "restart/loop" behavior. This message
+# is appended as the LAST turn (role=user) so it works reliably across every
+# backend/model regardless of whether they special-case a trailing assistant
+# turn.
+HANDOFF_CONTINUE_PROMPT = (
+    "Your previous response was cut off before it finished. "
+    "Continue EXACTLY from the point it stopped — do not repeat any text you "
+    "already wrote, do not restart the file/answer, do not add any preamble, "
+    "explanation, apology, or markdown code fences at the resume point. "
+    "Resume mid-content as if there had been no interruption at all, and "
+    "keep going until the entire response (e.g. the full HTML file) is "
+    "completely finished."
+)
+
+
 def call_openrouter_stream(model_id, messages, api_key, file_urls=None, vision_images=None):
     """
     Call OpenRouter streaming.
@@ -3079,7 +3099,7 @@ def call_openrouter_stream(model_id, messages, api_key, file_urls=None, vision_i
                 "messages": messages,
                 "stream": True,
                 "temperature": 0.3,
-                "max_tokens": 8192,
+                "max_tokens": 16000,
                 **({"provider": {"order": ["OpenAI"], "allow_fallbacks": True}} if "gpt-oss" in model_id else {}),
                 # ✅ Cohere North Mini Code is a reasoning/thinking model — OpenRouter only
                 # runs its thinking pass when a "reasoning" object is explicitly sent.
@@ -5661,7 +5681,10 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 print(f"🔄 Handoff {handoffs} — [{current_model}] | intent={intent} | accumulated: {len(full_reply)} chars")
 
                 relay_messages = (
-                    messages + [{"role": "assistant", "content": full_reply}]
+                    messages + [
+                        {"role": "assistant", "content": full_reply},
+                        {"role": "user", "content": HANDOFF_CONTINUE_PROMPT},
+                    ]
                     if full_reply.strip() else messages
                 )
 
@@ -7517,7 +7540,10 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 yield ": heartbeat\n\n"
 
                 relay_messages = (
-                    messages + [{"role": "assistant", "content": full_reply}]
+                    messages + [
+                        {"role": "assistant", "content": full_reply},
+                        {"role": "user", "content": HANDOFF_CONTINUE_PROMPT},
+                    ]
                     if full_reply.strip() else messages
                 )
                 resp, err = call_openrouter_stream(current_model, relay_messages, api_key)
