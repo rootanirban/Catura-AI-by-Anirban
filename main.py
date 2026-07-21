@@ -500,7 +500,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.353"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.354"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -510,7 +510,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.353", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.354", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -3432,7 +3432,7 @@ def call_zai_stream(messages, api_key):
                 "messages": messages,
                 "stream": True,
                 "temperature": 0.7,
-                "max_tokens": 8000,
+                "max_tokens": 24000,
             },
             stream=True,
             timeout=(10, 120),
@@ -4809,54 +4809,80 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                glm_messages = (
+                base_glm_messages = (
                     [{"role": "system", "content": final_system_glm}]
                     + active_memory[-20:]
                 )
-                resp, err = call_zai_stream(glm_messages, zai_key)
 
-                if resp is None:
-                    yield f"data: {json.dumps({'error': f'GLM unavailable: {err}'})}\n\n"
-                    yield "data: [DONE]\n\n"
-                    return
+                # ── Handoff loop: GLM's own max_tokens (24000) can still be hit on
+                # very large single-file builds. When that happens, keep asking GLM
+                # to continue exactly where it left off, instead of silently ending
+                # the stream with a half-finished file (this was the original bug —
+                # the old code never checked finish_reason and never retried).
+                MAX_GLM_LEGS = 6
+                leg = 0
+                while leg < MAX_GLM_LEGS:
+                    leg += 1
+                    glm_messages = (
+                        base_glm_messages + [
+                            {"role": "assistant", "content": full_reply},
+                            {"role": "user", "content": HANDOFF_CONTINUE_PROMPT},
+                        ]
+                        if full_reply.strip() else base_glm_messages
+                    )
+                    resp, err = call_zai_stream(glm_messages, zai_key)
 
-                try:
-                    for line in resp.iter_lines():
-                        if not line:
-                            continue
-                        decoded = line.decode("utf-8")
-                        if not decoded.startswith("data: "):
-                            continue
-                        payload = decoded[6:]
-                        if payload.strip() == "[DONE]":
-                            break
-                        try:
-                            chunk = json.loads(payload)
-                            if "error" in chunk:
-                                print(f"⚠️ [GLM] mid-stream error: {chunk['error']}")
-                                break
-                            choices = chunk.get("choices")
-                            if not choices:
+                    if resp is None:
+                        if full_reply.strip():
+                            break  # keep what we have rather than losing it
+                        yield f"data: {json.dumps({'error': f'GLM unavailable: {err}'})}\n\n"
+                        yield "data: [DONE]\n\n"
+                        return
+
+                    finish_reason_glm = None
+                    try:
+                        for line in resp.iter_lines():
+                            if not line:
                                 continue
-                            delta_glm = choices[0].get("delta") or {}
-                            reasoning_token_glm = delta_glm.get("reasoning_content") or ""
-                            token = delta_glm.get("content") or ""
-                            if reasoning_token_glm:
-                                if not thinking_open_glm:
-                                    full_reply += "<think>"
-                                    thinking_open_glm = True
-                                full_reply += reasoning_token_glm
-                                yield f"data: {json.dumps({'thinking_token': reasoning_token_glm}, ensure_ascii=False)}\n\n"
-                            if token:
-                                if thinking_open_glm:
-                                    full_reply += "</think>"
-                                    thinking_open_glm = False
-                                full_reply += token
-                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
-                            continue
-                except Exception as e:
-                    print(f"❌ [GLM] stream exception: {e}")
+                            decoded = line.decode("utf-8")
+                            if not decoded.startswith("data: "):
+                                continue
+                            payload = decoded[6:]
+                            if payload.strip() == "[DONE]":
+                                break
+                            try:
+                                chunk = json.loads(payload)
+                                if "error" in chunk:
+                                    print(f"⚠️ [GLM] mid-stream error: {chunk['error']}")
+                                    break
+                                choices = chunk.get("choices")
+                                if not choices:
+                                    continue
+                                finish_reason_glm = choices[0].get("finish_reason") or finish_reason_glm
+                                delta_glm = choices[0].get("delta") or {}
+                                reasoning_token_glm = delta_glm.get("reasoning_content") or ""
+                                token = delta_glm.get("content") or ""
+                                if reasoning_token_glm:
+                                    if not thinking_open_glm:
+                                        full_reply += "<think>"
+                                        thinking_open_glm = True
+                                    full_reply += reasoning_token_glm
+                                    yield f"data: {json.dumps({'thinking_token': reasoning_token_glm}, ensure_ascii=False)}\n\n"
+                                if token:
+                                    if thinking_open_glm:
+                                        full_reply += "</think>"
+                                        thinking_open_glm = False
+                                    full_reply += token
+                                    yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                            except (json.JSONDecodeError, Exception):
+                                continue
+                    except Exception as e:
+                        print(f"❌ [GLM] stream exception: {e}")
+
+                    # Only keep going if GLM was actually cut off for length reasons.
+                    if finish_reason_glm == "length":
+                        continue
+                    break
 
                 if thinking_open_glm:
                     full_reply += "</think>"
@@ -6811,48 +6837,73 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                glm_msgs_get = [{"role": "system", "content": glm_system_get}] + active_memory[-20:]
-                resp, err = call_zai_stream(glm_msgs_get, zai_key_get)
-                if resp is None:
-                    yield f"data: {json.dumps({'error': f'GLM unavailable: {err}'})}\n\n"
-                    yield "data: [DONE]\n\n"
-                    return
-                try:
-                    for line in resp.iter_lines():
-                        if not line:
-                            continue
-                        decoded = line.decode("utf-8")
-                        if not decoded.startswith("data: "):
-                            continue
-                        payload = decoded[6:]
-                        if payload.strip() == "[DONE]":
+                base_glm_msgs_get = [{"role": "system", "content": glm_system_get}] + active_memory[-20:]
+
+                # ── Same handoff/continue loop as the POST handler: without this,
+                # a finish_reason == "length" cutoff just silently ends the stream
+                # with a half-finished file.
+                MAX_GLM_LEGS = 6
+                leg = 0
+                while leg < MAX_GLM_LEGS:
+                    leg += 1
+                    glm_msgs_get = (
+                        base_glm_msgs_get + [
+                            {"role": "assistant", "content": full_reply},
+                            {"role": "user", "content": HANDOFF_CONTINUE_PROMPT},
+                        ]
+                        if full_reply.strip() else base_glm_msgs_get
+                    )
+                    resp, err = call_zai_stream(glm_msgs_get, zai_key_get)
+                    if resp is None:
+                        if full_reply.strip():
                             break
-                        try:
-                            chunk = json.loads(payload)
-                            if "error" in chunk:
-                                break
-                            choices = chunk.get("choices")
-                            if not choices:
+                        yield f"data: {json.dumps({'error': f'GLM unavailable: {err}'})}\n\n"
+                        yield "data: [DONE]\n\n"
+                        return
+
+                    finish_reason_glm_get = None
+                    try:
+                        for line in resp.iter_lines():
+                            if not line:
                                 continue
-                            delta_glm_get = choices[0].get("delta") or {}
-                            reasoning_token_glm_get = delta_glm_get.get("reasoning_content") or ""
-                            token = delta_glm_get.get("content") or ""
-                            if reasoning_token_glm_get:
-                                if not thinking_open_glm_get:
-                                    full_reply += "<think>"
-                                    thinking_open_glm_get = True
-                                full_reply += reasoning_token_glm_get
-                                yield f"data: {json.dumps({'thinking_token': reasoning_token_glm_get}, ensure_ascii=False)}\n\n"
-                            if token:
-                                if thinking_open_glm_get:
-                                    full_reply += "</think>"
-                                    thinking_open_glm_get = False
-                                full_reply += token
-                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
-                            continue
-                except Exception as e:
-                    print(f"❌ [GLM GET] stream exception: {e}")
+                            decoded = line.decode("utf-8")
+                            if not decoded.startswith("data: "):
+                                continue
+                            payload = decoded[6:]
+                            if payload.strip() == "[DONE]":
+                                break
+                            try:
+                                chunk = json.loads(payload)
+                                if "error" in chunk:
+                                    break
+                                choices = chunk.get("choices")
+                                if not choices:
+                                    continue
+                                finish_reason_glm_get = choices[0].get("finish_reason") or finish_reason_glm_get
+                                delta_glm_get = choices[0].get("delta") or {}
+                                reasoning_token_glm_get = delta_glm_get.get("reasoning_content") or ""
+                                token = delta_glm_get.get("content") or ""
+                                if reasoning_token_glm_get:
+                                    if not thinking_open_glm_get:
+                                        full_reply += "<think>"
+                                        thinking_open_glm_get = True
+                                    full_reply += reasoning_token_glm_get
+                                    yield f"data: {json.dumps({'thinking_token': reasoning_token_glm_get}, ensure_ascii=False)}\n\n"
+                                if token:
+                                    if thinking_open_glm_get:
+                                        full_reply += "</think>"
+                                        thinking_open_glm_get = False
+                                    full_reply += token
+                                    yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                            except (json.JSONDecodeError, Exception):
+                                continue
+                    except Exception as e:
+                        print(f"❌ [GLM GET] stream exception: {e}")
+
+                    if finish_reason_glm_get == "length":
+                        continue
+                    break
+
                 if thinking_open_glm_get:
                     full_reply += "</think>"
                 if full_reply.strip():
