@@ -2907,7 +2907,7 @@ html { scroll-behavior: smooth; }
         position: fixed;
         inset: 0;
         background: rgba(0, 0, 0, 0.65);
-        z-index: var(--z-overlay);
+        z-index: var(--z-sticky); /* must stay below .sidebar's var(--z-floating-ui), or the scrim paints over the sidebar itself */
         backdrop-filter: blur(4px);
         opacity: 0;
         pointer-events: none;
