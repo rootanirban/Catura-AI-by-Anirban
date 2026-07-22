@@ -1,4 +1,43 @@
 /* ============================
+   Z-INDEX SCALE
+   Central source of truth for stacking order. New components pick
+   a tier here instead of inventing a number. Tiers are spaced out
+   so you can insert a new layer between two existing ones later
+   without renumbering everything.
+
+   Tiers, low → high:
+   1. base        — local/internal stacking within one component
+                    (e.g. an icon above its own background). NOT
+                    migrated to variables — these are relative to
+                    a sibling, not to the rest of the app, and are
+                    fine as small literal numbers (1-4).
+   2. sticky      — persistent chrome: icon rail, desktop sidebar
+   3. dropdown    — menus/panels anchored to a trigger (plus menu,
+                    color picker, history menu, user dropdown)
+   4. floating-ui — floating action elements that sit above normal
+                    content but below overlays (scroll-to-bottom,
+                    msg-nav tracker, ghost/share buttons, mobile
+                    header)
+   5. overlay     — full-screen scrims/panels that sit above chrome
+                    (sidebar-overlay, settings panel, model dropdown)
+   6. modal       — dialogs (feedback, privacy, MFA, archive, crop,
+                    drop-overlay)
+   7. modal-sheet — mobile bottom-sheet variants of a dropdown/modal
+                    that must render above their own parent
+   8. toast       — highest tier; must always be visible above
+                    everything else, including open modals
+   ============================ */
+:root {
+    --z-sticky: 100;
+    --z-dropdown: 500;
+    --z-floating-ui: 1000;
+    --z-overlay: 9000;
+    --z-modal: 9999;
+    --z-modal-sheet: 10000;
+    --z-toast: 99999;
+}
+
+/* ============================
    CSS VARIABLES — DARK (default)
 ============================ */
 :root {
@@ -260,7 +299,7 @@ html { scroll-behavior: smooth; }
     padding: 10px 0;
     gap: 4px;
     flex-shrink: 0;
-    z-index: 100;
+    z-index: var(--z-sticky);
     overflow: hidden;
     opacity: 0;
     pointer-events: none;
@@ -351,7 +390,7 @@ html { scroll-behavior: smooth; }
     overflow: hidden;
     flex-shrink: 0;
     position: relative;
-    z-index: 100;
+    z-index: var(--z-sticky);
     /* Slide in/out via transform + margin — one smooth motion as a unit */
     transform: translateX(-260px);
     margin-left: -260px;
@@ -692,7 +731,7 @@ html { scroll-behavior: smooth; }
     top: 50%;
     right: 16px;
     transform: translateY(-50%);
-    z-index: 150;
+    z-index: var(--z-floating-ui);
     display: flex;
     flex-direction: column;
     align-items: flex-end;
@@ -731,7 +770,7 @@ html { scroll-behavior: smooth; }
     top: 50%;
     right: 36px;
     transform: translateY(-50%) translateX(6px);
-    z-index: 150;
+    z-index: var(--z-floating-ui);
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -807,7 +846,7 @@ html { scroll-behavior: smooth; }
     top: -48px;
     left: 50%;
     transform: translateX(-50%) scale(0.85);
-    z-index: 200;
+    z-index: var(--z-floating-ui);
     width: 32px;
     height: 32px;
     border-radius: 50%;
@@ -1378,7 +1417,7 @@ html { scroll-behavior: smooth; }
     background: #1a1a1a;
     border-color: #333;
     margin: 0 auto 20px auto;
-    z-index: 50;
+    z-index: var(--z-floating-ui);
 }
 
 #input {
@@ -1470,7 +1509,7 @@ html { scroll-behavior: smooth; }
     padding: 6px;
     min-width: 190px;
     box-shadow: 0 8px 32px rgba(0,0,0,0.6);
-    z-index: 500;
+    z-index: var(--z-dropdown);
     opacity: 0;
     visibility: hidden;
     transform: translateY(6px) scale(0.97);
@@ -1837,7 +1876,7 @@ html { scroll-behavior: smooth; }
     transform: translateY(6px);
     pointer-events: none;
     transition: opacity 0.18s ease, transform 0.18s ease;
-    z-index: 200;
+    z-index: var(--z-dropdown);
 }
 .user-dropdown.open {
     opacity: 1;
@@ -1929,7 +1968,7 @@ html { scroll-behavior: smooth; }
 .history-menu-wrap { 
     position: relative; 
     flex-shrink: 0;
-    z-index: 1001;
+    z-index: var(--z-dropdown);
 }
 
 .history-menu-btn {
@@ -1962,7 +2001,7 @@ html { scroll-behavior: smooth; }
     border-radius: 10px;
     padding: 4px; 
     min-width: 148px; 
-    z-index: 10001;
+    z-index: var(--z-dropdown);
     box-shadow: 0 8px 24px rgba(0,0,0,0.4); 
     animation: dropIn 0.12s ease;
 }
@@ -2024,7 +2063,7 @@ html { scroll-behavior: smooth; }
     font-size: 13px; 
     opacity: 0;
     transition: opacity 0.3s ease, transform 0.3s ease;
-    z-index: 9999; 
+    z-index: var(--z-toast); 
     pointer-events: none; 
     white-space: nowrap;
     box-shadow: 0 8px 24px rgba(0,0,0,0.3);
@@ -2194,7 +2233,7 @@ html { scroll-behavior: smooth; }
     inset: 0;
     background: rgba(15,15,15,0.97);
     backdrop-filter: blur(4px);
-    z-index: 200; 
+    z-index: var(--z-overlay); /* was 200 — used to render behind the sidebar (z-index 1000) */
     overflow: hidden;
     opacity: 0; 
     visibility: hidden; 
@@ -2413,7 +2452,7 @@ html { scroll-behavior: smooth; }
     border-radius: 12px;
     padding: 6px;
     box-shadow: 0 12px 32px rgba(0,0,0,0.45);
-    z-index: 60;
+    z-index: var(--z-dropdown);
     opacity: 0;
     visibility: hidden;
     transform: translateY(-6px);
@@ -2494,7 +2533,7 @@ html { scroll-behavior: smooth; }
         height: 56px;
         background: transparent;
         border-bottom: none;
-        z-index: 998;
+        z-index: var(--z-floating-ui);
         padding: 0 6px 0 8px;
         padding-top: max(0px, env(safe-area-inset-top));
         box-sizing: border-box;
@@ -2764,7 +2803,7 @@ html { scroll-behavior: smooth; }
         background: rgba(22, 22, 22, 0.98);
         box-sizing: border-box;
         gap: 0;
-        z-index: 100;
+        z-index: var(--z-sticky);
         box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.4);
         transition: none;
     }
@@ -2852,7 +2891,7 @@ html { scroll-behavior: smooth; }
         margin-left: 0 !important;
         transition: left 0.32s cubic-bezier(0.4, 0, 0.2, 1),
                     box-shadow 0.32s ease;
-        z-index: 1000;
+        z-index: var(--z-floating-ui);
         overflow: hidden;
         -webkit-backface-visibility: hidden;
         will-change: left;
@@ -2868,7 +2907,7 @@ html { scroll-behavior: smooth; }
         position: fixed;
         inset: 0;
         background: rgba(0, 0, 0, 0.65);
-        z-index: 999;
+        z-index: var(--z-overlay);
         backdrop-filter: blur(4px);
         opacity: 0;
         pointer-events: none;
@@ -2952,7 +2991,7 @@ html { scroll-behavior: smooth; }
     .priv-modal-overlay {
         position: fixed;
         inset: 0;
-        z-index: 9999;
+        z-index: var(--z-modal);
     }
 
     .feedback-modal-content,
@@ -3515,7 +3554,7 @@ html { scroll-behavior: smooth; }
     min-width: 220px;
     padding: 6px 0 8px 0;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
-    z-index: 9000;
+    z-index: var(--z-overlay);
     opacity: 0;
     visibility: hidden;
     transform: translateY(6px) scale(0.97);
@@ -3665,7 +3704,7 @@ html { scroll-behavior: smooth; }
     overflow-y: auto;
     overflow-x: hidden;
     box-shadow: 0 8px 32px rgba(0,0,0,0.75), 0 2px 8px rgba(0,0,0,0.4);
-    z-index: 99999;
+    z-index: var(--z-modal);
     padding: 4px 0;
     opacity: 0;
     visibility: hidden;
@@ -3723,7 +3762,7 @@ html { scroll-behavior: smooth; }
     border-radius: 12px;
     width: 168px;
     box-shadow: 0 8px 32px rgba(0,0,0,0.75), 0 2px 8px rgba(0,0,0,0.4);
-    z-index: 99999;
+    z-index: var(--z-modal);
     padding: 4px 0;
     opacity: 0;
     visibility: hidden;
@@ -3994,7 +4033,7 @@ html { scroll-behavior: smooth; }
                     visibility 0.2s ease !important;
         opacity: 1 !important;
         box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.7) !important;
-        z-index: 10000 !important;
+        z-index: var(--z-modal-sheet) !important;
     }
 
     .model-dropdown.open {
@@ -4070,7 +4109,7 @@ html { scroll-behavior: smooth; }
                     opacity 0.2s ease,
                     visibility 0.2s ease !important;
         box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.8) !important;
-        z-index: 10001 !important;
+        z-index: calc(var(--z-modal-sheet) + 1) !important;
         padding-bottom: env(safe-area-inset-bottom, 12px);
         scrollbar-width: thin;
         scrollbar-color: #333 transparent;
@@ -4130,7 +4169,7 @@ html { scroll-behavior: smooth; }
     left: 0;
     width: 100%;
     height: 100%;
-    z-index: 9999;
+    z-index: var(--z-modal);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -4164,7 +4203,7 @@ html { scroll-behavior: smooth; }
     width: 90%;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
     animation: modalSlideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-    z-index: 10000;
+    z-index: var(--z-modal-sheet);
 }
 
 @keyframes modalSlideUp {
@@ -4535,7 +4574,7 @@ html { scroll-behavior: smooth; }
 #catura-drop-overlay {
     position: fixed;
     inset: 0;
-    z-index: 9999;
+    z-index: var(--z-modal);
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.18s ease;
@@ -4832,7 +4871,7 @@ html { scroll-behavior: smooth; }
     inset: 0;
     background: rgba(0, 0, 0, 0.65);
     backdrop-filter: blur(4px);
-    z-index: 9999;
+    z-index: var(--z-modal);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -5508,7 +5547,7 @@ kbd.shortcut-key {
     box-shadow: 0 8px 28px rgba(0,0,0,0.45), 0 1px 0 rgba(255,255,255,0.05) !important;
     gap: 0 !important;
     position: fixed !important;
-    z-index: 200 !important;
+    z-index: var(--z-floating-ui) !important;
   }
 
   /* Pill handle removed — floating box no longer needs a drag hint */
@@ -6357,7 +6396,7 @@ kbd.shortcut-key {
     position: absolute;
     top: 14px;
     right: 16px;
-    z-index: 120;
+    z-index: var(--z-floating-ui);
     display: flex;
     align-items: center;
     gap: 6px;
@@ -6398,7 +6437,7 @@ body:not(.greeting-mode) .ghost-chat-btn {
     position: absolute;
     top: 14px;
     right: 16px;
-    z-index: 120;
+    z-index: var(--z-floating-ui);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -6470,7 +6509,7 @@ body:not(.greeting-mode) .share-chat-btn {
     position: absolute;
     top: 52px;
     right: 16px;
-    z-index: 119;
+    z-index: var(--z-floating-ui);
     display: flex;
     align-items: center;
     gap: 7px;
@@ -6665,7 +6704,7 @@ body:not(.greeting-mode) .share-chat-btn {
 #profileCropModal {
     position: fixed;
     inset: 0;
-    z-index: 99999;
+    z-index: var(--z-modal);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -6875,7 +6914,7 @@ body:not(.greeting-mode) .share-chat-btn {
 #catura-modal-overlay {
     position: fixed;
     inset: 0;
-    z-index: 99998;
+    z-index: var(--z-modal);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -7089,7 +7128,7 @@ body:not(.greeting-mode) .share-chat-btn {
 #archive-modal-overlay {
     position: fixed;
     inset: 0;
-    z-index: 99998;
+    z-index: var(--z-modal);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -7274,7 +7313,7 @@ body:not(.greeting-mode) .share-chat-btn {
 .mfa-modal-overlay {
     position: fixed;
     inset: 0;
-    z-index: 9998;
+    z-index: var(--z-modal);
     display: flex;
     align-items: center;
     justify-content: center;
