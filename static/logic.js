@@ -6744,10 +6744,13 @@ window.savePrivacyPref = function (key, value) {
     localStorage.setItem(PRIVACY_PREFS_KEY, JSON.stringify(prefs));
     saveSettingToCloud('privacy_prefs', prefs);
 
-    // Flush/discard pending queue if user just opted out
-    if (!value) {
-        if (key === 'analytics') _analyticsQueue = [];
-        if (key === 'training')  _trainingQueue  = [];
+    // Flush/discard pending queue if user just opted out, and start/stop
+    // the relevant background flush interval to match the new setting.
+    if (key === 'analytics') {
+        if (value) startAnalyticsInterval(); else { _analyticsQueue = []; stopAnalyticsInterval(); }
+    }
+    if (key === 'training') {
+        if (value) startTrainingInterval(); else { _trainingQueue = []; stopTrainingInterval(); }
     }
     showToast(value ? `✓ ${key === 'analytics' ? 'Usage analytics' : 'AI training data'} enabled` : `${key === 'analytics' ? 'Usage analytics' : 'AI training data'} disabled`);
 };
@@ -6834,8 +6837,20 @@ async function flushAnalytics() {
     }
 }
 
-// Periodic flush + flush on page hide (low battery / background)
-setInterval(flushAnalytics, ANALYTICS_FLUSH_MS);
+// Periodic flush + flush on page hide (low battery / background).
+// The interval only runs while analytics is actually enabled — no point
+// ticking a timer forever for visitors who've opted out.
+let _analyticsIntervalId = null;
+function startAnalyticsInterval() {
+    if (_analyticsIntervalId !== null) return; // already running
+    _analyticsIntervalId = setInterval(flushAnalytics, ANALYTICS_FLUSH_MS);
+}
+function stopAnalyticsInterval() {
+    if (_analyticsIntervalId === null) return;
+    clearInterval(_analyticsIntervalId);
+    _analyticsIntervalId = null;
+}
+if (getPrivacyPrefs().analytics) startAnalyticsInterval();
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') flushAnalytics();
 });
@@ -6876,7 +6891,17 @@ async function flushTraining() {
     } catch (_) { /* discard silently */ }
 }
 
-setInterval(flushTraining, TRAINING_FLUSH_MS);
+let _trainingIntervalId = null;
+function startTrainingInterval() {
+    if (_trainingIntervalId !== null) return; // already running
+    _trainingIntervalId = setInterval(flushTraining, TRAINING_FLUSH_MS);
+}
+function stopTrainingInterval() {
+    if (_trainingIntervalId === null) return;
+    clearInterval(_trainingIntervalId);
+    _trainingIntervalId = null;
+}
+if (getPrivacyPrefs().training) startTrainingInterval();
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') flushTraining();
 });
