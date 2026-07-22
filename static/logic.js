@@ -3617,6 +3617,44 @@ function buildHistoryItem(session, openSessionFn) {
 document.addEventListener("click", closeAllMenus);
 
 // ============================
+// 🔭 MUTATION OBSERVER REGISTRY
+// ============================
+// Every MutationObserver in this file is registered here instead of being
+// left as a bare `new MutationObserver(...).observe(...)`. Today that's not
+// fixing a live leak — #app, #chatbox, and document.body all live for the
+// whole page lifetime in this single-page app, so nothing is ever piling up.
+// This exists for when that stops being true: the moment any client-side
+// routing/navigation replaces #chatbox or #app with a fresh node (instead of
+// just mutating their contents), call window.disconnectAllObservers() before
+// the swap and window.reattachObserver(meta, newNode) after it, and none of
+// the 4 observers below will end up orphaned on a detached element.
+const __observerRegistry = [];
+
+function registerObserver(meta, observer, target, options) {
+    observer.observe(target, options);
+    __observerRegistry.push({ meta, observer, target, options });
+    return observer;
+}
+
+// Disconnects every tracked observer. Call this before tearing down or
+// replacing a watched root element (#app, #chatbox, document.body).
+window.disconnectAllObservers = function () {
+    __observerRegistry.forEach(({ observer }) => observer.disconnect());
+};
+
+// Re-points a specific observer (by its registration name) at a new node —
+// use after swapping in a replacement #chatbox/#app so the same observer
+// keeps working instead of silently watching a detached element.
+window.reattachObserver = function (meta, newTarget) {
+    const entry = __observerRegistry.find(e => e.meta === meta);
+    if (!entry || !newTarget) return false;
+    entry.observer.disconnect();
+    entry.observer.observe(newTarget, entry.options);
+    entry.target = newTarget;
+    return true;
+};
+
+// ============================
 // 🚀 APP START
 // ============================
 document.addEventListener("DOMContentLoaded", async function () {
@@ -3636,7 +3674,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             document.body.classList.toggle('greeting-mode', appEl.classList.contains('greeting-mode'));
         };
         sync();
-        new MutationObserver(sync).observe(appEl, { attributes: true, attributeFilter: ['class'] });
+        registerObserver('greetingModeSync', new MutationObserver(sync), appEl, { attributes: true, attributeFilter: ['class'] });
     })();
 
     // ============================
@@ -3767,8 +3805,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         chatbox.addEventListener('scroll', updateBtn, { passive: true });
 
         // Update whenever chatbox content changes (new chat, messages added/removed)
-        const observer = new MutationObserver(updateBtn);
-        observer.observe(chatbox, { childList: true, subtree: true });
+        registerObserver('scrollToBottom', new MutationObserver(updateBtn), chatbox, { childList: true, subtree: true });
 
         // Also update on window resize
         window.addEventListener('resize', updateBtn, { passive: true });
@@ -3943,8 +3980,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         }
 
         // Rebuild whenever chat content changes (new/loaded/streamed messages)
-        const chatObserver = new MutationObserver(scheduleRender);
-        chatObserver.observe(chatbox, { childList: true, subtree: false });
+        registerObserver('msgNavChat', new MutationObserver(scheduleRender), chatbox, { childList: true, subtree: false });
 
         // Track modal/overlay open state on <body> so the tracker hides itself
         // whenever settings, or any other full-screen section, is opened.
@@ -3953,7 +3989,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             bodyModalOpen = isBodyModalOpen();
             if (wasOpen !== bodyModalOpen) scheduleRender();
         });
-        bodyObserver.observe(document.body, { childList: true, subtree: false, attributes: true, attributeFilter: ['class'] });
+        registerObserver('msgNavBody', bodyObserver, document.body, { childList: true, subtree: false, attributes: true, attributeFilter: ['class'] });
 
         // Reposition the active-bar highlight while the user scrolls the conversation
         chatbox.addEventListener('scroll', () => {
