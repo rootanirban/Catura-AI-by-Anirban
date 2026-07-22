@@ -1,4 +1,12 @@
 // ============================
+// 🐞 DEBUG LOGGING
+// ============================
+// Set to false (default) for production. Toggle at runtime via:
+// localStorage.setItem('DEBUG','true')  then reload the page.
+const DEBUG = (typeof localStorage !== 'undefined' && localStorage.getItem('DEBUG') === 'true');
+const debugLog = DEBUG ? console.log.bind(console) : function () {};
+
+// ============================
 // 🎨 UNIVERSAL MODAL SYSTEM
 // ============================
 /**
@@ -204,7 +212,7 @@ async function saveAllSettingsToCloud() {
             .from('user_settings')
             .upsert(payload, { onConflict: 'user_id' });
         if (error) console.warn('[Sync] saveAllSettingsToCloud error:', error.message);
-        else console.log('[Sync] All settings pushed to cloud ✓');
+        else debugLog('[Sync] All settings pushed to cloud ✓');
     } catch (err) {
         console.warn('[Sync] saveAllSettingsToCloud exception:', err);
     }
@@ -256,7 +264,7 @@ async function loadSettingsFromCloud() {
             if (error.code !== 'PGRST116') {
                 console.warn('[Sync] loadSettingsFromCloud error:', error.message);
             } else {
-                console.log('[Sync] No cloud settings yet — creating initial row from local state.');
+                debugLog('[Sync] No cloud settings yet — creating initial row from local state.');
                 // Push whatever the user has configured locally so it syncs to other devices.
                 // This handles: user configures settings on Device A before any row exists,
                 // then logs in on Device B — Device A's settings will now sync.
@@ -269,7 +277,7 @@ async function loadSettingsFromCloud() {
             return;
         }
 
-        console.log('[Sync] Settings loaded from cloud:', data);
+        debugLog('[Sync] Settings loaded from cloud:', data);
 
         // Wipe leftover keys from any previous user on this browser
         clearStaleGlobalKeys();
@@ -531,7 +539,7 @@ async function maybeExtractAndSaveMemory(userMessage) {
                 );
                 if (!alreadyKnown) {
                     userMemories.push(fact);
-                    console.log('[Memory] ✅ AI extracted & saved:', fact);
+                    debugLog('[Memory] ✅ AI extracted & saved:', fact);
                 }
             }
         } else {
@@ -600,7 +608,7 @@ async function _memoryDirectFallback(userMessage) {
             const d = await r.json();
             if (d.ok) {
                 userMemories.push(fact);
-                console.log('[Memory] ✅ fallback direct-saved:', fact);
+                debugLog('[Memory] ✅ fallback direct-saved:', fact);
             }
         } catch (saveErr) {
             // Last resort: write directly via authenticated Supabase client
@@ -612,7 +620,7 @@ async function _memoryDirectFallback(userMessage) {
                 });
                 if (!error) {
                     userMemories.push(fact);
-                    console.log('[Memory] ✅ fallback supabase-direct saved:', fact);
+                    debugLog('[Memory] ✅ fallback supabase-direct saved:', fact);
                 }
             } catch (_) {}
         }
@@ -6475,7 +6483,7 @@ window.handleLocationToggle = async function (enabled) {
     if (!enabled) {
         // Wipe any cached location — user opted out
         localStorage.removeItem(LOC_CACHE_KEY);
-        console.log('[Location] Toggle OFF — cache cleared.');
+        debugLog('[Location] Toggle OFF — cache cleared.');
         return;
     }
 
@@ -6513,7 +6521,7 @@ async function requestLocationOnce() {
                 if (res.ok) {
                     const meta = await res.json();
                     cacheLocationMeta(meta);
-                    console.log('[Location] Metadata stored:', meta.city, meta.region);
+                    debugLog('[Location] Metadata stored:', meta.city, meta.region);
                 } else {
                     // Backend failed — fallback to browser timezone + IP
                     await fetchLocationFromIP();
@@ -6546,7 +6554,7 @@ async function fetchLocationFromIP() {
         if (res.ok) {
             const meta = await res.json();
             cacheLocationMeta(meta);
-            console.log('[Location] IP-derived metadata stored:', meta.city);
+            debugLog('[Location] IP-derived metadata stored:', meta.city);
             return;
         }
     } catch (_) {}
@@ -6555,7 +6563,7 @@ async function fetchLocationFromIP() {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
     if (tz) {
         cacheLocationMeta({ timezone: tz, locale: navigator.language || 'en' });
-        console.log('[Location] Timezone-only fallback stored:', tz);
+        debugLog('[Location] Timezone-only fallback stored:', tz);
     }
 }
 
