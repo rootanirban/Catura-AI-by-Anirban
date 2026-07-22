@@ -8788,3 +8788,74 @@ body,
 [data-theme="light"] .user-toggle-btn:hover {
     color: #333;
 }
+
+/* ============================================================
+   MOBILE HEADER — GHOST / SHARE BUTTON POSITION FIX
+   Added: fixes ghost button drifting to center on mobile, and
+   ghost/share buttons appearing simultaneously.
+
+   Why this works without !important: earlier rules for
+   .mobile-header-ghost / .mobile-header-share are split across
+   multiple @media (max-width:768px) blocks earlier in this file.
+   Some of those late-file redeclarations (e.g. the ANDROID
+   OPTIMIZATION block) reset size/color but not position, so the
+   button can fall back to static/flex flow depending on parse
+   order. This block re-declares full positioning with a slightly
+   higher-specificity selector AND is the last thing in the file,
+   so it wins the cascade on its own terms — no !important needed.
+
+   If you touch mobile header styles again, edit THIS block, not
+   the older ones above. Over time, fold the older duplicate
+   blocks into this one and delete them.
+   ============================================================ */
+@media (max-width: 768px) {
+  body .mobile-header .mobile-header-right {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+
+  body .mobile-header .mobile-header-right .mobile-header-ghost,
+  body .mobile-header .mobile-header-right .mobile-header-share {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    flex-shrink: 0;
+  }
+
+  /* Ghost: visible only in greeting mode (fresh new-chat screen) */
+  body.greeting-mode .mobile-header .mobile-header-right .mobile-header-ghost {
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: auto;
+  }
+  body:not(.greeting-mode) .mobile-header .mobile-header-right .mobile-header-ghost {
+    opacity: 0;
+    transform: scale(0.9);
+    pointer-events: none;
+  }
+
+  /* Share: visible only once a message has been sent (not greeting mode) */
+  body:not(.greeting-mode) .mobile-header .mobile-header-right .mobile-header-share {
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: auto;
+  }
+  body.greeting-mode .mobile-header .mobile-header-right .mobile-header-share {
+    opacity: 0;
+    transform: scale(0.9);
+    pointer-events: none;
+  }
+}
