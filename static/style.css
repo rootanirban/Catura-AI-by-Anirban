@@ -366,6 +366,8 @@ html { scroll-behavior: smooth; }
     cursor: pointer;
     letter-spacing: 0.5px;
     transition: transform 0.15s, box-shadow 0.15s;
+    background-size: cover !important;
+    background-position: center !important;
 }
 
 .rail-avatar:hover {
@@ -395,9 +397,12 @@ html { scroll-behavior: smooth; }
     transform: translateX(-260px);
     margin-left: -260px;
     box-shadow: none;
-    transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1),
-                margin-left 0.32s cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 0.32s ease;
+    transition: transform 0.38s cubic-bezier(0.34, 1.56, 0.64, 1),
+        left 0.38s cubic-bezier(0.34, 1.56, 0.64, 1),
+        margin-left 0.38s cubic-bezier(0.34, 1.56, 0.64, 1),
+        box-shadow 0.32s ease,
+        background 0.22s ease,
+        border-color 0.2s ease !important;
     will-change: transform, margin-left;
 }
 
@@ -1242,9 +1247,15 @@ html { scroll-behavior: smooth; }
 .thinking-wrap { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; }
 
 .thinking-label {
-    font-size: 12px; color: #555; letter-spacing: 0.3px;
-    display: flex; align-items: center; gap: 8px;
+    font-size: 12px;
+    color: #555;
+    letter-spacing: 0.3px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
     animation: pulse 2s ease-in-out infinite;
+    font-weight: 700;
+    order: 1;
 }
 
 .thinking-label .think-icon {
@@ -1582,6 +1593,8 @@ html { scroll-behavior: smooth; }
     flex-shrink: 0;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 0 2px 8px rgba(16, 163, 127, 0.3);
+    position: relative;
+    overflow: visible;
 }
 
 .send-btn:hover {
@@ -1616,10 +1629,6 @@ html { scroll-behavior: smooth; }
     position: absolute;
 }
 
-.send-btn {
-    position: relative;
-    overflow: visible;
-}
 
 .send-btn.is-stopping {
     background: transparent !important;
@@ -1842,12 +1851,14 @@ html { scroll-behavior: smooth; }
    SIDEBAR LOGO
 ============================ */
 .sidebar-logo {
-    width: 22px; 
-    height: 22px; 
+    width: 22px;
+    height: 22px;
     object-fit: contain;
-    border-radius: 4px; 
-    vertical-align: middle; 
+    border-radius: 4px;
+    vertical-align: middle;
     flex-shrink: 0;
+    box-shadow: none !important;
+    border: none !important;
 }
 
 /* ============================
@@ -1938,19 +1949,21 @@ html { scroll-behavior: smooth; }
 }
 
 .user-avatar {
-    width: 32px; 
-    height: 32px; 
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     background: linear-gradient(135deg, #10a37f 0%, #0d8c6d 100%);
-    color: white; 
-    font-size: 12px; 
+    color: white;
+    font-size: 12px;
     font-weight: 700;
-    display: flex; 
-    align-items: center; 
+    display: flex;
+    align-items: center;
     justify-content: center;
-    flex-shrink: 0; 
+    flex-shrink: 0;
     letter-spacing: 0.5px;
     box-shadow: 0 4px 12px rgba(16,163,127,0.2);
+    background-size: cover !important;
+    background-position: center !important;
 }
 
 .user-fullname {
@@ -2074,13 +2087,14 @@ html { scroll-behavior: smooth; }
    USER MESSAGE WRAPPER
 ============================ */
 .user-msg-wrapper {
-    display: flex; 
-    flex-direction: row; 
+    display: flex;
+    flex-direction: row;
     align-items: flex-end;
-    justify-content: flex-end; 
-    gap: 6px; 
+    justify-content: flex-end !important;
+    gap: 6px;
     margin-bottom: 4px;
-    width: 100%;
+    width: 100% !important;
+    padding-left: 0 !important;
 }
 .user-msg-wrapper .message.user { margin-top: 0; margin-bottom: 0; }
 
@@ -2207,20 +2221,24 @@ html { scroll-behavior: smooth; }
 .bot-actions { display: flex; align-items: center; gap: 8px; padding: 6px 0 12px 0; }
 
 .bot-copy-btn {
-    display: flex; 
-    align-items: center; 
-    gap: 6px;
-    background: transparent; 
-    border: 1px solid #2a2a2a; 
-    color: #666;
-    padding: 5px 12px; 
-    border-radius: 8px; 
+    display: flex;
+    align-items: center;
+    gap: 0;
+    background: transparent;
+    border: 1px solid #252525;
+    color: #555;
+    padding: 0 !important;
+    border-radius: 8px;
     cursor: pointer;
-    font-size: 12px; 
+    font-size: 0 !important;
     font-family: inherit;
     transition: background 0.15s, color 0.15s, border-color 0.15s;
-    width: auto; 
-    height: auto;
+    width: 30px;
+    height: 30px;
+    justify-content: center;
+    /* hide "Copy" text */
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+    flex-shrink: 0;
 }
 .bot-copy-btn:hover { background: #1e1e1e; color: #ccc; border-color: #333; }
 .bot-copy-btn.copied { color: #10a37f; border-color: #10a37f44; }
@@ -4713,23 +4731,33 @@ html { scroll-behavior: smooth; }
 }
 .sources-label {
     opacity: 0.55;
-    font-size: 0.75rem;
+    font-size: 11px;
     margin-right: 2px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: #6b7280;
+    font-weight: 600;
+    margin-bottom: 6px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
 }
 .source-chip {
-    display: inline-block;
-    padding: 3px 10px;
-    background: var(--surface2, #2a2a2a);
-    border: 1px solid rgba(255,255,255,0.08);
+    display: inline-flex;
+    padding: 3px 9px 3px 6px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.10);
     border-radius: 20px;
-    color: #10a37f;
+    color: #aaa;
     text-decoration: none;
-    font-size: 0.73rem;
-    max-width: 220px;
+    font-size: 0.71rem;
+    max-width: 180px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    transition: opacity 0.15s;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    align-items: center;
+    gap: 5px;
 }
 .source-chip:hover { opacity: 0.75; }
 
@@ -4769,38 +4797,13 @@ html { scroll-behavior: smooth; }
     padding-top: 10px;
     border-top: 1px solid rgba(255,255,255,0.07);
 }
-.sources-label {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 0.72rem;
-    color: #888;
-    font-weight: 500;
-    margin-bottom: 7px;
-    letter-spacing: 0.01em;
-}
+
 .sources-chips {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
 }
-.source-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 3px 9px 3px 6px;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.10);
-    border-radius: 20px;
-    font-size: 0.71rem;
-    color: #aaa;
-    text-decoration: none;
-    max-width: 180px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
+
 .source-chip:hover {
     background: rgba(16, 163, 127, 0.12);
     border-color: rgba(16, 163, 127, 0.35);
@@ -5314,7 +5317,7 @@ kbd.shortcut-key {
    CHAT DISCLAIMER
    ============================ */
 .chat-disclaimer {
-    display: none;
+    display: none !important;
     text-align: center;
     font-size: 12px;
     color: #555;
@@ -5403,17 +5406,7 @@ kbd.shortcut-key {
 }
 
 /* Sources count in label */
-.sources-label {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 11px;
-    font-weight: 600;
-    color: #6b7280;
-    margin-bottom: 6px;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-}
+
 
 [data-theme="light"] .source-num {
     background: rgba(16, 163, 127, 0.12);
@@ -6028,9 +6021,7 @@ kbd.shortcut-key {
 /* ── FIX 2: Disclaimer — Claude-style inline at bottom of each response ── */
 
 /* Hide the static bottom disclaimer bar entirely */
-.chat-disclaimer {
-  display: none !important;
-}
+
 
 /* ── Static input disclaimer — desktop only ── */
 .input-static-disclaimer {
@@ -6095,31 +6086,11 @@ kbd.shortcut-key {
   outline: none !important;
 }
 
-.sidebar-logo {
-  box-shadow: none !important;
-  border: none !important;
-}
 
 /* ── FIX 4: Copy button — small icon-only, user messages flush right ── */
 
 /* Make the Copy button icon-only and compact */
-.bot-copy-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0;
-  width: 30px;
-  height: 30px;
-  padding: 0 !important;
-  border-radius: 8px;
-  background: transparent;
-  border: 1px solid #252525;
-  color: #555;
-  cursor: pointer;
-  font-size: 0 !important;      /* hide "Copy" text */
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-  flex-shrink: 0;
-}
+
 
 /* Show tooltip-style text on hover for desktop */
 .bot-copy-btn:hover {
@@ -6152,11 +6123,7 @@ kbd.shortcut-key {
 }
 
 /* User messages — always flush right, no left margin waste */
-.user-msg-wrapper {
-  justify-content: flex-end !important;
-  width: 100% !important;
-  padding-left: 0 !important;
-}
+
 
 .message.user {
   margin-left: auto !important;
@@ -6686,16 +6653,10 @@ body:not(.greeting-mode) .share-chat-btn {
 .sc-avatar-wrap:hover .sc-avatar-overlay { opacity: 1; }
 
 /* Rail avatar with profile pic */
-.rail-avatar {
-    background-size: cover !important;
-    background-position: center !important;
-}
+
 
 /* User avatar in sidebar bottom */
-.user-avatar {
-    background-size: cover !important;
-    background-position: center !important;
-}
+
 
 /* ============================
    📷 CROP MODAL
@@ -7631,15 +7592,7 @@ body,
 
 /* Sidebar gets its own transition so the slide animation isn't overridden */
 /* Slight spring/bounce on open — subtle overshoot via cubic-bezier */
-.sidebar {
-    transition:
-        transform 0.38s cubic-bezier(0.34, 1.56, 0.64, 1),
-        left 0.38s cubic-bezier(0.34, 1.56, 0.64, 1),
-        margin-left 0.38s cubic-bezier(0.34, 1.56, 0.64, 1),
-        box-shadow 0.32s ease,
-        background 0.22s ease,
-        border-color 0.2s ease !important;
-}
+
 
 /* ── BASE ── */
 [data-theme="light"] body {
@@ -8661,10 +8614,6 @@ body,
     outline-offset: 2px;
 }
 
-.thinking-label {
-    font-weight: 700;
-    order: 1;
-}
 
 .thinking-brain-icon {
     flex-shrink: 0;
