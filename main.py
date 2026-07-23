@@ -8,6 +8,9 @@ import uuid
 import json
 import re
 import time
+import ipaddress
+import socket
+from urllib.parse import urlparse
 from datetime import datetime, timezone
 from supabase import create_client, Client
 import base64
@@ -76,6 +79,83 @@ def _ext(url: str) -> str:
     return path[dot+1:].lower() if dot != -1 else ""
 
 
+# ── SSRF protection for user-supplied file URLs ───────────────────────────────
+# Only ever fetch files from hosts we explicitly trust (our own Supabase
+# storage project, plus anything added via FILE_FETCH_EXTRA_HOSTS). This is
+# resolved lazily (not at import time) so it always reflects the current
+# SUPABASE_URL / env, and it re-validates on every call so nothing can bypass
+# it by importing the module differently.
+def _get_allowed_file_hosts() -> set:
+    hosts = set()
+    try:
+        supa_host = urlparse(SUPABASE_URL).hostname
+        if supa_host:
+            hosts.add(supa_host.lower())
+    except Exception:
+        pass
+    extra = os.getenv("FILE_FETCH_EXTRA_HOSTS", "")
+    for h in extra.split(","):
+        h = h.strip().lower()
+        if h:
+            hosts.add(h)
+    return hosts
+
+
+def _is_safe_public_url(url: str) -> tuple:
+    """
+    Returns (ok: bool, reason: str). Blocks:
+      - non-http(s) schemes
+      - hosts outside our allow-list (own Supabase storage domain, etc.)
+      - hostnames that resolve to private / loopback / link-local / reserved
+        IPs (defeats DNS rebinding, cloud metadata endpoints like
+        169.254.169.254, localhost, internal Render service addresses, etc.)
+    """
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False, "Malformed URL"
+
+    if parsed.scheme not in ("https", "http"):
+        return False, "Unsupported URL scheme"
+
+    if not parsed.hostname:
+        return False, "URL has no hostname"
+
+    allowed_hosts = _get_allowed_file_hosts()
+    if not allowed_hosts:
+        # Fail closed: if we don't know our own storage host, don't fetch anything.
+        return False, "File fetching is not configured (no allowed hosts)"
+
+    if parsed.hostname.lower() not in allowed_hosts:
+        return False, "URL host is not on the allowed file-storage domain"
+
+    # Resolve the hostname and reject anything pointing at internal/private
+    # network space. This also defeats DNS-rebinding attacks where the
+    # allow-listed hostname is later re-pointed at an internal IP, since we
+    # resolve fresh on every call right before use.
+    try:
+        resolved_ips = {res[4][0] for res in socket.getaddrinfo(parsed.hostname, None)}
+    except Exception:
+        return False, "Could not resolve host"
+
+    for ip_str in resolved_ips:
+        try:
+            ip = ipaddress.ip_address(ip_str)
+        except ValueError:
+            return False, "Invalid resolved IP"
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_reserved
+            or ip.is_multicast
+            or ip.is_unspecified
+        ):
+            return False, "URL resolves to a private/internal address"
+
+    return True, ""
+
+
 def fetch_file_content_for_ai(url: str) -> dict:
     """
     Download a file from `url` and return a structured dict:
@@ -92,10 +172,33 @@ def fetch_file_content_for_ai(url: str) -> dict:
       On failure:
         { "kind": "error", "reason": str }
     """
+    ok, reason = _is_safe_public_url(url)
+    if not ok:
+        return {"kind": "error", "reason": f"URL not allowed: {reason}"}
+
     ext = _ext(url)
 
     try:
-        resp = requests.get(url, timeout=12, stream=True)
+        # allow_redirects=False: we never blindly follow a 3xx. If the trusted
+        # storage host redirects us somewhere, we re-validate that target
+        # against the same allow-list/private-IP checks before following it
+        # manually, so an attacker can't use a redirect to pivot us onto an
+        # internal address.
+        resp = requests.get(url, timeout=12, stream=True, allow_redirects=False)
+
+        redirect_hops = 0
+        while resp.is_redirect and redirect_hops < 5:
+            location = resp.headers.get("Location")
+            if not location:
+                return {"kind": "error", "reason": "Redirect with no Location header"}
+            next_url = requests.compat.urljoin(url, location)
+            ok, reason = _is_safe_public_url(next_url)
+            if not ok:
+                return {"kind": "error", "reason": f"Redirect target not allowed: {reason}"}
+            url = next_url
+            resp = requests.get(url, timeout=12, stream=True, allow_redirects=False)
+            redirect_hops += 1
+
         if resp.status_code != 200:
             return {"kind": "error", "reason": f"HTTP {resp.status_code}"}
 
@@ -500,7 +603,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.363"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.364"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -510,7 +613,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.363", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.364", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
