@@ -70,6 +70,32 @@ _DOC_EXTENSIONS   = {'doc','docx'}
 
 MAX_TEXT_FILE_BYTES = 200_000   # ~200 KB — enough for large code files
 MAX_IMAGE_B64_BYTES = 4_000_000 # 4 MB base64 limit for vision APIs
+MAX_IMAGE_RAW_BYTES  = 15_000_000  # 15 MB raw download ceiling for images (before compression)
+MAX_BINARY_DOC_BYTES = 15_000_000  # 15 MB raw download ceiling for PDF/docx (need full body to parse)
+HARD_DOWNLOAD_CEILING_BYTES = 25_000_000  # 25 MB — reject anything claiming to be bigger than this, of any type
+
+
+def _read_capped(resp, cap_bytes: int):
+    """
+    Reads a streaming `requests` response in chunks, stopping as soon as
+    more than `cap_bytes` have been read — so we never buffer more than
+    ~cap_bytes (+ one chunk) into memory, regardless of how large the
+    remote file actually is.
+
+    Returns (data: bytes, was_truncated: bool). `data` is capped to
+    exactly `cap_bytes`.
+    """
+    chunks = []
+    total = 0
+    for chunk in resp.iter_content(chunk_size=8192):
+        if not chunk:
+            continue
+        chunks.append(chunk)
+        total += len(chunk)
+        if total > cap_bytes:
+            break
+    data = b"".join(chunks)
+    return data[:cap_bytes], total > cap_bytes
 
 
 def _ext(url: str) -> str:
@@ -202,12 +228,24 @@ def fetch_file_content_for_ai(url: str) -> dict:
         if resp.status_code != 200:
             return {"kind": "error", "reason": f"HTTP {resp.status_code}"}
 
+        # Bail before downloading anything if the server tells us up front
+        # that the file is absurdly large. (Content-Length can be absent or
+        # lied about, which is exactly why every branch below also uses a
+        # capped streaming read instead of trusting this alone.)
+        content_length = resp.headers.get("Content-Length")
+        if content_length:
+            try:
+                if int(content_length) > HARD_DOWNLOAD_CEILING_BYTES:
+                    return {"kind": "error", "reason": "File too large"}
+            except ValueError:
+                pass
+
         content_type = resp.headers.get("Content-Type", "").split(";")[0].strip().lower()
 
         # ── Images ──────────────────────────────────────────────────────────
         is_image = ext in _IMAGE_EXTENSIONS or content_type.startswith("image/")
         if is_image:
-            raw = resp.content
+            raw, _truncated = _read_capped(resp, MAX_IMAGE_RAW_BYTES)
             if len(raw) > MAX_IMAGE_B64_BYTES:
                 # Compress via Pillow before encoding
                 try:
@@ -229,7 +267,9 @@ def fetch_file_content_for_ai(url: str) -> dict:
 
         # ── PDF — extract text ───────────────────────────────────────────────
         if ext in _PDF_EXTENSION or content_type == "application/pdf":
-            raw = resp.content
+            raw, doc_truncated = _read_capped(resp, MAX_BINARY_DOC_BYTES)
+            if doc_truncated:
+                return {"kind": "error", "reason": "PDF exceeds maximum allowed size"}
             text = _extract_pdf_text(raw)
             if not text:
                 return {"kind": "error", "reason": "PDF has no extractable text (scanned/image-only)"}
@@ -243,7 +283,9 @@ def fetch_file_content_for_ai(url: str) -> dict:
 
         # ── Word docx — extract text ─────────────────────────────────────────
         if ext == "docx" or "wordprocessingml" in content_type:
-            raw = resp.content
+            raw, doc_truncated = _read_capped(resp, MAX_BINARY_DOC_BYTES)
+            if doc_truncated:
+                return {"kind": "error", "reason": "Document exceeds maximum allowed size"}
             text = _extract_docx_text(raw)
             if not text:
                 return {"kind": "error", "reason": "Could not extract text from .docx"}
@@ -263,7 +305,7 @@ def fetch_file_content_for_ai(url: str) -> dict:
                                 "application/javascript", "application/x-yaml")
         )
         if is_text:
-            raw = resp.content[:MAX_TEXT_FILE_BYTES + 1]
+            raw, truncated = _read_capped(resp, MAX_TEXT_FILE_BYTES)
             try:
                 text = raw.decode("utf-8")
             except UnicodeDecodeError:
@@ -271,23 +313,22 @@ def fetch_file_content_for_ai(url: str) -> dict:
                     text = raw.decode("latin-1")
                 except Exception:
                     return {"kind": "error", "reason": "File is binary (not text)"}
-            truncated = len(raw) > MAX_TEXT_FILE_BYTES
             return {
                 "kind"     : "text",
                 "ext"      : ext or "txt",
-                "content"  : text[:MAX_TEXT_FILE_BYTES],
+                "content"  : text,
                 "truncated": truncated,
             }
 
         # ── Unknown type — try reading as text anyway ────────────────────────
-        raw = resp.content[:MAX_TEXT_FILE_BYTES + 1]
+        raw, truncated = _read_capped(resp, MAX_TEXT_FILE_BYTES)
         try:
             text = raw.decode("utf-8")
             return {
                 "kind"     : "text",
                 "ext"      : ext or "bin",
-                "content"  : text[:MAX_TEXT_FILE_BYTES],
-                "truncated": len(raw) > MAX_TEXT_FILE_BYTES,
+                "content"  : text,
+                "truncated": truncated,
             }
         except Exception:
             return {"kind": "error", "reason": f"Unsupported binary file type: {ext or content_type}"}
@@ -603,7 +644,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.364"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.365"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -613,7 +654,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.364", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.365", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
