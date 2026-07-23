@@ -1266,12 +1266,17 @@ function formatMessage(rawText) {
             .replace(/>/g, "&gt;");
         codeBlocks.push(`<div class="code-block">
             <div class="code-header">
+                <div class="mac-dots" aria-hidden="true">
+                    <span class="mac-dot mac-dot-red"></span>
+                    <span class="mac-dot mac-dot-yellow"></span>
+                    <span class="mac-dot mac-dot-green"></span>
+                </div>
                 <span class="lang-label">${language}</span>
-                <button onclick="copyCode(this)">
+                <button class="copy-btn" onclick="copyCode(this)">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                    </svg> Copy</button>
+                    </svg><span class="copy-btn-label">Copy</span></button>
             </div>
             <pre><code>${escapedCode.trimEnd()}</code></pre>
         </div>`);
@@ -1530,9 +1535,12 @@ function applyInline(text) {
 function copyCode(btn) {
     const code = btn.closest(".code-block").querySelector("code").innerText;
     navigator.clipboard.writeText(code).then(() => {
-        btn.textContent = "✓ Copied!";
+        btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span class="copy-btn-label">Copied!</span>`;
         btn.classList.add("copied");
-        setTimeout(() => { btn.textContent = "Copy"; btn.classList.remove("copied"); }, 2000);
+        setTimeout(() => {
+            btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span class="copy-btn-label">Copy</span>`;
+            btn.classList.remove("copied");
+        }, 2000);
     }).catch(() => showToast("Failed to copy code"));
 }
 
