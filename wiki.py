@@ -14,6 +14,21 @@ Pipeline:
 APIs used (no auth required):
   Search  : https://en.wikipedia.org/w/rest.php/v1/search/page
   Summary : https://en.wikipedia.org/api/rest_v1/page/summary/{title}
+
+FIXED in this version (see wiki_py_audit_report.md, section 1):
+  - 1.1: data.get(key, "") only defaults when the KEY IS ABSENT. If the
+         Wikipedia API returns the key with value null (common for
+         "description" on many pages, occasionally "extract" too),
+         .get() returns None, not "", and .strip() on None crashes with
+         AttributeError. Fixed with `(data.get(key) or "").strip()`.
+  - 1.2: same null-vs-absent problem one level deeper — content_urls or
+         content_urls["desktop"] can themselves be null. Fixed by
+         guarding every level with `or {}` before the next .get().
+  - Defense in depth: _format_context() is now called inside a
+         try/except in search_wikipedia(), so if some *other* unforeseen
+         shape of API response still slips through, it degrades to
+         {"found": False, "reason": "error"} instead of crashing the
+         whole call.
 """
 
 import requests
@@ -100,8 +115,13 @@ def _fetch_summary(title: str) -> dict | None:
             print(f"⚠️ [Wiki] summary HTTP {resp.status_code} for: {title}")
             return None
 
-        data    = resp.json()
-        extract = data.get("extract", "").strip()
+        data = resp.json()
+
+        # FIX 1.1: `.get("extract", "")` only defaults when the key is
+        # ABSENT. If the API returns "extract": null, .get() returns None
+        # and .strip() would raise AttributeError. `or ""` covers both
+        # "key missing" and "key present but null".
+        extract = (data.get("extract") or "").strip()
 
         if len(extract) < MIN_EXTRACT_LEN:
             print(f"ℹ️ [Wiki] extract too short ({len(extract)} chars) for: {title}")
@@ -120,9 +140,21 @@ def _format_context(title: str, data: dict) -> str:
     Convert raw Wikipedia summary JSON into a clean, token-efficient
     context string for injection into the AI system prompt.
     """
-    extract     = data.get("extract", "").strip()
-    description = data.get("description", "").strip()
-    page_url    = data.get("content_urls", {}).get("desktop", {}).get("page", "")
+    # FIX 1.1: same None-vs-absent guard as _fetch_summary — "description"
+    # is null on plenty of real pages (disambiguation stubs, freshly
+    # created articles, some biographies), not just missing.
+    extract     = (data.get("extract") or "").strip()
+    description = (data.get("description") or "").strip()
+
+    # FIX 1.2: content_urls, or content_urls["desktop"], can themselves be
+    # explicitly null (seen on some redirect/special pages) rather than
+    # simply absent. Chaining .get("x", {}).get("y", {}) does NOT protect
+    # against this — if the key exists with value None, the default {} is
+    # never applied and the next .get() call crashes on None. Guard every
+    # level with `or {}` before calling .get() on it.
+    content_urls = data.get("content_urls") or {}
+    desktop      = content_urls.get("desktop") or {}
+    page_url     = desktop.get("page", "")
 
     # Truncate extract to keep tokens light
     if len(extract) > MAX_EXTRACT_CHARS:
@@ -183,7 +215,16 @@ def search_wikipedia(query: str) -> dict:
         return {"found": False, "reason": "short_extract", "tool": "wikipedia"}
 
     # Step 3: Build context
-    context = _format_context(title, data)
+    # DEFENSE IN DEPTH: even with fixes 1.1/1.2 in place, wrap this call so
+    # any other unforeseen shape of API response degrades gracefully to
+    # "found": False instead of throwing an uncaught exception up to the
+    # caller (which was likely producing the "I don't know" fallback text).
+    try:
+        context = _format_context(title, data)
+    except Exception as e:
+        print(f"❌ [Wiki] format_context exception: {e}")
+        return {"found": False, "reason": "error", "tool": "wikipedia"}
+
     print(f"✅ [Wiki] context ready: {len(context)} chars for '{title}'")
 
     return {
