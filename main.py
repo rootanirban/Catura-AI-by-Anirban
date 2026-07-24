@@ -752,7 +752,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.369"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.370"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -762,7 +762,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.369", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.370", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -6291,7 +6291,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 yield f"data: {json.dumps({'token': 'I was created by Anirban.'}, ensure_ascii=False)}\n\n"
                 yield "data: [DONE]\n\n"
             return StreamingResponse(quick(), media_type="text/event-stream",
-                headers={"Set-Cookie": build_session_cookie(session_id)})
+                headers=_rl({"Set-Cookie": build_session_cookie(session_id)}))
 
         if session_id not in user_memory:
             user_memory[session_id] = []
@@ -7168,8 +7168,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_laguna_get(), media_type="text/event-stream",
-                headers={"Cache-Control": "no-cache",
-                         "Set-Cookie": build_session_cookie(session_id)}
+                headers=_rl({"Cache-Control": "no-cache",
+                         "Set-Cookie": build_session_cookie(session_id)})
             )
 
         # ── LAGUNA CORE: Poolside API (POOLSIDE_API_KEY) — Laguna XS.2.1 — GET handler ──
@@ -7297,8 +7297,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_laguna_core_get(), media_type="text/event-stream",
-                headers={"Cache-Control": "no-cache",
-                         "Set-Cookie": build_session_cookie(session_id)}
+                headers=_rl({"Cache-Control": "no-cache",
+                         "Set-Cookie": build_session_cookie(session_id)})
             )
 
         # ── LAGUNA S: Poolside API (POOLSIDE_API_KEY) — Laguna S.2.1 — GET handler ──
@@ -7426,8 +7426,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_laguna_s_get(), media_type="text/event-stream",
-                headers={"Cache-Control": "no-cache",
-                         "Set-Cookie": build_session_cookie(session_id)}
+                headers=_rl({"Cache-Control": "no-cache",
+                         "Set-Cookie": build_session_cookie(session_id)})
             )
 
         # ── GLM: Z.ai API (ZAI_API_KEY) — glm-4.7-flash (GET handler) ──
@@ -7521,8 +7521,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_glm_get(), media_type="text/event-stream",
-                headers={"Cache-Control": "no-cache",
-                         "Set-Cookie": build_session_cookie(session_id)}
+                headers=_rl({"Cache-Control": "no-cache",
+                         "Set-Cookie": build_session_cookie(session_id)})
             )
 
         # ── MINIMAX M3: NVIDIA NIM API — isolated from all other models ──
@@ -7591,8 +7591,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_minimax_m3_get(), media_type="text/event-stream",
-                headers={"Cache-Control": "no-cache",
-                         "Set-Cookie": build_session_cookie(session_id)}
+                headers=_rl({"Cache-Control": "no-cache",
+                         "Set-Cookie": build_session_cookie(session_id)})
             )
 
         # ── GLM-5.2: NVIDIA NIM API — isolated from all other models ──
@@ -7661,8 +7661,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_glm52_get(), media_type="text/event-stream",
-                headers={"Cache-Control": "no-cache",
-                         "Set-Cookie": build_session_cookie(session_id)}
+                headers=_rl({"Cache-Control": "no-cache",
+                         "Set-Cookie": build_session_cookie(session_id)})
             )
 
         # ── MISTRAL LARGE: Mistral API (MISTRAL_API_KEY) — mistral-large-latest ──
@@ -7731,8 +7731,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_mlarge_get(), media_type="text/event-stream",
-                headers={"Cache-Control": "no-cache",
-                         "Set-Cookie": build_session_cookie(session_id)}
+                headers=_rl({"Cache-Control": "no-cache",
+                         "Set-Cookie": build_session_cookie(session_id)})
             )
 
         # ── MISTRAL MEDIUM: Mistral API (MISTRAL_API_KEY) — mistral-medium-latest ──
@@ -7821,8 +7821,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_mmed_get(), media_type="text/event-stream",
-                headers={"Cache-Control": "no-cache",
-                         "Set-Cookie": build_session_cookie(session_id)}
+                headers=_rl({"Cache-Control": "no-cache",
+                         "Set-Cookie": build_session_cookie(session_id)})
             )
 
         # ── MISTRAL SMALL: Mistral API (MISTRAL_API_KEY) — mistral-small-latest ──
@@ -7911,8 +7911,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_msmall_get(), media_type="text/event-stream",
-                headers={"Cache-Control": "no-cache",
-                         "Set-Cookie": build_session_cookie(session_id)}
+                headers=_rl({"Cache-Control": "no-cache",
+                         "Set-Cookie": build_session_cookie(session_id)})
             )
 
         # ── MERCURY 2: Inception Labs API (INCEPTION_API_KEY) — mercury-2 ──
@@ -7981,8 +7981,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_merc_get(), media_type="text/event-stream",
-                headers={"Cache-Control": "no-cache",
-                         "Set-Cookie": build_session_cookie(session_id)}
+                headers=_rl({"Cache-Control": "no-cache",
+                         "Set-Cookie": build_session_cookie(session_id)})
             )
 
         # ── NIVO: Groq API — isolated from all other models ──
@@ -8036,8 +8036,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_nivo_get(), media_type="text/event-stream",
-                headers={"Cache-Control": "no-cache",
-                         "Set-Cookie": build_session_cookie(session_id)}
+                headers=_rl({"Cache-Control": "no-cache",
+                         "Set-Cookie": build_session_cookie(session_id)})
             )
 
         # ── SAMBHAV: llama-3.3-70b-versatile via Groq API (GET handler) ──
@@ -8091,8 +8091,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_sambhav_get(), media_type="text/event-stream",
-                headers={"Cache-Control": "no-cache",
-                         "Set-Cookie": build_session_cookie(session_id)}
+                headers=_rl({"Cache-Control": "no-cache",
+                         "Set-Cookie": build_session_cookie(session_id)})
             )
 
         # Apply tool routing for GET requests too
@@ -8238,7 +8238,17 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                             if finish == "stop": finished_cleanly = True; break
                             if finish == "length": stream_broke = True; break
-                        except: continue
+                        except Exception as chunk_err:
+                            # Was a bare `except: continue` — caught and silently discarded
+                            # EVERYTHING, including KeyboardInterrupt/SystemExit, with no trace.
+                            # A malformed chunk here is usually harmless (a partial line, a
+                            # keep-alive ping, etc.) so we still skip it and keep streaming —
+                            # but now it's logged instead of vanishing silently, so a real
+                            # upstream problem (bad JSON shape, unexpected error payload) is
+                            # visible in the server logs instead of just showing up as "the
+                            # reply was mysteriously short."
+                            print(f"⚠️ [stream] skipping malformed chunk: {type(chunk_err).__name__}: {chunk_err}")
+                            continue
                 except Exception as e:
                     stream_broke = True
 
