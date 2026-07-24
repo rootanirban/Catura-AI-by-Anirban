@@ -38,6 +38,36 @@ logging.basicConfig(
 )
 logger = logging.getLogger("catura")
 
+# ── Exception-handling policy ──────────────────────────────────────────────
+# Broad `except Exception` blocks below are intentional in a few narrow
+# places (best-effort cleanup, optional enrichment) but were previously
+# used everywhere, which meant a real bug (e.g. a typo in a payload key
+# raising TypeError/KeyError) looked identical in the logs to a transient
+# network blip (requests.ConnectionError). The fix applied throughout this
+# file:
+#   1. Narrow `except` clauses to the specific exceptions a block can
+#      actually raise (requests.exceptions.RequestException, KeyError,
+#      TypeError, json.JSONDecodeError, etc.) wherever the failure mode is
+#      known and expected — these are logged at WARNING/INFO without a
+#      traceback, since they're routine.
+#   2. Any remaining `except Exception` is a last-resort safety net for
+#      *unexpected* errors only, and always logs via `logger.exception(...)`
+#      (or the `_log_unexpected` helper below), which attaches the full
+#      traceback — so a new bug is immediately visually distinct from a
+#      known/expected failure in the logs.
+#   3. A single top-level FastAPI exception handler (registered right after
+#      `app = FastAPI()`) is the final backstop for anything that escapes
+#      every route's own handling — it logs the full traceback once and
+#      returns a generic 500 to the client, so unexpected errors can never
+#      leak internals or crash silently.
+def _log_unexpected(context: str, exc: Exception) -> None:
+    """Log an exception that reached a generic `except Exception` fallback.
+
+    Always includes the full traceback (via logger.exception) so these are
+    easy to tell apart from routine, narrowly-caught, expected failures.
+    """
+    logger.exception(f"❌ [UNEXPECTED] {context}: {exc.__class__.__name__}: {exc}")
+
 # ── Centralized session cookie helper ─────────────────────────────────────────
 # Every place in this file that issues the session_id cookie must go through
 # this helper so the security flags stay consistent. Never hand-construct a
@@ -135,8 +165,8 @@ def _get_allowed_file_hosts() -> set:
         supa_host = urlparse(SUPABASE_URL).hostname
         if supa_host:
             hosts.add(supa_host.lower())
-    except Exception:
-        pass
+    except (ValueError, AttributeError) as e:
+        logger.warning(f"⚠️ [_get_allowed_file_hosts] could not parse SUPABASE_URL: {e}")
     extra = os.getenv("FILE_FETCH_EXTRA_HOSTS", "")
     for h in extra.split(","):
         h = h.strip().lower()
@@ -173,7 +203,7 @@ def _is_safe_public_url(url: str, allowed_hosts: set | None = None) -> tuple:
     """
     try:
         parsed = urlparse(url)
-    except Exception:
+    except ValueError:
         return False, "Malformed URL"
 
     if parsed.scheme not in ("https", "http"):
@@ -196,7 +226,8 @@ def _is_safe_public_url(url: str, allowed_hosts: set | None = None) -> tuple:
     # resolve fresh on every call right before use.
     try:
         resolved_ips = {res[4][0] for res in socket.getaddrinfo(parsed.hostname, None)}
-    except Exception:
+    except (socket.gaierror, UnicodeError) as e:
+        logger.info(f"[_is_safe_public_url] DNS resolution failed for {parsed.hostname!r}: {e}")
         return False, "Could not resolve host"
 
     for ip_str in resolved_ips:
@@ -344,8 +375,9 @@ def fetch_file_content_for_ai(url: str) -> dict:
                     fmt = "JPEG" if ext in ("jpg","jpeg") else "PNG"
                     img.save(buf, format=fmt, quality=82)
                     raw = buf.getvalue()
-                except Exception:
-                    pass  # send original if resize fails
+                except (OSError, ValueError) as e:
+                    logger.info(f"[fetch_file_content_for_ai] image resize skipped: {e}")
+                    # send original if resize fails
             mime = content_type if content_type.startswith("image/") else f"image/{ext}"
             return {
                 "kind": "image",
@@ -400,7 +432,7 @@ def fetch_file_content_for_ai(url: str) -> dict:
             except UnicodeDecodeError:
                 try:
                     text = raw.decode("latin-1")
-                except Exception:
+                except UnicodeDecodeError:
                     return {"kind": "error", "reason": "File is binary (not text)"}
             return {
                 "kind"     : "text",
@@ -419,12 +451,16 @@ def fetch_file_content_for_ai(url: str) -> dict:
                 "content"  : text,
                 "truncated": truncated,
             }
-        except Exception:
+        except UnicodeDecodeError:
             return {"kind": "error", "reason": f"Unsupported binary file type: {ext or content_type}"}
 
     except requests.exceptions.Timeout:
         return {"kind": "error", "reason": "Timeout downloading file"}
+    except requests.exceptions.RequestException as exc:
+        logger.warning(f"⚠️ [fetch_file_content_for_ai] network error: {exc}")
+        return {"kind": "error", "reason": _client_safe_error(exc, "fetch_file_content_for_ai")}
     except Exception as exc:
+        _log_unexpected("fetch_file_content_for_ai", exc)
         return {"kind": "error", "reason": _client_safe_error(exc, "fetch_file_content_for_ai")}
 
 
@@ -442,15 +478,22 @@ def _extract_pdf_text(raw: bytes) -> str:
         return "\n\n".join(parts).strip()
     except ImportError:
         pass
-    except Exception:
-        pass
+    except Exception as e:
+        # pypdf can raise many different internal errors on malformed PDFs
+        # (PdfReadError and friends aren't consistently exported across
+        # versions), so this stays broad — but we still log it as an
+        # unexpected event rather than swallowing it silently, since a
+        # working PDF failing to parse here is worth knowing about.
+        _log_unexpected("_extract_pdf_text (pypdf)", e)
 
     # Fallback: try pdfminer.six
     try:
         from pdfminer.high_level import extract_text as pm_extract
         return pm_extract(io.BytesIO(raw)).strip()
-    except Exception:
+    except ImportError:
         pass
+    except Exception as e:
+        _log_unexpected("_extract_pdf_text (pdfminer)", e)
 
     return ""
 
@@ -464,8 +507,10 @@ def _extract_docx_text(raw: bytes) -> str:
         return "\n".join(lines).strip()
     except ImportError:
         pass
-    except Exception:
-        pass
+    except Exception as e:
+        # python-docx doesn't export a single consistent exception type for
+        # malformed .docx files either — keep this broad, but logged.
+        _log_unexpected("_extract_docx_text", e)
     return ""
 
 
@@ -510,6 +555,26 @@ def build_file_context_for_prompt(file_urls: list) -> tuple:
     return text_context, vision_images
 
 app = FastAPI()
+
+
+# ── Single top-level handler for genuinely unexpected exceptions ──────────
+# This is the final backstop: individual routes below still catch and
+# narrow the exceptions they expect (network errors, bad JSON, missing
+# keys, auth failures) and respond appropriately. Anything that isn't
+# caught there — a real bug — lands here exactly once, gets logged with a
+# full traceback, and the client gets a generic, non-leaky 500. This is
+# what makes a *new* bug visibly different from routine, expected errors.
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception(
+        f"❌ [UNHANDLED] {request.method} {request.url.path} — "
+        f"{exc.__class__.__name__}: {exc}"
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"ok": False, "error": "Internal server error"},
+    )
+
 
 # ✅ ROUTE-LEVEL RATE LIMITING (slowapi) — separate from the custom /chat
 # per-user-per-model quota above. This covers /api/memory/*, /generate-title,
@@ -587,7 +652,11 @@ async def require_auth(authorization: str = Header(default=None)) -> dict:
     try:
         # Validate against Supabase using the anon-key client (not the admin client).
         # This runs on every authenticated request, so keeping it off the event
-        # loop (via _db) matters a lot for concurrency.
+        # loop (via _db) matters a lot for concurrency. Any failure here (bad
+        # signature, expired token, network hiccup talking to Supabase) is an
+        # expected "not authenticated" case — gotrue doesn't expose a single
+        # stable exception type across versions, so we deliberately treat any
+        # failure as "invalid token" rather than leaking internals.
         user_response = await _db(supabase.auth.get_user, token)
     except Exception as e:
         raise HTTPException(status_code=401, detail="Invalid or expired token") from e
@@ -768,7 +837,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.371"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.372"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -778,7 +847,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.371", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.372", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -854,7 +923,7 @@ def _parse_skill_md(raw: str, fallback_name: str = "Untitled Skill") -> dict:
                 name = str(meta.get("name", fallback_name)).strip()
                 description = str(meta.get("description", "")).strip()
                 trigger_hint = str(meta.get("trigger_hint", "")).strip()
-            except Exception as e:
+            except (_skill_yaml.YAMLError, AttributeError, TypeError) as e:
                 logger.warning(f"⚠️ [Skills] frontmatter parse failed, using raw file: {e}")
             body = parts[2].strip()
 
@@ -918,7 +987,7 @@ def get_matching_skills(user_id: str, prompt: str, max_skills: int = 2) -> list:
         scored.sort(key=lambda x: x[0], reverse=True)
         return [s for _, s in scored[:max_skills]]
     except Exception as e:
-        logger.warning(f"⚠️ [Skills] routing error (non-fatal, skipping skills): {e}")
+        _log_unexpected("Skills routing (non-fatal, skipping skills)", e)
         return []
 
 
@@ -992,6 +1061,7 @@ async def install_skill(request: Request, req: SkillInstallRequest, auth: dict =
     except HTTPException:
         raise
     except Exception as e:
+        _log_unexpected("Skills install", e)
         return JSONResponse({"ok": False, "error": _client_safe_error(e, "Skills install")}, status_code=500)
 
 
@@ -1013,7 +1083,7 @@ async def list_skills(request: Request, auth: dict = Depends(require_auth)):
         skills = await _db(_load)
         return JSONResponse({"ok": True, "skills": skills})
     except Exception as e:
-        logger.error(f"❌ [Skills] list error: {e}")
+        _log_unexpected("Skills list", e)
         return JSONResponse({"ok": False, "skills": []})
 
 
@@ -1027,6 +1097,7 @@ async def toggle_skill(request: Request, req: SkillToggleRequest, auth: dict = D
                   .eq("id", req.skill_id).eq("user_id", user_id).execute())
         return JSONResponse({"ok": True})
     except Exception as e:
+        _log_unexpected("Skills toggle", e)
         return JSONResponse({"ok": False, "error": _client_safe_error(e, "Skills toggle")}, status_code=500)
 
 
@@ -1038,6 +1109,7 @@ async def delete_skill(request: Request, id: str, auth: dict = Depends(require_a
         await _db(lambda: _supabase_admin.table("skills").delete().eq("id", id).eq("user_id", user_id).execute())
         return JSONResponse({"ok": True})
     except Exception as e:
+        _log_unexpected("Skills delete", e)
         return JSONResponse({"ok": False, "error": _client_safe_error(e, "Skills delete")}, status_code=500)
 
 # ── 🧠 MEMORY ENDPOINTS ───────────────────────────────────────────────────────
@@ -1058,6 +1130,7 @@ async def save_memory(request: Request, req: MemorySaveRequest, auth: dict = Dep
     except HTTPException:
         raise
     except Exception as e:
+        _log_unexpected("Memory save", e)
         return JSONResponse({"ok": False, "error": _client_safe_error(e, "Memory save")}, status_code=500)
 
 
@@ -1073,7 +1146,7 @@ async def load_memory(request: Request, auth: dict = Depends(require_auth)):
                             .limit(100).execute())
         return JSONResponse({"ok": True, "memories": result.data or []})
     except Exception as e:
-        logger.error(f"❌ [Memory] load error: {e}")
+        _log_unexpected("Memory load", e)
         return JSONResponse({"ok": False, "memories": []})
 
 
@@ -1087,6 +1160,7 @@ async def clear_memory(request: Request, req: MemoryClearRequest, auth: dict = D
     except HTTPException:
         raise
     except Exception as e:
+        _log_unexpected("Memory clear", e)
         return JSONResponse({"ok": False, "error": _client_safe_error(e, "Memory clear")}, status_code=500)
 
 
@@ -1098,6 +1172,7 @@ async def delete_one_memory(request: Request, id: str, auth: dict = Depends(requ
         await _db(lambda: _supabase_admin.table("user_memories").delete().eq("id", id).eq("user_id", user_id).execute())
         return JSONResponse({"ok": True})
     except Exception as e:
+        _log_unexpected("Memory delete-one", e)
         return JSONResponse({"ok": False, "error": _client_safe_error(e, "Memory delete-one")}, status_code=500)
 
 
@@ -1174,8 +1249,10 @@ async def extract_and_save_memory(request: Request, req: MemoryExtractRequest, a
                         logger.warning(f"⚠️ [Memory] {model_name} returned empty/bad content, trying next")
                 else:
                     logger.warning(f"⚠️ [Memory] {model_name} HTTP {r.status_code}, trying next")
+            except _httpx.HTTPError as model_err:
+                logger.warning(f"⚠️ [Memory] {model_name} network error: {model_err}, trying next")
             except Exception as model_err:
-                logger.warning(f"⚠️ [Memory] {model_name} error: {model_err}, trying next")
+                _log_unexpected(f"Memory extraction model {model_name}", model_err)
 
         if not text:
             logger.error("❌ [Memory] all extraction models failed")
@@ -1190,7 +1267,7 @@ async def extract_and_save_memory(request: Request, req: MemoryExtractRequest, a
             if match:
                 try:
                     parsed = json.loads(match.group())
-                except Exception:
+                except json.JSONDecodeError:
                     logger.error(f"❌ [Memory] AI returned invalid JSON: {text[:200]}")
                     return JSONResponse({"ok": False, "facts": []})
             else:
@@ -1214,7 +1291,10 @@ async def extract_and_save_memory(request: Request, req: MemoryExtractRequest, a
                     }).execute()
                     saved.append(fact)
                 except Exception as save_err:
-                    logger.error(f"❌ [Memory] save in extract: {save_err}")
+                    # supabase-py doesn't expose a narrow, stable exception
+                    # type for insert failures, so this stays broad — but a
+                    # failed save is unusual enough to warrant a traceback.
+                    _log_unexpected(f"Memory save in extract (fact={fact[:40]!r})", save_err)
             return saved
 
         saved_facts = await _db(_save_facts)
@@ -1223,7 +1303,7 @@ async def extract_and_save_memory(request: Request, req: MemoryExtractRequest, a
         return JSONResponse({"ok": True, "facts": saved_facts})
 
     except Exception as e:
-        logger.error(f"❌ [Memory] extract error: {e}")
+        _log_unexpected("Memory extract", e)
         return JSONResponse({"ok": False, "facts": []})
 
 # ── Guaranteed direct save — no AI, no models, just write to Supabase ────────
@@ -1249,6 +1329,7 @@ async def save_memory_direct(request: Request, req: MemorySaveRequest, auth: dic
     except HTTPException:
         raise
     except Exception as e:
+        _log_unexpected("Memory direct-save", e)
         return JSONResponse({"ok": False, "error": _client_safe_error(e, "Memory direct-save")}, status_code=500)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1335,8 +1416,8 @@ def _coarse_region_from_request(request: Request) -> _Optional[str]:
         if r.status_code == 200:
             d = r.json()
             return d.get('country_name') or d.get('country') or None
-    except Exception:
-        pass
+    except (requests.exceptions.RequestException, ValueError, KeyError) as e:
+        logger.info(f"[_coarse_region_from_request] lookup failed (non-fatal): {e}")
     return None
 
 # ── Analytics endpoint ────────────────────────────────────────
@@ -1369,8 +1450,9 @@ async def collect_analytics(batch: _AnalyticsBatch, request: Request):
 
         return JSONResponse({'ok': True, 'stored': len(rows)})
     except Exception as e:
-        # Never surface internal errors to client
-        logger.info(f'[Analytics] Error: {e}')
+        # Never surface internal errors to client — but do log with a
+        # traceback so a real bug in the batch-insert path isn't invisible.
+        _log_unexpected("Analytics collect", e)
         return JSONResponse({'ok': False}, status_code=200)  # always 200 to client
 
 # ── Training endpoint ─────────────────────────────────────────
@@ -1410,7 +1492,7 @@ async def collect_training(batch: _TrainingBatch, request: Request):
 
         return JSONResponse({'ok': True, 'stored': len(rows)})
     except Exception as e:
-        logger.info(f'[Training] Error: {e}')
+        _log_unexpected("Training collect", e)
         return JSONResponse({'ok': False}, status_code=200)
 
 # ── Quality signal helper (called from existing thumbs up/down) ─
@@ -1438,7 +1520,7 @@ async def collect_feedback(request: Request):
 
         return JSONResponse({'ok': True})
     except Exception as e:
-        logger.info(f'[Feedback] Error: {e}')
+        _log_unexpected("Feedback collect", e)
         return JSONResponse({'ok': False}, status_code=200)
 
 
@@ -1511,7 +1593,7 @@ def _reverse_geocode(lat: float, lng: float) -> dict:
             "timezone": timezone,
             "locale":   locale,
         }
-    except Exception as e:
+    except (requests.exceptions.RequestException, ValueError, KeyError) as e:
         logger.info(f"[Location] Reverse geocode failed: {e}")
         return {"timezone": "UTC", "locale": "en"}
 
@@ -1571,7 +1653,7 @@ async def location_metadata_from_ip(request: Request):
                 "timezone": d.get("timezone", "UTC"),
                 "locale":   locale,
             })
-    except Exception as e:
+    except (requests.exceptions.RequestException, ValueError, KeyError) as e:
         logger.info(f"[Location] IP fallback failed: {e}")
 
     return JSONResponse(content={"timezone": "UTC", "locale": "en"})
@@ -2145,9 +2227,24 @@ def tool_clock(prompt: str) -> dict:
         logger.info(f"✅ [TOOL] clock: {result['time_12h']} — {location} ({tz_key})")
         return result
 
-    except Exception as e:
-        logger.error(f"❌ [TOOL] clock exception: {e}")
+    except (KeyError, ValueError, AttributeError) as e:
+        logger.warning(f"⚠️ [TOOL] clock: unrecognized location/timezone: {e}")
         # Pure UTC fallback
+        from datetime import timezone
+        now = datetime.now(timezone.utc)
+        return {
+            "tool"      : "clock",
+            "location"  : location,
+            "timezone"  : "UTC",
+            "tz_abbrev" : "UTC",
+            "utc_offset": "+00:00",
+            "time_12h"  : now.strftime("%I:%M:%S %p"),
+            "time_24h"  : now.strftime("%H:%M:%S"),
+            "date"      : now.strftime("%A, %d %B %Y"),
+            "day"       : now.strftime("%A"),
+        }
+    except Exception as e:
+        _log_unexpected("TOOL clock", e)
         from datetime import timezone
         now = datetime.now(timezone.utc)
         return {
@@ -2233,8 +2330,11 @@ def tool_weather(prompt: str) -> dict:
         logger.info(f"✅ [TOOL] weather success: {result}")
         return result
 
+    except (requests.exceptions.RequestException, KeyError, ValueError, TypeError) as e:
+        logger.warning(f"⚠️ [TOOL] weather: expected failure, falling back to search: {e}")
+        return tool_web_search(f"current weather {city} today")
     except Exception as e:
-        logger.error(f"❌ [TOOL] weather exception: {e}")
+        _log_unexpected("TOOL weather", e)
         return tool_web_search(f"current weather {city} today")
 
 
@@ -2535,8 +2635,11 @@ def _yahoo_fetch_price(ticker: str, display_name: str) -> dict | None:
             "market_state": mkt_state,
             "data_quality": "LIVE — fetched right now from Yahoo Finance",
         }
+    except (requests.exceptions.RequestException, KeyError, ValueError, TypeError, IndexError) as e:
+        logger.warning(f"⚠️ [Yahoo] expected failure for {ticker}: {e}")
+        return None
     except Exception as e:
-        logger.error(f"❌ [Yahoo] exception for {ticker}: {e}")
+        _log_unexpected(f"Yahoo Finance quote ({ticker})", e)
         return None
 
 
@@ -2584,8 +2687,11 @@ def _yahoo_search_ticker(company_name: str) -> tuple[str, str] | tuple[None, Non
         logger.info(f"🔎 [Yahoo Search] '{company_name}' → {symbol} ({name})")
         return symbol, name
 
+    except (requests.exceptions.RequestException, KeyError, ValueError, TypeError, IndexError) as e:
+        logger.warning(f"⚠️ [Yahoo Search] expected failure: {e}")
+        return None, None
     except Exception as e:
-        logger.error(f"❌ [Yahoo Search] exception: {e}")
+        _log_unexpected("Yahoo Finance search", e)
         return None, None
 
 
@@ -2662,8 +2768,10 @@ def tool_finance(prompt: str) -> dict:
                     "prev_close":   quote.get("08. previous close", "N/A"),
                     "data_quality": "LIVE — fetched right now from Alpha Vantage",
                 }
+        except (requests.exceptions.RequestException, KeyError, ValueError, TypeError) as e:
+            logger.warning(f"⚠️ [Finance] Alpha Vantage expected failure: {e}")
         except Exception as e:
-            logger.error(f"❌ [Finance] Alpha Vantage exception: {e}")
+            _log_unexpected("Finance Alpha Vantage", e)
 
     # ── Step 5: Price unavailable — return structured "not found" ─────────────
     # We do NOT do a DDG search here because web snippets contain stale prices
@@ -2732,8 +2840,12 @@ def tool_news(prompt: str) -> dict:
         logger.info(f"✅ [TOOL] news success: {len(headlines)} articles")
         return result
 
+    except (requests.exceptions.RequestException, KeyError, ValueError, TypeError) as e:
+        logger.warning(f"⚠️ [TOOL] news: expected failure, falling back to search: {e}")
+        query = f"latest news {topic}" if topic else "top news today"
+        return tool_web_search(query)
     except Exception as e:
-        logger.error(f"❌ [TOOL] news exception: {e}")
+        _log_unexpected("TOOL news", e)
         query = f"latest news {topic}" if topic else "top news today"
         return tool_web_search(query)
 
@@ -2775,8 +2887,10 @@ def tool_sports(prompt: str) -> dict:
                 result = {"tool": "sports", "sport": "cricket", "matches": live_matches}
                 logger.info(f"✅ [TOOL] sports (cricket) success: {len(live_matches)} matches")
                 return result
+        except (requests.exceptions.RequestException, KeyError, ValueError, TypeError) as e:
+            logger.warning(f"⚠️ [TOOL] cricket API expected failure: {e}")
         except Exception as e:
-            logger.error(f"❌ [TOOL] cricket API exception: {e}")
+            _log_unexpected("TOOL sports cricket", e)
 
     # Fallback: DuckDuckGo search for any sport
     sport_kw = "cricket live score" if is_cricket else "live sports scores today"
@@ -2846,8 +2960,10 @@ def _ddg_search(query: str, max_results: int = 5) -> list:
             else:
                 logger.warning(f"⚠️ [Tavily] HTTP {resp.status_code} for '{query}' — falling back to DDG")
 
+        except (requests.exceptions.RequestException, KeyError, ValueError, TypeError) as e:
+            logger.warning(f"⚠️ [Tavily] expected failure for '{query}': {e} — falling back to DDG")
         except Exception as e:
-            logger.error(f"❌ [Tavily] exception for '{query}': {e} — falling back to DDG")
+            _log_unexpected(f"Tavily search ({query!r})", e)
 
     # ── DuckDuckGo (fallback) ───────────────────────────────────────────────
     try:
@@ -2864,8 +2980,13 @@ def _ddg_search(query: str, max_results: int = 5) -> list:
         ]
         logger.info(f"✅ [DDG fallback] '{query}' → {len(results)} results")
         return results
+    except (KeyError, ValueError, TypeError) as e:
+        logger.warning(f"⚠️ [DDG] query={query!r} expected failure: {e}")
+        return []
     except Exception as e:
-        logger.error(f"❌ [DDG] query='{query}' exception: {e}")
+        # duckduckgo_search doesn't guarantee a single stable exception type
+        # for rate limits/network issues, so this stays as the last resort.
+        _log_unexpected(f"DDG search ({query!r})", e)
         return []
 
 
@@ -2938,8 +3059,10 @@ def tool_web_search(query: str, max_results: int = 5) -> dict:
                 logger.info(f"✅ [TOOL] Production search: {result['result_count']} results")
                 return result
             logger.warning("⚠️ [TOOL] Production search returned no results — falling back")
+        except concurrent.futures.TimeoutError:
+            logger.warning("⚠️ [TOOL] Production search timed out after 30s — falling back")
         except Exception as _pe:
-            logger.error(f"❌ [TOOL] Production search failed: {_pe} — falling back")
+            _log_unexpected("TOOL Production search", _pe)
 
     # ── Legacy fallback (Tavily-then-DDG — original logic) ───────────────────
     logger.info("🔁 [TOOL] Using legacy search fallback")
@@ -3011,8 +3134,8 @@ def build_sources_payload(tool_result: dict) -> str | None:
             payload = build_production_sources_payload(tool_result)
             if payload:
                 return payload
-        except Exception:
-            pass  # fall through to legacy
+        except (KeyError, TypeError, ValueError) as e:
+            logger.info(f"[sources payload] production payload build failed, using legacy: {e}")
 
     # ── Legacy: build from results list ──────────────────────────────────────
     results = tool_result.get("results", [])
@@ -3026,7 +3149,7 @@ def build_sources_payload(tool_result: dict) -> str | None:
             try:
                 from urllib.parse import urlparse
                 domain = urlparse(url).netloc.replace("www.", "")
-            except Exception:
+            except (ValueError, AttributeError):
                 domain = url
             sources.append({
                 "url":    url,
@@ -3276,7 +3399,9 @@ async def delete_account(request: Request):
             user_resp = await _db(supabase.auth.get_user, token)
             user_id   = user_resp.user.id
         except Exception as e:
-            logger.error(f"❌ [DELETE_ACCOUNT] Auth verification failed: {e}")
+            # Any failure validating the token here means "not authenticated" —
+            # gotrue doesn't expose a stable exception type across versions.
+            logger.info(f"[DELETE_ACCOUNT] Auth verification failed: {e}")
             return JSONResponse({"error": "Auth verification failed. Please sign in again."}, status_code=401)
 
         if not user_id:
@@ -3310,6 +3435,7 @@ async def delete_account(request: Request):
             return JSONResponse({"error": err}, status_code=admin_resp.status_code)
 
     except Exception as e:
+        _log_unexpected("DELETE_ACCOUNT", e)
         return JSONResponse({"error": _client_safe_error(e, "DELETE_ACCOUNT")}, status_code=500)
 
 
@@ -3395,13 +3521,17 @@ def call_openrouter_stream(model_id, messages, api_key, file_urls=None, vision_i
             try:
                 err_body = resp.json()
                 err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
-            except Exception:
+            except (ValueError, KeyError, AttributeError):
                 err_msg = f"HTTP {resp.status_code}"
             return None, err_msg
         return resp, None
     except requests.exceptions.Timeout:
         return None, "Request timed out"
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"⚠️ [call_openrouter_stream] network error: {e}")
+        return None, _client_safe_error(e, "call_openrouter_stream")
     except Exception as e:
+        _log_unexpected("call_openrouter_stream", e)
         return None, _client_safe_error(e, "call_openrouter_stream")
 
 
@@ -3456,7 +3586,7 @@ def call_gemini_stream(messages, system_prompt):
             try:
                 err_body = resp.json()
                 err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
-            except Exception:
+            except (ValueError, KeyError, AttributeError):
                 err_msg = f"HTTP {resp.status_code}"
             return None, err_msg
 
@@ -3464,7 +3594,11 @@ def call_gemini_stream(messages, system_prompt):
 
     except requests.exceptions.Timeout:
         return None, "Request timed out"
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"⚠️ [call_gemini_stream] network error: {e}")
+        return None, _client_safe_error(e, "call_gemini_stream")
     except Exception as e:
+        _log_unexpected("call_gemini_stream", e)
         return None, _client_safe_error(e, "call_gemini_stream")
 
 
@@ -3528,7 +3662,12 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
             except requests.exceptions.Timeout:
                 last_err = "Request timed out"
                 continue
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"⚠️ [call_gemma_google_stream] network error (attempt {attempt + 1}): {e}")
+                last_err = _client_safe_error(e, "call_gemma_google_stream")
+                continue
             except Exception as e:
+                _log_unexpected(f"call_gemma_google_stream attempt {attempt + 1}", e)
                 last_err = _client_safe_error(e, "call_gemma_google_stream")
                 continue
 
@@ -3538,7 +3677,7 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
             try:
                 err_body = resp.json()
                 last_err = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
-            except Exception:
+            except (ValueError, KeyError, AttributeError):
                 last_err = f"HTTP {resp.status_code}"
 
             # Only worth retrying on server-side errors (500/503), not on
@@ -3550,7 +3689,11 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
                 time.sleep(1.5 * (attempt + 1))
 
         return None, last_err
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"⚠️ [call_gemma_google_stream] network error: {e}")
+        return None, _client_safe_error(e, "call_gemma_google_stream")
     except Exception as e:
+        _log_unexpected("call_gemma_google_stream", e)
         return None, _client_safe_error(e, "call_gemma_google_stream")
 
 # ============================================================
@@ -3586,13 +3729,17 @@ def call_groq_stream(messages, api_key):
             try:
                 err_body = resp.json()
                 err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
-            except Exception:
+            except (ValueError, KeyError, AttributeError):
                 err_msg = f"HTTP {resp.status_code}"
             return None, err_msg
         return resp, None
     except requests.exceptions.Timeout:
         return None, "Request timed out"
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"⚠️ [call_groq_stream] network error: {e}")
+        return None, _client_safe_error(e, "call_groq_stream")
     except Exception as e:
+        _log_unexpected("call_groq_stream", e)
         return None, _client_safe_error(e, "call_groq_stream")
 
 
@@ -3638,13 +3785,17 @@ def call_poolside_stream(messages, api_key):
             try:
                 err_body = resp.json()
                 err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
-            except Exception:
+            except (ValueError, KeyError, AttributeError):
                 err_msg = f"HTTP {resp.status_code}"
             return None, err_msg
         return resp, None
     except requests.exceptions.Timeout:
         return None, "Request timed out"
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"⚠️ [call_poolside_stream] network error: {e}")
+        return None, _client_safe_error(e, "call_poolside_stream")
     except Exception as e:
+        _log_unexpected("call_poolside_stream", e)
         return None, _client_safe_error(e, "call_poolside_stream")
 
 
@@ -3681,13 +3832,17 @@ def call_sambhav_groq_stream(messages, api_key):
             try:
                 err_body = resp.json()
                 err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
-            except Exception:
+            except (ValueError, KeyError, AttributeError):
                 err_msg = f"HTTP {resp.status_code}"
             return None, err_msg
         return resp, None
     except requests.exceptions.Timeout:
         return None, "Request timed out"
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"⚠️ [call_sambhav_groq_stream] network error: {e}")
+        return None, _client_safe_error(e, "call_sambhav_groq_stream")
     except Exception as e:
+        _log_unexpected("call_sambhav_groq_stream", e)
         return None, _client_safe_error(e, "call_sambhav_groq_stream")
 
 
@@ -3723,13 +3878,17 @@ def call_zai_stream(messages, api_key):
             try:
                 err_body = resp.json()
                 err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
-            except Exception:
+            except (ValueError, KeyError, AttributeError):
                 err_msg = f"HTTP {resp.status_code}"
             return None, err_msg
         return resp, None
     except requests.exceptions.Timeout:
         return None, "Request timed out"
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"⚠️ [call_zai_stream] network error: {e}")
+        return None, _client_safe_error(e, "call_zai_stream")
     except Exception as e:
+        _log_unexpected("call_zai_stream", e)
         return None, _client_safe_error(e, "call_zai_stream")
 
 
@@ -3791,13 +3950,17 @@ def call_nvidia_stream(messages, api_key, model_id, temperature=1.0, template_kw
             try:
                 err_body = resp.json()
                 err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
-            except Exception:
+            except (ValueError, KeyError, AttributeError):
                 err_msg = f"HTTP {resp.status_code}"
             return None, err_msg
         return resp, None
     except requests.exceptions.Timeout:
         return None, "Request timed out"
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"⚠️ [call_nvidia_stream] network error: {e}")
+        return None, _client_safe_error(e, "call_nvidia_stream")
     except Exception as e:
+        _log_unexpected("call_nvidia_stream", e)
         return None, _client_safe_error(e, "call_nvidia_stream")
 
 
@@ -3858,13 +4021,17 @@ def call_mistral_stream(messages, api_key, model_id="mistral-large-latest", reas
             try:
                 err_body = resp.json()
                 err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
-            except Exception:
+            except (ValueError, KeyError, AttributeError):
                 err_msg = f"HTTP {resp.status_code}"
             return None, err_msg
         return resp, None
     except requests.exceptions.Timeout:
         return None, "Request timed out"
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"⚠️ [call_mistral_stream] network error: {e}")
+        return None, _client_safe_error(e, "call_mistral_stream")
     except Exception as e:
+        _log_unexpected("call_mistral_stream", e)
         return None, _client_safe_error(e, "call_mistral_stream")
 
 
@@ -3909,13 +4076,17 @@ def call_inception_stream(messages, api_key, model_id="mercury-2", reasoning_eff
             try:
                 err_body = resp.json()
                 err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
-            except Exception:
+            except (ValueError, KeyError, AttributeError):
                 err_msg = f"HTTP {resp.status_code}"
             return None, err_msg
         return resp, None
     except requests.exceptions.Timeout:
         return None, "Request timed out"
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"⚠️ [call_inception_stream] network error: {e}")
+        return None, _client_safe_error(e, "call_inception_stream")
     except Exception as e:
+        _log_unexpected("call_inception_stream", e)
         return None, _client_safe_error(e, "call_inception_stream")
 
 
@@ -3989,8 +4160,11 @@ async def generate_title(request: Request):
         words = message.split()
         return JSONResponse({"title": " ".join(words[:5]) if words else "New Chat"})
 
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"⚠️ [Title] network error: {e}")
+        return JSONResponse({"title": "New Chat"})
     except Exception as e:
-        logger.error(f"❌ Title generation error: {e}")
+        _log_unexpected("Title generation", e)
         return JSONResponse({"title": "New Chat"})
 
 
@@ -4837,10 +5011,13 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             if token:
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [Sambhav] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [Sambhav] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [Sambhav] stream exception: {e}")
+                    _log_unexpected("Sambhav stream", e)
 
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
@@ -4927,10 +5104,13 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                     thinking_open = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [Laguna] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [Laguna] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [Laguna] stream exception: {e}")
+                    _log_unexpected("Laguna stream", e)
 
                 if thinking_open:
                     full_reply += "</think>"
@@ -5008,7 +5188,14 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         yield f"data: {json.dumps({'error': f'Laguna Core unavailable: HTTP {resp_lc.status_code}'})}\n\n"
                         yield "data: [DONE]\n\n"
                         return
+                except requests.exceptions.RequestException as e:
+                    _safe_msg = _client_safe_error(e, "Laguna Core stream")
+                    logger.warning(f"⚠️ [Laguna Core] network error: {e}")
+                    yield f"data: {json.dumps({'error': f'Laguna Core unavailable: {_safe_msg}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
                 except Exception as e:
+                    _log_unexpected("Laguna Core stream setup", e)
                     _safe_msg = _client_safe_error(e, "Laguna Core stream")
                     yield f"data: {json.dumps({'error': f'Laguna Core unavailable: {_safe_msg}'})}\n\n"
                     yield "data: [DONE]\n\n"
@@ -5082,10 +5269,13 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                     thinking_open_lc = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [Laguna Core] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [Laguna Core] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [Laguna Core] stream exception: {e}")
+                    _log_unexpected("Laguna Core stream", e)
 
                 if thinking_open_lc:
                     full_reply += "</think>"
@@ -5163,7 +5353,14 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         yield f"data: {json.dumps({'error': f'Laguna S unavailable: HTTP {resp_ls.status_code}'})}\n\n"
                         yield "data: [DONE]\n\n"
                         return
+                except requests.exceptions.RequestException as e:
+                    _safe_msg = _client_safe_error(e, "Laguna S stream")
+                    logger.warning(f"⚠️ [Laguna S] network error: {e}")
+                    yield f"data: {json.dumps({'error': f'Laguna S unavailable: {_safe_msg}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
                 except Exception as e:
+                    _log_unexpected("Laguna S stream setup", e)
                     _safe_msg = _client_safe_error(e, "Laguna S stream")
                     yield f"data: {json.dumps({'error': f'Laguna S unavailable: {_safe_msg}'})}\n\n"
                     yield "data: [DONE]\n\n"
@@ -5237,10 +5434,13 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                     thinking_open_ls = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [Laguna S] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [Laguna S] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [Laguna S] stream exception: {e}")
+                    _log_unexpected("Laguna S stream", e)
 
                 if thinking_open_ls:
                     full_reply += "</think>"
@@ -5351,10 +5551,13 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                         thinking_open_glm = False
                                     full_reply += token
                                     yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                            except (json.JSONDecodeError, Exception):
+                            except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                                logger.debug(f"⚠️ [GLM] skipped unparsable stream chunk: {parse_err}")
                                 continue
+                    except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                        logger.warning(f"⚠️ [GLM] stream network error: {e}")
                     except Exception as e:
-                        logger.error(f"❌ [GLM] stream exception: {e}")
+                        _log_unexpected("GLM stream", e)
 
                     # Only keep going if GLM was actually cut off for length reasons.
                     if finish_reason_glm == "length":
@@ -5449,10 +5652,13 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                     thinking_open_mm = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [MINIMAX_M3] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [MINIMAX_M3] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [MINIMAX_M3] stream exception: {e}")
+                    _log_unexpected("MINIMAX_M3 stream", e)
 
                 if thinking_open_mm:
                     full_reply += "</think>"
@@ -5542,10 +5748,13 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                     thinking_open_g52 = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [GLM52] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [GLM52] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [GLM52] stream exception: {e}")
+                    _log_unexpected("GLM52 stream", e)
 
                 if thinking_open_g52:
                     full_reply += "</think>"
@@ -5635,10 +5844,13 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                     thinking_open_mlarge = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [MISTRAL LARGE] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [MISTRAL LARGE] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [MISTRAL LARGE] stream exception: {e}")
+                    _log_unexpected("MISTRAL LARGE stream", e)
 
                 if thinking_open_mlarge:
                     full_reply += "</think>"
@@ -5750,10 +5962,13 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                     thinking_open_mmed = False
                                 full_reply += content_mmed
                                 yield f"data: {json.dumps({'token': content_mmed}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [MISTRAL MEDIUM] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [MISTRAL MEDIUM] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [MISTRAL MEDIUM] stream exception: {e}")
+                    _log_unexpected("MISTRAL MEDIUM stream", e)
 
                 if thinking_open_mmed:
                     full_reply += "</think>"
@@ -5867,10 +6082,13 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                     thinking_open_msmall = False
                                 full_reply += content_msmall
                                 yield f"data: {json.dumps({'token': content_msmall}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [MISTRAL SMALL] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [MISTRAL SMALL] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [MISTRAL SMALL] stream exception: {e}")
+                    _log_unexpected("MISTRAL SMALL stream", e)
 
                 if thinking_open_msmall:
                     full_reply += "</think>"
@@ -5960,10 +6178,13 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                     thinking_open_merc = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [MERCURY 2] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [MERCURY 2] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [MERCURY 2] stream exception: {e}")
+                    _log_unexpected("MERCURY 2 stream", e)
 
                 if thinking_open_merc:
                     full_reply += "</think>"
@@ -6043,10 +6264,13 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             if token:
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [Nivo] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [Nivo] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [Nivo] stream exception: {e}")
+                    _log_unexpected("Nivo stream", e)
 
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
@@ -6129,10 +6353,13 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                         thinking_open = False
                                     full_reply += token
                                     yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [Gemma POST] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [Gemma POST] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [Gemma POST] stream exception: {e}")
+                    _log_unexpected("Gemma POST stream", e)
                 if thinking_open:
                     full_reply += "</think>"
                 if full_reply.strip():
@@ -6244,10 +6471,14 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             if finish == "length":
                                 stream_broke = True
                                 break
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [{current_model}] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [{current_model}] stream network error: {e}")
+                    stream_broke = True
                 except Exception as e:
-                    logger.warning(f"⚠️ [{current_model}] stream exception: {e}")
+                    _log_unexpected(f"{current_model} stream", e)
                     stream_broke = True
 
                 if finished_cleanly and full_reply.strip():
@@ -6283,6 +6514,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
         )
 
     except Exception as e:
+        _log_unexpected("chat_get", e)
         return JSONResponse(content={"error": _client_safe_error(e, "chat_get")})
 
 
@@ -7170,10 +7402,13 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                     thinking_open = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [Laguna GET] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [Laguna GET] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [Laguna GET] stream exception: {e}")
+                    _log_unexpected("Laguna GET stream", e)
                 if thinking_open:
                     full_reply += "</think>"
                 if full_reply.strip():
@@ -7229,7 +7464,14 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         yield f"data: {json.dumps({'error': f'Laguna Core unavailable: HTTP {resp_lc_get.status_code}'})}\n\n"
                         yield "data: [DONE]\n\n"
                         return
+                except requests.exceptions.RequestException as e:
+                    _safe_msg = _client_safe_error(e, "Laguna Core stream")
+                    logger.warning(f"⚠️ [Laguna Core] network error: {e}")
+                    yield f"data: {json.dumps({'error': f'Laguna Core unavailable: {_safe_msg}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
                 except Exception as e:
+                    _log_unexpected("Laguna Core stream setup (GET)", e)
                     _safe_msg = _client_safe_error(e, "Laguna Core stream")
                     yield f"data: {json.dumps({'error': f'Laguna Core unavailable: {_safe_msg}'})}\n\n"
                     yield "data: [DONE]\n\n"
@@ -7299,10 +7541,13 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                     thinking_open_lc_get = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [Laguna Core GET] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [Laguna Core GET] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [Laguna Core GET] stream exception: {e}")
+                    _log_unexpected("Laguna Core GET stream", e)
                 if thinking_open_lc_get:
                     full_reply += "</think>"
                 if full_reply.strip():
@@ -7358,7 +7603,14 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         yield f"data: {json.dumps({'error': f'Laguna S unavailable: HTTP {resp_ls_get.status_code}'})}\n\n"
                         yield "data: [DONE]\n\n"
                         return
+                except requests.exceptions.RequestException as e:
+                    _safe_msg = _client_safe_error(e, "Laguna S stream")
+                    logger.warning(f"⚠️ [Laguna S] network error: {e}")
+                    yield f"data: {json.dumps({'error': f'Laguna S unavailable: {_safe_msg}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
                 except Exception as e:
+                    _log_unexpected("Laguna S stream setup (GET)", e)
                     _safe_msg = _client_safe_error(e, "Laguna S stream")
                     yield f"data: {json.dumps({'error': f'Laguna S unavailable: {_safe_msg}'})}\n\n"
                     yield "data: [DONE]\n\n"
@@ -7428,10 +7680,13 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                     thinking_open_ls_get = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [Laguna S GET] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [Laguna S GET] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [Laguna S GET] stream exception: {e}")
+                    _log_unexpected("Laguna S GET stream", e)
                 if thinking_open_ls_get:
                     full_reply += "</think>"
                 if full_reply.strip():
@@ -7518,10 +7773,13 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                         thinking_open_glm_get = False
                                     full_reply += token
                                     yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                            except (json.JSONDecodeError, Exception):
+                            except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                                logger.debug(f"⚠️ [GLM GET] skipped unparsable stream chunk: {parse_err}")
                                 continue
+                    except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                        logger.warning(f"⚠️ [GLM GET] stream network error: {e}")
                     except Exception as e:
-                        logger.error(f"❌ [GLM GET] stream exception: {e}")
+                        _log_unexpected("GLM GET stream", e)
 
                     if finish_reason_glm_get == "length":
                         continue
@@ -7593,10 +7851,13 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                     thinking_open_mmg = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [MINIMAX_M3 GET] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [MINIMAX_M3 GET] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [MINIMAX_M3 GET] stream exception: {e}")
+                    _log_unexpected("MINIMAX_M3 GET stream", e)
                 if thinking_open_mmg:
                     full_reply += "</think>"
                 if full_reply.strip():
@@ -7663,10 +7924,13 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                     thinking_open_g52g = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [GLM52 GET] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [GLM52 GET] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [GLM52 GET] stream exception: {e}")
+                    _log_unexpected("GLM52 GET stream", e)
                 if thinking_open_g52g:
                     full_reply += "</think>"
                 if full_reply.strip():
@@ -7733,10 +7997,13 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                     thinking_open_mlarge = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [MISTRAL LARGE GET] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [MISTRAL LARGE GET] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [MISTRAL LARGE GET] stream exception: {e}")
+                    _log_unexpected("MISTRAL LARGE GET stream", e)
                 if thinking_open_mlarge:
                     full_reply += "</think>"
                 if full_reply.strip():
@@ -7823,10 +8090,13 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                     thinking_open_mmed = False
                                 full_reply += content_mmed
                                 yield f"data: {json.dumps({'token': content_mmed}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [MISTRAL MEDIUM GET] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [MISTRAL MEDIUM GET] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [MISTRAL MEDIUM GET] stream exception: {e}")
+                    _log_unexpected("MISTRAL MEDIUM GET stream", e)
                 if thinking_open_mmed:
                     full_reply += "</think>"
                 if full_reply.strip():
@@ -7913,10 +8183,13 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                     thinking_open_msmall = False
                                 full_reply += content_msmall
                                 yield f"data: {json.dumps({'token': content_msmall}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [MISTRAL SMALL GET] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [MISTRAL SMALL GET] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [MISTRAL SMALL GET] stream exception: {e}")
+                    _log_unexpected("MISTRAL SMALL GET stream", e)
                 if thinking_open_msmall:
                     full_reply += "</think>"
                 if full_reply.strip():
@@ -7983,10 +8256,13 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                     thinking_open_merc = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [MERCURY 2 GET] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [MERCURY 2 GET] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [MERCURY 2 GET] stream exception: {e}")
+                    _log_unexpected("MERCURY 2 GET stream", e)
                 if thinking_open_merc:
                     full_reply += "</think>"
                 if full_reply.strip():
@@ -8040,10 +8316,13 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             if token:
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [Nivo GET] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [Nivo GET] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [Nivo GET] stream exception: {e}")
+                    _log_unexpected("Nivo GET stream", e)
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
                     if not ghost_mode and len(user_memory[session_id]) > 40:
@@ -8095,10 +8374,13 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             if token:
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [Sambhav GET] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [Sambhav GET] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [Sambhav GET] stream exception: {e}")
+                    _log_unexpected("Sambhav GET stream", e)
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
                     if not ghost_mode and len(user_memory[session_id]) > 40:
@@ -8176,10 +8458,13 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                         thinking_open = False
                                     full_reply += token
                                     yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, Exception):
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [Gemma GET] skipped unparsable stream chunk: {parse_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [Gemma GET] stream network error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ [Gemma GET] stream exception: {e}")
+                    _log_unexpected("Gemma GET stream", e)
                 if thinking_open:
                     full_reply += "</think>"
                 if full_reply.strip():
@@ -8265,7 +8550,11 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             # reply was mysteriously short."
                             logger.warning(f"⚠️ [stream] skipping malformed chunk: {type(chunk_err).__name__}: {chunk_err}")
                             continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [stream] network error mid-stream: {e}")
+                    stream_broke = True
                 except Exception as e:
+                    _log_unexpected("chat pool stream", e)
                     stream_broke = True
 
                 if finished_cleanly and full_reply.strip():
@@ -8289,4 +8578,5 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                      "Set-Cookie": build_session_cookie(session_id)}
         )
     except Exception as e:
+        _log_unexpected("chat_get (legacy)", e)
         return JSONResponse(content={"error": _client_safe_error(e, "chat_get")})
