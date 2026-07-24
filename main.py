@@ -68,6 +68,32 @@ def _log_unexpected(context: str, exc: Exception) -> None:
     """
     logger.exception(f"❌ [UNEXPECTED] {context}: {exc.__class__.__name__}: {exc}")
 
+
+# ── Shared HTTP session (connection reuse / keep-alive) ────────────────────
+# Every outbound call in this file (OpenRouter, Groq, Gemini, Poolside,
+# Supabase admin API, weather/finance/news tools, etc.) was going through
+# the plain `requests.get`/`requests.post`/`requests.delete` module-level
+# functions, each of which opens a brand-new TCP+TLS connection per call —
+# there's no connection reuse between requests, even to the same host, even
+# from the same worker thread. On a Render instance making dozens of
+# outbound calls a minute, that's a fresh TLS handshake every time.
+#
+# A single process-wide `requests.Session()` reuses connections via
+# HTTP keep-alive (urllib3's connection pooling) whenever consecutive calls
+# hit the same host, which is the common case here (repeated OpenRouter/
+# Groq/Gemini calls in particular). `requests.Session` is documented as
+# thread-safe for making requests concurrently from multiple threads, which
+# matters since these calls run inside `anyio`'s worker-thread pool — so one
+# shared instance across all routes/threads is safe and correct.
+#
+# Everywhere below that used to call the bare `requests.get(...)` /
+# `requests.post(...)` / `requests.delete(...)` functions now calls
+# `_http.get(...)` / `_http.post(...)` / `_http.delete(...)` instead.
+# `requests.exceptions.*` references are untouched — those are exception
+# classes, not calls, and stay on the `requests` module itself.
+_http = requests.Session()
+_http.headers.update({"User-Agent": "CaturaAI/1.0"})
+
 # ── Centralized session cookie helper ─────────────────────────────────────────
 # Every place in this file that issues the session_id cookie must go through
 # this helper so the security flags stay consistent. Never hand-construct a
@@ -330,7 +356,7 @@ def fetch_file_content_for_ai(url: str) -> dict:
         # against the same allow-list/private-IP checks before following it
         # manually, so an attacker can't use a redirect to pivot us onto an
         # internal address.
-        resp = requests.get(url, timeout=12, stream=True, allow_redirects=False)
+        resp = _http.get(url, timeout=12, stream=True, allow_redirects=False)
 
         redirect_hops = 0
         while resp.is_redirect and redirect_hops < 5:
@@ -342,7 +368,7 @@ def fetch_file_content_for_ai(url: str) -> dict:
             if not ok:
                 return {"kind": "error", "reason": f"Redirect target not allowed: {reason}"}
             url = next_url
-            resp = requests.get(url, timeout=12, stream=True, allow_redirects=False)
+            resp = _http.get(url, timeout=12, stream=True, allow_redirects=False)
             redirect_hops += 1
 
         if resp.status_code != 200:
@@ -837,7 +863,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.372"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.373"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -847,7 +873,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.372", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.373", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -1412,7 +1438,7 @@ def _coarse_region_from_request(request: Request) -> _Optional[str]:
         forwarded = request.headers.get('x-forwarded-for', '')
         ip = forwarded.split(',')[0].strip() if forwarded else str(request.client.host)
         # Use ipapi.co free tier — returns country_name, region
-        r = requests.get(f'https://ipapi.co/{ip}/json/', timeout=3)
+        r = _http.get(f'https://ipapi.co/{ip}/json/', timeout=3)
         if r.status_code == 200:
             d = r.json()
             return d.get('country_name') or d.get('country') or None
@@ -1548,7 +1574,7 @@ def _reverse_geocode(lat: float, lng: float) -> dict:
             f"https://api.open-meteo.com/v1/forecast"
             f"?latitude={lat}&longitude={lng}&timezone=auto&forecast_days=0"
         )
-        tz_resp = requests.get(tz_url, timeout=5)
+        tz_resp = _http.get(tz_url, timeout=5)
         timezone = "UTC"
         if tz_resp.status_code == 200:
             tz_data = tz_resp.json()
@@ -1560,7 +1586,7 @@ def _reverse_geocode(lat: float, lng: float) -> dict:
             f"?lat={lat}&lon={lng}&format=json&zoom=10&addressdetails=1"
         )
         headers = {"User-Agent": "CaturaAI/1.0 (privacy-safe location metadata)"}
-        geo_resp = requests.get(nominatim_url, timeout=5, headers=headers)
+        geo_resp = _http.get(nominatim_url, timeout=5, headers=headers)
 
         country, region, city = "", "", ""
         if geo_resp.status_code == 200:
@@ -1635,7 +1661,7 @@ async def location_metadata_from_ip(request: Request):
             return JSONResponse(content={"timezone": tz, "locale": "en-IN", "country": "India", "region": "", "city": ""})
 
         ip_resp = await _db(
-            requests.get,
+            _http.get,
             f"http://ip-api.com/json/{client_ip}?fields=country,regionName,city,timezone",
             timeout=5
         )
@@ -2303,7 +2329,7 @@ def tool_weather(prompt: str) -> dict:
 
     try:
         url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={OPENWEATHER_API_KEY}&units=metric"
-        resp = requests.get(url, timeout=8)
+        resp = _http.get(url, timeout=8)
         data = resp.json()
 
         if resp.status_code != 200 or data.get("cod") != 200:
@@ -2593,7 +2619,7 @@ def _yahoo_fetch_price(ticker: str, display_name: str) -> dict | None:
             ),
             "Accept": "application/json",
         }
-        resp = requests.get(url, headers=headers, timeout=10)
+        resp = _http.get(url, headers=headers, timeout=10)
         if resp.status_code != 200:
             logger.warning(f"⚠️ [Yahoo] HTTP {resp.status_code} for {ticker}")
             return None
@@ -2666,7 +2692,7 @@ def _yahoo_search_ticker(company_name: str) -> tuple[str, str] | tuple[None, Non
             ),
             "Accept": "application/json",
         }
-        resp = requests.get(url, params=params, headers=headers, timeout=8)
+        resp = _http.get(url, params=params, headers=headers, timeout=8)
         if resp.status_code != 200:
             return None, None
 
@@ -2754,7 +2780,7 @@ def tool_finance(prompt: str) -> dict:
         try:
             url   = (f"https://www.alphavantage.co/query"
                      f"?function=GLOBAL_QUOTE&symbol={ticker}&apikey={ALPHAVANTAGE_KEY}")
-            resp  = requests.get(url, timeout=8)
+            resp  = _http.get(url, timeout=8)
             quote = resp.json().get("Global Quote", {})
             if quote and quote.get("05. price"):
                 return {
@@ -2817,7 +2843,7 @@ def tool_news(prompt: str) -> dict:
         if topic:
             params["q"] = topic
 
-        resp = requests.get("https://newsdata.io/api/1/news", params=params, timeout=8)
+        resp = _http.get("https://newsdata.io/api/1/news", params=params, timeout=8)
         data = resp.json()
 
         if data.get("status") != "success":
@@ -2865,7 +2891,7 @@ def tool_sports(prompt: str) -> dict:
 
     if is_cricket and CRICAPI_KEY:
         try:
-            resp = requests.get(
+            resp = _http.get(
                 f"https://api.cricapi.com/v1/currentMatches?apikey={CRICAPI_KEY}&offset=0",
                 timeout=8
             )
@@ -2917,7 +2943,7 @@ def _ddg_search(query: str, max_results: int = 5) -> list:
     # ── Tavily (primary) ────────────────────────────────────────────────────
     if TAVILY_API_KEY:
         try:
-            resp = requests.post(
+            resp = _http.post(
                 "https://api.tavily.com/search",
                 json={
                     "api_key": TAVILY_API_KEY,
@@ -3416,7 +3442,7 @@ async def delete_account(request: Request):
             )
 
         admin_resp = await _db(
-            requests.delete,
+            _http.delete,
             f"{SUPABASE_URL}/auth/v1/admin/users/{user_id}",
             headers={
                 "apikey":        service_key,
@@ -3494,7 +3520,7 @@ def call_openrouter_stream(model_id, messages, api_key, file_urls=None, vision_i
                 content_blocks.append({"type": "text", "text": text_str})
                 messages[last_user_idx]["content"] = content_blocks
 
-        resp = requests.post(
+        resp = _http.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {api_key}",
@@ -3574,7 +3600,7 @@ def call_gemini_stream(messages, system_prompt):
             f"?alt=sse&key={GEMINI_API_KEY}"
         )
 
-        resp = requests.post(
+        resp = _http.post(
             url,
             headers={"Content-Type": "application/json"},
             json=payload,
@@ -3652,7 +3678,7 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
         last_err = "Internal error encountered."
         for attempt in range(3):
             try:
-                resp = requests.post(
+                resp = _http.post(
                     url,
                     headers={"Content-Type": "application/json"},
                     json=payload,
@@ -3709,7 +3735,7 @@ def call_groq_stream(messages, api_key):
     if not api_key:
         return None, "GROQ_API_KEY not set in environment variables"
     try:
-        resp = requests.post(
+        resp = _http.post(
             "https://api.groq.com/openai/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {api_key}",
@@ -3763,7 +3789,7 @@ def call_poolside_stream(messages, api_key):
     if not api_key:
         return None, "POOLSIDE_API_KEY not set in environment variables"
     try:
-        resp = requests.post(
+        resp = _http.post(
             "https://inference.poolside.ai/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {api_key}",
@@ -3812,7 +3838,7 @@ def call_sambhav_groq_stream(messages, api_key):
     if not api_key:
         return None, "GROQ_API_KEY not set in environment variables"
     try:
-        resp = requests.post(
+        resp = _http.post(
             "https://api.groq.com/openai/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {api_key}",
@@ -3858,7 +3884,7 @@ def call_zai_stream(messages, api_key):
     if not api_key:
         return None, "ZAI_API_KEY not set in environment variables"
     try:
-        resp = requests.post(
+        resp = _http.post(
             "https://api.z.ai/api/paas/v4/chat/completions",
             headers={
                 "Authorization": f"Bearer {api_key}",
@@ -3936,7 +3962,7 @@ def call_nvidia_stream(messages, api_key, model_id, temperature=1.0, template_kw
         }
         if template_kwargs:
             payload["chat_template_kwargs"] = template_kwargs
-        resp = requests.post(
+        resp = _http.post(
             "https://integrate.api.nvidia.com/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {api_key}",
@@ -4007,7 +4033,7 @@ def call_mistral_stream(messages, api_key, model_id="mistral-large-latest", reas
         }
         if reasoning_effort:
             payload["reasoning_effort"] = reasoning_effort
-        resp = requests.post(
+        resp = _http.post(
             "https://api.mistral.ai/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {api_key}",
@@ -4055,7 +4081,7 @@ def call_inception_stream(messages, api_key, model_id="mercury-2", reasoning_eff
     if not api_key:
         return None, "INCEPTION_API_KEY not set in environment variables"
     try:
-        resp = requests.post(
+        resp = _http.post(
             "https://api.inceptionlabs.ai/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {api_key}",
@@ -5166,7 +5192,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     yield "data: [DONE]\n\n"
                     return
                 try:
-                    resp_lc = requests.post(
+                    resp_lc = _http.post(
                         "https://inference.poolside.ai/v1/chat/completions",
                         headers={
                             "Authorization": f"Bearer {poolside_key_core}",
@@ -5331,7 +5357,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     yield "data: [DONE]\n\n"
                     return
                 try:
-                    resp_ls = requests.post(
+                    resp_ls = _http.post(
                         "https://inference.poolside.ai/v1/chat/completions",
                         headers={
                             "Authorization": f"Bearer {poolside_key_s}",
@@ -7442,7 +7468,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                     yield "data: [DONE]\n\n"
                     return
                 try:
-                    resp_lc_get = requests.post(
+                    resp_lc_get = _http.post(
                         "https://inference.poolside.ai/v1/chat/completions",
                         headers={
                             "Authorization": f"Bearer {poolside_key_core_get}",
@@ -7581,7 +7607,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                     yield "data: [DONE]\n\n"
                     return
                 try:
-                    resp_ls_get = requests.post(
+                    resp_ls_get = _http.post(
                         "https://inference.poolside.ai/v1/chat/completions",
                         headers={
                             "Authorization": f"Bearer {poolside_key_s_get}",
