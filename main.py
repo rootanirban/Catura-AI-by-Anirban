@@ -3,6 +3,8 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import requests
+import anyio  # ✅ lets async routes run blocking calls (requests, supabase-py) in a worker
+              #    thread instead of freezing the single Uvicorn event loop.
 import os
 import uuid
 import json
@@ -460,6 +462,26 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 _svc_key = os.getenv("SUPABASE_SERVICE_KEY", "") or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 _supabase_admin: Client = create_client(SUPABASE_URL, _svc_key) if _svc_key else supabase
 
+
+async def _db(func, *args, **kwargs):
+    """
+    Run a blocking call (supabase-py, or anything else synchronous) in a
+    worker thread instead of the event loop.
+
+    supabase-py has no official async client, so every `supabase.table(...)`
+    / `supabase.auth.get_user(...)` call is a blocking network call. Calling
+    one of those directly inside an `async def` route freezes Uvicorn's
+    single-threaded event loop for the duration of the call — no other
+    request (not even /health) can be served in the meantime. Wrapping the
+    call with this helper (a thin wrapper over anyio.to_thread.run_sync, the
+    mechanism FastAPI itself uses for sync path operations) moves it off the
+    event loop so concurrent requests keep flowing.
+
+    Usage:  result = await _db(lambda: supabase.table("x").select("*").execute())
+    """
+    return await anyio.to_thread.run_sync(lambda: func(*args, **kwargs))
+
+
 # ✅ AUTH DEPENDENCY — validates Supabase JWT from Authorization header
 async def require_auth(authorization: str = Header(default=None)) -> dict:
     """
@@ -475,8 +497,10 @@ async def require_auth(authorization: str = Header(default=None)) -> dict:
         raise HTTPException(status_code=401, detail="Missing bearer token")
 
     try:
-        # Validate against Supabase using the anon-key client (not the admin client)
-        user_response = supabase.auth.get_user(token)
+        # Validate against Supabase using the anon-key client (not the admin client).
+        # This runs on every authenticated request, so keeping it off the event
+        # loop (via _db) matters a lot for concurrency.
+        user_response = await _db(supabase.auth.get_user, token)
     except Exception as e:
         raise HTTPException(status_code=401, detail="Invalid or expired token") from e
 
@@ -644,7 +668,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.365"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.366"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -654,7 +678,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.365", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.366", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -859,7 +883,7 @@ async def install_skill(request: Request, req: SkillInstallRequest, auth: dict =
             "enabled": True,
             "updated_at": datetime.utcnow().isoformat(),
         }
-        result = _supabase_admin.table("skills").insert(row).execute()
+        result = await _db(lambda: _supabase_admin.table("skills").insert(row).execute())
         return JSONResponse({"ok": True, "skill": result.data[0] if result.data else row})
 
     except HTTPException:
@@ -874,13 +898,18 @@ async def install_skill(request: Request, req: SkillInstallRequest, auth: dict =
 async def list_skills(request: Request, auth: dict = Depends(require_auth)):
     try:
         user_id = auth["user_id"]
-        own = _supabase_admin.table("skills") \
-            .select("id, name, slug, description, trigger_hint, source_url, is_preinstalled, enabled, created_at") \
-            .eq("user_id", user_id).order("created_at", desc=True).execute()
-        preinstalled = _supabase_admin.table("skills") \
-            .select("id, name, slug, description, trigger_hint, source_url, is_preinstalled, enabled, created_at") \
-            .is_("user_id", "null").eq("is_preinstalled", True).execute()
-        return JSONResponse({"ok": True, "skills": (own.data or []) + (preinstalled.data or [])})
+
+        def _load():
+            own = _supabase_admin.table("skills") \
+                .select("id, name, slug, description, trigger_hint, source_url, is_preinstalled, enabled, created_at") \
+                .eq("user_id", user_id).order("created_at", desc=True).execute()
+            preinstalled = _supabase_admin.table("skills") \
+                .select("id, name, slug, description, trigger_hint, source_url, is_preinstalled, enabled, created_at") \
+                .is_("user_id", "null").eq("is_preinstalled", True).execute()
+            return (own.data or []) + (preinstalled.data or [])
+
+        skills = await _db(_load)
+        return JSONResponse({"ok": True, "skills": skills})
     except Exception as e:
         print(f"❌ [Skills] list error: {e}")
         return JSONResponse({"ok": False, "skills": []})
@@ -891,9 +920,9 @@ async def list_skills(request: Request, auth: dict = Depends(require_auth)):
 async def toggle_skill(request: Request, req: SkillToggleRequest, auth: dict = Depends(require_auth)):
     try:
         user_id = auth["user_id"]
-        _supabase_admin.table("skills") \
-            .update({"enabled": req.enabled}) \
-            .eq("id", req.skill_id).eq("user_id", user_id).execute()
+        await _db(lambda: _supabase_admin.table("skills")
+                  .update({"enabled": req.enabled})
+                  .eq("id", req.skill_id).eq("user_id", user_id).execute())
         return JSONResponse({"ok": True})
     except Exception as e:
         print(f"❌ [Skills] toggle error: {e}")
@@ -905,7 +934,7 @@ async def toggle_skill(request: Request, req: SkillToggleRequest, auth: dict = D
 async def delete_skill(request: Request, id: str, auth: dict = Depends(require_auth)):
     try:
         user_id = auth["user_id"]
-        _supabase_admin.table("skills").delete().eq("id", id).eq("user_id", user_id).execute()
+        await _db(lambda: _supabase_admin.table("skills").delete().eq("id", id).eq("user_id", user_id).execute())
         return JSONResponse({"ok": True})
     except Exception as e:
         print(f"❌ [Skills] delete error: {e}")
@@ -920,11 +949,11 @@ async def save_memory(request: Request, req: MemorySaveRequest, auth: dict = Dep
         user_id = _resolve_owner(auth, req.user_id)
         if not req.memory_text.strip():
             return JSONResponse({"ok": False, "error": "Missing fields"}, status_code=400)
-        _supabase_admin.table("user_memories").insert({
+        await _db(lambda: _supabase_admin.table("user_memories").insert({
             "user_id": user_id,
             "memory_text": req.memory_text.strip()[:500],
             "created_at": datetime.utcnow().isoformat()
-        }).execute()
+        }).execute())
         return JSONResponse({"ok": True})
     except HTTPException:
         raise
@@ -938,11 +967,11 @@ async def save_memory(request: Request, req: MemorySaveRequest, auth: dict = Dep
 async def load_memory(request: Request, auth: dict = Depends(require_auth)):
     try:
         user_id = auth["user_id"]
-        result = _supabase_admin.table("user_memories") \
-            .select("id, memory_text, created_at") \
-            .eq("user_id", user_id) \
-            .order("created_at", desc=False) \
-            .limit(100).execute()
+        result = await _db(lambda: _supabase_admin.table("user_memories")
+                            .select("id, memory_text, created_at")
+                            .eq("user_id", user_id)
+                            .order("created_at", desc=False)
+                            .limit(100).execute())
         return JSONResponse({"ok": True, "memories": result.data or []})
     except Exception as e:
         print(f"❌ [Memory] load error: {e}")
@@ -954,7 +983,7 @@ async def load_memory(request: Request, auth: dict = Depends(require_auth)):
 async def clear_memory(request: Request, req: MemoryClearRequest, auth: dict = Depends(require_auth)):
     try:
         user_id = _resolve_owner(auth, req.user_id)
-        _supabase_admin.table("user_memories").delete().eq("user_id", user_id).execute()
+        await _db(lambda: _supabase_admin.table("user_memories").delete().eq("user_id", user_id).execute())
         return JSONResponse({"ok": True})
     except HTTPException:
         raise
@@ -967,7 +996,7 @@ async def clear_memory(request: Request, req: MemoryClearRequest, auth: dict = D
 async def delete_one_memory(request: Request, id: str, auth: dict = Depends(require_auth)):
     try:
         user_id = auth["user_id"]
-        _supabase_admin.table("user_memories").delete().eq("id", id).eq("user_id", user_id).execute()
+        await _db(lambda: _supabase_admin.table("user_memories").delete().eq("id", id).eq("user_id", user_id).execute())
         return JSONResponse({"ok": True})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
@@ -1072,20 +1101,24 @@ async def extract_and_save_memory(request: Request, req: MemoryExtractRequest, a
         if not isinstance(facts, list):
             return JSONResponse({"ok": False, "facts": []})
 
-        saved_facts = []
-        for fact in facts[:10]:
-            fact = str(fact).strip()[:300]
-            if not fact:
-                continue
-            try:
-                _supabase_admin.table("user_memories").insert({
-                    "user_id": user_id,
-                    "memory_text": fact,
-                    "created_at": datetime.utcnow().isoformat()
-                }).execute()
-                saved_facts.append(fact)
-            except Exception as save_err:
-                print(f"❌ [Memory] save in extract: {save_err}")
+        def _save_facts():
+            saved = []
+            for fact in facts[:10]:
+                fact = str(fact).strip()[:300]
+                if not fact:
+                    continue
+                try:
+                    _supabase_admin.table("user_memories").insert({
+                        "user_id": user_id,
+                        "memory_text": fact,
+                        "created_at": datetime.utcnow().isoformat()
+                    }).execute()
+                    saved.append(fact)
+                except Exception as save_err:
+                    print(f"❌ [Memory] save in extract: {save_err}")
+            return saved
+
+        saved_facts = await _db(_save_facts)
 
         print(f"🧠 [Memory] extracted {len(saved_facts)} facts for {user_id[:8]}")
         return JSONResponse({"ok": True, "facts": saved_facts})
@@ -1107,11 +1140,11 @@ async def save_memory_direct(request: Request, req: MemorySaveRequest, auth: dic
         if not req.memory_text.strip():
             return JSONResponse({"ok": False})
         fact = req.memory_text.strip()[:500]
-        _supabase_admin.table("user_memories").insert({
+        await _db(lambda: _supabase_admin.table("user_memories").insert({
             "user_id": user_id,
             "memory_text": fact,
             "created_at": datetime.utcnow().isoformat()
-        }).execute()
+        }).execute())
         print(f"🧠 [Memory] direct-saved: '{fact[:60]}' for {user_id[:8]}")
         return JSONResponse({"ok": True, "fact": fact})
     except HTTPException:
@@ -1234,7 +1267,7 @@ async def collect_analytics(batch: _AnalyticsBatch, request: Request):
             })
 
         if rows:
-            supabase.table('analytics_events').insert(rows).execute()
+            await _db(lambda: supabase.table('analytics_events').insert(rows).execute())
 
         return JSONResponse({'ok': True, 'stored': len(rows)})
     except Exception as e:
@@ -1275,7 +1308,7 @@ async def collect_training(batch: _TrainingBatch, request: Request):
             })
 
         if rows:
-            supabase.table('training_conversations').insert(rows).execute()
+            await _db(lambda: supabase.table('training_conversations').insert(rows).execute())
 
         return JSONResponse({'ok': True, 'stored': len(rows)})
     except Exception as e:
@@ -1295,7 +1328,7 @@ async def collect_feedback(request: Request):
         coarse_region = _coarse_region_from_request(request)
 
         if user_msg and asst_resp:
-            supabase.table('training_conversations').insert({
+            await _db(lambda: supabase.table('training_conversations').insert({
                 'anonymous_user_id': anon_id,
                 'sanitized_user_message': user_msg[:4000],
                 'sanitized_assistant_response': asst_resp[:8000],
@@ -1303,7 +1336,7 @@ async def collect_feedback(request: Request):
                 'language': body.get('language', 'en')[:10],
                 'coarse_region': coarse_region,
                 'created_at': _dt.utcnow().isoformat(),
-            }).execute()
+            }).execute())
 
         return JSONResponse({'ok': True})
     except Exception as e:
@@ -1396,7 +1429,10 @@ async def location_metadata_from_coords(body: _CoarseCoords):
     lat = max(-90.0,  min(90.0,  round(body.coarse_lat, 2)))
     lng = max(-180.0, min(180.0, round(body.coarse_lng, 2)))
 
-    meta = _reverse_geocode(lat, lng)
+    # _reverse_geocode makes two blocking `requests.get` calls (Open-Meteo +
+    # Nominatim); run it off the event loop so it doesn't stall other
+    # requests for the ~1-2s round trip.
+    meta = await _db(_reverse_geocode, lat, lng)
     # lat/lng are now local variables going out of scope — not persisted
     return JSONResponse(content=meta)
 
@@ -1418,7 +1454,8 @@ async def location_metadata_from_ip(request: Request):
             tz = "Asia/Kolkata"  # safe default for Catura's primary user base
             return JSONResponse(content={"timezone": tz, "locale": "en-IN", "country": "India", "region": "", "city": ""})
 
-        ip_resp = requests.get(
+        ip_resp = await _db(
+            requests.get,
             f"http://ip-api.com/json/{client_ip}?fields=country,regionName,city,timezone",
             timeout=5
         )
@@ -3111,7 +3148,9 @@ async def detect_intent_endpoint(q: str):
 @app.get("/search")
 @limiter.limit("30/minute")
 async def web_search_endpoint(request: Request, q: str, max_results: int = 5):
-    result = tool_web_search(q, max_results)
+    # tool_web_search → _ddg_search makes a blocking network call (DDGS);
+    # keep it off the event loop.
+    result = await _db(tool_web_search, q, max_results)
     return {"results": result.get("results", []), "query": q}
 
 
@@ -3136,7 +3175,7 @@ async def delete_account(request: Request):
 
         # Verify the token and get the user ID using the regular client
         try:
-            user_resp = supabase.auth.get_user(token)
+            user_resp = await _db(supabase.auth.get_user, token)
             user_id   = user_resp.user.id
         except Exception as e:
             return JSONResponse({"error": f"Auth verification failed: {str(e)}"}, status_code=401)
@@ -3152,7 +3191,8 @@ async def delete_account(request: Request):
                 status_code=501
             )
 
-        admin_resp = requests.delete(
+        admin_resp = await _db(
+            requests.delete,
             f"{SUPABASE_URL}/auth/v1/admin/users/{user_id}",
             headers={
                 "apikey":        service_key,
@@ -3812,25 +3852,25 @@ async def generate_title(request: Request):
             words = message.split()
             return JSONResponse({"title": " ".join(words[:5]) if words else "New Chat"})
 
-        import requests as req_lib
-        resp = req_lib.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {groq_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": "llama-3.3-70b-versatile",
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user",   "content": message}
-                ],
-                "max_tokens": 30,
-                "temperature": 0.4,
-                "stream": False,
-            },
-            timeout=8,
-        )
+        import httpx as _title_httpx
+        async with _title_httpx.AsyncClient(timeout=8.0) as client:
+            resp = await client.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {groq_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "llama-3.3-70b-versatile",
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user",   "content": message}
+                    ],
+                    "max_tokens": 30,
+                    "temperature": 0.4,
+                    "stream": False,
+                },
+            )
 
         if resp.status_code == 200:
             data  = resp.json()
@@ -3944,7 +3984,10 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
         file_text_context = ""
         vision_images_for_prompt = []
         if file_urls:
-            file_text_context, vision_images_for_prompt = build_file_context_for_prompt(file_urls)
+            # Downloads + parses each attached file with blocking `requests`/Pillow/PDF
+            # calls — keep it off the event loop so a slow attachment download
+            # doesn't stall every other concurrent chat request.
+            file_text_context, vision_images_for_prompt = await _db(build_file_context_for_prompt, file_urls)
 
         # Compose the full user message that goes into memory + is sent to AI
         user_message_content = prompt
@@ -4627,7 +4670,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
 
         # Step 2: build final messages list (tool context added inside generator)
         # ── 🛠️ SKILLS INJECTION ─────────────────────────────────────────────
-        matched_skills = get_matching_skills(auth["user_id"], prompt)
+        matched_skills = await _db(get_matching_skills, auth["user_id"], prompt)
         if matched_skills:
             skill_names = ", ".join(s.get("name", "?") for s in matched_skills)
             print(f"🛠️ [Skills] matched: {skill_names}")
