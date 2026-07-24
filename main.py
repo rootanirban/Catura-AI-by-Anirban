@@ -21,6 +21,22 @@ from PIL import Image
 from duckduckgo_search import DDGS
 from wiki import search_wikipedia
 import re
+import logging
+
+# ── Centralized logging ────────────────────────────────────────────────────
+# Was: 118 bare print() calls scattered through this file. print() has no
+# levels (info/warning/error), can't be filtered, doesn't ship cleanly to a
+# log aggregator, and on Render its stdout buffering can interleave oddly
+# with SSE heartbeat writes. Every print() below has been converted to the
+# matching logger call based on its emoji prefix (❌ → error, ⚠️ → warning,
+# everything else → info), so verbosity can now be turned down in production
+# (e.g. `logging.WARNING`) by changing the `level=` below — one place,
+# instead of touching every call site again.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("catura")
 
 # ── Centralized session cookie helper ─────────────────────────────────────────
 # Every place in this file that issues the session_id cookie must go through
@@ -53,10 +69,10 @@ try:
         build_production_sources_payload,
     )
     PRODUCTION_SEARCH_ENABLED = True
-    print("✅ [Search] Production search engine loaded (Tavily + Serper + Firecrawl + Cohere)")
+    logger.info("✅ [Search] Production search engine loaded (Tavily + Serper + Firecrawl + Cohere)")
 except ImportError as _e:
     PRODUCTION_SEARCH_ENABLED = False
-    print(f"⚠️ [Search] Production engine not available ({_e}) — falling back to legacy Tavily/DDG")
+    logger.warning(f"⚠️ [Search] Production engine not available ({_e}) — falling back to legacy Tavily/DDG")
 
 # ── File content fetcher ──────────────────────────────────────────────────────
 # Extension → broad category map used when Content-Type is missing/wrong
@@ -251,7 +267,7 @@ def _client_safe_error(e: Exception, context: str = "") -> str:
     throughout this file, so it still shows up in Render's log viewer) and
     returns a single generic, safe string for the response body instead.
     """
-    print(f"❌ [{context or 'error'}] {type(e).__name__}: {e}")
+    logger.error(f"❌ [{context or 'error'}] {type(e).__name__}: {e}")
     return "Something went wrong. Please try again."
 
 
@@ -752,7 +768,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.370"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.371"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -762,7 +778,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.370", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.371", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -839,7 +855,7 @@ def _parse_skill_md(raw: str, fallback_name: str = "Untitled Skill") -> dict:
                 description = str(meta.get("description", "")).strip()
                 trigger_hint = str(meta.get("trigger_hint", "")).strip()
             except Exception as e:
-                print(f"⚠️ [Skills] frontmatter parse failed, using raw file: {e}")
+                logger.warning(f"⚠️ [Skills] frontmatter parse failed, using raw file: {e}")
             body = parts[2].strip()
 
     if not description:
@@ -902,7 +918,7 @@ def get_matching_skills(user_id: str, prompt: str, max_skills: int = 2) -> list:
         scored.sort(key=lambda x: x[0], reverse=True)
         return [s for _, s in scored[:max_skills]]
     except Exception as e:
-        print(f"⚠️ [Skills] routing error (non-fatal, skipping skills): {e}")
+        logger.warning(f"⚠️ [Skills] routing error (non-fatal, skipping skills): {e}")
         return []
 
 
@@ -997,7 +1013,7 @@ async def list_skills(request: Request, auth: dict = Depends(require_auth)):
         skills = await _db(_load)
         return JSONResponse({"ok": True, "skills": skills})
     except Exception as e:
-        print(f"❌ [Skills] list error: {e}")
+        logger.error(f"❌ [Skills] list error: {e}")
         return JSONResponse({"ok": False, "skills": []})
 
 
@@ -1057,7 +1073,7 @@ async def load_memory(request: Request, auth: dict = Depends(require_auth)):
                             .limit(100).execute())
         return JSONResponse({"ok": True, "memories": result.data or []})
     except Exception as e:
-        print(f"❌ [Memory] load error: {e}")
+        logger.error(f"❌ [Memory] load error: {e}")
         return JSONResponse({"ok": False, "memories": []})
 
 
@@ -1152,17 +1168,17 @@ async def extract_and_save_memory(request: Request, req: MemoryExtractRequest, a
                     candidate = candidate.replace("```json", "").replace("```", "").strip()
                     if candidate and "{" in candidate:
                         text = candidate
-                        print(f"🧠 [Memory] extraction model used: {model_name}")
+                        logger.info(f"🧠 [Memory] extraction model used: {model_name}")
                         break
                     else:
-                        print(f"⚠️ [Memory] {model_name} returned empty/bad content, trying next")
+                        logger.warning(f"⚠️ [Memory] {model_name} returned empty/bad content, trying next")
                 else:
-                    print(f"⚠️ [Memory] {model_name} HTTP {r.status_code}, trying next")
+                    logger.warning(f"⚠️ [Memory] {model_name} HTTP {r.status_code}, trying next")
             except Exception as model_err:
-                print(f"⚠️ [Memory] {model_name} error: {model_err}, trying next")
+                logger.warning(f"⚠️ [Memory] {model_name} error: {model_err}, trying next")
 
         if not text:
-            print("❌ [Memory] all extraction models failed")
+            logger.error("❌ [Memory] all extraction models failed")
             return JSONResponse({"ok": False, "facts": []})
 
         try:
@@ -1175,10 +1191,10 @@ async def extract_and_save_memory(request: Request, req: MemoryExtractRequest, a
                 try:
                     parsed = json.loads(match.group())
                 except Exception:
-                    print(f"❌ [Memory] AI returned invalid JSON: {text[:200]}")
+                    logger.error(f"❌ [Memory] AI returned invalid JSON: {text[:200]}")
                     return JSONResponse({"ok": False, "facts": []})
             else:
-                print(f"❌ [Memory] AI returned invalid JSON: {text[:200]}")
+                logger.error(f"❌ [Memory] AI returned invalid JSON: {text[:200]}")
                 return JSONResponse({"ok": False, "facts": []})
         facts = parsed.get("facts", [])
         if not isinstance(facts, list):
@@ -1198,16 +1214,16 @@ async def extract_and_save_memory(request: Request, req: MemoryExtractRequest, a
                     }).execute()
                     saved.append(fact)
                 except Exception as save_err:
-                    print(f"❌ [Memory] save in extract: {save_err}")
+                    logger.error(f"❌ [Memory] save in extract: {save_err}")
             return saved
 
         saved_facts = await _db(_save_facts)
 
-        print(f"🧠 [Memory] extracted {len(saved_facts)} facts for {user_id[:8]}")
+        logger.info(f"🧠 [Memory] extracted {len(saved_facts)} facts for {user_id[:8]}")
         return JSONResponse({"ok": True, "facts": saved_facts})
 
     except Exception as e:
-        print(f"❌ [Memory] extract error: {e}")
+        logger.error(f"❌ [Memory] extract error: {e}")
         return JSONResponse({"ok": False, "facts": []})
 
 # ── Guaranteed direct save — no AI, no models, just write to Supabase ────────
@@ -1228,7 +1244,7 @@ async def save_memory_direct(request: Request, req: MemorySaveRequest, auth: dic
             "memory_text": fact,
             "created_at": datetime.utcnow().isoformat()
         }).execute())
-        print(f"🧠 [Memory] direct-saved: '{fact[:60]}' for {user_id[:8]}")
+        logger.info(f"🧠 [Memory] direct-saved: '{fact[:60]}' for {user_id[:8]}")
         return JSONResponse({"ok": True, "fact": fact})
     except HTTPException:
         raise
@@ -1354,7 +1370,7 @@ async def collect_analytics(batch: _AnalyticsBatch, request: Request):
         return JSONResponse({'ok': True, 'stored': len(rows)})
     except Exception as e:
         # Never surface internal errors to client
-        print(f'[Analytics] Error: {e}')
+        logger.info(f'[Analytics] Error: {e}')
         return JSONResponse({'ok': False}, status_code=200)  # always 200 to client
 
 # ── Training endpoint ─────────────────────────────────────────
@@ -1394,7 +1410,7 @@ async def collect_training(batch: _TrainingBatch, request: Request):
 
         return JSONResponse({'ok': True, 'stored': len(rows)})
     except Exception as e:
-        print(f'[Training] Error: {e}')
+        logger.info(f'[Training] Error: {e}')
         return JSONResponse({'ok': False}, status_code=200)
 
 # ── Quality signal helper (called from existing thumbs up/down) ─
@@ -1422,7 +1438,7 @@ async def collect_feedback(request: Request):
 
         return JSONResponse({'ok': True})
     except Exception as e:
-        print(f'[Feedback] Error: {e}')
+        logger.info(f'[Feedback] Error: {e}')
         return JSONResponse({'ok': False}, status_code=200)
 
 
@@ -1496,7 +1512,7 @@ def _reverse_geocode(lat: float, lng: float) -> dict:
             "locale":   locale,
         }
     except Exception as e:
-        print(f"[Location] Reverse geocode failed: {e}")
+        logger.info(f"[Location] Reverse geocode failed: {e}")
         return {"timezone": "UTC", "locale": "en"}
 
 
@@ -1556,7 +1572,7 @@ async def location_metadata_from_ip(request: Request):
                 "locale":   locale,
             })
     except Exception as e:
-        print(f"[Location] IP fallback failed: {e}")
+        logger.info(f"[Location] IP fallback failed: {e}")
 
     return JSONResponse(content={"timezone": "UTC", "locale": "en"})
 
@@ -2081,7 +2097,7 @@ def tool_clock(prompt: str) -> dict:
         except ImportError:
             ZoneInfo = None
 
-    print(f"🕐 [TOOL] clock | prompt: {prompt[:80]}")
+    logger.info(f"🕐 [TOOL] clock | prompt: {prompt[:80]}")
 
     lower = prompt.lower()
     tz_key   = "Asia/Kolkata"
@@ -2126,11 +2142,11 @@ def tool_clock(prompt: str) -> dict:
             "date"      : now.strftime("%A, %d %B %Y"),
             "day"       : now.strftime("%A"),
         }
-        print(f"✅ [TOOL] clock: {result['time_12h']} — {location} ({tz_key})")
+        logger.info(f"✅ [TOOL] clock: {result['time_12h']} — {location} ({tz_key})")
         return result
 
     except Exception as e:
-        print(f"❌ [TOOL] clock exception: {e}")
+        logger.error(f"❌ [TOOL] clock exception: {e}")
         # Pure UTC fallback
         from datetime import timezone
         now = datetime.now(timezone.utc)
@@ -2156,7 +2172,7 @@ def tool_weather(prompt: str) -> dict:
     Extract city from prompt, call OpenWeatherMap, return formatted data.
     Falls back to DuckDuckGo search if API key not set.
     """
-    print(f"🌤️ [TOOL] weather | prompt: {prompt[:80]}")
+    logger.info(f"🌤️ [TOOL] weather | prompt: {prompt[:80]}")
 
     # Extract city name — heuristic
     city = None
@@ -2185,7 +2201,7 @@ def tool_weather(prompt: str) -> dict:
 
     if not OPENWEATHER_API_KEY:
         # Fallback: DuckDuckGo search
-        print("⚠️ [TOOL] weather — no API key, falling back to web search")
+        logger.warning("⚠️ [TOOL] weather — no API key, falling back to web search")
         return tool_web_search(f"current weather {city} today temperature")
 
     try:
@@ -2194,7 +2210,7 @@ def tool_weather(prompt: str) -> dict:
         data = resp.json()
 
         if resp.status_code != 200 or data.get("cod") != 200:
-            print(f"⚠️ [TOOL] weather API error: {data.get('message')}")
+            logger.warning(f"⚠️ [TOOL] weather API error: {data.get('message')}")
             return tool_web_search(f"current weather {city} today")
 
         w = data["weather"][0]
@@ -2214,11 +2230,11 @@ def tool_weather(prompt: str) -> dict:
             "min_temp": m["temp_min"],
             "max_temp": m["temp_max"],
         }
-        print(f"✅ [TOOL] weather success: {result}")
+        logger.info(f"✅ [TOOL] weather success: {result}")
         return result
 
     except Exception as e:
-        print(f"❌ [TOOL] weather exception: {e}")
+        logger.error(f"❌ [TOOL] weather exception: {e}")
         return tool_web_search(f"current weather {city} today")
 
 
@@ -2479,13 +2495,13 @@ def _yahoo_fetch_price(ticker: str, display_name: str) -> dict | None:
         }
         resp = requests.get(url, headers=headers, timeout=10)
         if resp.status_code != 200:
-            print(f"⚠️ [Yahoo] HTTP {resp.status_code} for {ticker}")
+            logger.warning(f"⚠️ [Yahoo] HTTP {resp.status_code} for {ticker}")
             return None
 
         data   = resp.json()
         result_list = data.get("chart", {}).get("result")
         if not result_list:
-            print(f"⚠️ [Yahoo] empty result for {ticker}")
+            logger.warning(f"⚠️ [Yahoo] empty result for {ticker}")
             return None
 
         meta   = result_list[0].get("meta", {})
@@ -2520,7 +2536,7 @@ def _yahoo_fetch_price(ticker: str, display_name: str) -> dict | None:
             "data_quality": "LIVE — fetched right now from Yahoo Finance",
         }
     except Exception as e:
-        print(f"❌ [Yahoo] exception for {ticker}: {e}")
+        logger.error(f"❌ [Yahoo] exception for {ticker}: {e}")
         return None
 
 
@@ -2565,11 +2581,11 @@ def _yahoo_search_ticker(company_name: str) -> tuple[str, str] | tuple[None, Non
         best = ns_hit or bo_hit or any_hit or quotes[0]
         symbol = best.get("symbol", "")
         name   = best.get("longname") or best.get("shortname") or company_name.title()
-        print(f"🔎 [Yahoo Search] '{company_name}' → {symbol} ({name})")
+        logger.info(f"🔎 [Yahoo Search] '{company_name}' → {symbol} ({name})")
         return symbol, name
 
     except Exception as e:
-        print(f"❌ [Yahoo Search] exception: {e}")
+        logger.error(f"❌ [Yahoo Search] exception: {e}")
         return None, None
 
 
@@ -2584,7 +2600,7 @@ def tool_finance(prompt: str) -> dict:
       4. Alpha Vantage fallback for US stocks (if ALPHAVANTAGE_KEY set)
       5. DuckDuckGo ONLY as absolute last resort (flagged so AI won't hallucinate)
     """
-    print(f"💹 [TOOL] finance | prompt: {prompt[:80]}")
+    logger.info(f"💹 [TOOL] finance | prompt: {prompt[:80]}")
 
     lower = prompt.lower()
 
@@ -2595,7 +2611,7 @@ def tool_finance(prompt: str) -> dict:
         if keyword in lower:
             ticker       = symbol
             display_name = name
-            print(f"✅ [Finance] known map hit: '{keyword}' → {symbol}")
+            logger.info(f"✅ [Finance] known map hit: '{keyword}' → {symbol}")
             break
 
     # ── Step 2: Yahoo Finance Search (for unknown companies) ─────────────────
@@ -2611,14 +2627,14 @@ def tool_finance(prompt: str) -> dict:
         company_raw = re.sub(r'\s+', ' ', company_raw).strip(" ?.,!")
 
         if company_raw and len(company_raw) >= 2:
-            print(f"🔎 [Finance] searching Yahoo for: '{company_raw}'")
+            logger.info(f"🔎 [Finance] searching Yahoo for: '{company_raw}'")
             ticker, display_name = _yahoo_search_ticker(company_raw)
 
     # ── Step 3: Fetch live price from Yahoo Finance ───────────────────────────
     if ticker:
         result = _yahoo_fetch_price(ticker, display_name or ticker)
         if result:
-            print(f"✅ [Finance] Yahoo live price: {display_name} ({ticker}) = {result['price']}")
+            logger.info(f"✅ [Finance] Yahoo live price: {display_name} ({ticker}) = {result['price']}")
             return result
         # Ticker found but price fetch failed — try .NS variant if we have .BO
         if ticker.endswith(".BO"):
@@ -2647,13 +2663,13 @@ def tool_finance(prompt: str) -> dict:
                     "data_quality": "LIVE — fetched right now from Alpha Vantage",
                 }
         except Exception as e:
-            print(f"❌ [Finance] Alpha Vantage exception: {e}")
+            logger.error(f"❌ [Finance] Alpha Vantage exception: {e}")
 
     # ── Step 5: Price unavailable — return structured "not found" ─────────────
     # We do NOT do a DDG search here because web snippets contain stale prices
     # that the LLM will hallucinate as live data. Instead, return a clear signal
     # telling the model to refuse to quote any price.
-    print("⚠️ [Finance] all APIs failed — returning price_unavailable")
+    logger.warning("⚠️ [Finance] all APIs failed — returning price_unavailable")
     searched_name = display_name or (company_raw if 'company_raw' in locals() else prompt[:60])
     return {
         "tool":              "finance",
@@ -2670,7 +2686,7 @@ def tool_news(prompt: str) -> dict:
     """
     Fetch top news headlines. Extracts topic if present.
     """
-    print(f"📰 [TOOL] news | prompt: {prompt[:80]}")
+    logger.info(f"📰 [TOOL] news | prompt: {prompt[:80]}")
 
     # Extract topic
     topic_match = re.search(
@@ -2679,7 +2695,7 @@ def tool_news(prompt: str) -> dict:
     topic = topic_match.group(1).strip() if topic_match else None
 
     if not NEWSDATA_API_KEY:
-        print("⚠️ [TOOL] news — no API key, falling back to web search")
+        logger.warning("⚠️ [TOOL] news — no API key, falling back to web search")
         query = f"latest news {topic}" if topic else "top headlines today India"
         return tool_web_search(query)
 
@@ -2713,11 +2729,11 @@ def tool_news(prompt: str) -> dict:
         ]
 
         result = {"tool": "news", "topic": topic or "Top Headlines", "articles": headlines}
-        print(f"✅ [TOOL] news success: {len(headlines)} articles")
+        logger.info(f"✅ [TOOL] news success: {len(headlines)} articles")
         return result
 
     except Exception as e:
-        print(f"❌ [TOOL] news exception: {e}")
+        logger.error(f"❌ [TOOL] news exception: {e}")
         query = f"latest news {topic}" if topic else "top news today"
         return tool_web_search(query)
 
@@ -2730,7 +2746,7 @@ def tool_sports(prompt: str) -> dict:
     """
     Fetch live cricket scores or general sports news via search.
     """
-    print(f"🏏 [TOOL] sports | prompt: {prompt[:80]}")
+    logger.info(f"🏏 [TOOL] sports | prompt: {prompt[:80]}")
 
     lower = prompt.lower()
     is_cricket = any(k in lower for k in ["cricket", "ipl", "test match", "odi", "t20", "bcci"])
@@ -2757,10 +2773,10 @@ def tool_sports(prompt: str) -> dict:
                     })
 
                 result = {"tool": "sports", "sport": "cricket", "matches": live_matches}
-                print(f"✅ [TOOL] sports (cricket) success: {len(live_matches)} matches")
+                logger.info(f"✅ [TOOL] sports (cricket) success: {len(live_matches)} matches")
                 return result
         except Exception as e:
-            print(f"❌ [TOOL] cricket API exception: {e}")
+            logger.error(f"❌ [TOOL] cricket API exception: {e}")
 
     # Fallback: DuckDuckGo search for any sport
     sport_kw = "cricket live score" if is_cricket else "live sports scores today"
@@ -2823,15 +2839,15 @@ def _ddg_search(query: str, max_results: int = 5) -> list:
                         "query_used": query,
                     })
 
-                print(f"✅ [Tavily] '{query}' → {len(results)} results"
+                logger.info(f"✅ [Tavily] '{query}' → {len(results)} results"
                       + (f" | direct answer: {data['answer'][:80]}" if data.get("answer") else ""))
                 return results[:max_results + 1]  # +1 to account for the direct answer prepend
 
             else:
-                print(f"⚠️ [Tavily] HTTP {resp.status_code} for '{query}' — falling back to DDG")
+                logger.warning(f"⚠️ [Tavily] HTTP {resp.status_code} for '{query}' — falling back to DDG")
 
         except Exception as e:
-            print(f"❌ [Tavily] exception for '{query}': {e} — falling back to DDG")
+            logger.error(f"❌ [Tavily] exception for '{query}': {e} — falling back to DDG")
 
     # ── DuckDuckGo (fallback) ───────────────────────────────────────────────
     try:
@@ -2846,10 +2862,10 @@ def _ddg_search(query: str, max_results: int = 5) -> list:
             }
             for r in raw if r.get("title")
         ]
-        print(f"✅ [DDG fallback] '{query}' → {len(results)} results")
+        logger.info(f"✅ [DDG fallback] '{query}' → {len(results)} results")
         return results
     except Exception as e:
-        print(f"❌ [DDG] query='{query}' exception: {e}")
+        logger.error(f"❌ [DDG] query='{query}' exception: {e}")
         return []
 
 
@@ -2908,7 +2924,7 @@ def tool_web_search(query: str, max_results: int = 5) -> dict:
 
     Returns a rich result dict with citations, trust scores, and cross-reference data.
     """
-    print(f"🔍 [TOOL] web_search | query: {query[:80]}")
+    logger.info(f"🔍 [TOOL] web_search | query: {query[:80]}")
 
     # ── Production engine (Tavily + Serper + Firecrawl + Cohere) ─────────────
     if PRODUCTION_SEARCH_ENABLED:
@@ -2919,14 +2935,14 @@ def tool_web_search(query: str, max_results: int = 5) -> dict:
                 result = future.result(timeout=30)   # 30s wall-clock max for whole pipeline
             if result.get("results"):
                 result["tool"] = "web_search"
-                print(f"✅ [TOOL] Production search: {result['result_count']} results")
+                logger.info(f"✅ [TOOL] Production search: {result['result_count']} results")
                 return result
-            print("⚠️ [TOOL] Production search returned no results — falling back")
+            logger.warning("⚠️ [TOOL] Production search returned no results — falling back")
         except Exception as _pe:
-            print(f"❌ [TOOL] Production search failed: {_pe} — falling back")
+            logger.error(f"❌ [TOOL] Production search failed: {_pe} — falling back")
 
     # ── Legacy fallback (Tavily-then-DDG — original logic) ───────────────────
-    print("🔁 [TOOL] Using legacy search fallback")
+    logger.info("🔁 [TOOL] Using legacy search fallback")
     smart_queries = _build_smart_queries(query)
     all_results = []
     seen_urls   = set()
@@ -2945,7 +2961,7 @@ def tool_web_search(query: str, max_results: int = 5) -> dict:
     supplemental    = [r for r in all_results if r.get("query_used", "") != query]
     final_results   = (primary_results + supplemental)[:10]
 
-    print(f"✅ [TOOL] Legacy search: {len(final_results)} results")
+    logger.info(f"✅ [TOOL] Legacy search: {len(final_results)} results")
     return {
         "tool":           "web_search",
         "query":          query,
@@ -2963,7 +2979,7 @@ def tool_wikipedia(prompt: str) -> dict:
     Searches Wikipedia for the best matching article and returns a context dict.
     If Wikipedia has no good result, automatically falls back to DuckDuckGo web search.
     """
-    print(f"📚 [TOOL] wikipedia | prompt: {prompt[:80]}")
+    logger.info(f"📚 [TOOL] wikipedia | prompt: {prompt[:80]}")
     result = search_wikipedia(prompt)
 
     if result["found"]:
@@ -2971,7 +2987,7 @@ def tool_wikipedia(prompt: str) -> dict:
 
     # Fallback: Wikipedia had no useful answer — use web search silently
     reason = result.get("reason", "")
-    print(f"⚡ [Wiki→Web] fallback reason='{reason}' — running web_search")
+    logger.info(f"⚡ [Wiki→Web] fallback reason='{reason}' — running web_search")
     web_result = tool_web_search(prompt)
     web_result["wiki_fallback"] = True   # flag so context builder knows
     return web_result
@@ -3029,7 +3045,7 @@ def run_tool(intent: str, prompt: str) -> dict | None:
     Routes to the appropriate tool based on detected intent.
     Returns tool output dict, or None for 'general' (no tool needed).
     """
-    print(f"🗺️ [ROUTER] intent={intent}")
+    logger.info(f"🗺️ [ROUTER] intent={intent}")
     if intent == "clock":        return tool_clock(prompt)
     if intent == "weather":     return tool_weather(prompt)
     if intent == "finance":     return tool_finance(prompt)
@@ -3260,7 +3276,7 @@ async def delete_account(request: Request):
             user_resp = await _db(supabase.auth.get_user, token)
             user_id   = user_resp.user.id
         except Exception as e:
-            print(f"❌ [DELETE_ACCOUNT] Auth verification failed: {e}")
+            logger.error(f"❌ [DELETE_ACCOUNT] Auth verification failed: {e}")
             return JSONResponse({"error": "Auth verification failed. Please sign in again."}, status_code=401)
 
         if not user_id:
@@ -3286,11 +3302,11 @@ async def delete_account(request: Request):
         )
 
         if admin_resp.status_code in (200, 204):
-            print(f"✅ [DELETE_ACCOUNT] User {user_id} deleted successfully")
+            logger.info(f"✅ [DELETE_ACCOUNT] User {user_id} deleted successfully")
             return JSONResponse({"success": True, "message": "Account deleted successfully"})
         else:
             err = admin_resp.json().get("message", f"HTTP {admin_resp.status_code}")
-            print(f"❌ [DELETE_ACCOUNT] Failed for {user_id}: {err}")
+            logger.error(f"❌ [DELETE_ACCOUNT] Failed for {user_id}: {err}")
             return JSONResponse({"error": err}, status_code=admin_resp.status_code)
 
     except Exception as e:
@@ -3966,15 +3982,15 @@ async def generate_title(request: Request):
             # Strip any accidental markdown bold/italic
             title = title.replace("**", "").replace("*", "").strip()
             if title:
-                print(f"✅ [Title] Generated: '{title}' for: '{message[:50]}'")
+                logger.info(f"✅ [Title] Generated: '{title}' for: '{message[:50]}'")
                 return JSONResponse({"title": title[:60]})
 
-        print(f"⚠️ [Title] Groq returned {resp.status_code} — using fallback")
+        logger.warning(f"⚠️ [Title] Groq returned {resp.status_code} — using fallback")
         words = message.split()
         return JSONResponse({"title": " ".join(words[:5]) if words else "New Chat"})
 
     except Exception as e:
-        print(f"❌ Title generation error: {e}")
+        logger.error(f"❌ Title generation error: {e}")
         return JSONResponse({"title": "New Chat"})
 
 
@@ -4748,14 +4764,14 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
         # If user explicitly enabled web search from the UI, force it
         if web_search_forced and not file_urls:
             intent = "web_search"
-        print(f"🎯 [PIPELINE] intent={intent} | model={model_key} | prompt={prompt[:60]}")
+        logger.info(f"🎯 [PIPELINE] intent={intent} | model={model_key} | prompt={prompt[:60]}")
 
         # Step 2: build final messages list (tool context added inside generator)
         # ── 🛠️ SKILLS INJECTION ─────────────────────────────────────────────
         matched_skills = await _db(get_matching_skills, auth["user_id"], prompt)
         if matched_skills:
             skill_names = ", ".join(s.get("name", "?") for s in matched_skills)
-            print(f"🛠️ [Skills] matched: {skill_names}")
+            logger.info(f"🛠️ [Skills] matched: {skill_names}")
             system_prompt = system_prompt + build_skill_context(matched_skills)
         # ─────────────────────────────────────────────────────────────────────
         base_system_prompt = system_prompt  # save before tool injection
@@ -4812,7 +4828,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         try:
                             chunk = json.loads(payload)
                             if "error" in chunk:
-                                print(f"⚠️ [Sambhav] mid-stream error: {chunk['error']}")
+                                logger.warning(f"⚠️ [Sambhav] mid-stream error: {chunk['error']}")
                                 break
                             choices = chunk.get("choices")
                             if not choices:
@@ -4824,7 +4840,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [Sambhav] stream exception: {e}")
+                    logger.error(f"❌ [Sambhav] stream exception: {e}")
 
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
@@ -4891,7 +4907,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         try:
                             chunk = json.loads(payload)
                             if "error" in chunk:
-                                print(f"⚠️ [Laguna] mid-stream error: {chunk['error']}")
+                                logger.warning(f"⚠️ [Laguna] mid-stream error: {chunk['error']}")
                                 break
                             choices = chunk.get("choices")
                             if not choices:
@@ -4914,7 +4930,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [Laguna] stream exception: {e}")
+                    logger.error(f"❌ [Laguna] stream exception: {e}")
 
                 if thinking_open:
                     full_reply += "</think>"
@@ -5013,7 +5029,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         try:
                             chunk = json.loads(payload)
                             if "error" in chunk:
-                                print(f"⚠️ [Laguna Core] mid-stream error: {chunk['error']}")
+                                logger.warning(f"⚠️ [Laguna Core] mid-stream error: {chunk['error']}")
                                 break
                             choices = chunk.get("choices")
                             if not choices:
@@ -5069,7 +5085,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [Laguna Core] stream exception: {e}")
+                    logger.error(f"❌ [Laguna Core] stream exception: {e}")
 
                 if thinking_open_lc:
                     full_reply += "</think>"
@@ -5168,7 +5184,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         try:
                             chunk = json.loads(payload)
                             if "error" in chunk:
-                                print(f"⚠️ [Laguna S] mid-stream error: {chunk['error']}")
+                                logger.warning(f"⚠️ [Laguna S] mid-stream error: {chunk['error']}")
                                 break
                             choices = chunk.get("choices")
                             if not choices:
@@ -5224,7 +5240,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [Laguna S] stream exception: {e}")
+                    logger.error(f"❌ [Laguna S] stream exception: {e}")
 
                 if thinking_open_ls:
                     full_reply += "</think>"
@@ -5314,7 +5330,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             try:
                                 chunk = json.loads(payload)
                                 if "error" in chunk:
-                                    print(f"⚠️ [GLM] mid-stream error: {chunk['error']}")
+                                    logger.warning(f"⚠️ [GLM] mid-stream error: {chunk['error']}")
                                     break
                                 choices = chunk.get("choices")
                                 if not choices:
@@ -5338,7 +5354,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             except (json.JSONDecodeError, Exception):
                                 continue
                     except Exception as e:
-                        print(f"❌ [GLM] stream exception: {e}")
+                        logger.error(f"❌ [GLM] stream exception: {e}")
 
                     # Only keep going if GLM was actually cut off for length reasons.
                     if finish_reason_glm == "length":
@@ -5413,7 +5429,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         try:
                             chunk = json.loads(payload)
                             if "error" in chunk:
-                                print(f"⚠️ [MINIMAX_M3] mid-stream error: {chunk['error']}")
+                                logger.warning(f"⚠️ [MINIMAX_M3] mid-stream error: {chunk['error']}")
                                 break
                             choices = chunk.get("choices")
                             if not choices:
@@ -5436,7 +5452,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [MINIMAX_M3] stream exception: {e}")
+                    logger.error(f"❌ [MINIMAX_M3] stream exception: {e}")
 
                 if thinking_open_mm:
                     full_reply += "</think>"
@@ -5506,7 +5522,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         try:
                             chunk = json.loads(payload)
                             if "error" in chunk:
-                                print(f"⚠️ [GLM52] mid-stream error: {chunk['error']}")
+                                logger.warning(f"⚠️ [GLM52] mid-stream error: {chunk['error']}")
                                 break
                             choices = chunk.get("choices")
                             if not choices:
@@ -5529,7 +5545,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [GLM52] stream exception: {e}")
+                    logger.error(f"❌ [GLM52] stream exception: {e}")
 
                 if thinking_open_g52:
                     full_reply += "</think>"
@@ -5599,7 +5615,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         try:
                             chunk = json.loads(payload)
                             if "error" in chunk:
-                                print(f"⚠️ [MISTRAL LARGE] mid-stream error: {chunk['error']}")
+                                logger.warning(f"⚠️ [MISTRAL LARGE] mid-stream error: {chunk['error']}")
                                 break
                             choices = chunk.get("choices")
                             if not choices:
@@ -5622,7 +5638,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [MISTRAL LARGE] stream exception: {e}")
+                    logger.error(f"❌ [MISTRAL LARGE] stream exception: {e}")
 
                 if thinking_open_mlarge:
                     full_reply += "</think>"
@@ -5695,7 +5711,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         try:
                             chunk = json.loads(payload)
                             if "error" in chunk:
-                                print(f"⚠️ [MISTRAL MEDIUM] mid-stream error: {chunk['error']}")
+                                logger.warning(f"⚠️ [MISTRAL MEDIUM] mid-stream error: {chunk['error']}")
                                 break
                             choices = chunk.get("choices")
                             if not choices:
@@ -5737,7 +5753,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [MISTRAL MEDIUM] stream exception: {e}")
+                    logger.error(f"❌ [MISTRAL MEDIUM] stream exception: {e}")
 
                 if thinking_open_mmed:
                     full_reply += "</think>"
@@ -5812,7 +5828,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         try:
                             chunk = json.loads(payload)
                             if "error" in chunk:
-                                print(f"⚠️ [MISTRAL SMALL] mid-stream error: {chunk['error']}")
+                                logger.warning(f"⚠️ [MISTRAL SMALL] mid-stream error: {chunk['error']}")
                                 break
                             choices = chunk.get("choices")
                             if not choices:
@@ -5854,7 +5870,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [MISTRAL SMALL] stream exception: {e}")
+                    logger.error(f"❌ [MISTRAL SMALL] stream exception: {e}")
 
                 if thinking_open_msmall:
                     full_reply += "</think>"
@@ -5924,7 +5940,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         try:
                             chunk = json.loads(payload)
                             if "error" in chunk:
-                                print(f"⚠️ [MERCURY 2] mid-stream error: {chunk['error']}")
+                                logger.warning(f"⚠️ [MERCURY 2] mid-stream error: {chunk['error']}")
                                 break
                             choices = chunk.get("choices")
                             if not choices:
@@ -5947,7 +5963,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [MERCURY 2] stream exception: {e}")
+                    logger.error(f"❌ [MERCURY 2] stream exception: {e}")
 
                 if thinking_open_merc:
                     full_reply += "</think>"
@@ -6018,7 +6034,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         try:
                             chunk = json.loads(payload)
                             if "error" in chunk:
-                                print(f"⚠️ [Nivo] mid-stream error: {chunk['error']}")
+                                logger.warning(f"⚠️ [Nivo] mid-stream error: {chunk['error']}")
                                 break
                             choices = chunk.get("choices")
                             if not choices:
@@ -6030,7 +6046,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [Nivo] stream exception: {e}")
+                    logger.error(f"❌ [Nivo] stream exception: {e}")
 
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
@@ -6050,7 +6066,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
         # ── GEMMA: Google AI Studio direct streaming (bypass OpenRouter) ──
         if model_key in GEMMA_GOOGLE_MODELS:
             google_model_id = GEMMA_GOOGLE_MODELS[model_key]
-            print(f"🟢 [Gemma POST] Routing '{model_key}' → Google AI Studio model: {google_model_id}")
+            logger.info(f"🟢 [Gemma POST] Routing '{model_key}' → Google AI Studio model: {google_model_id}")
 
             def generate_gemma():
                 full_reply = ""
@@ -6116,7 +6132,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [Gemma POST] stream exception: {e}")
+                    logger.error(f"❌ [Gemma POST] stream exception: {e}")
                 if thinking_open:
                     full_reply += "</think>"
                 if full_reply.strip():
@@ -6165,7 +6181,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
 
             while handoffs < MAX_HANDOFFS:
                 current_model = model_pool[pool_index % len(model_pool)]
-                print(f"🔄 Handoff {handoffs} — [{current_model}] | intent={intent} | accumulated: {len(full_reply)} chars")
+                logger.info(f"🔄 Handoff {handoffs} — [{current_model}] | intent={intent} | accumulated: {len(full_reply)} chars")
 
                 relay_messages = (
                     messages + [
@@ -6178,7 +6194,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 resp, err = call_openrouter_stream(current_model, relay_messages, api_key, vision_images=vision_images_for_prompt)
 
                 if resp is None:
-                    print(f"❌ [{current_model}] connection failed: {err} — switching model")
+                    logger.error(f"❌ [{current_model}] connection failed: {err} — switching model")
                     pool_index += 1
                     handoffs   += 1
                     continue
@@ -6200,7 +6216,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             chunk = json.loads(payload)
                             if "error" in chunk:
                                 err_msg = chunk["error"].get("message", "unknown")
-                                print(f"⚠️ [{current_model}] mid-stream error: {err_msg}")
+                                logger.warning(f"⚠️ [{current_model}] mid-stream error: {err_msg}")
                                 stream_broke = True
                                 break
                             choices = chunk.get("choices")
@@ -6231,11 +6247,11 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"⚠️ [{current_model}] stream exception: {e}")
+                    logger.warning(f"⚠️ [{current_model}] stream exception: {e}")
                     stream_broke = True
 
                 if finished_cleanly and full_reply.strip():
-                    print(f"✅ [{current_model}] finished. Total: {len(full_reply)} chars")
+                    logger.info(f"✅ [{current_model}] finished. Total: {len(full_reply)} chars")
                     active_memory.append({"role": "assistant", "content": full_reply})
                     if not ghost_mode and len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
@@ -6243,7 +6259,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     return
 
                 if not stream_broke and not full_reply.strip():
-                    print(f"⚠️ [{current_model}] returned empty — switching model")
+                    logger.warning(f"⚠️ [{current_model}] returned empty — switching model")
 
                 pool_index += 1
                 handoffs   += 1
@@ -7157,7 +7173,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [Laguna GET] stream exception: {e}")
+                    logger.error(f"❌ [Laguna GET] stream exception: {e}")
                 if thinking_open:
                     full_reply += "</think>"
                 if full_reply.strip():
@@ -7286,7 +7302,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [Laguna Core GET] stream exception: {e}")
+                    logger.error(f"❌ [Laguna Core GET] stream exception: {e}")
                 if thinking_open_lc_get:
                     full_reply += "</think>"
                 if full_reply.strip():
@@ -7415,7 +7431,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [Laguna S GET] stream exception: {e}")
+                    logger.error(f"❌ [Laguna S GET] stream exception: {e}")
                 if thinking_open_ls_get:
                     full_reply += "</think>"
                 if full_reply.strip():
@@ -7505,7 +7521,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             except (json.JSONDecodeError, Exception):
                                 continue
                     except Exception as e:
-                        print(f"❌ [GLM GET] stream exception: {e}")
+                        logger.error(f"❌ [GLM GET] stream exception: {e}")
 
                     if finish_reason_glm_get == "length":
                         continue
@@ -7580,7 +7596,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [MINIMAX_M3 GET] stream exception: {e}")
+                    logger.error(f"❌ [MINIMAX_M3 GET] stream exception: {e}")
                 if thinking_open_mmg:
                     full_reply += "</think>"
                 if full_reply.strip():
@@ -7650,7 +7666,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [GLM52 GET] stream exception: {e}")
+                    logger.error(f"❌ [GLM52 GET] stream exception: {e}")
                 if thinking_open_g52g:
                     full_reply += "</think>"
                 if full_reply.strip():
@@ -7720,7 +7736,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [MISTRAL LARGE GET] stream exception: {e}")
+                    logger.error(f"❌ [MISTRAL LARGE GET] stream exception: {e}")
                 if thinking_open_mlarge:
                     full_reply += "</think>"
                 if full_reply.strip():
@@ -7810,7 +7826,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [MISTRAL MEDIUM GET] stream exception: {e}")
+                    logger.error(f"❌ [MISTRAL MEDIUM GET] stream exception: {e}")
                 if thinking_open_mmed:
                     full_reply += "</think>"
                 if full_reply.strip():
@@ -7900,7 +7916,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [MISTRAL SMALL GET] stream exception: {e}")
+                    logger.error(f"❌ [MISTRAL SMALL GET] stream exception: {e}")
                 if thinking_open_msmall:
                     full_reply += "</think>"
                 if full_reply.strip():
@@ -7970,7 +7986,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [MERCURY 2 GET] stream exception: {e}")
+                    logger.error(f"❌ [MERCURY 2 GET] stream exception: {e}")
                 if thinking_open_merc:
                     full_reply += "</think>"
                 if full_reply.strip():
@@ -8027,7 +8043,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [Nivo GET] stream exception: {e}")
+                    logger.error(f"❌ [Nivo GET] stream exception: {e}")
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
                     if not ghost_mode and len(user_memory[session_id]) > 40:
@@ -8082,7 +8098,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [Sambhav GET] stream exception: {e}")
+                    logger.error(f"❌ [Sambhav GET] stream exception: {e}")
                 if full_reply.strip():
                     active_memory.append({"role": "assistant", "content": full_reply})
                     if not ghost_mode and len(user_memory[session_id]) > 40:
@@ -8110,7 +8126,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
         # ── GEMMA: Google AI Studio direct streaming (GET handler) ──
         if model_key in GEMMA_GOOGLE_MODELS:
             google_model_id_get = GEMMA_GOOGLE_MODELS[model_key]
-            print(f"🟢 [Gemma GET] Routing '{model_key}' → Google AI Studio model: {google_model_id_get}")
+            logger.info(f"🟢 [Gemma GET] Routing '{model_key}' → Google AI Studio model: {google_model_id_get}")
 
             def generate_gemma_get():
                 full_reply = ""
@@ -8163,7 +8179,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         except (json.JSONDecodeError, Exception):
                             continue
                 except Exception as e:
-                    print(f"❌ [Gemma GET] stream exception: {e}")
+                    logger.error(f"❌ [Gemma GET] stream exception: {e}")
                 if thinking_open:
                     full_reply += "</think>"
                 if full_reply.strip():
@@ -8247,7 +8263,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             # upstream problem (bad JSON shape, unexpected error payload) is
                             # visible in the server logs instead of just showing up as "the
                             # reply was mysteriously short."
-                            print(f"⚠️ [stream] skipping malformed chunk: {type(chunk_err).__name__}: {chunk_err}")
+                            logger.warning(f"⚠️ [stream] skipping malformed chunk: {type(chunk_err).__name__}: {chunk_err}")
                             continue
                 except Exception as e:
                     stream_broke = True
