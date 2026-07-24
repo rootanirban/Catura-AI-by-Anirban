@@ -450,8 +450,9 @@ STATIC_DIR = os.path.join(BASE_DIR, "static")
 os.makedirs(STATIC_DIR, exist_ok=True)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# 🧠 In-memory session store
-user_memory = {}
+# 🧠 In-memory session store — defined below, after LRUDict (see "BOUNDED LRU DICT")
+# so it can reuse the same bounded/eviction pattern as _chat_rate_store instead of
+# growing forever as new session_ids show up.
 
 # ✅ SUPABASE CLIENT
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
@@ -546,6 +547,18 @@ class LRUDict(_RL_OrderedDict):
             self.move_to_end(key)
             return super().__getitem__(key)
         return default
+
+
+# 🧠 In-memory session store — was a plain `{}`, which never removes a
+# session_id once created, so the process grew forever on a long-running
+# Render instance (each session's message list was capped at 40, but the
+# dict of sessions itself was unbounded — a slow memory leak / eventual
+# OOM risk). Reuses the same bounded LRU-eviction pattern as
+# _chat_rate_store below: once 20,000 distinct sessions are stored, the
+# least-recently-used session is evicted automatically on the next insert.
+# All existing `user_memory[session_id] = ...` / `user_memory[session_id]`
+# call sites work unchanged since LRUDict is a drop-in OrderedDict subclass.
+user_memory: "LRUDict" = LRUDict(maxsize=20000)
 
 
 # ============================================================
@@ -668,7 +681,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.366"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.367"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -678,7 +691,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.366", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.367", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
