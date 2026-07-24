@@ -31,6 +31,18 @@ SERPER_KEY    = os.getenv("SERPER_API_KEY", "")
 FIRECRAWL_KEY = os.getenv("FIRECRAWL_API_KEY", "")
 COHERE_KEY    = os.getenv("COHERE_API_KEY", "")
 
+# ── NEW: LLM Query Planner config ─────────────────────────────────────────────
+# Reuses the Anthropic API (same account already used elsewhere). A small,
+# fast model is deliberate — this planning step runs BEFORE any search, so
+# it must stay cheap and quick or it eats the latency budget of the whole
+# pipeline. Override QUERY_PLANNER_MODEL via env if you want a different model.
+QUERY_PLANNER_KEY     = os.getenv("ANTHROPIC_API_KEY", "")
+QUERY_PLANNER_MODEL   = os.getenv("QUERY_PLANNER_MODEL", "claude-haiku-4-5-20251001")
+QUERY_PLANNER_TIMEOUT = 4          # seconds — fail fast, fall back to regex
+QUERY_PLANNER_MAX_TOK = 500        # small JSON payload, keep cost/latency low
+MIN_PLANNED_QUERIES   = 5
+MAX_PLANNED_QUERIES   = 10
+
 # ── How many raw results to fetch per engine ─────────────────────────────────
 RESULTS_PER_ENGINE = 5
 # ── How many results to deep-crawl with Firecrawl (expensive — keep low) ─────
@@ -102,11 +114,13 @@ def detect_recency_window(query: str) -> Optional[str]:
     return None
 
 
-def rewrite_queries(original: str) -> list[str]:
+def _rewrite_queries_regex_fallback(original: str) -> list[str]:
     """
-    Generate 2-3 smart search queries from a user question.
-    No LLM call needed — pattern-based and fast.
-    Returns list of unique queries, original always first.
+    ── RENAMED from the old rewrite_queries() ──────────────────────────────
+    This is the ORIGINAL pattern-based logic, kept byte-for-byte, just moved
+    under a new name. It is now the FALLBACK path — used only when the LLM
+    planner below is unavailable (no API key) or fails/times out/returns
+    something unusable. Nothing about its behavior changed.
     """
     lower    = original.lower().strip().rstrip("?.,!")
     queries  = [original]
@@ -149,6 +163,127 @@ def rewrite_queries(original: str) -> list[str]:
             unique.append(q.strip())
 
     return unique[:3]
+
+
+# ── NEW: prompt template for the LLM query planner ───────────────────────────
+# Kept as a module-level constant (not re-built per call) so it's easy to
+# tune/version without touching the calling code.
+_QUERY_PLANNER_SYSTEM_PROMPT = """You are a search query planning engine for a production web search pipeline.
+Given a user's question, produce a diverse set of search engine queries (NOT answers) that together will surface the best possible sources.
+
+Cover as many of these angles as are genuinely relevant to the question (skip angles that don't apply — do not force irrelevant ones):
+- official documentation / official source
+- latest news / recent developments
+- historical background / prior context
+- comparisons vs alternatives
+- benchmarks / data / statistics
+- technical documentation / specs
+- FAQs / common questions
+- alternative phrasing a different searcher might use
+
+Rules:
+- Output ONLY a JSON array of strings. No prose, no markdown fences, no explanation.
+- 5 to 10 queries. Prefer fewer, sharper queries over padding to hit 10.
+- Each query must be a short, realistic search-engine query (not a sentence, not a question addressed to an AI).
+- No duplicate or near-duplicate queries.
+- Do not include the literal current year unless recency clearly matters.
+- Match the language of the user's question."""
+
+
+def _llm_plan_queries(original: str) -> Optional[list[str]]:
+    """
+    ── NEW ──────────────────────────────────────────────────────────────────
+    Calls the Anthropic API with a small/fast model to plan 5-10 diverse
+    search queries covering docs/news/history/comparisons/benchmarks/FAQs/
+    alternative wording, per the system prompt above.
+
+    Returns a cleaned list[str] on success, or None on ANY failure (missing
+    key, network error, bad JSON, empty result) so the caller can fall back
+    to the regex planner without ever raising.
+    """
+    if not QUERY_PLANNER_KEY:
+        return None  # no key configured — let caller fall back silently
+
+    try:
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key":         QUERY_PLANNER_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type":      "application/json",
+            },
+            json={
+                "model":      QUERY_PLANNER_MODEL,
+                "max_tokens": QUERY_PLANNER_MAX_TOK,
+                "system":     _QUERY_PLANNER_SYSTEM_PROMPT,
+                "messages":   [{"role": "user", "content": original}],
+            },
+            timeout=QUERY_PLANNER_TIMEOUT,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        # Extract the text block(s) from the response
+        text = "".join(
+            block.get("text", "")
+            for block in data.get("content", [])
+            if block.get("type") == "text"
+        ).strip()
+
+        # Model may still wrap output in ```json fences despite instructions —
+        # strip them defensively rather than trust the instruction alone.
+        text = re.sub(r'^```(?:json)?\s*|\s*```$', '', text.strip())
+
+        planned = json.loads(text)
+        if not isinstance(planned, list) or not planned:
+            return None
+
+        # Clean: must be non-empty strings, deduplicated (case-insensitive),
+        # original question preserved as the first query for continuity with
+        # the rest of the pipeline (dedup/citation logic assumes query[0] is
+        # the primary query).
+        seen, cleaned = set(), []
+        for q in [original] + [str(q) for q in planned]:
+            q = q.strip()
+            key = q.lower()
+            if q and key not in seen:
+                seen.add(key)
+                cleaned.append(q)
+
+        if len(cleaned) < MIN_PLANNED_QUERIES:
+            return None  # too thin — not worth it over the regex fallback
+
+        return cleaned[:MAX_PLANNED_QUERIES]
+
+    except Exception as e:
+        # Any failure (timeout, bad key, malformed JSON, rate limit, etc.)
+        # is swallowed here — this function's contract is "None on failure",
+        # never raise. The caller decides what to do (fall back to regex).
+        print(f"⚠️ [QueryPlanner] LLM planning failed, falling back to regex: {e}")
+        return None
+
+
+def rewrite_queries(original: str) -> list[str]:
+    """
+    Generate 5-10 diverse search queries from a user question using an
+    LLM-powered planner (Claude/ChatGPT-style intent understanding: official
+    docs, news, history, comparisons, benchmarks, technical docs, FAQs,
+    alternative wording).
+
+    ── CHANGED ────────────────────────────────────────────────────────────
+    Previously this WAS the regex logic (2-3 queries, pattern-based).
+    Now it tries the LLM planner first and falls back to the original
+    regex-based logic (renamed to _rewrite_queries_regex_fallback) if the
+    LLM is unavailable or fails for any reason. Function signature and
+    return type are unchanged, so every caller downstream (run_production_search)
+    keeps working without modification.
+    """
+    planned = _llm_plan_queries(original)
+    if planned:
+        return planned
+
+    # Fallback — same fast, dependency-free behavior as before
+    return _rewrite_queries_regex_fallback(original)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
