@@ -238,6 +238,23 @@ async def _safe_httpx_get(url: str, allowed_hosts: set, timeout: float = 15.0, m
             url = next_url
 
 
+def _client_safe_error(e: Exception, context: str = "") -> str:
+    """
+    Use this everywhere an exception needs to be reflected back to the
+    client (JSON error body, SSE `error` event, etc.).
+
+    Never put `str(e)` directly into a response: exception text can contain
+    internal file paths, Supabase/SQL error internals, upstream hostnames,
+    or other implementation details that are useful in server logs but are
+    an information-disclosure risk if sent to the browser. This logs the
+    full exception (same `print`-based logging style already used
+    throughout this file, so it still shows up in Render's log viewer) and
+    returns a single generic, safe string for the response body instead.
+    """
+    print(f"❌ [{context or 'error'}] {type(e).__name__}: {e}")
+    return "Something went wrong. Please try again."
+
+
 def fetch_file_content_for_ai(url: str) -> dict:
     """
     Download a file from `url` and return a structured dict:
@@ -392,7 +409,7 @@ def fetch_file_content_for_ai(url: str) -> dict:
     except requests.exceptions.Timeout:
         return {"kind": "error", "reason": "Timeout downloading file"}
     except Exception as exc:
-        return {"kind": "error", "reason": str(exc)}
+        return {"kind": "error", "reason": _client_safe_error(exc, "fetch_file_content_for_ai")}
 
 
 def _extract_pdf_text(raw: bytes) -> str:
@@ -735,7 +752,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.368"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.369"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -745,7 +762,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.368", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.369", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -959,8 +976,7 @@ async def install_skill(request: Request, req: SkillInstallRequest, auth: dict =
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ [Skills] install error: {e}")
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+        return JSONResponse({"ok": False, "error": _client_safe_error(e, "Skills install")}, status_code=500)
 
 
 @app.get("/api/skills/list")
@@ -995,8 +1011,7 @@ async def toggle_skill(request: Request, req: SkillToggleRequest, auth: dict = D
                   .eq("id", req.skill_id).eq("user_id", user_id).execute())
         return JSONResponse({"ok": True})
     except Exception as e:
-        print(f"❌ [Skills] toggle error: {e}")
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+        return JSONResponse({"ok": False, "error": _client_safe_error(e, "Skills toggle")}, status_code=500)
 
 
 @app.delete("/api/skills/delete")
@@ -1007,8 +1022,7 @@ async def delete_skill(request: Request, id: str, auth: dict = Depends(require_a
         await _db(lambda: _supabase_admin.table("skills").delete().eq("id", id).eq("user_id", user_id).execute())
         return JSONResponse({"ok": True})
     except Exception as e:
-        print(f"❌ [Skills] delete error: {e}")
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+        return JSONResponse({"ok": False, "error": _client_safe_error(e, "Skills delete")}, status_code=500)
 
 # ── 🧠 MEMORY ENDPOINTS ───────────────────────────────────────────────────────
 
@@ -1028,8 +1042,7 @@ async def save_memory(request: Request, req: MemorySaveRequest, auth: dict = Dep
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ [Memory] save error: {e}")
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+        return JSONResponse({"ok": False, "error": _client_safe_error(e, "Memory save")}, status_code=500)
 
 
 @app.get("/api/memory/load")
@@ -1058,7 +1071,7 @@ async def clear_memory(request: Request, req: MemoryClearRequest, auth: dict = D
     except HTTPException:
         raise
     except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+        return JSONResponse({"ok": False, "error": _client_safe_error(e, "Memory clear")}, status_code=500)
 
 
 @app.delete("/api/memory/delete-one")
@@ -1069,7 +1082,7 @@ async def delete_one_memory(request: Request, id: str, auth: dict = Depends(requ
         await _db(lambda: _supabase_admin.table("user_memories").delete().eq("id", id).eq("user_id", user_id).execute())
         return JSONResponse({"ok": True})
     except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+        return JSONResponse({"ok": False, "error": _client_safe_error(e, "Memory delete-one")}, status_code=500)
 
 
 @app.post("/api/memory/extract")
@@ -1220,8 +1233,7 @@ async def save_memory_direct(request: Request, req: MemorySaveRequest, auth: dic
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ [Memory] direct-save error: {e}")
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+        return JSONResponse({"ok": False, "error": _client_safe_error(e, "Memory direct-save")}, status_code=500)
 
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -3248,7 +3260,8 @@ async def delete_account(request: Request):
             user_resp = await _db(supabase.auth.get_user, token)
             user_id   = user_resp.user.id
         except Exception as e:
-            return JSONResponse({"error": f"Auth verification failed: {str(e)}"}, status_code=401)
+            print(f"❌ [DELETE_ACCOUNT] Auth verification failed: {e}")
+            return JSONResponse({"error": "Auth verification failed. Please sign in again."}, status_code=401)
 
         if not user_id:
             return JSONResponse({"error": "Could not identify user"}, status_code=401)
@@ -3281,8 +3294,7 @@ async def delete_account(request: Request):
             return JSONResponse({"error": err}, status_code=admin_resp.status_code)
 
     except Exception as e:
-        print(f"❌ [DELETE_ACCOUNT] Exception: {e}")
-        return JSONResponse({"error": str(e)}, status_code=500)
+        return JSONResponse({"error": _client_safe_error(e, "DELETE_ACCOUNT")}, status_code=500)
 
 
 # ============================================================
@@ -3374,7 +3386,7 @@ def call_openrouter_stream(model_id, messages, api_key, file_urls=None, vision_i
     except requests.exceptions.Timeout:
         return None, "Request timed out"
     except Exception as e:
-        return None, str(e)
+        return None, _client_safe_error(e, "call_openrouter_stream")
 
 
 # ============================================================
@@ -3437,7 +3449,7 @@ def call_gemini_stream(messages, system_prompt):
     except requests.exceptions.Timeout:
         return None, "Request timed out"
     except Exception as e:
-        return None, str(e)
+        return None, _client_safe_error(e, "call_gemini_stream")
 
 
 
@@ -3501,7 +3513,7 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
                 last_err = "Request timed out"
                 continue
             except Exception as e:
-                last_err = str(e)
+                last_err = _client_safe_error(e, "call_gemma_google_stream")
                 continue
 
             if resp.status_code == 200:
@@ -3523,7 +3535,7 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
 
         return None, last_err
     except Exception as e:
-        return None, str(e)
+        return None, _client_safe_error(e, "call_gemma_google_stream")
 
 # ============================================================
 # ✅ HELPER: Call Groq with streaming — OpenAI-compatible
@@ -3565,7 +3577,7 @@ def call_groq_stream(messages, api_key):
     except requests.exceptions.Timeout:
         return None, "Request timed out"
     except Exception as e:
-        return None, str(e)
+        return None, _client_safe_error(e, "call_groq_stream")
 
 
 # ============================================================
@@ -3617,7 +3629,7 @@ def call_poolside_stream(messages, api_key):
     except requests.exceptions.Timeout:
         return None, "Request timed out"
     except Exception as e:
-        return None, str(e)
+        return None, _client_safe_error(e, "call_poolside_stream")
 
 
 # ============================================================
@@ -3660,7 +3672,7 @@ def call_sambhav_groq_stream(messages, api_key):
     except requests.exceptions.Timeout:
         return None, "Request timed out"
     except Exception as e:
-        return None, str(e)
+        return None, _client_safe_error(e, "call_sambhav_groq_stream")
 
 
 # ============================================================
@@ -3702,7 +3714,7 @@ def call_zai_stream(messages, api_key):
     except requests.exceptions.Timeout:
         return None, "Request timed out"
     except Exception as e:
-        return None, str(e)
+        return None, _client_safe_error(e, "call_zai_stream")
 
 
 # ============================================================
@@ -3770,7 +3782,7 @@ def call_nvidia_stream(messages, api_key, model_id, temperature=1.0, template_kw
     except requests.exceptions.Timeout:
         return None, "Request timed out"
     except Exception as e:
-        return None, str(e)
+        return None, _client_safe_error(e, "call_nvidia_stream")
 
 
 # ============================================================
@@ -3837,7 +3849,7 @@ def call_mistral_stream(messages, api_key, model_id="mistral-large-latest", reas
     except requests.exceptions.Timeout:
         return None, "Request timed out"
     except Exception as e:
-        return None, str(e)
+        return None, _client_safe_error(e, "call_mistral_stream")
 
 
 # ============================================================
@@ -3888,7 +3900,7 @@ def call_inception_stream(messages, api_key, model_id="mercury-2", reasoning_eff
     except requests.exceptions.Timeout:
         return None, "Request timed out"
     except Exception as e:
-        return None, str(e)
+        return None, _client_safe_error(e, "call_inception_stream")
 
 
 # ============================================================
@@ -4981,7 +4993,8 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         yield "data: [DONE]\n\n"
                         return
                 except Exception as e:
-                    yield f"data: {json.dumps({'error': f'Laguna Core unavailable: {e}'})}\n\n"
+                    _safe_msg = _client_safe_error(e, "Laguna Core stream")
+                    yield f"data: {json.dumps({'error': f'Laguna Core unavailable: {_safe_msg}'})}\n\n"
                     yield "data: [DONE]\n\n"
                     return
 
@@ -5135,7 +5148,8 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         yield "data: [DONE]\n\n"
                         return
                 except Exception as e:
-                    yield f"data: {json.dumps({'error': f'Laguna S unavailable: {e}'})}\n\n"
+                    _safe_msg = _client_safe_error(e, "Laguna S stream")
+                    yield f"data: {json.dumps({'error': f'Laguna S unavailable: {_safe_msg}'})}\n\n"
                     yield "data: [DONE]\n\n"
                     return
 
@@ -6253,8 +6267,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
         )
 
     except Exception as e:
-        print(f"❌ Error: {str(e)}")
-        return JSONResponse(content={"error": str(e)})
+        return JSONResponse(content={"error": _client_safe_error(e, "chat_get")})
 
 
 # ============================================================
@@ -7201,7 +7214,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         yield "data: [DONE]\n\n"
                         return
                 except Exception as e:
-                    yield f"data: {json.dumps({'error': f'Laguna Core unavailable: {e}'})}\n\n"
+                    _safe_msg = _client_safe_error(e, "Laguna Core stream")
+                    yield f"data: {json.dumps({'error': f'Laguna Core unavailable: {_safe_msg}'})}\n\n"
                     yield "data: [DONE]\n\n"
                     return
 
@@ -7329,7 +7343,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         yield "data: [DONE]\n\n"
                         return
                 except Exception as e:
-                    yield f"data: {json.dumps({'error': f'Laguna S unavailable: {e}'})}\n\n"
+                    _safe_msg = _client_safe_error(e, "Laguna S stream")
+                    yield f"data: {json.dumps({'error': f'Laguna S unavailable: {_safe_msg}'})}\n\n"
                     yield "data: [DONE]\n\n"
                     return
 
@@ -8248,4 +8263,4 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                      "Set-Cookie": build_session_cookie(session_id)}
         )
     except Exception as e:
-        return JSONResponse(content={"error": str(e)})
+        return JSONResponse(content={"error": _client_safe_error(e, "chat_get")})
