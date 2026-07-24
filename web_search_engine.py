@@ -1,6 +1,6 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║            CATURA AI — PRODUCTION WEB SEARCH ENGINE  v2.0                  ║
+║            CATURA AI — PRODUCTION WEB SEARCH ENGINE  v2.0                    ║
 ║                                                                              ║
 ║  Architecture:                                                               ║
 ║    1. Query Rewriting      — smarter multi-angle queries                     ║
@@ -44,6 +44,64 @@ RERANK_TOP_N       = 8
 # Expands a user question into 2-3 targeted search queries for better coverage
 # ══════════════════════════════════════════════════════════════════════════════
 
+# ══════════════════════════════════════════════════════════════════════════════
+# RECENCY DETECTION
+# Decides whether a query needs a time-boxed search (Tavily time_range/topic,
+# Serper tbs) rather than a generic undated search. This is the single biggest
+# lever for "why doesn't my AI know what's happening right now" — a generic
+# search has no idea whether the user wants today's news or a 2019 article,
+# so authority/relevance alone will often surface something stale.
+#
+# Deliberately broader than the old inline regex in rewrite_queries(), which
+# only caught queries containing the literal words latest/current/now/today.
+# This also catches incumbents/leaderboards/prices/live-event phrasing that
+# doesn't use those words but is just as time-sensitive.
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Needs the tightest window — today/this-instant data (prices, scores, weather,
+# breaking news). Maps to Tavily time_range="day" / Serper tbs="qdr:d".
+_RECENCY_DAY_PATTERNS = [
+    r'\b(today|right now|currently|live|breaking|just (now|happened)|this (morning|moment))\b',
+    r'\b(price|stock|share price|nifty|sensex|crypto|bitcoin|exchange rate)\b',
+    r'\b(score|live score|match score|who\'?s? (winning|leading))\b',
+    r'\bweather\b',
+]
+
+# Needs a wider window — recent-but-not-instant (this week's news, a recent
+# release, an ongoing situation). Maps to time_range="week" / tbs="qdr:w".
+_RECENCY_WEEK_PATTERNS = [
+    r'\b(latest|newest|recent(ly)?|this week|new (version|release|update|model))\b',
+    r'\b(news|headlines|happened|announcement|announced)\b',
+]
+
+# Needs a moderate window — "who currently holds this role" style questions.
+# These aren't as urgent as breaking news but are still wrong if answered from
+# stale training data. Maps to time_range="month" / tbs="qdr:m".
+_RECENCY_MONTH_PATTERNS = [
+    r'\b(cm|chief minister|prime minister|president|governor|minister|mayor|'
+    r'ceo|chancellor|elected|appointed|resigned|won (the )?election)\b',
+    r'\bwho is the (current|new)\b',
+    r'\bstill (the|in|alive|running|active|ceo|president)\b',
+]
+
+
+def detect_recency_window(query: str) -> Optional[str]:
+    """
+    Returns "day" | "week" | "month" | None.
+    None means: generic search, no time constraint needed (e.g. "what is
+    photosynthesis" — Wikipedia-style facts don't benefit from date-boxing
+    and over-constraining them can actually *reduce* result quality).
+    """
+    lower = query.lower()
+    if any(re.search(p, lower) for p in _RECENCY_DAY_PATTERNS):
+        return "day"
+    if any(re.search(p, lower) for p in _RECENCY_WEEK_PATTERNS):
+        return "week"
+    if any(re.search(p, lower) for p in _RECENCY_MONTH_PATTERNS):
+        return "month"
+    return None
+
+
 def rewrite_queries(original: str) -> list[str]:
     """
     Generate 2-3 smart search queries from a user question.
@@ -53,27 +111,24 @@ def rewrite_queries(original: str) -> list[str]:
     lower    = original.lower().strip().rstrip("?.,!")
     queries  = [original]
     year_now = datetime.utcnow().year
+    recency  = detect_recency_window(original)
 
-    # ── Political / government queries — add recency + official ──────────────
-    if re.search(r'\b(cm|chief minister|prime minister|president|governor|minister|mayor|ceo|chancellor|elected|appointed|won)\b', lower):
+    # ── Anything time-sensitive (day/week/month window) — add recency +
+    # official/news angles. Uses the shared detector so query rewriting
+    # agrees with the time filters actually sent to Tavily/Serper below.
+    if recency:
         queries.append(f"{lower} {year_now}")
-        queries.append(f"latest {lower}")
-
-    # ── Real-time / current events ────────────────────────────────────────────
-    elif re.search(r'\b(latest|current|now|today|recently|new|just)\b', lower):
-        queries.append(f"{lower} {year_now}")
-        if not lower.startswith("news"):
+        if lower.startswith("news"):
             queries.append(f"news {lower}")
+        elif lower.startswith(("latest", "current", "recent")):
+            queries.append(f"{lower} update")
+        else:
+            queries.append(f"latest {lower}")
 
     # ── Factual / Wikipedia-style ─────────────────────────────────────────────
     elif re.search(r'\b(what is|who is|when was|where is|how does|explain|define)\b', lower):
         queries.append(f"{lower} explained")
         queries.append(f"{lower} official definition")
-
-    # ── Price / finance ───────────────────────────────────────────────────────
-    elif re.search(r'\b(price|stock|share|crypto|bitcoin|nifty|sensex|rate)\b', lower):
-        queries.append(f"{lower} today {year_now}")
-        queries.append(f"{lower} live price")
 
     # ── Health / medical ─────────────────────────────────────────────────────
     elif re.search(r'\b(symptoms|treatment|cure|disease|medicine|dosage|side effect)\b', lower):
@@ -106,16 +161,34 @@ def _tavily_search_sync(query: str, max_results: int = RESULTS_PER_ENGINE) -> li
     if not TAVILY_KEY:
         return []
     try:
+        recency = detect_recency_window(query)
+
+        payload = {
+            "api_key":             TAVILY_KEY,
+            "query":               query,
+            "max_results":         max_results,
+            "include_answer":      True,
+            "include_raw_content": False,
+            # ── Freshness ────────────────────────────────────────────────────
+            # A generic, undated search has no idea whether the user wants
+            # today's number or a 2019 article — this is the #1 cause of
+            # "stale" answers. When the query looks time-sensitive, bias the
+            # search toward recent content instead of pure relevance/authority.
+            "search_depth":        "advanced" if recency else "basic",
+        }
+        if recency:
+            payload["time_range"] = recency  # "day" | "week" | "month"
+            # Tavily's "news" topic (vs. "general") indexes news sources
+            # specifically and only combines with time_range/days for the
+            # tightest windows — broader "month" queries (e.g. "who is the
+            # current CEO") aren't necessarily news articles, so leave those
+            # on the general index.
+            if recency in ("day", "week"):
+                payload["topic"] = "news"
+
         resp = requests.post(
             "https://api.tavily.com/search",
-            json={
-                "api_key":             TAVILY_KEY,
-                "query":               query,
-                "max_results":         max_results,
-                "include_answer":      True,
-                "include_raw_content": False,
-                "search_depth":        "basic",
-            },
+            json=payload,
             timeout=10,
         )
         if resp.status_code != 200:
@@ -149,8 +222,11 @@ def _tavily_search_sync(query: str, max_results: int = RESULTS_PER_ENGINE) -> li
         print(f"✅ [Tavily] '{query[:60]}' → {len(results)} results")
         return results
 
+    except (requests.exceptions.RequestException, KeyError, ValueError, TypeError) as e:
+        print(f"⚠️ [Tavily] expected failure: {e}")
+        return []
     except Exception as e:
-        print(f"❌ [Tavily] {e}")
+        print(f"❌ [Tavily] UNEXPECTED: {e.__class__.__name__}: {e}")
         return []
 
 
@@ -159,13 +235,25 @@ def _serper_search_sync(query: str, max_results: int = RESULTS_PER_ENGINE) -> li
     if not SERPER_KEY:
         return []
     try:
+        payload = {"q": query, "num": max_results, "gl": "in", "hl": "en"}
+
+        # ── Freshness ──────────────────────────────────────────────────────
+        # Serper exposes Google's native date-range filter via "tbs". Without
+        # it, Serper (and Google) rank purely by relevance/authority, which
+        # can easily surface an older, higher-authority page over a fresher
+        # but less-linked one for time-sensitive questions.
+        recency = detect_recency_window(query)
+        _tbs_map = {"day": "qdr:d", "week": "qdr:w", "month": "qdr:m"}
+        if recency in _tbs_map:
+            payload["tbs"] = _tbs_map[recency]
+
         resp = requests.post(
             "https://google.serper.dev/search",
             headers={
                 "X-API-KEY":   SERPER_KEY,
                 "Content-Type": "application/json",
             },
-            json={"q": query, "num": max_results, "gl": "in", "hl": "en"},
+            json=payload,
             timeout=10,
         )
         if resp.status_code != 200:
@@ -206,13 +294,17 @@ def _serper_search_sync(query: str, max_results: int = RESULTS_PER_ENGINE) -> li
                 "source_engine": "serper",
                 "query_used":    query,
                 "position":      r.get("position", 99),
+                "date":          r.get("date", ""),  # e.g. "2 days ago" — used for recency scoring
             })
 
         print(f"✅ [Serper] '{query[:60]}' → {len(results)} results")
         return results
 
+    except (requests.exceptions.RequestException, KeyError, ValueError, TypeError) as e:
+        print(f"⚠️ [Serper] expected failure: {e}")
+        return []
     except Exception as e:
-        print(f"❌ [Serper] {e}")
+        print(f"❌ [Serper] UNEXPECTED: {e.__class__.__name__}: {e}")
         return []
 
 
@@ -462,6 +554,57 @@ _PENALISED = {
 }
 
 
+def _days_to_boost(days_old: float) -> int:
+    """Map an age in days to a trust-score boost. Newer content scores higher."""
+    if days_old <= 1:
+        return 12
+    if days_old <= 7:
+        return 9
+    if days_old <= 30:
+        return 5
+    if days_old <= 365:
+        return 1
+    return 0
+
+
+def _recency_boost(result: dict, url: str) -> int:
+    """
+    Returns a trust-score boost (0-12) based on how old a result actually is,
+    replacing the old "does the current year appear in the URL" heuristic —
+    that missed articles with no year in the slug, and falsely boosted pages
+    whose URL contained the current year for unrelated reasons (e.g. a
+    copyright footer date scraped into the path).
+
+    Sources of a real date, in preference order:
+      1. Tavily's `published` date (ISO-ish, e.g. "2026-07-20...")
+      2. Serper's relative `date` string (e.g. "2 days ago", "3 weeks ago")
+      3. Fallback: current year literally in the URL (weak signal, last resort)
+    """
+    now = datetime.utcnow()
+
+    published = (result.get("published") or "").strip()
+    if published:
+        for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%Y/%m/%d"):
+            try:
+                dt = datetime.strptime(published[:19], fmt)
+                return _days_to_boost((now - dt).days)
+            except ValueError:
+                continue
+
+    date_str = (result.get("date") or "").lower().strip()
+    if date_str:
+        m = re.match(r'(\d+)\s*(hour|day|week|month|year)s?\s*ago', date_str)
+        if m:
+            n, unit = int(m.group(1)), m.group(2)
+            days_old = {"hour": n / 24, "day": n, "week": n * 7,
+                        "month": n * 30, "year": n * 365}[unit]
+            return _days_to_boost(days_old)
+
+    if str(now.year) in (url or ""):
+        return 3
+    return 0
+
+
 def compute_trust_score(url: str, result: dict) -> int:
     """
     Returns trust score 0–100 for a search result.
@@ -469,7 +612,7 @@ def compute_trust_score(url: str, result: dict) -> int:
       - Domain tier (base score)
       - Multi-source confirmation (boost)
       - Direct answer from engine (boost)
-      - Recency signals in URL (small boost)
+      - Real recency, based on actual publish date (boost)
       - Firecrawled full content (slight boost — real page)
     """
     if not url:
@@ -483,7 +626,7 @@ def compute_trust_score(url: str, result: dict) -> int:
         domain = urlparse(url).netloc.lower()
         # Strip www, m., etc.
         domain = re.sub(r'^(www\d?|m|mobile|amp)\.', '', domain)
-    except Exception:
+    except (ValueError, AttributeError):
         domain = ""
 
     # Base score by tier
@@ -510,9 +653,7 @@ def compute_trust_score(url: str, result: dict) -> int:
     if result.get("firecrawled"):
         score = min(score + 4, 100)   # real page content, not just snippet
 
-    year_now = str(datetime.utcnow().year)
-    if year_now in url:
-        score = min(score + 3, 100)   # URL contains current year
+    score = min(score + _recency_boost(result, url), 100)
 
     return score
 
