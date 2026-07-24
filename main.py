@@ -129,11 +129,28 @@ def _get_allowed_file_hosts() -> set:
     return hosts
 
 
-def _is_safe_public_url(url: str) -> tuple:
+# ── SSRF protection for /api/skills/install ───────────────────────────────
+# Skills are fetched from GitHub (raw file or blob link, auto-converted).
+# This is a *separate* allow-list from _get_allowed_file_hosts() (our own
+# Supabase storage host) — skill installs have no business reaching our own
+# storage bucket or anywhere else, so they get their own narrow host list.
+def _get_allowed_skill_hosts() -> set:
+    hosts = {"github.com", "raw.githubusercontent.com"}
+    extra = os.getenv("SKILL_FETCH_EXTRA_HOSTS", "")
+    for h in extra.split(","):
+        h = h.strip().lower()
+        if h:
+            hosts.add(h)
+    return hosts
+
+
+def _is_safe_public_url(url: str, allowed_hosts: set | None = None) -> tuple:
     """
     Returns (ok: bool, reason: str). Blocks:
       - non-http(s) schemes
-      - hosts outside our allow-list (own Supabase storage domain, etc.)
+      - hosts outside the allow-list (defaults to our own Supabase storage
+        domain; pass a different `allowed_hosts` set to validate URLs
+        against a different trusted host list, e.g. GitHub for skill installs)
       - hostnames that resolve to private / loopback / link-local / reserved
         IPs (defeats DNS rebinding, cloud metadata endpoints like
         169.254.169.254, localhost, internal Render service addresses, etc.)
@@ -149,7 +166,7 @@ def _is_safe_public_url(url: str) -> tuple:
     if not parsed.hostname:
         return False, "URL has no hostname"
 
-    allowed_hosts = _get_allowed_file_hosts()
+    allowed_hosts = allowed_hosts if allowed_hosts is not None else _get_allowed_file_hosts()
     if not allowed_hosts:
         # Fail closed: if we don't know our own storage host, don't fetch anything.
         return False, "File fetching is not configured (no allowed hosts)"
@@ -182,6 +199,43 @@ def _is_safe_public_url(url: str) -> tuple:
             return False, "URL resolves to a private/internal address"
 
     return True, ""
+
+
+async def _safe_httpx_get(url: str, allowed_hosts: set, timeout: float = 15.0, max_redirects: int = 5):
+    """
+    SSRF-safe async GET: validates `url` against `allowed_hosts` (host
+    allow-list + private/loopback/link-local IP rejection, via
+    _is_safe_public_url) *before* every single request — including
+    redirects. `follow_redirects` is intentionally left off: a host that
+    passes the allow-list on the first request could otherwise 302 us
+    anywhere (e.g. an internal address or cloud metadata endpoint), so each
+    redirect hop is re-validated by hand instead of trusted blindly.
+
+    Returns (response: httpx.Response | None, error: str | None).
+    """
+    import httpx as _safe_httpx
+
+    ok, reason = _is_safe_public_url(url, allowed_hosts=allowed_hosts)
+    if not ok:
+        return None, f"URL not allowed: {reason}"
+
+    async with _safe_httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+        hops = 0
+        while True:
+            resp = await client.get(url)
+            if resp.status_code not in (301, 302, 303, 307, 308):
+                return resp, None
+            hops += 1
+            if hops > max_redirects:
+                return None, "Too many redirects"
+            location = resp.headers.get("Location")
+            if not location:
+                return None, "Redirect with no Location header"
+            next_url = str(_safe_httpx.URL(url).join(location))
+            ok, reason = _is_safe_public_url(next_url, allowed_hosts=allowed_hosts)
+            if not ok:
+                return None, f"Redirect target not allowed: {reason}"
+            url = next_url
 
 
 def fetch_file_content_for_ai(url: str) -> dict:
@@ -681,7 +735,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.367"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.368"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -691,7 +745,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.367", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.368", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -868,15 +922,18 @@ async def install_skill(request: Request, req: SkillInstallRequest, auth: dict =
         if "github.com" in url and "/blob/" in url:
             fetch_url = url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
 
-        import httpx as _skills_httpx
-        async with _skills_httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
-            resp = await client.get(fetch_url)
-            if resp.status_code != 200:
-                return JSONResponse(
-                    {"ok": False, "error": f"Could not fetch skill (HTTP {resp.status_code}). Check the link."},
-                    status_code=400,
-                )
-            raw_content = resp.text
+        # SSRF guard: only ever fetch from GitHub (raw or blob), reject
+        # private/internal IPs, and re-validate every redirect hop by hand
+        # instead of following redirects blindly.
+        resp, err = await _safe_httpx_get(fetch_url, allowed_hosts=_get_allowed_skill_hosts(), timeout=15.0)
+        if resp is None:
+            return JSONResponse({"ok": False, "error": err or "Could not fetch skill. Check the link."}, status_code=400)
+        if resp.status_code != 200:
+            return JSONResponse(
+                {"ok": False, "error": f"Could not fetch skill (HTTP {resp.status_code}). Check the link."},
+                status_code=400,
+            )
+        raw_content = resp.text
 
         if len(raw_content.strip()) < 10:
             return JSONResponse({"ok": False, "error": "Fetched file is empty or invalid."}, status_code=400)
