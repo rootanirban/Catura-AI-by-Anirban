@@ -452,6 +452,211 @@ async def _search_parallel(query: str) -> tuple[list, list]:
     return tavily_res, serper_res
 
 
+def _execute_search_queries(queries: list[str]) -> list[dict]:
+    """
+    ── NEW ──────────────────────────────────────────────────────────────────
+    Runs Tavily + Serper for every query in `queries` and returns the
+    combined raw results. This is just the old inline loop from
+    run_production_search(), extracted so the iterative planner (below) can
+    call it once per round without duplicating the event-loop plumbing.
+    """
+    all_raw: list[dict] = []
+    for q in queries:
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            tavily_res, serper_res = loop.run_until_complete(_search_parallel(q))
+            loop.close()
+        except Exception:
+            # Fallback to sequential if event loop issues
+            tavily_res = _tavily_search_sync(q)
+            serper_res = _serper_search_sync(q)
+
+        all_raw.extend(tavily_res)
+        all_raw.extend(serper_res)
+    return all_raw
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MULTI-STEP SEARCH PLANNING (NEW)
+# Turns the pipeline from "generate queries → search once" into:
+#   plan → search → analyze → (if evidence is thin) generate more queries →
+#   search again → repeat, capped at MAX_SEARCH_ROUNDS and stopping as soon
+#   as confidence is high. This only changes the PLANNING stage — dedup,
+#   Firecrawl, trust scoring, cross-ref, rerank, and citations downstream
+#   are untouched.
+# ══════════════════════════════════════════════════════════════════════════════
+
+MAX_SEARCH_ROUNDS       = 3   # hard cap — guarantees no infinite loop
+CONFIDENCE_TIMEOUT      = 4   # seconds — same fail-fast philosophy as the planner
+CONFIDENCE_MAX_TOK      = 300
+MAX_ADDITIONAL_QUERIES  = 4   # per follow-up round
+
+_CONFIDENCE_SYSTEM_PROMPT = """You are a research-evidence auditor for a web search pipeline.
+You will be given the user's original question and a list of snippets already gathered from search engines.
+
+Decide whether the gathered evidence is ALREADY sufficient to answer the question completely and confidently.
+
+Output ONLY a JSON object, no prose, no markdown fences:
+{
+  "confident": true | false,
+  "missing": ["short phrase describing a gap", ...],
+  "additional_queries": ["search query", ...]
+}
+
+Rules:
+- "confident": true means the evidence fully covers the question — no further searching is needed. Set "additional_queries" to [] in that case.
+- "confident": false means there is a genuine, specific gap (missing facts, unanswered sub-question, outdated/conflicting info, no results at all for part of the question).
+- Only mark false if the gap is real and specific — do not ask for more searches just to be thorough.
+- "additional_queries": 1 to 4 short, realistic search-engine queries that directly target the missing information. Do not repeat queries that were already run.
+- Never leave "confident" false with an empty "additional_queries" list."""
+
+
+def _condense_evidence_for_review(raw_results: list[dict], max_items: int = 15) -> str:
+    """
+    ── NEW ──────────────────────────────────────────────────────────────────
+    Builds a compact, token-cheap text block of what's been found so far, so
+    the confidence-check LLM call can decide if more searching is needed
+    without re-sending full page bodies.
+    """
+    lines = []
+    for r in raw_results[:max_items]:
+        title = (r.get("title") or "").strip()
+        body  = (r.get("body") or "").strip().replace("\n", " ")[:200]
+        lines.append(f"- {title}: {body}")
+    return "\n".join(lines) if lines else "(no results found)"
+
+
+def _assess_evidence_and_plan_more(
+    original_query: str,
+    raw_results: list[dict],
+    queries_already_run: list[str],
+) -> dict:
+    """
+    ── NEW ──────────────────────────────────────────────────────────────────
+    Asks the LLM whether the evidence gathered so far is sufficient. Returns
+    {"confident": bool, "additional_queries": list[str]}.
+
+    Fails CLOSED toward stopping: any missing key, network error, timeout,
+    malformed JSON, or missing API key returns confident=True with no
+    additional queries. This is deliberate — a broken confidence check must
+    never be able to force extra rounds, since that's how you'd get an
+    unbounded/infinite loop. The MAX_SEARCH_ROUNDS cap is a second, independent
+    guard on top of this.
+    """
+    if not QUERY_PLANNER_KEY:
+        return {"confident": True, "additional_queries": []}
+
+    evidence = _condense_evidence_for_review(raw_results)
+
+    user_content = (
+        f"Original question: {original_query}\n\n"
+        f"Queries already run: {queries_already_run}\n\n"
+        f"Evidence gathered so far:\n{evidence}"
+    )
+
+    try:
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key":         QUERY_PLANNER_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type":      "application/json",
+            },
+            json={
+                "model":      QUERY_PLANNER_MODEL,
+                "max_tokens": CONFIDENCE_MAX_TOK,
+                "system":     _CONFIDENCE_SYSTEM_PROMPT,
+                "messages":   [{"role": "user", "content": user_content}],
+            },
+            timeout=CONFIDENCE_TIMEOUT,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        text = "".join(
+            block.get("text", "")
+            for block in data.get("content", [])
+            if block.get("type") == "text"
+        ).strip()
+        text = re.sub(r'^```(?:json)?\s*|\s*```$', '', text.strip())
+
+        parsed = json.loads(text)
+        if not isinstance(parsed, dict):
+            return {"confident": True, "additional_queries": []}
+
+        confident = bool(parsed.get("confident", True))
+
+        seen = {q.strip().lower() for q in queries_already_run}
+        additional = []
+        for q in parsed.get("additional_queries", []) or []:
+            q = str(q).strip()
+            key = q.lower()
+            if q and key not in seen:
+                seen.add(key)
+                additional.append(q)
+
+        # A "not confident" verdict with nothing new to search is
+        # meaningless — treat it as confident so the loop can stop.
+        if not additional:
+            confident = True
+
+        return {
+            "confident":          confident,
+            "additional_queries": additional[:MAX_ADDITIONAL_QUERIES],
+        }
+
+    except Exception as e:
+        print(f"⚠️ [Planner] Confidence check failed, stopping rounds: {e}")
+        return {"confident": True, "additional_queries": []}
+
+
+def plan_and_execute_search(query: str) -> tuple[list[str], list[dict]]:
+    """
+    ── NEW ──────────────────────────────────────────────────────────────────
+    Iterative multi-step search planner:
+
+      Round 1: rewrite_queries() → search
+      Analyze: is the evidence sufficient?
+        - yes, or LLM unavailable/fails  → stop
+        - no  → LLM proposes targeted follow-up queries → search again
+      Repeat until confident, no new queries are proposed, or
+      MAX_SEARCH_ROUNDS is reached (hard cap — no infinite loops possible).
+
+    Returns (queries_run, all_raw) with the same shapes the old inline
+    steps 1+2 in run_production_search() produced, so downstream dedup/
+    Firecrawl/trust/rerank/citation code needs no changes.
+    """
+    queries_run: list[str] = []
+    all_raw: list[dict] = []
+
+    # ── Round 1 — initial plan + search ──────────────────────────────────
+    round_num = 1
+    queries = rewrite_queries(query)
+    print(f"📝 [Planner] Round {round_num}/{MAX_SEARCH_ROUNDS} queries: {queries}")
+    queries_run.extend(queries)
+    all_raw.extend(_execute_search_queries(queries))
+
+    # ── Rounds 2..MAX_SEARCH_ROUNDS — analyze, fill gaps, repeat ─────────
+    while round_num < MAX_SEARCH_ROUNDS:
+        assessment = _assess_evidence_and_plan_more(query, all_raw, queries_run)
+
+        if assessment["confident"] or not assessment["additional_queries"]:
+            print(f"✅ [Planner] Stopping after round {round_num} — evidence sufficient")
+            break
+
+        round_num += 1
+        follow_up = assessment["additional_queries"]
+        print(f"📝 [Planner] Round {round_num}/{MAX_SEARCH_ROUNDS} follow-up queries: {follow_up}")
+        queries_run.extend(follow_up)
+        all_raw.extend(_execute_search_queries(follow_up))
+
+    if round_num >= MAX_SEARCH_ROUNDS:
+        print(f"🛑 [Planner] Reached MAX_SEARCH_ROUNDS ({MAX_SEARCH_ROUNDS}) — stopping")
+
+    return queries_run, all_raw
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # STEP 3 — DEDUPLICATION
 # Remove duplicate URLs; merge snippets from different engines for same URL
@@ -1022,28 +1227,11 @@ def run_production_search(query: str) -> dict:
     """
     print(f"\n🚀 [Search Engine] Starting pipeline for: '{query[:80]}'")
 
-    # Step 1: Query rewriting
-    queries = rewrite_queries(query)
-    print(f"📝 [Rewriter] Queries: {queries}")
+    # Steps 1-2: Multi-step planning — plan → search → analyze → fill gaps →
+    # repeat (capped at MAX_SEARCH_ROUNDS, stops early once confident).
+    queries, all_raw = plan_and_execute_search(query)
 
-    # Step 2: Parallel search across all rewritten queries
-    all_raw: list[dict] = []
-    for q in queries:
-        # Run both engines — use asyncio.run for clean sync calling
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            tavily_res, serper_res = loop.run_until_complete(_search_parallel(q))
-            loop.close()
-        except Exception:
-            # Fallback to sequential if event loop issues
-            tavily_res = _tavily_search_sync(q)
-            serper_res = _serper_search_sync(q)
-
-        all_raw.extend(tavily_res)
-        all_raw.extend(serper_res)
-
-    print(f"📊 [Pipeline] Raw results: {len(all_raw)}")
+    print(f"📊 [Pipeline] Raw results: {len(all_raw)} (across {len(queries)} queries)")
 
     if not all_raw:
         print("⚠️ [Pipeline] No results from any engine")
