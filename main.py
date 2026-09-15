@@ -864,7 +864,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.478"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.479"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -874,7 +874,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.478", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.479", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -1073,7 +1073,7 @@ async def mcp_handshake_and_list_tools(url: str, headers: dict | None = None):
     init_result, err = await _mcp_rpc(url, "initialize", {
         "protocolVersion": _MCP_PROTOCOL_VERSION,
         "capabilities": {},
-        "clientInfo": {"name": "Catura AI", "version": "0.0.478"},
+        "clientInfo": {"name": "Catura AI", "version": "0.0.479"},
     }, headers)
     if err:
         return None, err
@@ -5100,7 +5100,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             "laguna_core": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2.1
             "laguna_s":    [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna S.2.1
             "cohere":       ["cohere/north-mini-code:free"],
-            "n_nano":  ["nvidia/nemotron-nano-12b-v2-vl:free"],
+            "n_nano":  ["nvidia/nemotron-3.5-lightning:free"],
             "omni":    ["nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"],
         }
         model_key  = model.strip()
@@ -6774,7 +6774,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "laguna_s":    [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna S.2.1
             "cohere":     ["cohere/north-mini-code:free"], 
             "nemotron":["nvidia/nemotron-3-ultra-550b-a55b:free"],
-            "n_nano":["nvidia/nemotron-nano-12b-v2-vl:free"],
+            "n_nano":["nvidia/nemotron-3.5-lightning:free"],
             "omni": ["nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"],
         }
         model_key  = model.strip()
