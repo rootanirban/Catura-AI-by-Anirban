@@ -864,7 +864,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.480"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.481"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -874,7 +874,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.480", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.481", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -1073,7 +1073,7 @@ async def mcp_handshake_and_list_tools(url: str, headers: dict | None = None):
     init_result, err = await _mcp_rpc(url, "initialize", {
         "protocolVersion": _MCP_PROTOCOL_VERSION,
         "capabilities": {},
-        "clientInfo": {"name": "Catura AI", "version": "0.0.480"},
+        "clientInfo": {"name": "Catura AI", "version": "0.0.481"},
     }, headers)
     if err:
         return None, err
@@ -4626,7 +4626,7 @@ def call_zai_stream(messages, api_key):
 
 
 # ============================================================
-# ✅ HELPER: Call NaraRouter — agnes-2.5-flash, ling-3.0-flash-free
+# ✅ HELPER: Call NaraRouter — agnes-3-flash, ling-3.0-flash-free
 # OpenAI-compatible endpoint at router.bynara.id (NARAROUTER_API_KEY)
 # ============================================================
 class _FakeStreamResponse:
@@ -5162,8 +5162,8 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             "sambhav": [],  # Routed via Groq API (qwen/qwen3.6-27b) — see call_sambhav_groq_stream()
             "nivo":    [],  # Routed via Groq API (GROQ_API_KEY) — see generate_nivo()
             "glm":     [],  # Routed via Z.ai API (ZAI_API_KEY) — glm-4.7-flash (free)
-            "agnes":      [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — agnes-2.5-flash
-            "ox_alpha_bynara": [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — agnes-2.5-flash (full reasoning enabled)
+            "agnes":      [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — agnes-3-flash
+            "ox_alpha_bynara": [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — agnes-3-flash (full reasoning enabled)
             "mercury2": [],  # Routed via Inception Labs API (INCEPTION_API_KEY) — mercury-2
             "muse_glimmer": [],  # Routed via NVIDIA NIM API (NVIDIA_API_KEY) — meta/muse-glimmer-30b
             "laguna_core": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2.1
@@ -6198,7 +6198,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 })
             )
 
-        # ── AGNES: NaraRouter API (NARAROUTER_API_KEY) — agnes-2.5-flash ──
+        # ── AGNES: NaraRouter API (NARAROUTER_API_KEY) — agnes-3-flash ──
         if model_key == "agnes":
             nara_key_agnes   = os.getenv("NARAROUTER_API_KEY", "")
             agnes_system     = system_prompts.get("agnes", system_prompts["dagr"])
@@ -6228,7 +6228,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     [{"role": "system", "content": final_system_agnes}]
                     + active_memory[-20:]
                 )
-                resp, err = call_nararouter_stream(agnes_messages, nara_key_agnes, "agnes-2.5-flash", max_tokens=16000)
+                resp, err = call_nararouter_stream(agnes_messages, nara_key_agnes, "agnes-3-flash", max_tokens=16000)
 
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'Agnes unavailable: {err}'})}\n\n"
@@ -6302,7 +6302,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 })
             )
 
-        # ── OX ALPHA BYNARA: NaraRouter API (NARAROUTER_API_KEY) — agnes-2.5-flash (full reasoning) ──
+        # ── OX ALPHA BYNARA: NaraRouter API (NARAROUTER_API_KEY) — agnes-3-flash (full reasoning) ──
         if model_key == "ox_alpha_bynara":
             nara_key_oxab   = os.getenv("NARAROUTER_API_KEY", "")
             oxab_system     = system_prompts.get("ox_alpha_bynara", system_prompts["dagr"])
@@ -6332,7 +6332,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     [{"role": "system", "content": final_system_oxab}]
                     + active_memory[-20:]
                 )
-                resp, err = call_nararouter_stream(oxab_messages, nara_key_oxab, "agnes-2.5-flash", max_tokens=16000, enable_thinking=True)
+                resp, err = call_nararouter_stream(oxab_messages, nara_key_oxab, "agnes-3-flash", max_tokens=16000, enable_thinking=True)
 
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'OX Alpha Bynara unavailable: {err}'})}\n\n"
@@ -6959,8 +6959,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "sambhav": [],  # Routed via Groq API (qwen/qwen3.6-27b) — see call_sambhav_groq_stream()
             "nivo":    [],  # Routed via Groq API (GROQ_API_KEY)
             "glm":     [],  # Routed via Z.ai API (ZAI_API_KEY) — glm-4.7-flash (free)
-            "agnes":      [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — agnes-2.5-flash
-            "ox_alpha_bynara": [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — agnes-2.5-flash (full reasoning enabled)
+            "agnes":      [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — agnes-3-flash
+            "ox_alpha_bynara": [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — agnes-3-flash (full reasoning enabled)
             "mercury2": [],  # Routed via Inception Labs API (INCEPTION_API_KEY) — mercury-2
             "muse_glimmer": [],  # Routed via NVIDIA NIM API (NVIDIA_API_KEY) — meta/muse-glimmer-30b
             "laguna_core": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2.1
@@ -7973,7 +7973,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                          "Set-Cookie": build_session_cookie(session_id)})
             )
 
-        # ── AGNES: NaraRouter API (NARAROUTER_API_KEY) — agnes-2.5-flash ──
+        # ── AGNES: NaraRouter API (NARAROUTER_API_KEY) — agnes-3-flash ──
         if model_key == "agnes":
             nara_key_agnes   = os.getenv("NARAROUTER_API_KEY", "")
             agnes_system     = system_prompts.get("agnes", system_prompts["dagr"])
@@ -8003,7 +8003,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                     [{"role": "system", "content": final_system_agnes}]
                     + active_memory[-20:]
                 )
-                resp, err = call_nararouter_stream(agnes_messages, nara_key_agnes, "agnes-2.5-flash", max_tokens=16000)
+                resp, err = call_nararouter_stream(agnes_messages, nara_key_agnes, "agnes-3-flash", max_tokens=16000)
 
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'Agnes unavailable: {err}'})}\n\n"
@@ -8077,7 +8077,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 })
             )
 
-        # ── OX ALPHA BYNARA: NaraRouter API (NARAROUTER_API_KEY) — agnes-2.5-flash (full reasoning) — GET handler ──
+        # ── OX ALPHA BYNARA: NaraRouter API (NARAROUTER_API_KEY) — agnes-3-flash (full reasoning) — GET handler ──
         if model_key == "ox_alpha_bynara":
             nara_key_oxab_get   = os.getenv("NARAROUTER_API_KEY", "")
             oxab_system_get     = system_prompts.get("ox_alpha_bynara", system_prompts["dagr"])
@@ -8092,7 +8092,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                resp, err = call_nararouter_stream(oxab_messages_get, nara_key_oxab_get, "agnes-2.5-flash", max_tokens=16000, enable_thinking=True)
+                resp, err = call_nararouter_stream(oxab_messages_get, nara_key_oxab_get, "agnes-3-flash", max_tokens=16000, enable_thinking=True)
 
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'OX Alpha Bynara unavailable: {err}'})}\n\n"
