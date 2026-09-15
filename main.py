@@ -864,7 +864,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.479"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.480"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -874,7 +874,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.479", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.480", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -1073,7 +1073,7 @@ async def mcp_handshake_and_list_tools(url: str, headers: dict | None = None):
     init_result, err = await _mcp_rpc(url, "initialize", {
         "protocolVersion": _MCP_PROTOCOL_VERSION,
         "capabilities": {},
-        "clientInfo": {"name": "Catura AI", "version": "0.0.479"},
+        "clientInfo": {"name": "Catura AI", "version": "0.0.480"},
     }, headers)
     if err:
         return None, err
@@ -4815,6 +4815,74 @@ def call_inception_stream(messages, api_key, model_id="mercury-2", reasoning_eff
 
 
 # ============================================================
+# ✅ HELPER: Call NVIDIA NIM API — meta/muse-glimmer-30b
+# OpenAI-compatible endpoint at integrate.api.nvidia.com (NVIDIA_API_KEY)
+# ============================================================
+def call_nvidia_stream(messages, api_key, model_id, temperature=1.0, top_p=0.95,
+                        max_tokens=8192, template_kwargs=None):
+    """
+    Dedicated NVIDIA NIM streaming function. Uses NVIDIA's official
+    OpenAI-compatible endpoint (integrate.api.nvidia.com), matching the
+    Python example on the NVIDIA NIM model card for this model. Completely
+    isolated from all other models — does NOT touch any other API key.
+
+    Reasoning support: NVIDIA NIM serves this as a hybrid-reasoning model
+    on a vLLM/SGLang-style stack, so thinking is toggled via the standard
+    `chat_template_kwargs.enable_thinking` field (same mechanism already
+    used elsewhere in this app for other hybrid-reasoning models). When on,
+    reasoning is streamed back in the `reasoning_content` delta field,
+    separate from the final answer's `content` field, so the existing
+    thinking-token parsing just works.
+
+    Tool support: this app doesn't use native OpenAI function-calling —
+    tools (weather, search, stocks, etc.) are run server-side via
+    run_tool()/build_tool_context() before the call and injected straight
+    into the system prompt, the same way every other model handler here
+    gets tool support.
+    """
+    if not api_key:
+        return None, "NVIDIA_API_KEY not set in environment variables"
+    try:
+        payload = {
+            "model": model_id,
+            "messages": messages,
+            "stream": True,
+            "temperature": temperature,
+            "top_p": top_p,
+            "max_tokens": max_tokens,
+        }
+        if template_kwargs:
+            payload["chat_template_kwargs"] = template_kwargs
+
+        resp = _http.post(
+            "https://integrate.api.nvidia.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            stream=True,
+            timeout=(15, None),  # no read timeout — let long thinking runs finish
+        )
+        if resp.status_code != 200:
+            try:
+                err_body = resp.json()
+                err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
+            except (ValueError, KeyError, AttributeError):
+                err_msg = f"HTTP {resp.status_code}"
+            return None, err_msg
+        return resp, None
+    except requests.exceptions.Timeout:
+        return None, "Request timed out"
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"⚠️ [call_nvidia_stream] network error: {e}")
+        return None, _client_safe_error(e, "call_nvidia_stream")
+    except Exception as e:
+        _log_unexpected("call_nvidia_stream", e)
+        return None, _client_safe_error(e, "call_nvidia_stream")
+
+
+# ============================================================
 # 🏷️ TITLE GENERATION ENDPOINT
 # Generates a short, descriptive chat title from the first message
 # ============================================================
@@ -5097,6 +5165,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             "agnes":      [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — agnes-2.5-flash
             "ox_alpha_bynara": [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — agnes-2.5-flash (full reasoning enabled)
             "mercury2": [],  # Routed via Inception Labs API (INCEPTION_API_KEY) — mercury-2
+            "muse_glimmer": [],  # Routed via NVIDIA NIM API (NVIDIA_API_KEY) — meta/muse-glimmer-30b
             "laguna_core": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2.1
             "laguna_s":    [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna S.2.1
             "cohere":       ["cohere/north-mini-code:free"],
@@ -5452,6 +5521,26 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
                 "For coding questions, write clean, well-commented code. "
                 "If asked what model or AI you are, say you are Catura AI Mercury 2 and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+                "Never make up facts. If you don't know something, say so honestly."
+                + NO_TOOL_CALL_RULE
+            ),
+            "muse_glimmer": (
+                "Your name is Catura (pronounced kuh-CHUR-uh) Muse Glimmer Model. You are a highly capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI Muse Glimmer, built for deep reasoning and high-quality responses. "
+                "You are clear, direct, and helpful. You speak like a knowledgeable friend — "
+                "never robotic, never sycophantic. "
+                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
+                "'Absolutely!', or similar hollow openers. Just answer directly. "
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+                "Keep answers concise unless the user explicitly asks for detail. "
+                "Use bullet points or headers only when they genuinely improve clarity. "
+                "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
+                "For coding questions, write clean, well-commented code. "
+                "If asked what model or AI you are, say you are Catura AI Muse Glimmer and cannot share "
                 "details about the underlying technology. "
                 "If asked who made you, say 'I was created by Anirban.' "
                 "Never make up facts. If you don't know something, say so honestly."
@@ -6413,6 +6502,109 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 })
             )
 
+        # ── MUSE GLIMMER: NVIDIA NIM API (NVIDIA_API_KEY) — meta/muse-glimmer-30b ──
+        if model_key == "muse_glimmer":
+            nvidia_key_mg   = os.getenv("NVIDIA_API_KEY", "")
+            mg_system       = system_prompts.get("muse_glimmer", system_prompts["dagr"])
+
+            def generate_muse_glimmer():
+                full_reply = ""
+                thinking_open_mg = False  # tracks whether <think> has been opened in full_reply
+
+                tool_result_mg = None
+                if intent != "general" and not file_urls:
+                    yield f"data: {json.dumps({'status': 'tool_running', 'intent': intent})}\n\n"
+                    tool_result_mg = run_tool(intent, prompt)
+
+                final_system_mg = mg_system
+                tool_context_mg = build_tool_context(tool_result_mg)
+                if tool_context_mg:
+                    final_system_mg += "\n\n" + tool_context_mg
+
+                if tool_result_mg:
+                    badge_payload = json.dumps({"tool_used": tool_result_mg.get("tool", ""), "intent": intent})
+                    yield f"data: {badge_payload}\n\n"
+                    sp = build_sources_payload(tool_result_mg)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                mg_messages = (
+                    [{"role": "system", "content": final_system_mg}]
+                    + active_memory[-20:]
+                )
+                resp, err = call_nvidia_stream(
+                    mg_messages, nvidia_key_mg, "meta/muse-glimmer-30b",
+                    temperature=1, top_p=0.95, max_tokens=8192,
+                    template_kwargs={"enable_thinking": True},
+                )
+
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'Muse Glimmer unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+
+                try:
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                logger.warning(f"⚠️ [MUSE GLIMMER] mid-stream error: {chunk['error']}")
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            delta_mg = choices[0].get("delta") or {}
+                            reasoning_token_mg = delta_mg.get("reasoning_content") or ""
+                            token = delta_mg.get("content") or ""
+                            if reasoning_token_mg:
+                                if not thinking_open_mg:
+                                    full_reply += "<think>"
+                                    thinking_open_mg = True
+                                full_reply += reasoning_token_mg
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token_mg}, ensure_ascii=False)}\n\n"
+                            if token:
+                                if thinking_open_mg:
+                                    full_reply += "</think>"
+                                    thinking_open_mg = False
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.warning(f"⚠️ [MUSE GLIMMER] skipped unparsable stream chunk: {parse_err}")
+                            continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [MUSE GLIMMER] stream network error: {e}")
+                except Exception as e:
+                    _log_unexpected("MUSE GLIMMER stream", e)
+
+                if thinking_open_mg:
+                    full_reply += "</think>"
+
+                if full_reply.strip():
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                else:
+                    logger.warning("⚠️ [MUSE GLIMMER] stream ended with an empty reply and no error")
+                    yield f"data: {json.dumps({'error': 'Muse Glimmer returned an empty response. Please try again.'})}\n\n"
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_muse_glimmer(),
+                media_type="text/event-stream",
+                headers=_rl({
+                    "Cache-Control": "no-cache",
+                    "Set-Cookie": build_session_cookie(session_id),
+                })
+            )
+
         # ── NIVO: Groq API (GROQ_API_KEY) — isolated from all other models ──
         if model_key == "nivo":
             groq_key    = os.getenv("GROQ_API_KEY", "")
@@ -6770,6 +6962,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "agnes":      [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — agnes-2.5-flash
             "ox_alpha_bynara": [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — agnes-2.5-flash (full reasoning enabled)
             "mercury2": [],  # Routed via Inception Labs API (INCEPTION_API_KEY) — mercury-2
+            "muse_glimmer": [],  # Routed via NVIDIA NIM API (NVIDIA_API_KEY) — meta/muse-glimmer-30b
             "laguna_core": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2.1
             "laguna_s":    [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna S.2.1
             "cohere":     ["cohere/north-mini-code:free"], 
@@ -7312,6 +7505,26 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
                 "For coding questions, write clean, well-commented code. "
                 "If asked what model or AI you are, say you are Catura AI Mercury 2 and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+                "Never make up facts. If you don't know something, say so honestly."
+                + NO_TOOL_CALL_RULE
+            ),
+            "muse_glimmer": (
+                "Your name is Catura (pronounced kuh-CHUR-uh) Muse Glimmer Model. You are a highly capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI Muse Glimmer, built for deep reasoning and high-quality responses. "
+                "You are clear, direct, and helpful. You speak like a knowledgeable friend — "
+                "never robotic, never sycophantic. "
+                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
+                "'Absolutely!', or similar hollow openers. Just answer directly. "
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+                "Keep answers concise unless the user explicitly asks for detail. "
+                "Use bullet points or headers only when they genuinely improve clarity. "
+                "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
+                "For coding questions, write clean, well-commented code. "
+                "If asked what model or AI you are, say you are Catura AI Muse Glimmer and cannot share "
                 "details about the underlying technology. "
                 "If asked who made you, say 'I was created by Anirban.' "
                 "Never make up facts. If you don't know something, say so honestly."
@@ -8008,6 +8221,83 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_merc_get(), media_type="text/event-stream",
+                headers=_rl({"Cache-Control": "no-cache",
+                         "Set-Cookie": build_session_cookie(session_id)})
+            )
+
+        # ── MUSE GLIMMER: NVIDIA NIM API (NVIDIA_API_KEY) — meta/muse-glimmer-30b ──
+        if model_key == "muse_glimmer":
+            nvidia_key_mg_get = os.getenv("NVIDIA_API_KEY", "")
+            mg_system_get = system_prompts.get("muse_glimmer", system_prompts["dagr"])
+
+            def generate_muse_glimmer_get():
+                full_reply = ""
+                thinking_open_mg = False  # tracks whether <think> has been opened in full_reply
+                if tool_result:
+                    yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
+                    sp = build_sources_payload(tool_result)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                mg_msgs_get = [{"role": "system", "content": mg_system_get}] + active_memory[-20:]
+                resp, err = call_nvidia_stream(
+                    mg_msgs_get, nvidia_key_mg_get, "meta/muse-glimmer-30b",
+                    temperature=1, top_p=0.95, max_tokens=8192,
+                    template_kwargs={"enable_thinking": True},
+                )
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'Muse Glimmer unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+                try:
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            delta_mg = choices[0].get("delta") or {}
+                            reasoning_token_mg = delta_mg.get("reasoning_content") or ""
+                            token = delta_mg.get("content") or ""
+                            if reasoning_token_mg:
+                                if not thinking_open_mg:
+                                    full_reply += "<think>"
+                                    thinking_open_mg = True
+                                full_reply += reasoning_token_mg
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token_mg}, ensure_ascii=False)}\n\n"
+                            if token:
+                                if thinking_open_mg:
+                                    full_reply += "</think>"
+                                    thinking_open_mg = False
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [MUSE GLIMMER GET] skipped unparsable stream chunk: {parse_err}")
+                            continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [MUSE GLIMMER GET] stream network error: {e}")
+                except Exception as e:
+                    _log_unexpected("MUSE GLIMMER GET stream", e)
+                if thinking_open_mg:
+                    full_reply += "</think>"
+                if full_reply.strip():
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_muse_glimmer_get(), media_type="text/event-stream",
                 headers=_rl({"Cache-Control": "no-cache",
                          "Set-Cookie": build_session_cookie(session_id)})
             )
