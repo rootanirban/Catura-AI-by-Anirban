@@ -796,7 +796,7 @@ GEMINI_API_KEY      = os.getenv("GEMINI_API_KEY", "")               # https://ai
 TAVILY_API_KEY      = os.getenv("TAVILY_API_KEY", "")               # https://tavily.com (free — 1000 searches/month)
 GROQ_API_KEY        = os.getenv("GROQ_API_KEY", "")                 # https://console.groq.com (free tier)
 ZAI_API_KEY         = os.getenv("ZAI_API_KEY", "")                  # https://z.ai (GLM-4.7-Flash — free tier)
-NARAROUTER_API_KEY  = os.getenv("NARAROUTER_API_KEY", "")           # https://router.bynara.id (Agnes 2.5 Flash, Ling 3.0 Flash — free tier)
+NARAROUTER_API_KEY  = os.getenv("NARAROUTER_API_KEY", "")           # https://router.bynara.id (Agnes 2.5 Flash, Ling 3.0 Flash, Atria Dawn — free tier)
 SERPER_API_KEY      = os.getenv("SERPER_API_KEY", "")               # https://serper.dev (2500 free searches)
 FIRECRAWL_API_KEY   = os.getenv("FIRECRAWL_API_KEY", "")            # https://firecrawl.dev (free tier)
 COHERE_API_KEY      = os.getenv("COHERE_API_KEY", "")               # https://cohere.com (1000 free reranks/month)
@@ -864,7 +864,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.481"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.482"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -874,7 +874,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.481", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.482", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -1073,7 +1073,7 @@ async def mcp_handshake_and_list_tools(url: str, headers: dict | None = None):
     init_result, err = await _mcp_rpc(url, "initialize", {
         "protocolVersion": _MCP_PROTOCOL_VERSION,
         "capabilities": {},
-        "clientInfo": {"name": "Catura AI", "version": "0.0.481"},
+        "clientInfo": {"name": "Catura AI", "version": "0.0.482"},
     }, headers)
     if err:
         return None, err
@@ -5164,6 +5164,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             "glm":     [],  # Routed via Z.ai API (ZAI_API_KEY) — glm-4.7-flash (free)
             "agnes":      [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — agnes-3-flash
             "ox_alpha_bynara": [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — agnes-3-flash (full reasoning enabled)
+            "atria":       [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — atria-dawn (full reasoning + tools enabled)
             "mercury2": [],  # Routed via Inception Labs API (INCEPTION_API_KEY) — mercury-2
             "muse_glimmer": [],  # Routed via NVIDIA NIM API (NVIDIA_API_KEY) — meta/muse-glimmer-30b
             "laguna_core": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2.1
@@ -6406,6 +6407,110 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 })
             )
 
+        # ── ATRIA: NaraRouter API (NARAROUTER_API_KEY) — atria-dawn (full reasoning + tools) ──
+        if model_key == "atria":
+            nara_key_atria   = os.getenv("NARAROUTER_API_KEY", "")
+            atria_system     = system_prompts.get("atria", system_prompts["dagr"])
+
+            def generate_atria():
+                full_reply = ""
+                thinking_open_atria = False  # tracks whether <think> has been opened in full_reply
+
+                tool_result_atria = None
+                if intent != "general" and not file_urls:
+                    yield f"data: {json.dumps({'status': 'tool_running', 'intent': intent})}\n\n"
+                    tool_result_atria = run_tool(intent, prompt)
+
+                final_system_atria = atria_system
+                tool_context_atria = build_tool_context(tool_result_atria)
+                if tool_context_atria:
+                    final_system_atria += "\n\n" + tool_context_atria
+
+                if tool_result_atria:
+                    badge_payload = json.dumps({"tool_used": tool_result_atria.get("tool", ""), "intent": intent})
+                    yield f"data: {badge_payload}\n\n"
+                    sp = build_sources_payload(tool_result_atria)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                atria_messages = (
+                    [{"role": "system", "content": final_system_atria}]
+                    + active_memory[-20:]
+                )
+                resp, err = call_nararouter_stream(atria_messages, nara_key_atria, "atria-dawn", max_tokens=16000, enable_thinking=True)
+
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'Atria unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+
+                try:
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                logger.warning(f"⚠️ [ATRIA] mid-stream error: {chunk['error']}")
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            delta_atria = choices[0].get("delta") or {}
+                            reasoning_token_atria = delta_atria.get("reasoning_content") or ""
+                            token = delta_atria.get("content") or ""
+                            if reasoning_token_atria:
+                                if not thinking_open_atria:
+                                    full_reply += "<think>"
+                                    thinking_open_atria = True
+                                full_reply += reasoning_token_atria
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token_atria}, ensure_ascii=False)}\n\n"
+                            if token:
+                                if thinking_open_atria:
+                                    full_reply += "</think>"
+                                    thinking_open_atria = False
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.warning(f"⚠️ [ATRIA] skipped unparsable stream chunk: {parse_err}")
+                            continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [ATRIA] stream network error: {e}")
+                except Exception as e:
+                    _log_unexpected("ATRIA stream", e)
+
+                if thinking_open_atria:
+                    full_reply += "</think>"
+
+                if full_reply.strip():
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                else:
+                    # Stream ended with zero tokens and no explicit error was
+                    # raised above (e.g. an unrecognized upstream response
+                    # shape slipped past every parser). Surface *something*
+                    # actionable instead of silently falling through to the
+                    # frontend's generic "No response received" message.
+                    logger.warning("⚠️ [ATRIA] stream ended with an empty reply and no error")
+                    yield f"data: {json.dumps({'error': 'Atria returned an empty response. Please try again.'})}\n\n"
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_atria(),
+                media_type="text/event-stream",
+                headers=_rl({
+                    "Cache-Control": "no-cache",
+                    "Set-Cookie": build_session_cookie(session_id),
+                })
+            )
+
         # ── MERCURY 2: Inception Labs API (INCEPTION_API_KEY) — mercury-2 ──
         if model_key == "mercury2":
             merc_key    = os.getenv("INCEPTION_API_KEY", "")
@@ -6961,6 +7066,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "glm":     [],  # Routed via Z.ai API (ZAI_API_KEY) — glm-4.7-flash (free)
             "agnes":      [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — agnes-3-flash
             "ox_alpha_bynara": [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — agnes-3-flash (full reasoning enabled)
+            "atria":       [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — atria-dawn (full reasoning + tools enabled)
             "mercury2": [],  # Routed via Inception Labs API (INCEPTION_API_KEY) — mercury-2
             "muse_glimmer": [],  # Routed via NVIDIA NIM API (NVIDIA_API_KEY) — meta/muse-glimmer-30b
             "laguna_core": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2.1
@@ -8148,6 +8254,99 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_oxab_get(), media_type="text/event-stream",
+                headers=_rl({"Cache-Control": "no-cache",
+                         "Set-Cookie": build_session_cookie(session_id)})
+            )
+
+        # ── ATRIA: NaraRouter API (NARAROUTER_API_KEY) — atria-dawn (full reasoning + tools) — GET handler ──
+        if model_key == "atria":
+            nara_key_atria_get   = os.getenv("NARAROUTER_API_KEY", "")
+            atria_system_get     = system_prompts.get("atria", system_prompts["dagr"])
+
+            def generate_atria_get():
+                full_reply = ""
+                thinking_open_atria_get = False  # tracks whether <think> has been opened in full_reply
+
+                tool_result_atria_get = None
+                if intent != "general" and not file_urls:
+                    yield f"data: {json.dumps({'status': 'tool_running', 'intent': intent})}\n\n"
+                    tool_result_atria_get = run_tool(intent, prompt)
+
+                final_system_atria_get = atria_system_get
+                tool_context_atria_get = build_tool_context(tool_result_atria_get)
+                if tool_context_atria_get:
+                    final_system_atria_get += "\n\n" + tool_context_atria_get
+
+                if tool_result_atria_get:
+                    badge_payload = json.dumps({"tool_used": tool_result_atria_get.get("tool", ""), "intent": intent})
+                    yield f"data: {badge_payload}\n\n"
+                    sp = build_sources_payload(tool_result_atria_get)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                atria_messages_get = (
+                    [{"role": "system", "content": final_system_atria_get}]
+                    + active_memory[-20:]
+                )
+                resp, err = call_nararouter_stream(atria_messages_get, nara_key_atria_get, "atria-dawn", max_tokens=16000, enable_thinking=True)
+
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'Atria unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+
+                try:
+                    for line in resp.iter_lines():
+                        if not line:
+                            continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "):
+                            continue
+                        payload = decoded[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                break
+                            choices = chunk.get("choices")
+                            if not choices:
+                                continue
+                            delta_atria_get = choices[0].get("delta") or {}
+                            reasoning_token_atria_get = delta_atria_get.get("reasoning_content") or ""
+                            token = delta_atria_get.get("content") or ""
+                            if reasoning_token_atria_get:
+                                if not thinking_open_atria_get:
+                                    full_reply += "<think>"
+                                    thinking_open_atria_get = True
+                                full_reply += reasoning_token_atria_get
+                                yield f"data: {json.dumps({'thinking_token': reasoning_token_atria_get}, ensure_ascii=False)}\n\n"
+                            if token:
+                                if thinking_open_atria_get:
+                                    full_reply += "</think>"
+                                    thinking_open_atria_get = False
+                                full_reply += token
+                                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
+                            logger.debug(f"⚠️ [ATRIA GET] skipped unparsable stream chunk: {parse_err}")
+                            continue
+                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    logger.warning(f"⚠️ [ATRIA GET] stream network error: {e}")
+                except Exception as e:
+                    _log_unexpected("ATRIA GET stream", e)
+                if thinking_open_atria_get:
+                    full_reply += "</think>"
+                if full_reply.strip():
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                else:
+                    logger.warning("⚠️ [ATRIA GET] stream ended with an empty reply and no error")
+                    yield f"data: {json.dumps({'error': 'Atria returned an empty response. Please try again.'})}\n\n"
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_atria_get(), media_type="text/event-stream",
                 headers=_rl({"Cache-Control": "no-cache",
                          "Set-Cookie": build_session_cookie(session_id)})
             )

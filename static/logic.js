@@ -6069,6 +6069,7 @@ const MODEL_ICONS = {
     agnes:          'agnes-.jpg',
     ox_alpha_bynara: 'ox-alpha.png',
     apep:           'catura.png',
+    atria:          'ox-alpha.png',
     cohere:         'Cohere.png',
     gemma:          'google.png',
     gemma4:         'google.png',
@@ -6144,7 +6145,7 @@ window.toggleModelSelector = function (e) {
             dropdown.classList.add('open');
             btn.classList.add('open');
 
-            const moreModels = ['apep', 'gemma', 'gemma4', 'nivo', 'laguna_core', 'laguna_s', 'laguna_lite', 'nemotron','omni','glm','cohere','agnes','ox_alpha_bynara','muse_glimmer'];
+            const moreModels = ['apep', 'atria', 'gemma', 'gemma4', 'nivo', 'laguna_core', 'laguna_s', 'laguna_lite', 'nemotron','omni','glm','cohere','agnes','ox_alpha_bynara','muse_glimmer'];
             const puterModelsList = ['claude_puter','gpt5_puter','gemini_puter'];
             if (moreModels.includes(selectedModel)) {
                 requestAnimationFrame(() => {
@@ -6192,7 +6193,7 @@ window.toggleModelSelector = function (e) {
             dropdown.classList.add('open');
             btn.classList.add('open');
 
-            const moreModels = ['apep', 'gemma', 'gemma4', 'nivo', 'laguna_core', 'laguna_s', 'laguna_lite','nemotron','omni', 'cohere','glm','agnes','ox_alpha_bynara','muse_glimmer'];
+            const moreModels = ['apep', 'atria', 'gemma', 'gemma4', 'nivo', 'laguna_core', 'laguna_s', 'laguna_lite','nemotron','omni', 'cohere','glm','agnes','ox_alpha_bynara','muse_glimmer'];
             const puterModelsList = ['claude_puter','gpt5_puter','gemini_puter'];
             if (moreModels.includes(selectedModel)) {
                 requestAnimationFrame(() => {
