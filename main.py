@@ -869,7 +869,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.484"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.485"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -879,7 +879,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.484", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.485", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -1158,7 +1158,7 @@ async def mcp_handshake_and_list_tools(url: str, headers: dict | None = None):
     init_result, err = await _mcp_rpc(url, "initialize", {
         "protocolVersion": _MCP_PROTOCOL_VERSION,
         "capabilities": {},
-        "clientInfo": {"name": "Catura AI", "version": "0.0.484"},
+        "clientInfo": {"name": "Catura AI", "version": "0.0.485"},
     }, headers)
     if err:
         return None, err
@@ -4613,7 +4613,7 @@ def call_sambhav_groq_stream(messages, api_key, max_completion_tokens=12000):
                 "Content-Type": "application/json",
             },
             json={
-                "model": "qwen/qwen3.6-27b",
+                "model": "qwen/qwen3.8-27b",
                 "messages": messages,
                 "stream": True,
                 "temperature": 0.4,
