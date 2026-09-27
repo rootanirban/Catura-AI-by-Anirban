@@ -616,7 +616,12 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # ✅ CORS MIDDLEWARE
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://catura.duckdns.org", "https://my-ai-assistant-9bbd.onrender.com"],
+    allow_origins=[
+        "https://catura.duckdns.org",
+        "https://my-ai-assistant-9bbd.onrender.com",
+        "http://localhost:8018",
+        "https://your-hotel-domain.com",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -864,7 +869,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.482"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.483"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -874,7 +879,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.482", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.483", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -898,6 +903,77 @@ def _resolve_owner(auth: dict, client_supplied_user_id: str | None) -> str:
     if client_supplied_user_id and client_supplied_user_id != auth["user_id"]:
         raise HTTPException(status_code=403, detail="user_id does not match authenticated user")
     return auth["user_id"]
+
+# ============================================================
+# 🌐 PUBLIC WIDGET CHAT ENDPOINT — for embedding Catura on external
+# sites (e.g. the Roovena hotel widget). No Supabase auth required.
+# Separate rate limit (per-IP) from the main /chat quota (per-user).
+# To remove widget access later: delete this endpoint + its CORS
+# origin entry (in the CORSMiddleware block above) and redeploy.
+# Nothing else depends on it.
+# ============================================================
+class WidgetChatRequest(_MemBaseModel):
+    message: str
+    history: list = []
+
+@app.post("/api/widget/chat")
+@limiter.limit("10/minute")
+async def widget_chat(request: Request, req: WidgetChatRequest):
+    try:
+        message = (req.message or "").strip()[:2000]
+        if not message:
+            return JSONResponse({"ok": False, "error": "Empty message"}, status_code=400)
+
+        system_prompt = (
+            "You are Roovena AI, a helpful hotel assistant for Roovena Luxury Hotel. "
+            "Answer questions about bookings, rooms, pricing, amenities, and check-in/out "
+            "clearly and briefly. If you don't know something hotel-specific, say so and "
+            "suggest contacting the front desk."
+        )
+        messages = [{"role": "system", "content": system_prompt}]
+        for turn in req.history[-10:]:
+            role = turn.get("role")
+            content = turn.get("content", "")
+            if role in ("user", "assistant") and content:
+                messages.append({"role": role, "content": content[:2000]})
+        messages.append({"role": "user", "content": message})
+
+        groq_key = os.getenv("GROQ_API_KEY", "")
+        if not groq_key:
+            return JSONResponse({"ok": False, "error": "AI not configured"}, status_code=503)
+
+        resp, err = await _db(call_sambhav_groq_stream, messages, groq_key, 800)
+        if err:
+            logger.warning(f"⚠️ [Widget chat] failed: {err}")
+            return JSONResponse({"ok": False, "error": "AI request failed"}, status_code=502)
+
+        # Collect the streamed SSE chunks into one plain-text reply
+        full_reply = ""
+        for line in resp.iter_lines():
+            if not line:
+                continue
+            line = line.decode("utf-8") if isinstance(line, bytes) else line
+            if not line.startswith("data: "):
+                continue
+            data_str = line[6:]
+            if data_str.strip() == "[DONE]":
+                break
+            try:
+                chunk = json.loads(data_str)
+                delta = chunk.get("choices", [{}])[0].get("delta", {})
+                full_reply += delta.get("content", "") or ""
+            except (json.JSONDecodeError, KeyError, IndexError):
+                continue
+
+        if not full_reply.strip():
+            return JSONResponse({"ok": False, "error": "Empty AI response"}, status_code=502)
+
+        return JSONResponse({"ok": True, "reply": full_reply.strip()})
+
+    except Exception as e:
+        _log_unexpected("Widget chat", e)
+        return JSONResponse({"ok": False, "error": "Something went wrong"}, status_code=500)
+
 
 # ============================================================
 # ✅ SKILLS FEATURE — Stage 1: data layer + endpoints
@@ -1073,7 +1149,7 @@ async def mcp_handshake_and_list_tools(url: str, headers: dict | None = None):
     init_result, err = await _mcp_rpc(url, "initialize", {
         "protocolVersion": _MCP_PROTOCOL_VERSION,
         "capabilities": {},
-        "clientInfo": {"name": "Catura AI", "version": "0.0.482"},
+        "clientInfo": {"name": "Catura AI", "version": "0.0.483"},
     }, headers)
     if err:
         return None, err
