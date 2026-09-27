@@ -869,7 +869,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.483"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.484"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -879,7 +879,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.483", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.484", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -942,28 +942,37 @@ async def widget_chat(request: Request, req: WidgetChatRequest):
         if not groq_key:
             return JSONResponse({"ok": False, "error": "AI not configured"}, status_code=503)
 
-        resp, err = await _db(call_sambhav_groq_stream, messages, groq_key, 800)
+        def _call_and_collect():
+            """Runs entirely in a worker thread: calls Groq, then reads the
+            whole SSE stream to completion. Keeping both steps together (and
+            off the event loop) avoids blocking Uvicorn's single event loop
+            on the network read, which was causing Render's proxy to time
+            out the request and return 502 before the reply was ready."""
+            resp, call_err = call_sambhav_groq_stream(messages, groq_key, 800)
+            if call_err:
+                return None, call_err
+            reply = ""
+            for line in resp.iter_lines():
+                if not line:
+                    continue
+                line = line.decode("utf-8") if isinstance(line, bytes) else line
+                if not line.startswith("data: "):
+                    continue
+                data_str = line[6:]
+                if data_str.strip() == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(data_str)
+                    delta = chunk.get("choices", [{}])[0].get("delta", {})
+                    reply += delta.get("content", "") or ""
+                except (json.JSONDecodeError, KeyError, IndexError):
+                    continue
+            return reply, None
+
+        full_reply, err = await _db(_call_and_collect)
         if err:
             logger.warning(f"⚠️ [Widget chat] failed: {err}")
             return JSONResponse({"ok": False, "error": "AI request failed"}, status_code=502)
-
-        # Collect the streamed SSE chunks into one plain-text reply
-        full_reply = ""
-        for line in resp.iter_lines():
-            if not line:
-                continue
-            line = line.decode("utf-8") if isinstance(line, bytes) else line
-            if not line.startswith("data: "):
-                continue
-            data_str = line[6:]
-            if data_str.strip() == "[DONE]":
-                break
-            try:
-                chunk = json.loads(data_str)
-                delta = chunk.get("choices", [{}])[0].get("delta", {})
-                full_reply += delta.get("content", "") or ""
-            except (json.JSONDecodeError, KeyError, IndexError):
-                continue
 
         if not full_reply.strip():
             return JSONResponse({"ok": False, "error": "Empty AI response"}, status_code=502)
@@ -1149,7 +1158,7 @@ async def mcp_handshake_and_list_tools(url: str, headers: dict | None = None):
     init_result, err = await _mcp_rpc(url, "initialize", {
         "protocolVersion": _MCP_PROTOCOL_VERSION,
         "capabilities": {},
-        "clientInfo": {"name": "Catura AI", "version": "0.0.483"},
+        "clientInfo": {"name": "Catura AI", "version": "0.0.484"},
     }, headers)
     if err:
         return None, err
