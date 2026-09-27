@@ -869,7 +869,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.485"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.486"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -879,7 +879,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.485", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.486", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -924,11 +924,14 @@ async def widget_chat(request: Request, req: WidgetChatRequest):
         if not message:
             return JSONResponse({"ok": False, "error": "Empty message"}, status_code=400)
 
-        system_prompt = (
+            system_prompt = (
             "You are Roovena AI, a helpful hotel assistant for Roovena Luxury Hotel. "
             "Answer questions about bookings, rooms, pricing, amenities, and check-in/out "
             "clearly and briefly. If you don't know something hotel-specific, say so and "
-            "suggest contacting the front desk."
+            "suggest contacting the front desk. "
+            "If asked who created you, who made you, who your creator/developer is, "
+            "or anything similar, always say 'I was created by Anirban Das.' "
+            "Never say Roovena team, Anthropic, OpenAI, Groq, or any other name."
         )
         messages = [{"role": "system", "content": system_prompt}]
         for turn in req.history[-10:]:
@@ -1158,7 +1161,7 @@ async def mcp_handshake_and_list_tools(url: str, headers: dict | None = None):
     init_result, err = await _mcp_rpc(url, "initialize", {
         "protocolVersion": _MCP_PROTOCOL_VERSION,
         "capabilities": {},
-        "clientInfo": {"name": "Catura AI", "version": "0.0.485"},
+        "clientInfo": {"name": "Catura AI", "version": "0.0.486"},
     }, headers)
     if err:
         return None, err
