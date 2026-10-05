@@ -864,7 +864,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.490"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.491"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -874,7 +874,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.490", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.491", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -1073,7 +1073,7 @@ async def mcp_handshake_and_list_tools(url: str, headers: dict | None = None):
     init_result, err = await _mcp_rpc(url, "initialize", {
         "protocolVersion": _MCP_PROTOCOL_VERSION,
         "capabilities": {},
-        "clientInfo": {"name": "Catura AI", "version": "0.0.490"},
+        "clientInfo": {"name": "Catura AI", "version": "0.0.491"},
     }, headers)
     if err:
         return None, err
@@ -4354,7 +4354,7 @@ def call_groq_stream(messages, api_key):
                 "Content-Type": "application/json",
             },
             json={
-                "model": "groq/compound",
+                "model": "openai/gpt-oss-120b",
                 "messages": messages,
                 "stream": True,
                 "temperature": 0.3,
@@ -4896,7 +4896,7 @@ def _sanitize_generated_title(raw: str) -> str:
     is ever shown to the user or saved to Supabase.
 
     Some Groq/OpenRouter models — especially reasoning-tuned ones like
-    "groq/compound" — emit their internal chain-of-thought directly inside
+    "openai/gpt-oss-120b" — emit their internal chain-of-thought directly inside
     the `content` field itself, wrapped in <think>...</think>, instead of a
     separate `reasoning_content` field. If that ever gets fed straight into
     a chat title with a naive `[:60]` slice, the visible title becomes
@@ -4994,7 +4994,7 @@ async def generate_title(request: Request):
                     # Plain fast instruct model, currently live on Groq's
                     # catalog (verified against Groq's model list — Llama
                     # 3.3 70B Versatile and older Llama models have since
-                    # been decommissioned by Groq, same as groq/compound was
+                    # been decommissioned by Groq, same as openai/gpt-oss-120b was
                     # before it). gpt-oss models support "reasoning_effort";
                     # pinned to "low" to keep responses terse and reduce the
                     # chance of any chain-of-thought leaking into `content`
