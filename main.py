@@ -864,7 +864,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.492"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.493"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -874,7 +874,7 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.492", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.493", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
@@ -1073,7 +1073,7 @@ async def mcp_handshake_and_list_tools(url: str, headers: dict | None = None):
     init_result, err = await _mcp_rpc(url, "initialize", {
         "protocolVersion": _MCP_PROTOCOL_VERSION,
         "capabilities": {},
-        "clientInfo": {"name": "Catura AI", "version": "0.0.492"},
+        "clientInfo": {"name": "Catura AI", "version": "0.0.493"},
     }, headers)
     if err:
         return None, err
@@ -5154,7 +5154,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
         GEMMA_GOOGLE_MODELS = {
             "gemma":    "gemma-4-26b-a4b-it",
             "gemma4":   "gemma-4-31b-it",
-            "gemini35flash": "gemini-3.5-flash-lite",
+            "gemini35flash": "gemini-3.8-flash", #if it not work then use gemini-3.5-flash-lite
         }
         model_pools = {
             "dagr":    ["inclusionai/ling-3.0-flash-sante:free", "apodex/apodex-1.1-mini:free"],
@@ -7056,7 +7056,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
         GEMMA_GOOGLE_MODELS = {
             "gemma":    "gemma-4-26b-a4b-it",
             "gemma4":   "gemma-4-31b-it",
-            "gemini35flash": "gemini-3.5-flash-lite",
+            "gemini35flash": "gemini-3.8-flash", #not work then change it to gemini-3.5-flash-lite
         }
         model_pools = {
             "dagr":    ["inclusionai/ling-3.0-flash-sante:free", "apodex/apodex-1.1-mini:free"],
