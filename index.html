@@ -6,17 +6,9 @@
     <meta name="description" content="Catura AI is a powerful free AI chatbot assistant for chatting, coding, writing, studying, research, and answering questions instantly. Powered by advanced AI models like Gemma and GPT.">
     <meta name="robots" content="index, follow">
     <meta name="google-site-verification" content="qiQ1Xx00fMsEhl6f4cmRXiJg-16rT3M_sg4kDAt5y1Q" />
-    <!-- ✅ CACHE BUSTING - NEVER CACHE HTML -->
-    <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="pragma" content="no-cache">
-    <meta http-equiv="expires" content="0">
     <title>Catura AI</title>
-    <link rel="icon" type="image/png" href="static/logos.png"> 
-    <meta name="title" content="Catura AI - Free AI Chatbot Assistant Like ChatGPT & Claude">
-    <meta name="keywords" content="Catura AI, AI chatbot, free AI assistant, ChatGPT alternative, Claude alternative, Gemini AI, coding AI, AI chat app, AI for students, AI search engine, free chatbot, AI writing assistant, AI coding assistant">
+    <link rel="icon" type="image/png" href="static/logos.png">
     <meta name="author" content="Catura AI">
-    <meta name="language" content="English">
-    <meta name="revisit-after" content="1 days">
     <!-- Canonical URL -->
     <link rel="canonical" href="https://catura.duckdns.org/">
     <!-- Open Graph / Facebook / Discord -->
@@ -113,41 +105,20 @@
     <!-- Extra SEO -->
     <meta name="application-name" content="Catura AI">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="format-detection" content="telephone=no">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="creator" content="rootanirban">
-    <meta name="publisher" content="Catura AI">
-    <meta name="designer" content="rootanirban">
-    <meta name="copyright" content="2026 Catura AI">
-    <meta name="owner" content="rootanirban">
-    <meta name="coverage" content="Worldwide">
-    <meta name="distribution" content="Global">
-    <meta name="rating" content="General">
-    <meta name="target" content="all">
-    <meta name="audience" content="Everyone">
     <!-- Bing -->
-    <meta name="msapplication-TileColor" content="#000000">
     <!-- Geo -->
-    <meta name="geo.region" content="IN">
-    <meta name="geo.country" content="India">
     <!-- AI / Semantic SEO -->
-    <meta name="subject" content="Artificial Intelligence">
-    <meta name="topic" content="AI Chatbot Assistant">
-    <meta name="summary" content="Free AI chatbot assistant for coding, writing, research and studying">
-    <meta name="classification" content="Artificial Intelligence">
-    <meta name="category" content="Technology">
     <!-- Referrer -->
     <meta name="referrer" content="origin-when-cross-origin">
     <!-- Security -->
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <!-- ✅ CACHE BUSTING - VERSION PARAMETER -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-    <link rel="stylesheet" href="static/style.css?v=0.0.494">   <!-- this is CSS linking section -->
-    
+    <link rel="stylesheet" href="static/style.css?v=0.0.495">   <!-- this is CSS linking section -->
+
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#000000" />
 </head>
 <body>
 
@@ -247,7 +218,7 @@
             <span class="sidebar-brand">
                 <img src="static/logo.png" alt="Catura AI Logo" class="sidebar-logo"> Catura AI
             </span>
-            <button class="close-btn" onclick="closeSidebar()">✕</button>
+            <button type="button" class="close-btn" aria-label="Close" onclick="closeSidebar()">✕</button>
         </div>
 
         <div class="sidebar-menu" id="sidebarMenu">
@@ -556,7 +527,7 @@
                 <div class="model-more-panel" id="moreModelsPanel">
                     <!-- <div class="model-more-panel-title">More models</div> -->
                     <!-- Back button — mobile only -->
-                    <button class="model-more-back-btn" id="moreModelsBackBtn" onclick="goBackToMainModels(event)">
+                    <button type="button" class="model-more-back-btn" aria-label="Back" id="moreModelsBackBtn" onclick="goBackToMainModels(event)">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
                         Back to models
                     </button>
@@ -689,7 +660,7 @@
                 <div class="model-more-panel" id="puterModelsPanel">
                     <div class="model-more-panel-title">Puter models</div>
                     <!-- Back button — mobile only — returns to More models panel -->
-                    <button class="model-more-back-btn" id="puterModelsBackBtn" onclick="goBackToMoreModels(event)">
+                    <button type="button" class="model-more-back-btn" aria-label="Back" id="puterModelsBackBtn" onclick="goBackToMoreModels(event)">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
                         Back to more models
                     </button>
@@ -760,7 +731,7 @@
     <div id="claudePuterInfoModal" class="claude-puter-modal">
         <div class="claude-puter-modal-overlay" onclick="closeClaudePuterInfoModal()"></div>
         <div class="claude-puter-modal-content">
-            <button class="claude-puter-close-btn" onclick="closeClaudePuterInfoModal()">✕</button>
+            <button type="button" class="claude-puter-close-btn" aria-label="Close" onclick="closeClaudePuterInfoModal()">✕</button>
 
             <div class="claude-puter-modal-icon">
                 <img id="puterInfoModalIcon" src="static/icons/claude.png" alt="Model icon" width="48" height="48" onerror="this.style.display='none'">
@@ -771,16 +742,16 @@
             </div>
 
             <p class="claude-puter-modal-text">
-                This model is provided through our trusted external partner, <strong>Puter</strong>. To use it, you'll be asked to sign in to your Puter account once via a secure pop-up window. 
+                This model is provided through our trusted external partner, <strong>Puter</strong>. To use it, you'll be asked to sign in to your Puter account once via a secure pop-up window.
                 This one-time authentication is required before you can begin chatting with the model.
             </p>
             <p class="claude-puter-modal-text">
-                We sincerely apologize for any inconvenience this may cause. While we understand this additional step isn't ideal, it allows us to bring advanced AI capabilities to our community while we continue working toward a fully integrated experience. 
+                We sincerely apologize for any inconvenience this may cause. While we understand this additional step isn't ideal, it allows us to bring advanced AI capabilities to our community while we continue working toward a fully integrated experience.
                 Thank you for your understanding, patience, and continued support—it truly means a great deal to us.<br>
                 <strong>— Anirban & Team</strong>
             </p>
 
-            <button class="claude-puter-modal-btn" onclick="closeClaudePuterInfoModal()">Got it</button>
+            <button type="button" class="claude-puter-modal-btn" onclick="closeClaudePuterInfoModal()">Got it</button>
         </div>
     </div>
 
@@ -788,8 +759,8 @@
     <div id="feedbackModal" class="feedback-modal">
         <div class="feedback-modal-overlay" onclick="closeFeedbackModal()"></div>
         <div class="feedback-modal-content">
-            <button class="feedback-close-btn" onclick="closeFeedbackModal()">✕</button>
-            
+            <button type="button" class="feedback-close-btn" aria-label="Close" onclick="closeFeedbackModal()">✕</button>
+
             <div class="feedback-modal-header">
                 <h2 id="feedbackModalTitle">Send Feedback</h2>
             </div>
@@ -797,10 +768,10 @@
             <form id="feedbackForm" class="feedback-form">
                 <div class="form-group">
                     <label for="feedbackName">Name</label>
-                    <input 
-                        type="text" 
-                        id="feedbackName" 
-                        placeholder="Your name" 
+                    <input
+                        type="text"
+                        id="feedbackName"
+                        placeholder="Your name"
                         required
                         autocomplete="name"
                     >
@@ -808,10 +779,10 @@
 
                 <div class="form-group">
                     <label for="feedbackEmail">Email</label>
-                    <input 
-                        type="email" 
-                        id="feedbackEmail" 
-                        placeholder="your@email.com" 
+                    <input
+                        type="email"
+                        id="feedbackEmail"
+                        placeholder="your@email.com"
                         required
                         autocomplete="email"
                     >
@@ -819,9 +790,9 @@
 
                 <div class="form-group">
                     <label for="feedbackText">Message</label>
-                    <textarea 
-                        id="feedbackText" 
-                        placeholder="Tell us your thoughts..." 
+                    <textarea
+                        id="feedbackText"
+                        placeholder="Tell us your thoughts..."
                         rows="5"
                         required
                     ></textarea>
@@ -876,20 +847,20 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
-    
+
     <!-- ✅ CACHE BUSTING - VERSION PARAMETER -->
-    <script src="static/firebase-config.js?v=0.0.494"></script>
-    <script src="static/live-sync.js?v=0.0.494"></script>
-    <script src="static/logic.js?v=0.0.494"></script>
-    <script src="static/feedback.js?v=0.0.494"></script>
-    <script src="static/file-upload.js?v=0.0.494"></script>
+    <script src="static/firebase-config.js?v=0.0.495"></script>
+    <script src="static/live-sync.js?v=0.0.495"></script>
+    <script src="static/logic.js?v=0.0.495"></script>
+    <script src="static/feedback.js?v=0.0.495"></script>
+    <script src="static/file-upload.js?v=0.0.495"></script>
 
     <script>
         console.log('🚀 Catura AI v27.0.5 loaded');
-        
+
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js?v=0.0.494')
+                navigator.serviceWorker.register('/service-worker.js?v=0.0.495')
                     .then(() => console.log('✅ Catura AI PWA Ready - v27.0.5'))
                     .catch((err) => console.log('❌ SW Error:', err));
             });

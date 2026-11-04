@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, File, UploadFile, Depends, HTTPException, Header
+from fastapi import FastAPI, Request, Depends, HTTPException, Header
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,7 +20,6 @@ import io
 from PIL import Image
 from duckduckgo_search import DDGS
 from wiki import search_wikipedia
-import re
 import logging
 
 # ── Centralized logging ────────────────────────────────────────────────────
@@ -802,8 +801,6 @@ FIRECRAWL_API_KEY   = os.getenv("FIRECRAWL_API_KEY", "")            # https://fi
 COHERE_API_KEY      = os.getenv("COHERE_API_KEY", "")               # https://cohere.com (1000 free reranks/month)
 
 
-
-
 # ============================================================
 # ✅ CACHE CONTROL MIDDLEWARE
 # ============================================================
@@ -864,7 +861,7 @@ def share_page(slug: str):
 
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.494"}
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.495"}
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
@@ -874,11 +871,10 @@ def google_verify():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.494", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "version": "0.0.495", "timestamp": datetime.utcnow().isoformat()}
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
-from typing import List as _MemList
 
 class MemorySaveRequest(_MemBaseModel):
     memory_text: str
@@ -1070,10 +1066,10 @@ async def mcp_handshake_and_list_tools(url: str, headers: dict | None = None):
     initialize → notifications/initialized → tools/list.
     Returns (tools_list, error).
     """
-    init_result, err = await _mcp_rpc(url, "initialize", {
+    _, err = await _mcp_rpc(url, "initialize", {
         "protocolVersion": _MCP_PROTOCOL_VERSION,
         "capabilities": {},
-        "clientInfo": {"name": "Catura AI", "version": "0.0.494"},
+        "clientInfo": {"name": "Catura AI", "version": "0.0.495"},
     }, headers)
     if err:
         return None, err
@@ -1196,7 +1192,6 @@ async def run_connector_tool(user_id: str, prompt: str):
         "tool_name": tool.get("name"),
         "output": text,
     }
-
 
 
 def _parse_skill_md(raw: str, fallback_name: str = "Untitled Skill") -> dict:
@@ -1965,17 +1960,14 @@ async def serve_sitemap():
     return FileResponse(p, media_type="application/xml")
 
 
-
-
 # ============================================================
 # 🔒 PRIVACY SYSTEM — Analytics & Training Data Endpoints
 # ============================================================
 
 import re as _re
-import asyncio
 from pydantic import BaseModel as _BaseModel
 from typing import Optional as _Optional, List as _List, Any as _Any, Dict as _Dict
-from datetime import datetime as _dt, timezone as _tz
+from datetime import datetime as _dt
 
 # ── PII Sanitizer (mirrors frontend) ─────────────────────────
 _PII_PATTERNS = [
@@ -2274,7 +2266,6 @@ async def location_metadata_from_ip(request: Request):
     return JSONResponse(content={"timezone": "UTC", "locale": "en"})
 
 
-
 # Returns: weather | finance | sports | news | web_search | general
 # ============================================================
 def detect_intent(text: str) -> str:
@@ -2559,7 +2550,7 @@ def detect_intent(text: str) -> str:
     )
     if any(re.search(p, lower) for p in all_web_search_patterns):
         return "web_search"
-    
+
     # ══════════════════════════════════════════════════════════════════════
     # DEFAULT: GENERAL — trust the LLM's training
     # Handles: explanations, definitions, code, math, opinions, casual chat,
@@ -3911,7 +3902,7 @@ def build_tool_context(tool_result: dict) -> str:
         idx = 1
         for r in tool_result.get("results", []):
             if r.get("is_direct_answer"):
-                lines.append(f"\n⭐ DIRECT ANSWER (Tavily AI synthesis — treat as highest-confidence source):")
+                lines.append("\n⭐ DIRECT ANSWER (Tavily AI synthesis — treat as highest-confidence source):")
                 lines.append(f"   {r['body']}")
             else:
                 lines.append(f"\n{idx}. {r['title']}")
@@ -4223,7 +4214,6 @@ def call_gemini_stream(messages, system_prompt):
     except Exception as e:
         _log_unexpected("call_gemini_stream", e)
         return None, _client_safe_error(e, "call_gemini_stream")
-
 
 
 # ============================================================
@@ -5052,7 +5042,6 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
         ghost_history = body.get("ghost_history", [])   # list of {role, content}
         user_memories_list = body.get("user_memories", [])   # 🧠 memory injection
         # Legacy web_results from frontend removed — backend handles all search internally
-        web_results = []
 
         # ── FAIR-USE QUOTA: 15 messages per model per rolling 20-minute window ──
         # Checked before any upstream AI call so a blocked request never burns
@@ -5727,7 +5716,6 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 system_prompt = system_prompt + "\n\n" + build_tool_context(connector_tool_result)
         # ─────────────────────────────────────────────────────────────────────
         base_system_prompt = system_prompt  # save before tool injection
-        messages_base = [{"role": "system", "content": system_prompt}] + active_memory[-20:]
         api_key  = os.getenv("OPENROUTER_API_KEY")
 
         # ── SAMBHAV: qwen/qwen3.8-27b via Groq API ──
@@ -7071,7 +7059,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "muse_glimmer": [],  # Routed via NVIDIA NIM API (NVIDIA_API_KEY) — meta/muse-glimmer-30b
             "laguna_core": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2.1
             "laguna_s":    [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna S.2.1
-            "cohere":     ["cohere/north-mini-code:free"], 
+            "cohere":     ["cohere/north-mini-code:free"],
             "nemotron":["nvidia/nemotron-3-ultra-550b-a55b:free"],
             "n_nano":["nvidia/nemotron-3.5-lightning:free"],
             "omni": ["nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"],

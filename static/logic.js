@@ -622,7 +622,7 @@ async function _memoryDirectFallback(userMessage) {
                     userMemories.push(fact);
                     debugLog('[Memory] ✅ fallback supabase-direct saved:', fact);
                 }
-            } catch (_) {}
+            } catch { /* ignore */ }
         }
     }
 }
@@ -1297,7 +1297,7 @@ window.toggleGhostChat = function () {
 
 function getTimeOfDay() {
     const hour = new Date().getHours();
-    
+
     if (hour >= 5 && hour < 12) return "morning";
     if (hour >= 12 && hour < 17) return "afternoon";
     if (hour >= 17 && hour < 21) return "evening";
@@ -1352,7 +1352,7 @@ function getGreetingMessage(userName) {
             `${userName}, midnight hustle! 💻`,
         ]
     };
-    
+
     const greetingList = greetings[timeOfDay];
     return greetingList[Math.floor(Math.random() * greetingList.length)];
 }
@@ -1469,12 +1469,7 @@ window.openSidebarTo = function (section) {
 // ============================
 // 💡 SUGGESTIONS
 // ============================
-function useSuggestion(el) {
-    const input = document.getElementById("input");
-    input.value = el.innerText.trim();
-    input.focus();
-    if (typeof autoResize === "function") autoResize();
-}
+
 
 // ============================
 // �� QUERY COMPLEXITY DETECTOR
@@ -2322,17 +2317,7 @@ function copyArtifactCode() {
 // ============================
 // 📋 COPY CODE
 // ============================
-function copyCode(btn) {
-    const code = btn.closest(".code-block").querySelector("code").innerText;
-    navigator.clipboard.writeText(code).then(() => {
-        btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span class="copy-btn-label">Copied!</span>`;
-        btn.classList.add("copied");
-        setTimeout(() => {
-            btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span class="copy-btn-label">Copy</span>`;
-            btn.classList.remove("copied");
-        }, 2000);
-    }).catch(() => showToast("Failed to copy code"));
-}
+
 
 // ============================
 // 📋 COPY BOT ANSWER
@@ -2665,7 +2650,7 @@ window.newChat = function () {
         inputArea.classList.add("center");
     }
     if (app) app.classList.add("greeting-mode");
-    
+
     displayGreeting();
     if (typeof window.refreshMsgNavTracker === 'function') window.refreshMsgNavTracker();
 
@@ -2983,19 +2968,7 @@ window.editCaturaCallName = function () {
 // ============================
 // 🔲 COMING SOON HELPER
 // ============================
-function comingSoonSection(title, items) {
-    const rows = items.map(({ icon, label, sub }) => `
-        <div class="sc-row disabled">
-            <svg class="sc-row-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                ${icon}
-            </svg>
-            <div class="sc-row-body">
-                <p class="sc-row-label">${label}</p>
-                <p class="sc-row-sub soon">${sub || 'Coming soon'}</p>
-            </div>
-        </div>`).join('');
-    return `<div class="sc-section"><div class="sc-section-title">${title}</div>${rows}</div>`;
-}
+
 
 window.showSettingsTab = function (tab, clickedEl) {
     document.querySelectorAll(".settings-nav-item").forEach(el => el.classList.remove("active"));
@@ -5205,7 +5178,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         } catch (err) {
             activeAbortController = null;
             setStreamingState(false);
-            try { thinking.remove(); } catch (_) {}
+            try { thinking.remove(); } catch { /* ignore */ }
             // Don't show error if user intentionally stopped the response
             if (err && err.name === 'AbortError') return;
             console.error("❌ AI fetch failed:", err);
@@ -6225,7 +6198,7 @@ function saveRecentModel(modelId, modelName) {
     let list = getRecentModels().filter(m => m.id !== modelId);
     list.unshift({ id: modelId, name: modelName });
     list = list.slice(0, RECENT_MODELS_MAX);
-    try { localStorage.setItem(RECENT_MODELS_KEY, JSON.stringify(list)); } catch (e) {}
+    try { localStorage.setItem(RECENT_MODELS_KEY, JSON.stringify(list)); } catch { /* ignore */ }
 }
 
 function renderRecentModels() {
@@ -7305,7 +7278,7 @@ window.openMFAModal = async function() {
     try {
         const { data } = await supabaseClient.auth.mfa.listFactors();
         existingFactors = (data?.totp || []).filter(f => f.status === 'verified');
-    } catch(e) {}
+    } catch { /* ignore */ }
 
     const isEnabled = existingFactors.length > 0;
 
@@ -7718,7 +7691,7 @@ window.openChangePasswordModal = function () {
                 <p id="chpwResendCountdown" class="chpw-error" style="display:none; color:#10a37f;"></p>
 
                 <p class="chpw-resend-row">
-                    Didn't receive it? 
+                    Didn't receive it?
                     <button class="chpw-resend-btn" id="chpwResendBtn" onclick="chpwResendOtp()">Resend code</button>
                 </p>
 
@@ -8073,7 +8046,7 @@ async function fetchLocationFromIP() {
             debugLog('[Location] IP-derived metadata stored:', meta.city);
             return;
         }
-    } catch (_) {}
+    } catch { /* ignore */ }
 
     // Final fallback: timezone from browser only
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
@@ -8571,10 +8544,6 @@ function openProfileCropModal(imageSrc) {
         img.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
     }
 
-    function clampOffset() {
-        // Allow free movement
-    }
-
     img.onload = function() {
         const naturalW = img.naturalWidth;
         const naturalH = img.naturalHeight;
@@ -8752,4 +8721,3 @@ function closeProfileCropModal() {
     modal.classList.remove('pcm-visible');
     setTimeout(() => modal.remove(), 350);
 }
-
