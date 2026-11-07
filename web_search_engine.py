@@ -27,12 +27,11 @@ from datetime import datetime, timedelta
 from urllib.parse import urlparse
 from typing import Optional
 
-
 # ── API Keys (read from environment) ─────────────────────────────────────────
-TAVILY_KEY    = os.getenv("TAVILY_API_KEY", "")
-SERPER_KEY    = os.getenv("SERPER_API_KEY", "")
+TAVILY_KEY = os.getenv("TAVILY_API_KEY", "")
+SERPER_KEY = os.getenv("SERPER_API_KEY", "")
 FIRECRAWL_KEY = os.getenv("FIRECRAWL_API_KEY", "")
-COHERE_KEY    = os.getenv("COHERE_API_KEY", "")
+COHERE_KEY = os.getenv("COHERE_API_KEY", "")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SEARCH CACHING — store & reuse previous searches with TTL expiration
@@ -43,16 +42,22 @@ COHERE_KEY    = os.getenv("COHERE_API_KEY", "")
 # simple FIFO cap evicts the oldest entry once a cache is full.
 # ══════════════════════════════════════════════════════════════════════════════
 
-CACHE_TTL_SEARCH_RESULTS = int(os.getenv("CACHE_TTL_SEARCH_RESULTS", 900))    # 15 min — search results
-CACHE_TTL_FIRECRAWL      = int(os.getenv("CACHE_TTL_FIRECRAWL", 3600))       # 1 hour — Firecrawl pages
+CACHE_TTL_SEARCH_RESULTS = int(
+    os.getenv("CACHE_TTL_SEARCH_RESULTS", 900)
+)  # 15 min — search results
+CACHE_TTL_FIRECRAWL = int(
+    os.getenv("CACHE_TTL_FIRECRAWL", 3600)
+)  # 1 hour — Firecrawl pages
 # ── ARCHITECTURE REVIEW (Caching): short cooldown for a FAILED Firecrawl
 # fetch, so repeated calls to the same dead/slow URL within one pipeline run
 # don't each re-pay the full 5s timeout. Deliberately much shorter than
 # CACHE_TTL_FIRECRAWL — a transient failure shouldn't blacklist a URL for an
 # hour, just long enough to absorb a burst within one request.
 FIRECRAWL_NEGATIVE_CACHE_TTL = int(os.getenv("FIRECRAWL_NEGATIVE_CACHE_TTL", 60))
-CACHE_TTL_EMBEDDINGS     = int(os.getenv("CACHE_TTL_EMBEDDINGS", 86400))     # 24 hours — embeddings/vectors
-CACHE_MAX_ENTRIES        = int(os.getenv("CACHE_MAX_ENTRIES", 2000))         # per-cache entry cap
+CACHE_TTL_EMBEDDINGS = int(
+    os.getenv("CACHE_TTL_EMBEDDINGS", 86400)
+)  # 24 hours — embeddings/vectors
+CACHE_MAX_ENTRIES = int(os.getenv("CACHE_MAX_ENTRIES", 2000))  # per-cache entry cap
 
 # ── ARCHITECTURE REVIEW (Security): cap on incoming query length, enforced
 # once at the top-level pipeline entry point (run_production_search) — see
@@ -72,8 +77,8 @@ class _TTLCache:
     """
 
     def __init__(self, default_ttl: int, max_entries: int = CACHE_MAX_ENTRIES):
-        self._store: dict[str, tuple[float, object]] = {}   # key -> (expires_at, value)
-        self._order: list[str] = []                          # insertion order, for FIFO eviction
+        self._store: dict[str, tuple[float, object]] = {}  # key -> (expires_at, value)
+        self._order: list[str] = []  # insertion order, for FIFO eviction
         self._lock = threading.Lock()
         self._default_ttl = default_ttl
         self._max_entries = max_entries
@@ -101,7 +106,10 @@ class _TTLCache:
             if key not in self._store and len(self._store) >= self._max_entries:
                 oldest = self._order.pop(0)
                 self._store.pop(oldest, None)
-            self._store[key] = (time.time() + (ttl if ttl is not None else self._default_ttl), value)
+            self._store[key] = (
+                time.time() + (ttl if ttl is not None else self._default_ttl),
+                value,
+            )
             if key not in self._order:
                 self._order.append(key)
 
@@ -109,9 +117,9 @@ class _TTLCache:
         with self._lock:
             total = self.hits + self.misses
             return {
-                "entries":  len(self._store),
-                "hits":     self.hits,
-                "misses":   self.misses,
+                "entries": len(self._store),
+                "hits": self.hits,
+                "misses": self.misses,
                 "hit_rate": round(self.hits / total, 3) if total else 0.0,
             }
 
@@ -126,20 +134,20 @@ def _cache_key(*parts) -> str:
 # a burst of embedding lookups can't push out cached search results (or
 # vice versa).
 _search_results_cache = _TTLCache(CACHE_TTL_SEARCH_RESULTS)
-_firecrawl_cache       = _TTLCache(CACHE_TTL_FIRECRAWL)
-_embedding_cache       = _TTLCache(CACHE_TTL_EMBEDDINGS)
+_firecrawl_cache = _TTLCache(CACHE_TTL_FIRECRAWL)
+_embedding_cache = _TTLCache(CACHE_TTL_EMBEDDINGS)
 
 # ── NEW: LLM Query Planner config ─────────────────────────────────────────────
 # Reuses the Anthropic API (same account already used elsewhere). A small,
 # fast model is deliberate — this planning step runs BEFORE any search, so
 # it must stay cheap and quick or it eats the latency budget of the whole
 # pipeline. Override QUERY_PLANNER_MODEL via env if you want a different model.
-QUERY_PLANNER_KEY     = os.getenv("ANTHROPIC_API_KEY", "")
-QUERY_PLANNER_MODEL   = os.getenv("QUERY_PLANNER_MODEL", "claude-haiku-4-5-20251001")
-QUERY_PLANNER_TIMEOUT = 4          # seconds — fail fast, fall back to regex
-QUERY_PLANNER_MAX_TOK = 500        # small JSON payload, keep cost/latency low
-MIN_PLANNED_QUERIES   = 5
-MAX_PLANNED_QUERIES   = 10
+QUERY_PLANNER_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+QUERY_PLANNER_MODEL = os.getenv("QUERY_PLANNER_MODEL", "claude-haiku-4-5-20251001")
+QUERY_PLANNER_TIMEOUT = 4  # seconds — fail fast, fall back to regex
+QUERY_PLANNER_MAX_TOK = 500  # small JSON payload, keep cost/latency low
+MIN_PLANNED_QUERIES = 5
+MAX_PLANNED_QUERIES = 10
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SEARCH EXECUTION — automatically balance latency vs. quality by question
@@ -150,24 +158,24 @@ MAX_PLANNED_QUERIES   = 10
 # ══════════════════════════════════════════════════════════════════════════════
 
 _COMPLEXITY_QUERY_RANGE: dict[str, tuple[int, int]] = {
-    "simple":         (2, 3),
-    "complex":        (10, 20),
+    "simple": (2, 3),
+    "complex": (10, 20),
     "very_difficult": (10, 20),
 }
 _COMPLEXITY_ROUND_BUDGET: dict[str, int] = {
-    "simple":         1,   # one shot — no follow-up rounds needed
-    "complex":        3,   # a few gap-filling rounds
-    "very_difficult": 6,   # extended iterative retrieval
+    "simple": 1,  # one shot — no follow-up rounds needed
+    "complex": 3,  # a few gap-filling rounds
+    "very_difficult": 6,  # extended iterative retrieval
 }
 
 _COMPLEXITY_SIGNAL_PATTERNS = [
-    r'\b(compare|comparison|vs\.?|versus|difference between)\b',
-    r'\b(pros and cons|advantages and disadvantages)\b',
-    r'\b(comprehensive|in-depth|in depth|detailed|thorough|step by step|step-by-step)\b',
-    r'\b(analy[sz]e|analysis|evaluate|assessment|implications?)\b',
-    r'\band\b.{0,40}\band\b',                          # multiple "and" clauses — multi-part question
-    r'\bwhy\b.{0,60}\bhow\b|\bhow\b.{0,60}\bwhy\b',    # combined why+how reasoning
-    r'[;]|\?.*\?',                                      # multiple clauses/questions in one
+    r"\b(compare|comparison|vs\.?|versus|difference between)\b",
+    r"\b(pros and cons|advantages and disadvantages)\b",
+    r"\b(comprehensive|in-depth|in depth|detailed|thorough|step by step|step-by-step)\b",
+    r"\b(analy[sz]e|analysis|evaluate|assessment|implications?)\b",
+    r"\band\b.{0,40}\band\b",  # multiple "and" clauses — multi-part question
+    r"\bwhy\b.{0,60}\bhow\b|\bhow\b.{0,60}\bwhy\b",  # combined why+how reasoning
+    r"[;]|\?.*\?",  # multiple clauses/questions in one
 ]
 
 
@@ -188,8 +196,8 @@ def classify_query_complexity(query: str) -> str:
     Heuristic (word count + presence of multi-part/comparison/analysis-style
     language), not exact — good enough to route latency budget sensibly.
     """
-    word_count  = len(re.findall(r'\w+', query))
-    lower       = query.lower()
+    word_count = len(re.findall(r"\w+", query))
+    lower = query.lower()
     signal_hits = sum(1 for p in _COMPLEXITY_SIGNAL_PATTERNS if re.search(p, lower))
 
     if signal_hits >= 2 or word_count > 25:
@@ -197,6 +205,7 @@ def classify_query_complexity(query: str) -> str:
     if signal_hits >= 1 or word_count > 8:
         return "complex"
     return "simple"
+
 
 # ── How many raw results to fetch per engine ─────────────────────────────────
 RESULTS_PER_ENGINE = 5
@@ -210,7 +219,7 @@ FIRECRAWL_MAX_PAGES = 15
 # ── ARCHITECTURE REVIEW (Concurrency/Scalability): shared thread cap for the
 # Firecrawl crawl pool — see enrich_with_firecrawl for full rationale.
 FIRECRAWL_MAX_WORKERS = int(os.getenv("FIRECRAWL_MAX_WORKERS", 10))
-FIRECRAWL_TOP_N      = FIRECRAWL_MIN_PAGES  # kept for backward compatibility
+FIRECRAWL_TOP_N = FIRECRAWL_MIN_PAGES  # kept for backward compatibility
 
 # ── NEW: Page-processing (chunk → store → score → select) config ────────────
 # Replaces the old "shove content[:3000] straight at the AI" behavior. A raw
@@ -218,15 +227,45 @@ FIRECRAWL_TOP_N      = FIRECRAWL_MIN_PAGES  # kept for backward compatibility
 # the part that actually answers the query. Instead we split the page into
 # semantic sections, drop duplicates, score each section against the query,
 # and keep only the best ones — within the same overall char ceiling.
-_CHUNK_MAX_CHARS  = 900    # per-chunk cap — keeps each chunk a focused unit
-_CHUNK_MIN_CHARS  = 40     # drop near-empty slivers (nav/footer junk, stray lines)
-_PAGE_MAX_CHUNKS  = 6      # hard cap on chunks kept per page
-_PAGE_CHAR_BUDGET = 3000   # total chars kept per page after scoring (same ceiling as before)
-_HEADER_RE        = re.compile(r'^(#{1,6})\s+(.*)$', re.MULTILINE)
-_STOPWORDS        = {
-    "the", "a", "an", "of", "in", "on", "for", "to", "and", "or", "is", "are",
-    "was", "were", "what", "who", "when", "where", "how", "does", "do", "did",
-    "this", "that", "with", "at", "by", "be", "it", "as", "from",
+_CHUNK_MAX_CHARS = 900  # per-chunk cap — keeps each chunk a focused unit
+_CHUNK_MIN_CHARS = 40  # drop near-empty slivers (nav/footer junk, stray lines)
+_PAGE_MAX_CHUNKS = 6  # hard cap on chunks kept per page
+_PAGE_CHAR_BUDGET = (
+    3000  # total chars kept per page after scoring (same ceiling as before)
+)
+_HEADER_RE = re.compile(r"^(#{1,6})\s+(.*)$", re.MULTILINE)
+_STOPWORDS = {
+    "the",
+    "a",
+    "an",
+    "of",
+    "in",
+    "on",
+    "for",
+    "to",
+    "and",
+    "or",
+    "is",
+    "are",
+    "was",
+    "were",
+    "what",
+    "who",
+    "when",
+    "where",
+    "how",
+    "does",
+    "do",
+    "did",
+    "this",
+    "that",
+    "with",
+    "at",
+    "by",
+    "be",
+    "it",
+    "as",
+    "from",
 }
 
 # ── NEW: Embedding retrieval config — provider-independent ──────────────────
@@ -234,16 +273,20 @@ _STOPWORDS        = {
 # EMBEDDING_PROVIDER picks the backend; swapping providers is a config
 # change, not a code change. Any provider missing its key simply can't be
 # selected — retrieval falls back to the keyword scorer, nothing breaks.
-EMBEDDING_PROVIDER    = os.getenv("EMBEDDING_PROVIDER", "openai").lower()  # "openai" | "cohere" | "voyage"
-OPENAI_KEY            = os.getenv("OPENAI_API_KEY", "")
-VOYAGE_KEY            = os.getenv("VOYAGE_API_KEY", "")
+EMBEDDING_PROVIDER = os.getenv(
+    "EMBEDDING_PROVIDER", "openai"
+).lower()  # "openai" | "cohere" | "voyage"
+OPENAI_KEY = os.getenv("OPENAI_API_KEY", "")
+VOYAGE_KEY = os.getenv("VOYAGE_API_KEY", "")
 EMBEDDING_MODEL_OPENAI = os.getenv("EMBEDDING_MODEL_OPENAI", "text-embedding-3-small")
 EMBEDDING_MODEL_COHERE = os.getenv("EMBEDDING_MODEL_COHERE", "embed-english-v3.0")
 EMBEDDING_MODEL_VOYAGE = os.getenv("EMBEDDING_MODEL_VOYAGE", "voyage-3-lite")
-EMBEDDING_TIMEOUT      = 6      # seconds — fail fast, fall back to keyword scoring
-RETRIEVAL_TOP_K        = _PAGE_MAX_CHUNKS  # same cap as before, now vector-driven when available
+EMBEDDING_TIMEOUT = 6  # seconds — fail fast, fall back to keyword scoring
+RETRIEVAL_TOP_K = (
+    _PAGE_MAX_CHUNKS  # same cap as before, now vector-driven when available
+)
 # ── Max Cohere rerank candidates ─────────────────────────────────────────────
-RERANK_TOP_N       = 8
+RERANK_TOP_N = 8
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -278,76 +321,76 @@ _FRESHNESS_CATEGORIES: dict[str, dict] = {
     "breaking_news": {
         "window": "day",
         "patterns": [
-            r'\b(today|breaking|just (now|happened)|this (morning|moment)|developing story)\b',
-            r'\bright now\b',
+            r"\b(today|breaking|just (now|happened)|this (morning|moment)|developing story)\b",
+            r"\bright now\b",
         ],
     },
     "live_event": {
         "window": "day",
         "patterns": [
-            r'\b(live|live score|live stream|livestream|ongoing|happening now)\b',
-            r'\b(score|match score|who\'?s? (winning|leading))\b',
+            r"\b(live|live score|live stream|livestream|ongoing|happening now)\b",
+            r"\b(score|match score|who\'?s? (winning|leading))\b",
         ],
     },
     "current_price": {
         "window": "day",
         "patterns": [
-            r'\b(price|stock|share price|nifty|sensex|crypto|bitcoin|'
-            r'exchange rate|market cap|nav)\b',
+            r"\b(price|stock|share price|nifty|sensex|crypto|bitcoin|"
+            r"exchange rate|market cap|nav)\b",
         ],
     },
     "weather": {
         "window": "day",
-        "patterns": [r'\bweather\b'],
+        "patterns": [r"\bweather\b"],
     },
     "model_version": {
         "window": "week",
         "patterns": [
-            r'\b(latest|newest) (version|release|model|update)\b',
-            r'\bv\d+(\.\d+)*\b',
-            r'\b(gpt|claude|gemini|llama|mistral)[- ]?\d+(\.\d+)?\b',
+            r"\b(latest|newest) (version|release|model|update)\b",
+            r"\bv\d+(\.\d+)*\b",
+            r"\b(gpt|claude|gemini|llama|mistral)[- ]?\d+(\.\d+)?\b",
         ],
     },
     "product_release": {
         "window": "week",
         "patterns": [
-            r'\b(new|newly|just|recently) (released|launched|unveiled|announced)\b',
-            r'\brelease date\b',
-            r'\b(iphone|pixel|galaxy)\s?\d+\b',
+            r"\b(new|newly|just|recently) (released|launched|unveiled|announced)\b",
+            r"\brelease date\b",
+            r"\b(iphone|pixel|galaxy)\s?\d+\b",
         ],
     },
     "recent_news": {
         "window": "week",
         "patterns": [
-            r'\b(latest|newest|recent(ly)?|this week|new (version|release|update|model))\b',
-            r'\b(news|headlines|happened|announcement|announced)\b',
+            r"\b(latest|newest|recent(ly)?|this week|new (version|release|update|model))\b",
+            r"\b(news|headlines|happened|announcement|announced)\b",
         ],
     },
     "election": {
         "window": "month",
         "patterns": [
-            r'\b(election|elected|poll results?|won (the )?election|voted (in|out)|exit poll|by-?election)\b',
+            r"\b(election|elected|poll results?|won (the )?election|voted (in|out)|exit poll|by-?election)\b",
         ],
     },
     "ceo": {
         "window": "month",
         "patterns": [
-            r'\b(ceo|chief executive|chairman|managing director)\b',
+            r"\b(ceo|chief executive|chairman|managing director)\b",
         ],
     },
     "government_official": {
         "window": "month",
         "patterns": [
-            r'\b(cm|chief minister|prime minister|president|governor|minister|mayor|'
-            r'chancellor|appointed|resigned)\b',
-            r'\bwho is the (current|new)\b',
-            r'\bstill (the|in|alive|running|active|ceo|president)\b',
+            r"\b(cm|chief minister|prime minister|president|governor|minister|mayor|"
+            r"chancellor|appointed|resigned)\b",
+            r"\bwho is the (current|new)\b",
+            r"\bstill (the|in|alive|running|active|ceo|president)\b",
         ],
     },
     "current_event": {
         "window": "month",
         "patterns": [
-            r'\b(current(ly)?|ongoing|status of|as of (today|now|\d{4}))\b',
+            r"\b(current(ly)?|ongoing|status of|as of (today|now|\d{4}))\b",
         ],
     },
 }
@@ -365,12 +408,17 @@ def classify_freshness_category(query: str) -> dict:
     query is time-sensitive.
     """
     lower = query.lower()
-    matched = [name for name, spec in _FRESHNESS_CATEGORIES.items()
-               if any(re.search(p, lower) for p in spec["patterns"])]
+    matched = [
+        name
+        for name, spec in _FRESHNESS_CATEGORIES.items()
+        if any(re.search(p, lower) for p in spec["patterns"])
+    ]
     if not matched:
         return {"categories": [], "window": None}
-    window = max((_FRESHNESS_CATEGORIES[m]["window"] for m in matched),
-                 key=lambda w: _WINDOW_RANK[w])
+    window = max(
+        (_FRESHNESS_CATEGORIES[m]["window"] for m in matched),
+        key=lambda w: _WINDOW_RANK[w],
+    )
     return {"categories": matched, "window": window}
 
 
@@ -407,162 +455,383 @@ def detect_recency_window(query: str) -> Optional[str]:
 _QUERY_ROUTES: dict[str, dict] = {
     "programming": {
         "patterns": [
-            r'\b(error|exception|traceback|stack trace|bug|debug|compil(e|ing)|syntax error)\b',
-            r'\b(function|method|class|variable|library|package|module|api|sdk|framework)\b',
-            r'\b(python|javascript|typescript|\bjava\b|c\+\+|rust|golang|kotlin|swift|php|ruby|\bsql\b)\b',
-            r'\bhow (do|to) i\b.{0,40}\b(code|program|implement|write a function)\b',
-            r'\b(install|npm|pip|cargo|yarn|docker|kubernetes|\bgit\b|github|repo|repository)\b',
+            r"\b(error|exception|traceback|stack trace|bug|debug|compil(e|ing)|syntax error)\b",
+            r"\b(function|method|class|variable|library|package|module|api|sdk|framework)\b",
+            r"\b(python|javascript|typescript|\bjava\b|c\+\+|rust|golang|kotlin|swift|php|ruby|\bsql\b)\b",
+            r"\bhow (do|to) i\b.{0,40}\b(code|program|implement|write a function)\b",
+            r"\b(install|npm|pip|cargo|yarn|docker|kubernetes|\bgit\b|github|repo|repository)\b",
         ],
         "domains": [
             # Q&A / code hosting
-            "stackoverflow.com", "github.com", "gitlab.com", "sourceforge.net",
+            "stackoverflow.com",
+            "github.com",
+            "gitlab.com",
+            "sourceforge.net",
             "github.community",
             # Languages / runtimes / package registries
-            "python.org", "docs.python.org", "nodejs.org", "npmjs.com",
-            "rust-lang.org", "crates.io", "golang.org", "go.dev", "kotlinlang.org",
-            "oracle.com", "java.com", "docs.oracle.com",
+            "python.org",
+            "docs.python.org",
+            "nodejs.org",
+            "npmjs.com",
+            "rust-lang.org",
+            "crates.io",
+            "golang.org",
+            "go.dev",
+            "kotlinlang.org",
+            "oracle.com",
+            "java.com",
+            "docs.oracle.com",
             # Databases
-            "postgresql.org", "mysql.com", "mariadb.org", "sqlite.org", "redis.io",
+            "postgresql.org",
+            "mysql.com",
+            "mariadb.org",
+            "sqlite.org",
+            "redis.io",
             "mongodb.com",
             # Containers / infra / OS
-            "docker.com", "kubernetes.io", "helm.sh", "nginx.org", "apache.org",
-            "gnu.org", "linux.org", "kernel.org", "ubuntu.com", "debian.org",
-            "fedora.org", "archlinux.org", "freedesktop.org", "gnome.org", "kde.org",
+            "docker.com",
+            "kubernetes.io",
+            "helm.sh",
+            "nginx.org",
+            "apache.org",
+            "gnu.org",
+            "linux.org",
+            "kernel.org",
+            "ubuntu.com",
+            "debian.org",
+            "fedora.org",
+            "archlinux.org",
+            "freedesktop.org",
+            "gnome.org",
+            "kde.org",
             # Cloud platforms
-            "cloudflare.com", "vercel.com", "netlify.com", "render.com",
-            "digitalocean.com", "aws.amazon.com", "azure.microsoft.com", "cloud.google.com",
+            "cloudflare.com",
+            "vercel.com",
+            "netlify.com",
+            "render.com",
+            "digitalocean.com",
+            "aws.amazon.com",
+            "azure.microsoft.com",
+            "cloud.google.com",
             # Browser/web dev reference
             "developer.mozilla.org",
             # AI/ML dev platforms
-            "huggingface.co", "paperswithcode.com", "kaggle.com", "ai.google.dev",
-            "deepmind.google", "ollama.com", "mistral.ai", "cohere.com", "llama.com",
-            "perplexity.ai", "together.ai", "replicate.com", "fireworks.ai", "groq.com",
-            "vllm.ai", "langchain.com", "langchain.dev", "langgraph.dev",
-            "openai.com", "anthropic.com",
+            "huggingface.co",
+            "paperswithcode.com",
+            "kaggle.com",
+            "ai.google.dev",
+            "deepmind.google",
+            "ollama.com",
+            "mistral.ai",
+            "cohere.com",
+            "llama.com",
+            "perplexity.ai",
+            "together.ai",
+            "replicate.com",
+            "fireworks.ai",
+            "groq.com",
+            "vllm.ai",
+            "langchain.com",
+            "langchain.dev",
+            "langgraph.dev",
+            "openai.com",
+            "anthropic.com",
             # Security tooling/reference
-            "mitre.org", "cve.org", "nvd.nist.gov", "owasp.org", "sans.org",
-            "malwarebytes.com", "virustotal.com", "abuse.ch",
+            "mitre.org",
+            "cve.org",
+            "nvd.nist.gov",
+            "owasp.org",
+            "sans.org",
+            "malwarebytes.com",
+            "virustotal.com",
+            "abuse.ch",
             # Learning platforms
-            "geeksforgeeks.org", "w3schools.com", "tutorialspoint.com", "javatpoint.com",
-            "codecademy.com", "freecodecamp.org", "edx.org", "coursera.org", "udacity.com",
+            "geeksforgeeks.org",
+            "w3schools.com",
+            "tutorialspoint.com",
+            "javatpoint.com",
+            "codecademy.com",
+            "freecodecamp.org",
+            "edx.org",
+            "coursera.org",
+            "udacity.com",
             # Dev communities
-            "stackexchange.com", "superuser.com", "serverfault.com", "askubuntu.com",
-            "hashnode.com", "codeproject.com", "daniweb.com", "bytes.com",
-            "news.ycombinator.com", "lobste.rs", "linuxquestions.org",
-            "ubuntuforums.org", "bbs.archlinux.org", "forum.manjaro.org",
-            "forums.opensuse.org", "discuss.huggingface.co", "community.openai.com",
-            "community.cloudflare.com", "community.atlassian.com", "discuss.python.org",
+            "stackexchange.com",
+            "superuser.com",
+            "serverfault.com",
+            "askubuntu.com",
+            "hashnode.com",
+            "codeproject.com",
+            "daniweb.com",
+            "bytes.com",
+            "news.ycombinator.com",
+            "lobste.rs",
+            "linuxquestions.org",
+            "ubuntuforums.org",
+            "bbs.archlinux.org",
+            "forum.manjaro.org",
+            "forums.opensuse.org",
+            "discuss.huggingface.co",
+            "community.openai.com",
+            "community.cloudflare.com",
+            "community.atlassian.com",
+            "discuss.python.org",
             "discuss.kotlinlang.org",
         ],
     },
     "medicine": {
         "patterns": [
-            r'\b(symptom|treatment|diagnos(is|e)|disease|medicine|medication|dosage|side effect|'
-            r'vaccine|virus|infection|surgery|therapy|clinical trial|\bdrug\b)\b',
-            r'\b(cancer|diabetes|covid|\bflu\b|\bhiv\b|malaria|tuberculosis)\b',
+            r"\b(symptom|treatment|diagnos(is|e)|disease|medicine|medication|dosage|side effect|"
+            r"vaccine|virus|infection|surgery|therapy|clinical trial|\bdrug\b)\b",
+            r"\b(cancer|diabetes|covid|\bflu\b|\bhiv\b|malaria|tuberculosis)\b",
         ],
         "domains": [
             # Global health authorities / IGOs
-            "who.int", "unicef.org", "unaids.org",
+            "who.int",
+            "unicef.org",
+            "unaids.org",
             # US health agencies
-            "cdc.gov", "nih.gov", "fda.gov",
+            "cdc.gov",
+            "nih.gov",
+            "fda.gov",
             # India health/regulatory agencies
-            "mohfw.gov.in", "nhm.gov.in", "nhp.gov.in", "icmr.gov.in", "ayush.gov.in",
-            "cdsco.gov.in", "fssai.gov.in",
+            "mohfw.gov.in",
+            "nhm.gov.in",
+            "nhp.gov.in",
+            "icmr.gov.in",
+            "ayush.gov.in",
+            "cdsco.gov.in",
+            "fssai.gov.in",
             # Peer-reviewed medical journals
-            "thelancet.com", "nejm.org", "jamanetwork.com", "bmj.com", "cell.com",
-            "pnas.org", "nature.com", "science.org",
+            "thelancet.com",
+            "nejm.org",
+            "jamanetwork.com",
+            "bmj.com",
+            "cell.com",
+            "pnas.org",
+            "nature.com",
+            "science.org",
             # Research indexes
             "pubmed.ncbi.nlm.nih.gov",
             # Established health institutions/reference
-            "mayoclinic.org", "webmd.com", "healthline.com", "clevelandclinic.org",
+            "mayoclinic.org",
+            "webmd.com",
+            "healthline.com",
+            "clevelandclinic.org",
         ],
     },
     "finance": {
         "patterns": [
-            r'\b(stock|share price|market cap|nasdaq|nyse|\bipo\b|earnings|dividend|revenue|'
-            r'quarterly results|investment|mutual fund|bond yield|interest rate|inflation)\b',
-            r'\b(nifty|sensex|crypto|bitcoin|forex|exchange rate)\b',
+            r"\b(stock|share price|market cap|nasdaq|nyse|\bipo\b|earnings|dividend|revenue|"
+            r"quarterly results|investment|mutual fund|bond yield|interest rate|inflation)\b",
+            r"\b(nifty|sensex|crypto|bitcoin|forex|exchange rate)\b",
         ],
         "domains": [
             # Wire/business news
-            "bloomberg.com", "reuters.com", "cnbc.com", "forbes.com",
-            "finance.yahoo.com", "moneycontrol.com", "morningstar.com",
-            "marketwatch.com", "investopedia.com", "tradingeconomics.com",
-            "coinmarketcap.com", "coingecko.com", "statista.com",
+            "bloomberg.com",
+            "reuters.com",
+            "cnbc.com",
+            "forbes.com",
+            "finance.yahoo.com",
+            "moneycontrol.com",
+            "morningstar.com",
+            "marketwatch.com",
+            "investopedia.com",
+            "tradingeconomics.com",
+            "coinmarketcap.com",
+            "coingecko.com",
+            "statista.com",
             # India business news
-            "livemint.com", "business-standard.com", "businessstandard.com",
-            "thehindubusinessline.com", "economictimes.indiatimes.com",
+            "livemint.com",
+            "business-standard.com",
+            "businessstandard.com",
+            "thehindubusinessline.com",
+            "economictimes.indiatimes.com",
             "financialexpress.com",
             # India financial regulators / exchanges
-            "rbi.org.in", "sebi.gov.in", "irdai.gov.in", "npci.org.in",
-            "pfrda.org.in", "ibbi.gov.in", "ifsca.gov.in", "cci.gov.in",
-            "trai.gov.in", "mcxindia.com", "nseindia.com", "bseindia.com",
+            "rbi.org.in",
+            "sebi.gov.in",
+            "irdai.gov.in",
+            "npci.org.in",
+            "pfrda.org.in",
+            "ibbi.gov.in",
+            "ifsca.gov.in",
+            "cci.gov.in",
+            "trai.gov.in",
+            "mcxindia.com",
+            "nseindia.com",
+            "bseindia.com",
             # US financial regulators
-            "sec.gov", "federalreserve.gov", "treasury.gov", "finra.org",
-            "cftc.gov", "fdic.gov", "occ.treas.gov", "cfpb.gov",
+            "sec.gov",
+            "federalreserve.gov",
+            "treasury.gov",
+            "finra.org",
+            "cftc.gov",
+            "fdic.gov",
+            "occ.treas.gov",
+            "cfpb.gov",
             # International financial institutions
-            "imf.org", "worldbank.org", "oecd.org", "fred.stlouisfed.org",
+            "imf.org",
+            "worldbank.org",
+            "oecd.org",
+            "fred.stlouisfed.org",
             # Central banks (other countries)
-            "ecb.europa.eu", "bankofengland.co.uk", "bankofcanada.ca",
-            "rba.gov.au", "rbnz.govt.nz", "boj.or.jp", "bok.or.kr", "mas.gov.sg",
-            "snb.ch", "bundesbank.de", "banque-france.fr", "bancaditalia.it",
-            "bde.es", "dnb.nl", "nbb.be", "centralbank.ie", "riksbank.se",
-            "norges-bank.no", "suomenpankki.fi", "oenb.at", "bportugal.pt",
-            "bcb.gov.br", "banxico.org.mx",
+            "ecb.europa.eu",
+            "bankofengland.co.uk",
+            "bankofcanada.ca",
+            "rba.gov.au",
+            "rbnz.govt.nz",
+            "boj.or.jp",
+            "bok.or.kr",
+            "mas.gov.sg",
+            "snb.ch",
+            "bundesbank.de",
+            "banque-france.fr",
+            "bancaditalia.it",
+            "bde.es",
+            "dnb.nl",
+            "nbb.be",
+            "centralbank.ie",
+            "riksbank.se",
+            "norges-bank.no",
+            "suomenpankki.fi",
+            "oenb.at",
+            "bportugal.pt",
+            "bcb.gov.br",
+            "banxico.org.mx",
         ],
     },
     "government": {
         "patterns": [
-            r'\b(\blaw\b|\bbill\b|\bact\b|regulation|policy|ministry|parliament|congress|senate|'
-            r'court ruling|government scheme|notification|gazette|census|budget|election commission)\b',
-            r'\b(prime minister|chief minister|governor|cabinet)\b',
+            r"\b(\blaw\b|\bbill\b|\bact\b|regulation|policy|ministry|parliament|congress|senate|"
+            r"court ruling|government scheme|notification|gazette|census|budget|election commission)\b",
+            r"\b(prime minister|chief minister|governor|cabinet)\b",
         ],
         "domains": [
             # India — government / regulators (core)
-            "gov.in", "nic.in", "india.gov.in", "pib.gov.in", "mea.gov.in",
-            "mha.gov.in", "mod.gov.in", "education.gov.in", "meity.gov.in",
-            "dpiit.gov.in", "commerce.gov.in", "msme.gov.in", "finance.gov.in",
-            "mca.gov.in", "labour.gov.in", "eci.gov.in", "sci.gov.in",
-            "ecourts.gov.in", "dopt.gov.in", "mygov.in", "data.gov.in",
+            "gov.in",
+            "nic.in",
+            "india.gov.in",
+            "pib.gov.in",
+            "mea.gov.in",
+            "mha.gov.in",
+            "mod.gov.in",
+            "education.gov.in",
+            "meity.gov.in",
+            "dpiit.gov.in",
+            "commerce.gov.in",
+            "msme.gov.in",
+            "finance.gov.in",
+            "mca.gov.in",
+            "labour.gov.in",
+            "eci.gov.in",
+            "sci.gov.in",
+            "ecourts.gov.in",
+            "dopt.gov.in",
+            "mygov.in",
+            "data.gov.in",
             # US government
-            "usa.gov", "congress.gov", "supremecourt.gov", "state.gov",
-            "justice.gov", "whitehouse.gov", "commerce.gov", "energy.gov",
-            "defense.gov", "dhs.gov", "transportation.gov", "labor.gov",
-            "interior.gov", "usda.gov", "va.gov", "cisa.gov",
+            "usa.gov",
+            "congress.gov",
+            "supremecourt.gov",
+            "state.gov",
+            "justice.gov",
+            "whitehouse.gov",
+            "commerce.gov",
+            "energy.gov",
+            "defense.gov",
+            "dhs.gov",
+            "transportation.gov",
+            "labor.gov",
+            "interior.gov",
+            "usda.gov",
+            "va.gov",
+            "cisa.gov",
             # UK / EU / international bodies
-            "gov.uk", "europa.eu", "un.org", "who.int", "worldbank.org",
-            "imf.org", "unesco.org", "wto.org", "oecd.org", "interpol.int",
-            "undp.org", "unhcr.org", "ilo.org",
+            "gov.uk",
+            "europa.eu",
+            "un.org",
+            "who.int",
+            "worldbank.org",
+            "imf.org",
+            "unesco.org",
+            "wto.org",
+            "oecd.org",
+            "interpol.int",
+            "undp.org",
+            "unhcr.org",
+            "ilo.org",
             # Other national governments
-            "canada.ca", "gov.au", "govt.nz", "go.jp", "go.kr", "gov.sg",
-            "admin.ch", "bund.de", "gouvernement.fr", "governo.it",
-            "lamoncloa.gob.es", "government.nl", "belgium.be", "gov.ie",
-            "government.se", "regjeringen.no", "valtioneuvosto.fi",
-            "oesterreich.gv.at", "portugal.gov.pt", "gov.br", "gob.mx",
+            "canada.ca",
+            "gov.au",
+            "govt.nz",
+            "go.jp",
+            "go.kr",
+            "gov.sg",
+            "admin.ch",
+            "bund.de",
+            "gouvernement.fr",
+            "governo.it",
+            "lamoncloa.gob.es",
+            "government.nl",
+            "belgium.be",
+            "gov.ie",
+            "government.se",
+            "regjeringen.no",
+            "valtioneuvosto.fi",
+            "oesterreich.gv.at",
+            "portugal.gov.pt",
+            "gov.br",
+            "gob.mx",
         ],
     },
     "science": {
         "patterns": [
-            r'\b(research|\bstudy\b|experiment|hypothesis|peer.?review|journal article|research paper)\b',
-            r'\b(physics|chemistry|biology|astronomy|genome|quantum|climate science)\b',
+            r"\b(research|\bstudy\b|experiment|hypothesis|peer.?review|journal article|research paper)\b",
+            r"\b(physics|chemistry|biology|astronomy|genome|quantum|climate science)\b",
         ],
         "domains": [
             # Peer-reviewed journals
-            "nature.com", "science.org", "thelancet.com", "nejm.org", "cell.com",
-            "pnas.org", "jamanetwork.com", "bmj.com",
+            "nature.com",
+            "science.org",
+            "thelancet.com",
+            "nejm.org",
+            "cell.com",
+            "pnas.org",
+            "jamanetwork.com",
+            "bmj.com",
             # Research indexes / reference
-            "arxiv.org", "scholar.google.com", "pubmed.ncbi.nlm.nih.gov",
+            "arxiv.org",
+            "scholar.google.com",
+            "pubmed.ncbi.nlm.nih.gov",
             "britannica.com",
             # Science news
-            "sciencedaily.com", "livescience.com", "space.com", "spacenews.com",
+            "sciencedaily.com",
+            "livescience.com",
+            "space.com",
+            "spacenews.com",
             # Space/science agencies
-            "esa.int", "jpl.nasa.gov", "nasa.gov", "noaa.gov", "usgs.gov",
-            "nsf.gov", "nist.gov", "isro.gov.in", "drdo.gov.in", "barc.gov.in",
-            "csir.res.in", "imd.gov.in", "incois.gov.in",
+            "esa.int",
+            "jpl.nasa.gov",
+            "nasa.gov",
+            "noaa.gov",
+            "usgs.gov",
+            "nsf.gov",
+            "nist.gov",
+            "isro.gov.in",
+            "drdo.gov.in",
+            "barc.gov.in",
+            "csir.res.in",
+            "imd.gov.in",
+            "incois.gov.in",
             # Universities
-            "mit.edu", "stanford.edu", "harvard.edu", "ox.ac.uk", "cam.ac.uk",
-            "berkeley.edu", "iisc.ac.in",
+            "mit.edu",
+            "stanford.edu",
+            "harvard.edu",
+            "ox.ac.uk",
+            "cam.ac.uk",
+            "berkeley.edu",
+            "iisc.ac.in",
         ],
     },
 }
@@ -597,10 +866,10 @@ def _rewrite_queries_regex_fallback(original: str, max_queries: int = 3) -> list
     generate (naturally fewer than the LLM path) rather than pretending to
     hit 10-20 queries with no real content behind them.
     """
-    lower    = original.lower().strip().rstrip("?.,!")
-    queries  = [original]
+    lower = original.lower().strip().rstrip("?.,!")
+    queries = [original]
     year_now = datetime.utcnow().year
-    recency  = detect_recency_window(original)
+    recency = detect_recency_window(original)
 
     # ── Anything time-sensitive (day/week/month window) — add recency +
     # official/news angles. Uses the shared detector so query rewriting
@@ -615,17 +884,23 @@ def _rewrite_queries_regex_fallback(original: str, max_queries: int = 3) -> list
             queries.append(f"latest {lower}")
 
     # ── Factual / Wikipedia-style ─────────────────────────────────────────────
-    elif re.search(r'\b(what is|who is|when was|where is|how does|explain|define)\b', lower):
+    elif re.search(
+        r"\b(what is|who is|when was|where is|how does|explain|define)\b", lower
+    ):
         queries.append(f"{lower} explained")
         queries.append(f"{lower} official definition")
 
     # ── Health / medical ─────────────────────────────────────────────────────
-    elif re.search(r'\b(symptoms|treatment|cure|disease|medicine|dosage|side effect)\b', lower):
+    elif re.search(
+        r"\b(symptoms|treatment|cure|disease|medicine|dosage|side effect)\b", lower
+    ):
         queries.append(f"{lower} medical information")
         queries.append(f"{lower} NHS OR WHO OR WebMD")
 
     # ── Tech / coding ─────────────────────────────────────────────────────────
-    elif re.search(r'\b(how to|tutorial|error|bug|fix|install|setup|configure)\b', lower):
+    elif re.search(
+        r"\b(how to|tutorial|error|bug|fix|install|setup|configure)\b", lower
+    ):
         queries.append(f"{lower} tutorial")
         queries.append(f"{lower} stackoverflow OR github")
 
@@ -701,17 +976,17 @@ def _llm_plan_queries(
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={
-                "x-api-key":         QUERY_PLANNER_KEY,
+                "x-api-key": QUERY_PLANNER_KEY,
                 "anthropic-version": "2023-06-01",
-                "content-type":      "application/json",
+                "content-type": "application/json",
             },
             json={
-                "model":      QUERY_PLANNER_MODEL,
+                "model": QUERY_PLANNER_MODEL,
                 # Scale the token budget with how many queries were asked for —
                 # a 20-query JSON array needs more room than a 3-query one.
                 "max_tokens": max(QUERY_PLANNER_MAX_TOK, 60 * max_queries),
-                "system":     _build_query_planner_system_prompt(min_queries, max_queries),
-                "messages":   [{"role": "user", "content": original}],
+                "system": _build_query_planner_system_prompt(min_queries, max_queries),
+                "messages": [{"role": "user", "content": original}],
             },
             timeout=QUERY_PLANNER_TIMEOUT,
         )
@@ -727,7 +1002,7 @@ def _llm_plan_queries(
 
         # Model may still wrap output in ```json fences despite instructions —
         # strip them defensively rather than trust the instruction alone.
-        text = re.sub(r'^```(?:json)?\s*|\s*```$', '', text.strip())
+        text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
 
         planned = json.loads(text)
         if not isinstance(planned, list) or not planned:
@@ -776,7 +1051,9 @@ def rewrite_queries(original: str) -> list[str]:
     """
     complexity = classify_query_complexity(original)
     min_q, max_q = _COMPLEXITY_QUERY_RANGE[complexity]
-    print(f"🎚️ [Complexity] '{original[:60]}' → {complexity} ({min_q}-{max_q} searches)")
+    print(
+        f"🎚️ [Complexity] '{original[:60]}' → {complexity} ({min_q}-{max_q} searches)"
+    )
 
     planned = _llm_plan_queries(original, min_q, max_q)
     if planned:
@@ -792,6 +1069,7 @@ def rewrite_queries(original: str) -> list[str]:
 # Both engines run simultaneously via asyncio.gather
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def _tavily_search_sync(
     query: str,
     max_results: int = RESULTS_PER_ENGINE,
@@ -805,7 +1083,9 @@ def _tavily_search_sync(
     # Key includes everything that affects the actual request (query, engine
     # limit, domain routing) so a cache hit only fires for a truly identical
     # search, not just a similar-looking one.
-    cache_key = _cache_key("tavily", query, max_results, tuple(sorted(preferred_domains or [])))
+    cache_key = _cache_key(
+        "tavily", query, max_results, tuple(sorted(preferred_domains or []))
+    )
     cached = _search_results_cache.get(cache_key)
     if cached is not None:
         print(f"♻️ [Cache] Tavily hit for '{query[:60]}'")
@@ -815,17 +1095,17 @@ def _tavily_search_sync(
         recency = detect_recency_window(query)
 
         payload = {
-            "api_key":             TAVILY_KEY,
-            "query":               query,
-            "max_results":         max_results,
-            "include_answer":      True,
+            "api_key": TAVILY_KEY,
+            "query": query,
+            "max_results": max_results,
+            "include_answer": True,
             "include_raw_content": False,
             # ── Freshness ────────────────────────────────────────────────────
             # A generic, undated search has no idea whether the user wants
             # today's number or a 2019 article — this is the #1 cause of
             # "stale" answers. When the query looks time-sensitive, bias the
             # search toward recent content instead of pure relevance/authority.
-            "search_depth":        "advanced" if recency else "basic",
+            "search_depth": "advanced" if recency else "basic",
         }
         if recency:
             payload["time_range"] = recency  # "day" | "week" | "month"
@@ -854,29 +1134,33 @@ def _tavily_search_sync(
             print(f"⚠️ [Tavily] HTTP {resp.status_code}")
             return []
 
-        data    = resp.json()
+        data = resp.json()
         results = []
 
         # Tavily's synthesised direct answer — treat as a top-tier result
         if data.get("answer"):
-            results.append({
-                "title":            "Direct Answer",
-                "body":             data["answer"],
-                "url":              "",
-                "source_engine":    "tavily_answer",
-                "is_direct_answer": True,
-                "query_used":       query,
-            })
+            results.append(
+                {
+                    "title": "Direct Answer",
+                    "body": data["answer"],
+                    "url": "",
+                    "source_engine": "tavily_answer",
+                    "is_direct_answer": True,
+                    "query_used": query,
+                }
+            )
 
         for r in data.get("results", []):
-            results.append({
-                "title":         r.get("title", ""),
-                "body":          (r.get("content", "") or "")[:600],
-                "url":           r.get("url", ""),
-                "source_engine": "tavily",
-                "query_used":    query,
-                "published":     r.get("published_date", ""),
-            })
+            results.append(
+                {
+                    "title": r.get("title", ""),
+                    "body": (r.get("content", "") or "")[:600],
+                    "url": r.get("url", ""),
+                    "source_engine": "tavily",
+                    "query_used": query,
+                    "published": r.get("published_date", ""),
+                }
+            )
 
         print(f"✅ [Tavily] '{query[:60]}' → {len(results)} results")
         _search_results_cache.set(cache_key, results)
@@ -900,7 +1184,9 @@ def _serper_search_sync(
         return []
 
     # ── Search caching — avoid duplicate searches ───────────────────────────
-    cache_key = _cache_key("serper", query, max_results, tuple(sorted(preferred_domains or [])))
+    cache_key = _cache_key(
+        "serper", query, max_results, tuple(sorted(preferred_domains or []))
+    )
     cached = _search_results_cache.get(cache_key)
     if cached is not None:
         print(f"♻️ [Cache] Serper hit for '{query[:60]}'")
@@ -933,7 +1219,7 @@ def _serper_search_sync(
         resp = requests.post(
             "https://google.serper.dev/search",
             headers={
-                "X-API-KEY":   SERPER_KEY,
+                "X-API-KEY": SERPER_KEY,
                 "Content-Type": "application/json",
             },
             json=payload,
@@ -943,42 +1229,50 @@ def _serper_search_sync(
             print(f"⚠️ [Serper] HTTP {resp.status_code}")
             return []
 
-        data    = resp.json()
+        data = resp.json()
         results = []
 
         # Serper's answer box (like Google's featured snippet)
         answer_box = data.get("answerBox", {})
         if answer_box.get("answer") or answer_box.get("snippet"):
-            results.append({
-                "title":            answer_box.get("title", "Featured Snippet"),
-                "body":             answer_box.get("answer") or answer_box.get("snippet", ""),
-                "url":              answer_box.get("link", ""),
-                "source_engine":    "serper_answer",
-                "is_direct_answer": True,
-                "query_used":       query,
-            })
+            results.append(
+                {
+                    "title": answer_box.get("title", "Featured Snippet"),
+                    "body": answer_box.get("answer") or answer_box.get("snippet", ""),
+                    "url": answer_box.get("link", ""),
+                    "source_engine": "serper_answer",
+                    "is_direct_answer": True,
+                    "query_used": query,
+                }
+            )
 
         # Knowledge graph
         kg = data.get("knowledgeGraph", {})
         if kg.get("description"):
-            results.append({
-                "title":         kg.get("title", "Knowledge Graph"),
-                "body":          kg.get("description", ""),
-                "url":           kg.get("descriptionUrl", kg.get("website", "")),
-                "source_engine": "serper_kg",
-                "query_used":    query,
-            })
+            results.append(
+                {
+                    "title": kg.get("title", "Knowledge Graph"),
+                    "body": kg.get("description", ""),
+                    "url": kg.get("descriptionUrl", kg.get("website", "")),
+                    "source_engine": "serper_kg",
+                    "query_used": query,
+                }
+            )
 
         for r in data.get("organic", []):
-            results.append({
-                "title":         r.get("title", ""),
-                "body":          r.get("snippet", ""),
-                "url":           r.get("link", ""),
-                "source_engine": "serper",
-                "query_used":    query,
-                "position":      r.get("position", 99),
-                "date":          r.get("date", ""),  # e.g. "2 days ago" — used for recency scoring
-            })
+            results.append(
+                {
+                    "title": r.get("title", ""),
+                    "body": r.get("snippet", ""),
+                    "url": r.get("link", ""),
+                    "source_engine": "serper",
+                    "query_used": query,
+                    "position": r.get("position", 99),
+                    "date": r.get(
+                        "date", ""
+                    ),  # e.g. "2 days ago" — used for recency scoring
+                }
+            )
 
         print(f"✅ [Serper] '{query[:60]}' → {len(results)} results")
         _search_results_cache.set(cache_key, results)
@@ -992,14 +1286,20 @@ def _serper_search_sync(
         return []
 
 
-async def _search_parallel(query: str, preferred_domains: Optional[list[str]] = None) -> tuple[list, list]:
+async def _search_parallel(
+    query: str, preferred_domains: Optional[list[str]] = None
+) -> tuple[list, list]:
     """Run Tavily + Serper simultaneously, return both result lists.
     Kept for backward compatibility with any external caller that awaits
     this coroutine directly — _execute_search_queries below no longer uses
     it internally (see that function's docstring for why)."""
     loop = asyncio.get_event_loop()
-    tavily_task = loop.run_in_executor(None, _tavily_search_sync, query, RESULTS_PER_ENGINE, preferred_domains)
-    serper_task = loop.run_in_executor(None, _serper_search_sync, query, RESULTS_PER_ENGINE, preferred_domains)
+    tavily_task = loop.run_in_executor(
+        None, _tavily_search_sync, query, RESULTS_PER_ENGINE, preferred_domains
+    )
+    serper_task = loop.run_in_executor(
+        None, _serper_search_sync, query, RESULTS_PER_ENGINE, preferred_domains
+    )
     tavily_res, serper_res = await asyncio.gather(tavily_task, serper_task)
     return tavily_res, serper_res
 
@@ -1015,10 +1315,14 @@ async def _search_parallel(query: str, preferred_domains: Optional[list[str]] = 
 # was the single largest latency cost in the entire pipeline — worse than
 # every LLM call combined.
 SEARCH_EXECUTION_MAX_WORKERS = int(os.getenv("SEARCH_EXECUTION_MAX_WORKERS", 16))
-SEARCH_EXECUTION_TIMEOUT     = int(os.getenv("SEARCH_EXECUTION_TIMEOUT", 15))  # > each engine's own 10s timeout
+SEARCH_EXECUTION_TIMEOUT = int(
+    os.getenv("SEARCH_EXECUTION_TIMEOUT", 15)
+)  # > each engine's own 10s timeout
 
 
-def _execute_search_queries(queries: list[str], preferred_domains: Optional[list[str]] = None) -> list[dict]:
+def _execute_search_queries(
+    queries: list[str], preferred_domains: Optional[list[str]] = None
+) -> list[dict]:
     """
     ── CHANGED (architecture review: performance/latency) ───────────────────
     Runs Tavily + Serper for every query in `queries` and returns the
@@ -1050,8 +1354,16 @@ def _execute_search_queries(queries: list[str], preferred_domains: Optional[list
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = []
         for q in queries:
-            futures.append(executor.submit(_tavily_search_sync, q, RESULTS_PER_ENGINE, preferred_domains))
-            futures.append(executor.submit(_serper_search_sync, q, RESULTS_PER_ENGINE, preferred_domains))
+            futures.append(
+                executor.submit(
+                    _tavily_search_sync, q, RESULTS_PER_ENGINE, preferred_domains
+                )
+            )
+            futures.append(
+                executor.submit(
+                    _serper_search_sync, q, RESULTS_PER_ENGINE, preferred_domains
+                )
+            )
 
         try:
             for future in as_completed(futures, timeout=SEARCH_EXECUTION_TIMEOUT):
@@ -1062,8 +1374,10 @@ def _execute_search_queries(queries: list[str], preferred_domains: Optional[list
         except TimeoutError:
             # Overall batch deadline hit — keep whatever results completed in
             # time rather than blocking the whole pipeline on one slow call.
-            print(f"⚠️ [SearchExec] batch timeout after {SEARCH_EXECUTION_TIMEOUT}s — "
-                  f"proceeding with {len(all_raw)} results collected so far")
+            print(
+                f"⚠️ [SearchExec] batch timeout after {SEARCH_EXECUTION_TIMEOUT}s — "
+                f"proceeding with {len(all_raw)} results collected so far"
+            )
 
     return all_raw
 
@@ -1078,12 +1392,12 @@ def _execute_search_queries(queries: list[str], preferred_domains: Optional[list
 #   are untouched.
 # ══════════════════════════════════════════════════════════════════════════════
 
-MAX_SEARCH_ROUNDS       = 8   # absolute hard safety ceiling — never exceeded
-                                # regardless of complexity (per-query round
-                                # budget below is clamped to this)
-CONFIDENCE_TIMEOUT      = 4   # seconds — same fail-fast philosophy as the planner
-CONFIDENCE_MAX_TOK      = 300
-MAX_ADDITIONAL_QUERIES  = 4   # per follow-up round
+MAX_SEARCH_ROUNDS = 8  # absolute hard safety ceiling — never exceeded
+# regardless of complexity (per-query round
+# budget below is clamped to this)
+CONFIDENCE_TIMEOUT = 4  # seconds — same fail-fast philosophy as the planner
+CONFIDENCE_MAX_TOK = 300
+MAX_ADDITIONAL_QUERIES = 4  # per follow-up round
 
 _CONFIDENCE_SYSTEM_PROMPT = """You are a research-evidence auditor for a web search pipeline.
 You will be given the user's original question and a list of snippets already gathered from search engines.
@@ -1115,7 +1429,7 @@ def _condense_evidence_for_review(raw_results: list[dict], max_items: int = 15) 
     lines = []
     for r in raw_results[:max_items]:
         title = (r.get("title") or "").strip()
-        body  = (r.get("body") or "").strip().replace("\n", " ")[:200]
+        body = (r.get("body") or "").strip().replace("\n", " ")[:200]
         lines.append(f"- {title}: {body}")
     return "\n".join(lines) if lines else "(no results found)"
 
@@ -1152,15 +1466,15 @@ def _assess_evidence_and_plan_more(
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={
-                "x-api-key":         QUERY_PLANNER_KEY,
+                "x-api-key": QUERY_PLANNER_KEY,
                 "anthropic-version": "2023-06-01",
-                "content-type":      "application/json",
+                "content-type": "application/json",
             },
             json={
-                "model":      QUERY_PLANNER_MODEL,
+                "model": QUERY_PLANNER_MODEL,
                 "max_tokens": CONFIDENCE_MAX_TOK,
-                "system":     _CONFIDENCE_SYSTEM_PROMPT,
-                "messages":   [{"role": "user", "content": user_content}],
+                "system": _CONFIDENCE_SYSTEM_PROMPT,
+                "messages": [{"role": "user", "content": user_content}],
             },
             timeout=CONFIDENCE_TIMEOUT,
         )
@@ -1172,7 +1486,7 @@ def _assess_evidence_and_plan_more(
             for block in data.get("content", [])
             if block.get("type") == "text"
         ).strip()
-        text = re.sub(r'^```(?:json)?\s*|\s*```$', '', text.strip())
+        text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
 
         parsed = json.loads(text)
         if not isinstance(parsed, dict):
@@ -1195,7 +1509,7 @@ def _assess_evidence_and_plan_more(
             confident = True
 
         return {
-            "confident":          confident,
+            "confident": confident,
             "additional_queries": additional[:MAX_ADDITIONAL_QUERIES],
         }
 
@@ -1220,35 +1534,43 @@ _ANSWER_GRAPH_SLOTS = [
     {
         "slot": "founder",
         "covered_patterns": [
-            r'\bfound(ed|er|ers)\b', r'\bco-?founder\b', r'\bstarted by\b', r'\bcreated by\b',
+            r"\bfound(ed|er|ers)\b",
+            r"\bco-?founder\b",
+            r"\bstarted by\b",
+            r"\bcreated by\b",
         ],
         "query_template": "{entity} founder",
     },
     {
         "slot": "acquisition",
         "covered_patterns": [
-            r'\bacqui(re|red|sition)\b', r'\bmerger\b', r'\bbought (by|out)\b', r'\btakeover\b',
+            r"\bacqui(re|red|sition)\b",
+            r"\bmerger\b",
+            r"\bbought (by|out)\b",
+            r"\btakeover\b",
         ],
         "query_template": "{entity} acquisition history",
     },
     {
         "slot": "timeline",
         "covered_patterns": [
-            r'\btimeline\b', r'\bhistory\b',
-            r'\b(19|20)\d{2}\b.{0,80}\b(19|20)\d{2}\b',  # 2+ distinct years mentioned
+            r"\btimeline\b",
+            r"\bhistory\b",
+            r"\b(19|20)\d{2}\b.{0,80}\b(19|20)\d{2}\b",  # 2+ distinct years mentioned
         ],
         "query_template": "{entity} company timeline history",
     },
 ]
 
-_ENTITY_NAME_RE = re.compile(r'\b([A-Z][a-zA-Z0-9&]*(?:\s+[A-Z][a-zA-Z0-9&]*){0,3})\b')
+_ENTITY_NAME_RE = re.compile(r"\b([A-Z][a-zA-Z0-9&]*(?:\s+[A-Z][a-zA-Z0-9&]*){0,3})\b")
 
 # Words indicating the query is about an organization/company/product-style
 # entity (where founder/acquisition/timeline hops make sense) rather than a
 # narrow factual, how-to, or definitional question.
 _ENTITY_QUERY_HINTS = re.compile(
-    r'\b(company|startup|corporation|organi[sz]ation|firm|business|app|platform|'
-    r'product|brand|founder|ceo|acqui(re|red|sition)|about)\b', re.IGNORECASE,
+    r"\b(company|startup|corporation|organi[sz]ation|firm|business|app|platform|"
+    r"product|brand|founder|ceo|acqui(re|red|sition)|about)\b",
+    re.IGNORECASE,
 )
 
 
@@ -1261,7 +1583,9 @@ def _extract_entity_name(query: str) -> Optional[str]:
     nothing looks like a proper noun (e.g. a lowercase how-to/definitional
     question), since those have no entity graph to hop.
     """
-    candidates = [c.strip() for c in _ENTITY_NAME_RE.findall(query) if len(c.strip()) > 1]
+    candidates = [
+        c.strip() for c in _ENTITY_NAME_RE.findall(query) if len(c.strip()) > 1
+    ]
     if not candidates:
         return None
     return max(candidates, key=len)
@@ -1342,7 +1666,7 @@ def plan_and_execute_search(query: str) -> tuple[list[str], list[dict]]:
     all_raw: list[dict] = []
 
     # ── Search execution: balance latency vs. quality by complexity ────────
-    complexity   = classify_query_complexity(query)
+    complexity = classify_query_complexity(query)
     round_budget = min(_COMPLEXITY_ROUND_BUDGET[complexity], MAX_SEARCH_ROUNDS)
     print(f"⚖️  [SearchExec] complexity='{complexity}' → round budget {round_budget}")
 
@@ -1354,7 +1678,11 @@ def plan_and_execute_search(query: str) -> tuple[list[str], list[dict]]:
     preferred_domains = route["domains"]
     print(
         f"🧭 [Router] '{query[:60]}' → category='{route['category']}'"
-        + (f", routing to {preferred_domains}" if preferred_domains else " (no domain bias)")
+        + (
+            f", routing to {preferred_domains}"
+            if preferred_domains
+            else " (no domain bias)"
+        )
     )
 
     # ── Round 1 — initial plan + search ──────────────────────────────────
@@ -1373,7 +1701,9 @@ def plan_and_execute_search(query: str) -> tuple[list[str], list[dict]]:
         already_run = {q.strip().lower() for q in queries_run}
         if hop_query and hop_query.strip().lower() not in already_run:
             round_num += 1
-            print(f"🔗 [Hop {round_num}/{round_budget}] Answer-graph gap → '{hop_query}'")
+            print(
+                f"🔗 [Hop {round_num}/{round_budget}] Answer-graph gap → '{hop_query}'"
+            )
             queries_run.append(hop_query)
             all_raw.extend(_execute_search_queries([hop_query], preferred_domains))
             continue
@@ -1381,17 +1711,23 @@ def plan_and_execute_search(query: str) -> tuple[list[str], list[dict]]:
         assessment = _assess_evidence_and_plan_more(query, all_raw, queries_run)
 
         if assessment["confident"] or not assessment["additional_queries"]:
-            print(f"✅ [Planner] Stopping after round {round_num} — evidence sufficient")
+            print(
+                f"✅ [Planner] Stopping after round {round_num} — evidence sufficient"
+            )
             break
 
         round_num += 1
         follow_up = assessment["additional_queries"]
-        print(f"📝 [Planner] Round {round_num}/{round_budget} follow-up queries: {follow_up}")
+        print(
+            f"📝 [Planner] Round {round_num}/{round_budget} follow-up queries: {follow_up}"
+        )
         queries_run.extend(follow_up)
         all_raw.extend(_execute_search_queries(follow_up, preferred_domains))
 
     if round_num >= round_budget:
-        print(f"🛑 [Planner] Reached round budget ({round_budget} for '{complexity}') — stopping")
+        print(
+            f"🛑 [Planner] Reached round budget ({round_budget} for '{complexity}') — stopping"
+        )
 
     return queries_run, all_raw
 
@@ -1400,6 +1736,7 @@ def plan_and_execute_search(query: str) -> tuple[list[str], list[dict]]:
 # STEP 3 — DEDUPLICATION
 # Remove duplicate URLs; merge snippets from different engines for same URL
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 def _url_key(url: str) -> str:
     """Normalise URL for deduplication (strip tracking params, trailing slashes)."""
@@ -1421,15 +1758,15 @@ def deduplicate_results(all_results: list[dict]) -> list[dict]:
     - Same content fingerprint (different URL) → keep highest-trust domain
     Returns deduplicated list.
     """
-    seen_urls: dict[str, dict]   = {}   # url_key → result
-    seen_fps:  set[str]          = set()
-    final:     list[dict]        = []
+    seen_urls: dict[str, dict] = {}  # url_key → result
+    seen_fps: set[str] = set()
+    final: list[dict] = []
 
     for r in all_results:
         url = r.get("url", "")
         body = r.get("body", "")
         ukey = _url_key(url)
-        fp   = _content_fingerprint(body) if body else ""
+        fp = _content_fingerprint(body) if body else ""
 
         if not ukey and not fp:
             # Direct answers without URL — always include
@@ -1441,7 +1778,9 @@ def deduplicate_results(all_results: list[dict]) -> list[dict]:
             existing = seen_urls[ukey]
             if len(body) > len(existing.get("body", "")):
                 existing["body"] = body
-            existing["engines_seen"] = existing.get("engines_seen", []) + [r.get("source_engine", "")]
+            existing["engines_seen"] = existing.get("engines_seen", []) + [
+                r.get("source_engine", "")
+            ]
             existing["multi_source"] = True
             continue
 
@@ -1468,10 +1807,17 @@ def deduplicate_results(all_results: list[dict]) -> list[dict]:
 
 # Domains that block crawlers or have no useful extractable content — skip them
 _SKIP_CRAWL_DOMAINS = {
-    "youtube.com", "youtu.be", "instagram.com", "facebook.com",
-    "twitter.com", "x.com", "tiktok.com", "linkedin.com",
+    "youtube.com",
+    "youtu.be",
+    "instagram.com",
+    "facebook.com",
+    "twitter.com",
+    "x.com",
+    "tiktok.com",
+    "linkedin.com",
     "reddit.com",  # often paywalled/rate-limited
-    "nseindia.com", "bseindia.com",  # require login
+    "nseindia.com",
+    "bseindia.com",  # require login
     "paywalled.com",
 }
 
@@ -1490,42 +1836,42 @@ def _should_crawl(url: str) -> bool:
         return False
 
 
-_TABLE_ROW_RE       = re.compile(r'^\s*\|.+\|\s*$', re.MULTILINE)
-_TABLE_SEPARATOR_RE = re.compile(r'^\s*\|?[\s:|-]+\|[\s:|-]+\|?\s*$', re.MULTILINE)
+_TABLE_ROW_RE = re.compile(r"^\s*\|.+\|\s*$", re.MULTILINE)
+_TABLE_SEPARATOR_RE = re.compile(r"^\s*\|?[\s:|-]+\|[\s:|-]+\|?\s*$", re.MULTILINE)
 
 # ── Discard: boilerplate that adds no answer value ──────────────────────────
 _NAVIGATION_PATTERNS = [
-    r'^\s*(home|menu|navigation|skip to (main )?content|main menu)\s*$',
-    r'(\[[^\]]+\]\([^)]+\)\s*[|>»/]\s*){2,}\[[^\]]+\]\([^)]+\)',  # link | link | link chains
-    r'^\s*(breadcrumb|you may also like|related articles?|read (also|more)|'
-    r'trending now|more from|share this|follow us on)\b',
+    r"^\s*(home|menu|navigation|skip to (main )?content|main menu)\s*$",
+    r"(\[[^\]]+\]\([^)]+\)\s*[|>»/]\s*){2,}\[[^\]]+\]\([^)]+\)",  # link | link | link chains
+    r"^\s*(breadcrumb|you may also like|related articles?|read (also|more)|"
+    r"trending now|more from|share this|follow us on)\b",
 ]
 _ADVERTISEMENT_PATTERNS = [
-    r'\b(advertisement|sponsored( content)?|promoted content|paid partnership)\b',
-    r'\b(subscribe now|sign up for our newsletter|download our app|click here to subscribe)\b',
+    r"\b(advertisement|sponsored( content)?|promoted content|paid partnership)\b",
+    r"\b(subscribe now|sign up for our newsletter|download our app|click here to subscribe)\b",
 ]
 _COMMENT_PATTERNS = [
-    r'^\s*\d+\s*comments?\b',
-    r'\b(leave a reply|leave a comment|post your comment|add a comment|view all comments)\b',
-    r'^\s*reply\s*$',
+    r"^\s*\d+\s*comments?\b",
+    r"\b(leave a reply|leave a comment|post your comment|add a comment|view all comments)\b",
+    r"^\s*reply\s*$",
 ]
 _DISCARD_CONTENT_TYPES = {"navigation", "advertisement", "comment"}
 
 # ── Preserve: high-value content worth keeping even when short ─────────────
 _DEFINITION_PATTERNS = [
-    r'\b[\w\s]{2,40}\s+(is defined as|refers to|is a term (used )?for|denotes)\b',
-    r'^\*\*[^*]{2,60}\*\*\s*[:\u2013\u2014-]\s',   # **Term**: definition
+    r"\b[\w\s]{2,40}\s+(is defined as|refers to|is a term (used )?for|denotes)\b",
+    r"^\*\*[^*]{2,60}\*\*\s*[:\u2013\u2014-]\s",  # **Term**: definition
 ]
 _STATISTIC_PATTERNS = [
-    r'\d+(\.\d+)?\s?%',
-    r'[$₹€£]\s?\d[\d,.]*',
-    r'\b(grew|increased|decreased|declined|rose|fell)\s+by\s+\d',
-    r'\baccording to (a|the) (study|survey|report|data)\b',
+    r"\d+(\.\d+)?\s?%",
+    r"[$₹€£]\s?\d[\d,.]*",
+    r"\b(grew|increased|decreased|declined|rose|fell)\s+by\s+\d",
+    r"\baccording to (a|the) (study|survey|report|data)\b",
 ]
 _TIMELINE_PATTERNS = [
-    r'\b(19|20)\d{2}\b.{0,80}\b(19|20)\d{2}\b',   # two+ years mentioned = likely a timeline
-    r'^\s*[-*]\s*(19|20)\d{2}\b',                  # bullet starting with a year
-    r'\btimeline\b',
+    r"\b(19|20)\d{2}\b.{0,80}\b(19|20)\d{2}\b",  # two+ years mentioned = likely a timeline
+    r"^\s*[-*]\s*(19|20)\d{2}\b",  # bullet starting with a year
+    r"\btimeline\b",
 ]
 _PRESERVE_CONTENT_TYPES = {"table", "definition", "statistic", "timeline"}
 
@@ -1574,7 +1920,7 @@ def _filter_unrelated_paragraphs(body: str, heading: str = "") -> list[tuple[str
     Returns [(paragraph_text, content_type), ...] for the KEPT paragraphs,
     in original order.
     """
-    paragraphs = [p.strip() for p in re.split(r'\n\s*\n', body) if p.strip()]
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", body) if p.strip()]
     kept: list[tuple[str, str]] = []
     for p in paragraphs:
         ctype = _classify_chunk_content_type(heading, p)
@@ -1595,7 +1941,7 @@ def _split_long_text(text: str, max_chars: int) -> list[str]:
         return [text] if text else []
 
     parts, buf = [], ""
-    for para in re.split(r'\n\s*\n', text):
+    for para in re.split(r"\n\s*\n", text):
         candidate = f"{buf}\n\n{para}".strip() if buf else para
         if len(candidate) > max_chars and buf:
             parts.append(buf)
@@ -1637,7 +1983,7 @@ def _chunk_page_markdown(markdown: str, page_title: str) -> list[dict]:
 
         filtered_body = "\n\n".join(p for p, _ in kept)
         preserve_types = [t for _, t in kept if t in _PRESERVE_CONTENT_TYPES]
-        has_preserve   = bool(preserve_types)
+        has_preserve = bool(preserve_types)
 
         # Only enforce the min-length floor on ordinary prose — a short
         # table/definition/statistic/timeline is still worth keeping.
@@ -1646,17 +1992,19 @@ def _chunk_page_markdown(markdown: str, page_title: str) -> list[dict]:
 
         dominant_type = preserve_types[0] if has_preserve else "paragraph"
         for piece in _split_long_text(filtered_body, _CHUNK_MAX_CHARS):
-            chunks.append({"heading": heading_text, "text": piece, "content_type": dominant_type})
+            chunks.append(
+                {"heading": heading_text, "text": piece, "content_type": dominant_type}
+            )
 
     if headers:
         # Lede text before the first heading still belongs to the page title
         if headers[0].start() > 0:
-            _emit(page_title or "Introduction", markdown[:headers[0].start()])
+            _emit(page_title or "Introduction", markdown[: headers[0].start()])
 
         for i, h in enumerate(headers):
             heading_text = h.group(2).strip()
-            body_start   = h.end()
-            body_end     = headers[i + 1].start() if i + 1 < len(headers) else len(markdown)
+            body_start = h.end()
+            body_end = headers[i + 1].start() if i + 1 < len(headers) else len(markdown)
             _emit(heading_text, markdown[body_start:body_end])
     else:
         # No headings — filter paragraphs first, then group survivors up to
@@ -1667,17 +2015,25 @@ def _chunk_page_markdown(markdown: str, page_title: str) -> list[dict]:
         for p, ctype in kept:
             candidate = f"{buf}\n\n{p}".strip() if buf else p
             if len(candidate) > _CHUNK_MAX_CHARS and buf:
-                dominant = next((t for t in buf_types if t in _PRESERVE_CONTENT_TYPES), "paragraph")
-                chunks.append({"heading": page_title or "", "text": buf, "content_type": dominant})
+                dominant = next(
+                    (t for t in buf_types if t in _PRESERVE_CONTENT_TYPES), "paragraph"
+                )
+                chunks.append(
+                    {"heading": page_title or "", "text": buf, "content_type": dominant}
+                )
                 buf, buf_types = p, [ctype]
             else:
                 buf = candidate
                 buf_types.append(ctype)
         has_preserve = any(t in _PRESERVE_CONTENT_TYPES for t in buf_types)
         if len(buf) >= _CHUNK_MIN_CHARS or has_preserve:
-            dominant = next((t for t in buf_types if t in _PRESERVE_CONTENT_TYPES), "paragraph")
+            dominant = next(
+                (t for t in buf_types if t in _PRESERVE_CONTENT_TYPES), "paragraph"
+            )
             if buf:
-                chunks.append({"heading": page_title or "", "text": buf, "content_type": dominant})
+                chunks.append(
+                    {"heading": page_title or "", "text": buf, "content_type": dominant}
+                )
 
     return chunks
 
@@ -1692,7 +2048,7 @@ def _dedupe_chunks(chunks: list[dict]) -> list[dict]:
     seen: set[str] = set()
     unique: list[dict] = []
     for c in chunks:
-        norm = re.sub(r'\s+', ' ', c["text"].strip().lower())
+        norm = re.sub(r"\s+", " ", c["text"].strip().lower())
         fp = hashlib.md5(norm.encode("utf-8", "ignore")).hexdigest()
         if fp in seen:
             continue
@@ -1702,7 +2058,11 @@ def _dedupe_chunks(chunks: list[dict]) -> list[dict]:
 
 
 _CONTENT_TYPE_SCORE_BONUS = {
-    "table": 3.0, "definition": 2.5, "statistic": 2.0, "timeline": 2.0, "paragraph": 0.0,
+    "table": 3.0,
+    "definition": 2.5,
+    "statistic": 2.0,
+    "timeline": 2.0,
+    "paragraph": 0.0,
 }
 
 
@@ -1720,12 +2080,14 @@ def _score_chunk(chunk: dict, query_terms: set[str]) -> float:
     overlap alone wouldn't have ranked them highly.
     """
     if not query_terms:
-        return 1.0 + _CONTENT_TYPE_SCORE_BONUS.get(chunk.get("content_type", "paragraph"), 0.0)
+        return 1.0 + _CONTENT_TYPE_SCORE_BONUS.get(
+            chunk.get("content_type", "paragraph"), 0.0
+        )
 
-    text_words    = set(re.findall(r'[a-z0-9]+', chunk["text"].lower()))
-    heading_words = set(re.findall(r'[a-z0-9]+', chunk.get("heading", "").lower()))
+    text_words = set(re.findall(r"[a-z0-9]+", chunk["text"].lower()))
+    heading_words = set(re.findall(r"[a-z0-9]+", chunk.get("heading", "").lower()))
 
-    body_hits    = len(query_terms & text_words)
+    body_hits = len(query_terms & text_words)
     heading_hits = len(query_terms & heading_words)
 
     score = body_hits + (heading_hits * 3)
@@ -1745,7 +2107,10 @@ def _embed_openai(texts: list[str]) -> Optional[list[list[float]]]:
     try:
         resp = requests.post(
             "https://api.openai.com/v1/embeddings",
-            headers={"Authorization": f"Bearer {OPENAI_KEY}", "Content-Type": "application/json"},
+            headers={
+                "Authorization": f"Bearer {OPENAI_KEY}",
+                "Content-Type": "application/json",
+            },
             json={"model": EMBEDDING_MODEL_OPENAI, "input": texts},
             timeout=EMBEDDING_TIMEOUT,
         )
@@ -1759,14 +2124,23 @@ def _embed_openai(texts: list[str]) -> Optional[list[list[float]]]:
         return None
 
 
-def _embed_cohere(texts: list[str], input_type: str = "search_document") -> Optional[list[list[float]]]:
+def _embed_cohere(
+    texts: list[str], input_type: str = "search_document"
+) -> Optional[list[list[float]]]:
     if not COHERE_KEY:
         return None
     try:
         resp = requests.post(
             "https://api.cohere.ai/v1/embed",
-            headers={"Authorization": f"Bearer {COHERE_KEY}", "Content-Type": "application/json"},
-            json={"model": EMBEDDING_MODEL_COHERE, "texts": texts, "input_type": input_type},
+            headers={
+                "Authorization": f"Bearer {COHERE_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": EMBEDDING_MODEL_COHERE,
+                "texts": texts,
+                "input_type": input_type,
+            },
             timeout=EMBEDDING_TIMEOUT,
         )
         if resp.status_code != 200:
@@ -1778,14 +2152,23 @@ def _embed_cohere(texts: list[str], input_type: str = "search_document") -> Opti
         return None
 
 
-def _embed_voyage(texts: list[str], input_type: str = "document") -> Optional[list[list[float]]]:
+def _embed_voyage(
+    texts: list[str], input_type: str = "document"
+) -> Optional[list[list[float]]]:
     if not VOYAGE_KEY:
         return None
     try:
         resp = requests.post(
             "https://api.voyageai.com/v1/embeddings",
-            headers={"Authorization": f"Bearer {VOYAGE_KEY}", "Content-Type": "application/json"},
-            json={"model": EMBEDDING_MODEL_VOYAGE, "input": texts, "input_type": input_type},
+            headers={
+                "Authorization": f"Bearer {VOYAGE_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": EMBEDDING_MODEL_VOYAGE,
+                "input": texts,
+                "input_type": input_type,
+            },
             timeout=EMBEDDING_TIMEOUT,
         )
         if resp.status_code != 200:
@@ -1798,7 +2181,9 @@ def _embed_voyage(texts: list[str], input_type: str = "document") -> Optional[li
         return None
 
 
-def _get_embeddings(texts: list[str], is_query: bool = False) -> Optional[list[list[float]]]:
+def _get_embeddings(
+    texts: list[str], is_query: bool = False
+) -> Optional[list[list[float]]]:
     """
     ── CHANGED ──────────────────────────────────────────────────────────────
     Provider-independent embedding call. Dispatches on EMBEDDING_PROVIDER
@@ -1820,8 +2205,12 @@ def _get_embeddings(texts: list[str], is_query: bool = False) -> Optional[list[l
         EMBEDDING_PROVIDER, EMBEDDING_MODEL_OPENAI
     )
 
-    cache_keys = [_cache_key("embedding", EMBEDDING_PROVIDER, model, is_query, t) for t in texts]
-    cached_vectors: list[Optional[list[float]]] = [_embedding_cache.get(k) for k in cache_keys]
+    cache_keys = [
+        _cache_key("embedding", EMBEDDING_PROVIDER, model, is_query, t) for t in texts
+    ]
+    cached_vectors: list[Optional[list[float]]] = [
+        _embedding_cache.get(k) for k in cache_keys
+    ]
 
     miss_indices = [i for i, v in enumerate(cached_vectors) if v is None]
     if not miss_indices:
@@ -1830,7 +2219,9 @@ def _get_embeddings(texts: list[str], is_query: bool = False) -> Optional[list[l
 
     miss_texts = [texts[i] for i in miss_indices]
     if EMBEDDING_PROVIDER == "cohere":
-        fresh = _embed_cohere(miss_texts, "search_query" if is_query else "search_document")
+        fresh = _embed_cohere(
+            miss_texts, "search_query" if is_query else "search_document"
+        )
     elif EMBEDDING_PROVIDER == "voyage":
         fresh = _embed_voyage(miss_texts, "query" if is_query else "document")
     else:
@@ -1840,7 +2231,9 @@ def _get_embeddings(texts: list[str], is_query: bool = False) -> Optional[list[l
         return None  # provider call failed — caller falls back to keyword scoring
 
     if len(miss_indices) < len(texts):
-        print(f"♻️ [Cache] Embeddings: {len(texts) - len(miss_indices)} hit, {len(miss_indices)} miss")
+        print(
+            f"♻️ [Cache] Embeddings: {len(texts) - len(miss_indices)} hit, {len(miss_indices)} miss"
+        )
 
     for i, vector in zip(miss_indices, fresh):
         cached_vectors[i] = vector
@@ -1878,6 +2271,7 @@ class _LocalVectorIndex:
         try:
             import faiss  # type: ignore
             import numpy as np  # type: ignore
+
             self._faiss = faiss
             self._np = np
             self._faiss_index = faiss.IndexFlatIP(dim)
@@ -1897,7 +2291,9 @@ class _LocalVectorIndex:
         if self._faiss_index is not None:
             q = self._np.array([query_vector], dtype="float32")
             self._faiss.normalize_L2(q)
-            scores, idxs = self._faiss_index.search(q, min(top_k, self._faiss_index.ntotal))
+            scores, idxs = self._faiss_index.search(
+                q, min(top_k, self._faiss_index.ntotal)
+            )
             return [(int(i), float(s)) for i, s in zip(idxs[0], scores[0]) if i != -1]
         qn = _normalize_vec(query_vector)
         sims = [(i, _dot(qn, v)) for i, v in enumerate(self._vectors)]
@@ -1959,7 +2355,9 @@ def _select_best_chunks(
 
     if vector_hits is None:
         # ── Fallback: keyword-overlap scoring (unchanged from before) ──
-        query_terms = {w for w in re.findall(r'[a-z0-9]+', query.lower()) if w not in _STOPWORDS}
+        query_terms = {
+            w for w in re.findall(r"[a-z0-9]+", query.lower()) if w not in _STOPWORDS
+        }
         scored = [(i, c, _score_chunk(c, query_terms)) for i, c in enumerate(chunks)]
         scored.sort(key=lambda t: t[2], reverse=True)
         ordered = [c for _i, c, _score in scored]
@@ -2039,7 +2437,9 @@ def _firecrawl_extract(url: str, query: str = "") -> Optional[str]:
     # within one pipeline run, short enough that a transient failure doesn't
     # blacklist a URL for the full hour a successful page would be cached.
     if cached_page is False:
-        print(f"♻️ [Cache] Firecrawl negative-cache hit (recent failure) for {url[:60]}")
+        print(
+            f"♻️ [Cache] Firecrawl negative-cache hit (recent failure) for {url[:60]}"
+        )
         return None
 
     if cached_page is not None:
@@ -2051,30 +2451,36 @@ def _firecrawl_extract(url: str, query: str = "") -> Optional[str]:
                 "https://api.firecrawl.dev/v1/scrape",
                 headers={
                     "Authorization": f"Bearer {FIRECRAWL_KEY}",
-                    "Content-Type":  "application/json",
+                    "Content-Type": "application/json",
                 },
                 json={
-                    "url":     url,
+                    "url": url,
                     "formats": ["markdown"],
                     "onlyMainContent": True,
-                    "timeout": 4000,   # tell Firecrawl server to cap at 4s too
+                    "timeout": 4000,  # tell Firecrawl server to cap at 4s too
                 },
-                timeout=5,             # hard client-side timeout — skip if slow
+                timeout=5,  # hard client-side timeout — skip if slow
             )
             if resp.status_code != 200:
                 print(f"⚠️ [Firecrawl] HTTP {resp.status_code} for {url[:60]}")
-                _firecrawl_cache.set(firecrawl_cache_key, False, ttl=FIRECRAWL_NEGATIVE_CACHE_TTL)
+                _firecrawl_cache.set(
+                    firecrawl_cache_key, False, ttl=FIRECRAWL_NEGATIVE_CACHE_TTL
+                )
                 return None
 
             data = resp.json()
             if not data.get("success"):
-                _firecrawl_cache.set(firecrawl_cache_key, False, ttl=FIRECRAWL_NEGATIVE_CACHE_TTL)
+                _firecrawl_cache.set(
+                    firecrawl_cache_key, False, ttl=FIRECRAWL_NEGATIVE_CACHE_TTL
+                )
                 return None
 
             page_data = data.get("data", {}) or {}
-            content   = page_data.get("markdown", "")
+            content = page_data.get("markdown", "")
             if not content:
-                _firecrawl_cache.set(firecrawl_cache_key, False, ttl=FIRECRAWL_NEGATIVE_CACHE_TTL)
+                _firecrawl_cache.set(
+                    firecrawl_cache_key, False, ttl=FIRECRAWL_NEGATIVE_CACHE_TTL
+                )
                 return None
 
             page_title = (page_data.get("metadata") or {}).get("title", "") or ""
@@ -2082,7 +2488,9 @@ def _firecrawl_extract(url: str, query: str = "") -> Optional[str]:
 
         except Exception as e:
             print(f"⚠️ [Firecrawl] timeout/skip for {url[:60]}: {e}")
-            _firecrawl_cache.set(firecrawl_cache_key, False, ttl=FIRECRAWL_NEGATIVE_CACHE_TTL)
+            _firecrawl_cache.set(
+                firecrawl_cache_key, False, ttl=FIRECRAWL_NEGATIVE_CACHE_TTL
+            )
             return None
 
     try:
@@ -2093,15 +2501,19 @@ def _firecrawl_extract(url: str, query: str = "") -> Optional[str]:
         if not chunks:
             # Page had no usable structure at all — fall back to a flat cap
             clean = content.strip()[:_PAGE_CHAR_BUDGET]
-            print(f"✅ [Firecrawl] {url[:60]}: no chunk boundaries found, "
-                  f"used flat {len(clean)}-char cap")
+            print(
+                f"✅ [Firecrawl] {url[:60]}: no chunk boundaries found, "
+                f"used flat {len(clean)}-char cap"
+            )
             return clean
 
-        best  = _select_best_chunks(chunks, query)
+        best = _select_best_chunks(chunks, query)
         clean = _assemble_chunks(best, page_title)
 
-        print(f"✅ [Firecrawl] {url[:60]}: {len(chunks)} chunks → "
-              f"{len(best)} kept ({len(clean)} chars, query-scored)")
+        print(
+            f"✅ [Firecrawl] {url[:60]}: {len(chunks)} chunks → "
+            f"{len(best)} kept ({len(clean)} chars, query-scored)"
+        )
         return clean
 
     except Exception as e:
@@ -2214,8 +2626,10 @@ def enrich_with_firecrawl(
         print(f"🕷️ [Firecrawl] No crawlable URLs found")
         return results
 
-    print(f"🕷️ [Firecrawl] Crawling {len(candidates)} URLs in parallel "
-          f"(official/high-trust/fresh/diverse, 5s timeout each)")
+    print(
+        f"🕷️ [Firecrawl] Crawling {len(candidates)} URLs in parallel "
+        f"(official/high-trust/fresh/diverse, 5s timeout each)"
+    )
 
     # ── ARCHITECTURE REVIEW FIX (Concurrency/Scalability) ────────────────────
     # PREVIOUSLY: max_workers=len(candidates) — sized directly to how many
@@ -2242,12 +2656,14 @@ def enrich_with_firecrawl(
             try:
                 content = future.result(timeout=0.1)  # already done — just collect
                 if content:
-                    results[idx]["body"]           = content
-                    results[idx]["firecrawled"]    = True
+                    results[idx]["body"] = content
+                    results[idx]["firecrawled"] = True
                     # Chunk selection already trims to the char budget by
                     # relevance (not a mid-sentence cut), so "truncated" now
                     # just flags pages where kept content hit that budget.
-                    results[idx]["body_truncated"] = len(content) >= (_PAGE_CHAR_BUDGET - 10)
+                    results[idx]["body_truncated"] = len(content) >= (
+                        _PAGE_CHAR_BUDGET - 10
+                    )
                     enriched_count += 1
             except Exception:
                 pass  # timeout or error — snippet stays as-is
@@ -2278,179 +2694,545 @@ TRUST_TIERS = {
     # regulators, central banks, national statistics offices ─────────────────
     1: {
         # India — Government / Regulators
-        "gov", "gov.in", "nic.in", "india.gov.in", "pib.gov.in", "mea.gov.in","x.com","twitter.com",
-        "rbi.org.in", "sebi.gov.in", "irdai.gov.in", "npci.org.in", "uidai.gov.in",
-        "incometax.gov.in", "gst.gov.in", "isro.gov.in", "drdo.gov.in",
-        "mospi.gov.in", "rbi.gov.in", "eci.gov.in","services.india.gov.in","registry.gov.in",
-        "sci.gov.in","ecourts.gov.in","mha.gov.in","mod.gov.in","mohfw.gov.in","education.gov.in",
-        "meity.gov.in","dpiit.gov.in","commerce.gov.in","msme.gov.in","finance.gov.in","dea.gov.in","doe.gov.in",
-        "mca.gov.in","labour.gov.in","rural.nic.in","jalshakti.gov.in","mnre.gov.in","powermin.gov.in",
-        "petroleum.nic.in","coal.nic.in","steel.gov.in","fert.nic.in","textiles.gov.in",
-        "foodprocessingindia.gov.in","civilaviation.gov.in","shipping.gov.in","roadtransport.gov.in",
-        "railways.gov.in","tourism.gov.in","culture.gov.in","tribal.nic.in","socialjustice.gov.in","wcd.gov.in",
-        "yas.nic.in","consumeraffairs.nic.in","moef.gov.in","moes.gov.in","dst.gov.in","dbtindia.gov.in","ayush.gov.in",
-        "dopt.gov.in","sec.gov",
+        "gov",
+        "gov.in",
+        "nic.in",
+        "india.gov.in",
+        "pib.gov.in",
+        "mea.gov.in",
+        "x.com",
+        "twitter.com",
+        "rbi.org.in",
+        "sebi.gov.in",
+        "irdai.gov.in",
+        "npci.org.in",
+        "uidai.gov.in",
+        "incometax.gov.in",
+        "gst.gov.in",
+        "isro.gov.in",
+        "drdo.gov.in",
+        "mospi.gov.in",
+        "rbi.gov.in",
+        "eci.gov.in",
+        "services.india.gov.in",
+        "registry.gov.in",
+        "sci.gov.in",
+        "ecourts.gov.in",
+        "mha.gov.in",
+        "mod.gov.in",
+        "mohfw.gov.in",
+        "education.gov.in",
+        "meity.gov.in",
+        "dpiit.gov.in",
+        "commerce.gov.in",
+        "msme.gov.in",
+        "finance.gov.in",
+        "dea.gov.in",
+        "doe.gov.in",
+        "mca.gov.in",
+        "labour.gov.in",
+        "rural.nic.in",
+        "jalshakti.gov.in",
+        "mnre.gov.in",
+        "powermin.gov.in",
+        "petroleum.nic.in",
+        "coal.nic.in",
+        "steel.gov.in",
+        "fert.nic.in",
+        "textiles.gov.in",
+        "foodprocessingindia.gov.in",
+        "civilaviation.gov.in",
+        "shipping.gov.in",
+        "roadtransport.gov.in",
+        "railways.gov.in",
+        "tourism.gov.in",
+        "culture.gov.in",
+        "tribal.nic.in",
+        "socialjustice.gov.in",
+        "wcd.gov.in",
+        "yas.nic.in",
+        "consumeraffairs.nic.in",
+        "moef.gov.in",
+        "moes.gov.in",
+        "dst.gov.in",
+        "dbtindia.gov.in",
+        "ayush.gov.in",
+        "dopt.gov.in",
+        "sec.gov",
         # Finance / Regulators
-        "pfrda.org.in","ibbi.gov.in","ifsca.gov.in","cci.gov.in","trai.gov.in","pngrb.gov.in","aera.gov.in",
-        "cercind.gov.in","aptel.gov.in","fssai.gov.in","cdsco.gov.in", "cbic.gov.in","cbec.gov.in",
-        "data.gov.in","openbudgetsindia.org",
+        "pfrda.org.in",
+        "ibbi.gov.in",
+        "ifsca.gov.in",
+        "cci.gov.in",
+        "trai.gov.in",
+        "pngrb.gov.in",
+        "aera.gov.in",
+        "cercind.gov.in",
+        "aptel.gov.in",
+        "fssai.gov.in",
+        "cdsco.gov.in",
+        "cbic.gov.in",
+        "cbec.gov.in",
+        "data.gov.in",
+        "openbudgetsindia.org",
         # Science
-        "barc.gov.in","iisc.ac.in","csir.res.in","imd.gov.in","incois.gov.in","cpcb.nic.in",
-        "nhm.gov.in","nhp.gov.in","icmr.gov.in","niti.gov.in","icar.org.in","agricoop.gov.in","krishi.gov.in",
+        "barc.gov.in",
+        "iisc.ac.in",
+        "csir.res.in",
+        "imd.gov.in",
+        "incois.gov.in",
+        "cpcb.nic.in",
+        "nhm.gov.in",
+        "nhp.gov.in",
+        "icmr.gov.in",
+        "niti.gov.in",
+        "icar.org.in",
+        "agricoop.gov.in",
+        "krishi.gov.in",
         # Stock Exchange
-        "mcxindia.com","nseindia.com","bseindia.com",
+        "mcxindia.com",
+        "nseindia.com",
+        "bseindia.com",
         # Public Information
         "mygov.in",
-        "digitalindia.gov.in","bis.gov.in","qcin.org","ipindia.gov.in",
+        "digitalindia.gov.in",
+        "bis.gov.in",
+        "qcin.org",
+        "ipindia.gov.in",
         # Telecom
         "dot.gov.in",
         "bsnl.co.in",
         # International organizations
-        "who.int", "un.org", "worldbank.org", "imf.org", "unicef.org",
-        "unesco.org", "wto.org", "oecd.org", "interpol.int",
-        "undp.org","unhcr.org","unep.org","unfpa.org","unwomen.org",
-        "unhabitat.org","wfp.org","fao.org","ilo.org","icao.int",
-        "imo.org","itu.int","wipo.int","wmo.int","ifad.org","unido.org","unctad.org",
-        "iom.int","unaids.org",
+        "who.int",
+        "un.org",
+        "worldbank.org",
+        "imf.org",
+        "unicef.org",
+        "unesco.org",
+        "wto.org",
+        "oecd.org",
+        "interpol.int",
+        "undp.org",
+        "unhcr.org",
+        "unep.org",
+        "unfpa.org",
+        "unwomen.org",
+        "unhabitat.org",
+        "wfp.org",
+        "fao.org",
+        "ilo.org",
+        "icao.int",
+        "imo.org",
+        "itu.int",
+        "wipo.int",
+        "wmo.int",
+        "ifad.org",
+        "unido.org",
+        "unctad.org",
+        "iom.int",
+        "unaids.org",
         # US Government
-        "cdc.gov", "nih.gov", "fda.gov", "sec.gov", "federalreserve.gov",
-        "treasury.gov", "whitehouse.gov", "nasa.gov", "noaa.gov",
-        "usa.gov","congress.gov","supremecourt.gov","state.gov",
-        "justice.gov","commerce.gov","energy.gov","defense.gov","dhs.gov",
-        "transportation.gov","education.gov","labor.gov","interior.gov",
-        "usda.gov","va.gov","cisa.gov","finra.org","cftc.gov",
-        "fdic.gov","occ.treas.gov","cfpb.gov","nsf.gov","nist.gov","usgs.gov",
+        "cdc.gov",
+        "nih.gov",
+        "fda.gov",
+        "sec.gov",
+        "federalreserve.gov",
+        "treasury.gov",
+        "whitehouse.gov",
+        "nasa.gov",
+        "noaa.gov",
+        "usa.gov",
+        "congress.gov",
+        "supremecourt.gov",
+        "state.gov",
+        "justice.gov",
+        "commerce.gov",
+        "energy.gov",
+        "defense.gov",
+        "dhs.gov",
+        "transportation.gov",
+        "education.gov",
+        "labor.gov",
+        "interior.gov",
+        "usda.gov",
+        "va.gov",
+        "cisa.gov",
+        "finra.org",
+        "cftc.gov",
+        "fdic.gov",
+        "occ.treas.gov",
+        "cfpb.gov",
+        "nsf.gov",
+        "nist.gov",
+        "usgs.gov",
         # Other national governments / central banks
-        "gov.uk", "europa.eu", "ecb.europa.eu", "bankofengland.co.uk","canada.ca",
-        "bankofcanada.ca","gov.au","rba.gov.au","govt.nz","rbnz.govt.nz","go.jp",
-        "boj.or.jp","go.kr","bok.or.kr","gov.sg","mas.gov.sg","admin.ch","snb.ch",
-        "bund.de","bundesbank.de","gouvernement.fr","banque-france.fr","governo.it",
-        "bancaditalia.it","lamoncloa.gob.es","bde.es","government.nl", "dnb.nl","belgium.be",
-        "nbb.be","gov.ie","centralbank.ie","nationalbanken.dk","government.se","riksbank.se",
-        "regjeringen.no","norges-bank.no","valtioneuvosto.fi","suomenpankki.fi","oesterreich.gv.at",
-        "oenb.at","portugal.gov.pt","bportugal.pt","gov.br","bcb.gov.br","gob.mx","banxico.org.mx",
+        "gov.uk",
+        "europa.eu",
+        "ecb.europa.eu",
+        "bankofengland.co.uk",
+        "canada.ca",
+        "bankofcanada.ca",
+        "gov.au",
+        "rba.gov.au",
+        "govt.nz",
+        "rbnz.govt.nz",
+        "go.jp",
+        "boj.or.jp",
+        "go.kr",
+        "bok.or.kr",
+        "gov.sg",
+        "mas.gov.sg",
+        "admin.ch",
+        "snb.ch",
+        "bund.de",
+        "bundesbank.de",
+        "gouvernement.fr",
+        "banque-france.fr",
+        "governo.it",
+        "bancaditalia.it",
+        "lamoncloa.gob.es",
+        "bde.es",
+        "government.nl",
+        "dnb.nl",
+        "belgium.be",
+        "nbb.be",
+        "gov.ie",
+        "centralbank.ie",
+        "nationalbanken.dk",
+        "government.se",
+        "riksbank.se",
+        "regjeringen.no",
+        "norges-bank.no",
+        "valtioneuvosto.fi",
+        "suomenpankki.fi",
+        "oesterreich.gv.at",
+        "oenb.at",
+        "portugal.gov.pt",
+        "bportugal.pt",
+        "gov.br",
+        "bcb.gov.br",
+        "gob.mx",
+        "banxico.org.mx",
     },
-
     # ── Tier 2 (score 88) — Premier wire services, flagship global news
     # (heavy editorial/fact-check standards), and top peer-reviewed journals ──
     2: {
         # Wire services
-        "reuters.com", "apnews.com", "afp.com","pti.in","youtube.com",
+        "reuters.com",
+        "apnews.com",
+        "afp.com",
+        "pti.in",
+        "youtube.com",
         # Indian Tier 2 (Score 88)
         "pti.in",
         "thehindu.com",
         "indianexpress.com",
-        "livemint.com","business-standard.com","thehindubusinessline.com","prasarbharati.gov.in","newsonair.gov.in",
-        "livelaw.in","barandbench.com","medianama.com","indiascienceandtechnology.gov.in","factchecker.in","altnews.in","indiaspend.com",
+        "livemint.com",
+        "business-standard.com",
+        "thehindubusinessline.com",
+        "prasarbharati.gov.in",
+        "newsonair.gov.in",
+        "livelaw.in",
+        "barandbench.com",
+        "medianama.com",
+        "indiascienceandtechnology.gov.in",
+        "factchecker.in",
+        "altnews.in",
+        "indiaspend.com",
         # Flagship global news
-        "bbc.com", "bbc.co.uk", "nytimes.com", "theguardian.com",
-        "washingtonpost.com", "ft.com", "economist.com", "wsj.com",
+        "bbc.com",
+        "bbc.co.uk",
+        "nytimes.com",
+        "theguardian.com",
+        "washingtonpost.com",
+        "ft.com",
+        "economist.com",
+        "wsj.com",
         # Peer-reviewed / academic journals
-        "nature.com", "science.org", "thelancet.com", "nejm.org",
-        "cell.com", "pnas.org", "jamanetwork.com", "bmj.com",
-        "huggingface.co","paperswithcode.com","kaggle.com","ai.google.dev","deepmind.google","ollama.com",
-        "mistral.ai","cohere.com","meta.com","llama.com","perplexity.ai","together.ai",
-        "replicate.com","fireworks.ai","groq.com","vllm.ai","langchain.com","langchain.dev","langgraph.dev",
+        "nature.com",
+        "science.org",
+        "thelancet.com",
+        "nejm.org",
+        "cell.com",
+        "pnas.org",
+        "jamanetwork.com",
+        "bmj.com",
+        "huggingface.co",
+        "paperswithcode.com",
+        "kaggle.com",
+        "ai.google.dev",
+        "deepmind.google",
+        "ollama.com",
+        "mistral.ai",
+        "cohere.com",
+        "meta.com",
+        "llama.com",
+        "perplexity.ai",
+        "together.ai",
+        "replicate.com",
+        "fireworks.ai",
+        "groq.com",
+        "vllm.ai",
+        "langchain.com",
+        "langchain.dev",
+        "langgraph.dev",
         # Reference
-        "wikipedia.org", "britannica.com", "scholar.google.com",
-        "pubmed.ncbi.nlm.nih.gov", "arxiv.org",
-        "python.org","nodejs.org","npmjs.com","rust-lang.org","crates.io","golang.org","go.dev",
-        "kotlinlang.org","oracle.com","java.com","docs.oracle.com","postgresql.org","mysql.com","mariadb.org","sqlite.org",
-        "redis.io","mongodb.com","docker.com","kubernetes.io","helm.sh","nginx.org","apache.org","gnu.org",
-        "linux.org","kernel.org","ubuntu.com","debian.org","fedora.org","archlinux.org","cloudflare.com","vercel.com",
-        "netlify.com","render.com","digitalocean.com","aws.amazon.com","azure.microsoft.com","cloud.google.com",
-        "gitlab.com","sourceforge.net","gnu.org","freedesktop.org","gnome.org","kde.org",
+        "wikipedia.org",
+        "britannica.com",
+        "scholar.google.com",
+        "pubmed.ncbi.nlm.nih.gov",
+        "arxiv.org",
+        "python.org",
+        "nodejs.org",
+        "npmjs.com",
+        "rust-lang.org",
+        "crates.io",
+        "golang.org",
+        "go.dev",
+        "kotlinlang.org",
+        "oracle.com",
+        "java.com",
+        "docs.oracle.com",
+        "postgresql.org",
+        "mysql.com",
+        "mariadb.org",
+        "sqlite.org",
+        "redis.io",
+        "mongodb.com",
+        "docker.com",
+        "kubernetes.io",
+        "helm.sh",
+        "nginx.org",
+        "apache.org",
+        "gnu.org",
+        "linux.org",
+        "kernel.org",
+        "ubuntu.com",
+        "debian.org",
+        "fedora.org",
+        "archlinux.org",
+        "cloudflare.com",
+        "vercel.com",
+        "netlify.com",
+        "render.com",
+        "digitalocean.com",
+        "aws.amazon.com",
+        "azure.microsoft.com",
+        "cloud.google.com",
+        "gitlab.com",
+        "sourceforge.net",
+        "gnu.org",
+        "freedesktop.org",
+        "gnome.org",
+        "kde.org",
     },
-
     # ── Tier 3 (score 78) — Major national/regional news, established tech &
     # finance official sites, big-brand company sources ──────────────────────
     3: {
         # Indian national news
-        "timesofindia.com", "hindustantimes.com", "ndtv.com", "thehindu.com",
-        "indianexpress.com", "livemint.com", "economictimes.indiatimes.com",
-        "businessstandard.com", "financialexpress.com", "thewire.in",
-        "theprint.in", "scroll.in", "thequint.com","abcnews.go.com","cnn.com",
-        "npr.org","pbs.org","aljazeera.com","dw.com","france24.com","cbc.ca",
-        "cbcnews.ca","sky.com","abc.net.au","smh.com.au","straitstimes.com",
-        "scmp.com","nikkei.com","asia.nikkei.com",
+        "timesofindia.com",
+        "hindustantimes.com",
+        "ndtv.com",
+        "thehindu.com",
+        "indianexpress.com",
+        "livemint.com",
+        "economictimes.indiatimes.com",
+        "businessstandard.com",
+        "financialexpress.com",
+        "thewire.in",
+        "theprint.in",
+        "scroll.in",
+        "thequint.com",
+        "abcnews.go.com",
+        "cnn.com",
+        "npr.org",
+        "pbs.org",
+        "aljazeera.com",
+        "dw.com",
+        "france24.com",
+        "cbc.ca",
+        "cbcnews.ca",
+        "sky.com",
+        "abc.net.au",
+        "smh.com.au",
+        "straitstimes.com",
+        "scmp.com",
+        "nikkei.com",
+        "asia.nikkei.com",
         # International business/finance news
-        "bloomberg.com", "cnbc.com", "forbes.com", "moneycontrol.com",
-        "finance.yahoo.com","fred.stlouisfed.org","morningstar.com","marketwatch.com",
-        "investopedia.com","tradingeconomics.com","coinmarketcap.com","coingecko.com",
+        "bloomberg.com",
+        "cnbc.com",
+        "forbes.com",
+        "moneycontrol.com",
+        "finance.yahoo.com",
+        "fred.stlouisfed.org",
+        "morningstar.com",
+        "marketwatch.com",
+        "investopedia.com",
+        "tradingeconomics.com",
+        "coinmarketcap.com",
+        "coingecko.com",
         # Tech — official company sources & major docs
-        "techcrunch.com", "theverge.com", "arstechnica.com", "wired.com",
-        "stackoverflow.com", "github.com", "docs.python.org",
-        "developer.mozilla.org", "microsoft.com", "google.com", "apple.com",
-        "amazon.com", "openai.com", "anthropic.com", "meta.com", "nvidia.com",
+        "techcrunch.com",
+        "theverge.com",
+        "arstechnica.com",
+        "wired.com",
+        "stackoverflow.com",
+        "github.com",
+        "docs.python.org",
+        "developer.mozilla.org",
+        "microsoft.com",
+        "google.com",
+        "apple.com",
+        "amazon.com",
+        "openai.com",
+        "anthropic.com",
+        "meta.com",
+        "nvidia.com",
         # Health — established institutions
-        "mayoclinic.org", "webmd.com", "healthline.com", "clevelandclinic.org",
-        "cisa.gov","mitre.org","cve.org","nvd.nist.gov","nist.gov","owasp.org",
-        "sans.org","krebsonsecurity.com","bleepingcomputer.com","malwarebytes.com",
-        "virustotal.com","abuse.ch","security.googleblog.com","theverge.com",
-        "arstechnica.com","wired.com","engadget.com","tomshardware.com","anandtech.com",
-        "9to5google.com","9to5mac.com","androidauthority.com","androidpolice.com",
-        "macrumors.com","xda-developers.com",
+        "mayoclinic.org",
+        "webmd.com",
+        "healthline.com",
+        "clevelandclinic.org",
+        "cisa.gov",
+        "mitre.org",
+        "cve.org",
+        "nvd.nist.gov",
+        "nist.gov",
+        "owasp.org",
+        "sans.org",
+        "krebsonsecurity.com",
+        "bleepingcomputer.com",
+        "malwarebytes.com",
+        "virustotal.com",
+        "abuse.ch",
+        "security.googleblog.com",
+        "theverge.com",
+        "arstechnica.com",
+        "wired.com",
+        "engadget.com",
+        "tomshardware.com",
+        "anandtech.com",
+        "9to5google.com",
+        "9to5mac.com",
+        "androidauthority.com",
+        "androidpolice.com",
+        "macrumors.com",
+        "xda-developers.com",
     },
-
     # ── Tier 4 (score 65) — Solid secondary sources: trade press, niche news,
     # established reference/education sites, sports data ────────────────────
     4: {
-        "sciencedaily.com", "livescience.com", "space.com",
-        "geeksforgeeks.org", "w3schools.com", "tutorialspoint.com",
-        "javatpoint.com", "codecademy.com", "freecodecamp.org",
-        "cricbuzz.com", "espncricinfo.com", "sportskeeda.com", "espn.com",
-        "news18.com", "indiatoday.in", "business-standard.com",
-        "investopedia.com", "statista.com","mit.edu","stanford.edu","harvard.edu",
-        "ox.ac.uk","cam.ac.uk","berkeley.edu","edx.org","coursera.org","udacity.com",
+        "sciencedaily.com",
+        "livescience.com",
+        "space.com",
+        "geeksforgeeks.org",
+        "w3schools.com",
+        "tutorialspoint.com",
+        "javatpoint.com",
+        "codecademy.com",
+        "freecodecamp.org",
+        "cricbuzz.com",
+        "espncricinfo.com",
+        "sportskeeda.com",
+        "espn.com",
+        "news18.com",
+        "indiatoday.in",
+        "business-standard.com",
+        "investopedia.com",
+        "statista.com",
+        "mit.edu",
+        "stanford.edu",
+        "harvard.edu",
+        "ox.ac.uk",
+        "cam.ac.uk",
+        "berkeley.edu",
+        "edx.org",
+        "coursera.org",
+        "udacity.com",
     },
-
     # ── Tier 5 (score 52) — Community platforms & blogging sites: useful but
     # unmoderated/self-published, verify against a higher tier when possible ─
     5: {
-        "medium.com", "substack.com", "dev.to", "hackernoon.com",
-        "towardsdatascience.com","esa.int","jpl.nasa.gov","space.com",
+        "medium.com",
+        "substack.com",
+        "dev.to",
+        "hackernoon.com",
+        "towardsdatascience.com",
+        "esa.int",
+        "jpl.nasa.gov",
+        "space.com",
         "spacenews.com",
     },
-
     # ── Tier 6 (score 40) — Open discussion/UGC platforms: lowest default
     # weight, treat as a lead to verify rather than a citation on its own ────
     6: {
-        "reddit.com", "quora.com",
+        "reddit.com",
+        "quora.com",
         # ── Tier 6 (score 40) — Open discussion / UGC / Community ──
         # General Discussion & Q&A
-        "stackexchange.com","superuser.com","serverfault.com","askubuntu.com",
+        "stackexchange.com",
+        "superuser.com",
+        "serverfault.com",
+        "askubuntu.com",
         # Programming Communities
-        "hashnode.com","codeproject.com","daniweb.com","bytes.com",
+        "hashnode.com",
+        "codeproject.com",
+        "daniweb.com",
+        "bytes.com",
         # Hacker / Developer Communities
-        "news.ycombinator.com","lobste.rs",
+        "news.ycombinator.com",
+        "lobste.rs",
         # Linux Communities
         "linuxquestions.org",
-        "ubuntuforums.org","bbs.archlinux.org","forum.manjaro.org","forums.opensuse.org",
+        "ubuntuforums.org",
+        "bbs.archlinux.org",
+        "forum.manjaro.org",
+        "forums.opensuse.org",
         # AI Communities
         "discuss.huggingface.co",
         # Official Community Forums
-        "community.openai.com","community.cloudflare.com","community.atlassian.com",
-        "discuss.python.org","discuss.kotlinlang.org",
+        "community.openai.com",
+        "community.cloudflare.com",
+        "community.atlassian.com",
+        "discuss.python.org",
+        "discuss.kotlinlang.org",
         # Git Communities
         "github.community",
         # Hardware Communities
-        "linustechtips.com","forums.tomshardware.com","overclock.net",
+        "linustechtips.com",
+        "forums.tomshardware.com",
+        "overclock.net",
         # Android
         "xdaforums.com",
         # Gaming
-        "steamcommunity.com","gamefaqs.gamespot.com",
+        "steamcommunity.com",
+        "gamefaqs.gamespot.com",
         # SEO / Webmaster
         "webmasterworld.com",
         # Community Platforms
         "discourse.org",
         # Social Platforms (UGC)
-        "facebook.com","instagram.com","threads.net","mastodon.social",
+        "facebook.com",
+        "instagram.com",
+        "threads.net",
+        "mastodon.social",
         # Video UGC
-        "youtu.be","tiktok.com","bilibili.com","rumble.com","odysee.com",
+        "youtu.be",
+        "tiktok.com",
+        "bilibili.com",
+        "rumble.com",
+        "odysee.com",
         # Blogs / Personal Publishing
-        "blogspot.com","wordpress.com","tumblr.com",
+        "blogspot.com",
+        "wordpress.com",
+        "tumblr.com",
         # Wiki / Community Knowledge
-        "fandom.com","techenclave.com","pagalguy.com","mouthshut.com","team-bhp.com",
+        "fandom.com",
+        "techenclave.com",
+        "pagalguy.com",
+        "mouthshut.com",
+        "team-bhp.com",
     },
 }
 
@@ -2518,11 +3300,16 @@ def _recency_boost(result: dict, url: str) -> int:
 
     date_str = (result.get("date") or "").lower().strip()
     if date_str:
-        m = re.match(r'(\d+)\s*(hour|day|week|month|year)s?\s*ago', date_str)
+        m = re.match(r"(\d+)\s*(hour|day|week|month|year)s?\s*ago", date_str)
         if m:
             n, unit = int(m.group(1)), m.group(2)
-            days_old = {"hour": n / 24, "day": n, "week": n * 7,
-                        "month": n * 30, "year": n * 365}[unit]
+            days_old = {
+                "hour": n / 24,
+                "day": n,
+                "week": n * 7,
+                "month": n * 30,
+                "year": n * 365,
+            }[unit]
             return _days_to_boost(days_old)
 
     if str(now.year) in (url or ""):
@@ -2531,23 +3318,23 @@ def _recency_boost(result: dict, url: str) -> int:
 
 
 _AI_SPAM_PATTERNS = [
-    r'\bas an ai( language model)?\b',
-    r'\bin (today\'?s|this) fast-paced world\b',
-    r'\bin conclusion,? it is important to note\b',
-    r'\bit(\'s| is) worth noting that\b',
-    r'\bdelve into\b',
-    r'\bin the realm of\b',
-    r'\bunlock(ing)? the (power|potential) of\b',
-    r'\bnavigating the (complex(ities)?|world) of\b',
-    r'\boverall,? (it is|this) (clear|evident)\b',
-    r'\bwhether you\'?re .{0,40} or .{0,40}, this\b',
+    r"\bas an ai( language model)?\b",
+    r"\bin (today\'?s|this) fast-paced world\b",
+    r"\bin conclusion,? it is important to note\b",
+    r"\bit(\'s| is) worth noting that\b",
+    r"\bdelve into\b",
+    r"\bin the realm of\b",
+    r"\bunlock(ing)? the (power|potential) of\b",
+    r"\bnavigating the (complex(ities)?|world) of\b",
+    r"\boverall,? (it is|this) (clear|evident)\b",
+    r"\bwhether you\'?re .{0,40} or .{0,40}, this\b",
 ]
 
 _CLICKBAIT_PATTERNS = [
-    r'\byou won\'?t believe\b',
-    r'\bnumber \d+ will (shock|surprise) you\b',
-    r'\bdoctors hate (this|him|her)\b',
-    r'\bthis one (weird|simple) trick\b',
+    r"\byou won\'?t believe\b",
+    r"\bnumber \d+ will (shock|surprise) you\b",
+    r"\bdoctors hate (this|him|her)\b",
+    r"\bthis one (weird|simple) trick\b",
 ]
 
 
@@ -2563,15 +3350,19 @@ def _semantic_relevance_score(query: str, result: dict) -> float:
     trust, not a replacement for that retrieval step.
     Returns 0.0–1.0.
     """
-    query_terms = {w for w in re.findall(r'[a-z0-9]+', query.lower()) if w not in _STOPWORDS}
+    query_terms = {
+        w for w in re.findall(r"[a-z0-9]+", query.lower()) if w not in _STOPWORDS
+    }
     if not query_terms:
         return 0.5
 
-    title_words = set(re.findall(r'[a-z0-9]+', result.get("title", "").lower()))
-    body_words  = set(re.findall(r'[a-z0-9]+', (result.get("body", "") or "")[:2000].lower()))
+    title_words = set(re.findall(r"[a-z0-9]+", result.get("title", "").lower()))
+    body_words = set(
+        re.findall(r"[a-z0-9]+", (result.get("body", "") or "")[:2000].lower())
+    )
 
     title_hits = len(query_terms & title_words)
-    body_hits  = len(query_terms & body_words)
+    body_hits = len(query_terms & body_words)
 
     raw = (title_hits * 2) + body_hits
     max_possible = len(query_terms) * 3  # every term in title AND body
@@ -2604,65 +3395,94 @@ def _verify_publication_date(result: dict, url: str) -> dict:
     if parsed_dt is not None:
         days_old = (now - parsed_dt).days
         if parsed_dt > now + timedelta(days=1):
-            return {"days_old": days_old, "verified": False, "confidence": "low",
-                    "reason": "published date is in the future — likely a bad scrape"}
+            return {
+                "days_old": days_old,
+                "verified": False,
+                "confidence": "low",
+                "reason": "published date is in the future — likely a bad scrape",
+            }
         if parsed_dt.year < 1995:
-            return {"days_old": days_old, "verified": False, "confidence": "low",
-                    "reason": "published date predates the web — likely a placeholder"}
-        return {"days_old": days_old, "verified": True, "confidence": "high",
-                "reason": "parsed ISO/engine-supplied publish date"}
+            return {
+                "days_old": days_old,
+                "verified": False,
+                "confidence": "low",
+                "reason": "published date predates the web — likely a placeholder",
+            }
+        return {
+            "days_old": days_old,
+            "verified": True,
+            "confidence": "high",
+            "reason": "parsed ISO/engine-supplied publish date",
+        }
 
     date_str = (result.get("date") or "").lower().strip()
     if date_str:
-        m = re.match(r'(\d+)\s*(hour|day|week|month|year)s?\s*ago', date_str)
+        m = re.match(r"(\d+)\s*(hour|day|week|month|year)s?\s*ago", date_str)
         if m:
             n, unit = int(m.group(1)), m.group(2)
-            days_old = {"hour": n / 24, "day": n, "week": n * 7,
-                        "month": n * 30, "year": n * 365}[unit]
-            return {"days_old": days_old, "verified": True, "confidence": "medium",
-                    "reason": "relative date string from engine"}
+            days_old = {
+                "hour": n / 24,
+                "day": n,
+                "week": n * 7,
+                "month": n * 30,
+                "year": n * 365,
+            }[unit]
+            return {
+                "days_old": days_old,
+                "verified": True,
+                "confidence": "medium",
+                "reason": "relative date string from engine",
+            }
 
     if str(now.year) in (url or ""):
-        return {"days_old": None, "verified": False, "confidence": "low",
-                "reason": "current year appears in URL only — weak, unverified signal"}
+        return {
+            "days_old": None,
+            "verified": False,
+            "confidence": "low",
+            "reason": "current year appears in URL only — weak, unverified signal",
+        }
 
-    return {"days_old": None, "verified": False, "confidence": "none",
-            "reason": "no date signal found"}
+    return {
+        "days_old": None,
+        "verified": False,
+        "confidence": "none",
+        "reason": "no date signal found",
+    }
 
 
 _CONTENT_FRESHNESS_SIGNALS: dict[str, list[str]] = {
     # Model/version detection — a version number or named model mentioned
     # in the content itself, independent of any metadata date.
     "model_version_mention": [
-        r'\bv\d+(\.\d+){1,2}\b',
-        r'\b(version|release)\s+\d+(\.\d+)*\b',
-        r'\b(gpt|claude|gemini|llama|mistral)[- ]?\d+(\.\d+)?\b',
+        r"\bv\d+(\.\d+){1,2}\b",
+        r"\b(version|release)\s+\d+(\.\d+)*\b",
+        r"\b(gpt|claude|gemini|llama|mistral)[- ]?\d+(\.\d+)?\b",
     ],
     # Recently released products
     "just_released": [
-        r'\b(just|newly|recently) (released|launched|unveiled|announced|debuted)\b',
-        r'\brelease date\b.{0,20}\b(today|this week|20\d{2})\b',
+        r"\b(just|newly|recently) (released|launched|unveiled|announced|debuted)\b",
+        r"\brelease date\b.{0,20}\b(today|this week|20\d{2})\b",
     ],
     # Recent elections
     "election_result": [
-        r'\b(wins?|won|elected|sworn in|takes? office|declared winner)\b.{0,30}\b(election|poll|seat)\b',
-        r'\belection results?\b',
+        r"\b(wins?|won|elected|sworn in|takes? office|declared winner)\b.{0,30}\b(election|poll|seat)\b",
+        r"\belection results?\b",
     ],
     # Live events / breaking news markers inside the content itself
     "live_or_breaking": [
-        r'\b(breaking|live update|developing story|as it happened)\b',
+        r"\b(breaking|live update|developing story|as it happened)\b",
     ],
     # Current prices
     "current_price_data": [
-        r'[$₹€£]\s?\d[\d,.]*',
-        r'\b\d+(\.\d+)?%\s*(up|down|higher|lower)\b',
-        r'\bas of (today|writing|press time)\b',
+        r"[$₹€£]\s?\d[\d,.]*",
+        r"\b\d+(\.\d+)?%\s*(up|down|higher|lower)\b",
+        r"\bas of (today|writing|press time)\b",
     ],
     # Current CEOs / current government officials
     "current_role_holder": [
-        r'\b(currently serves as|now serves as|current(ly)? (ceo|president|prime minister|chief minister|governor))\b',
-        r'\bincumbent\b',
-        r'\bsince (20\d{2})\b',
+        r"\b(currently serves as|now serves as|current(ly)? (ceo|president|prime minister|chief minister|governor))\b",
+        r"\bincumbent\b",
+        r"\bsince (20\d{2})\b",
     ],
 }
 
@@ -2679,12 +3499,17 @@ def _detect_content_freshness_signals(result: dict) -> dict:
     whatever the metadata date claims.
     Returns {"signals": [...], "boost": float 0..6}.
     """
-    text = ((result.get("title", "") or "") + " " + (result.get("body", "") or "")).lower()
+    text = (
+        (result.get("title", "") or "") + " " + (result.get("body", "") or "")
+    ).lower()
     if not text.strip():
         return {"signals": [], "boost": 0.0}
 
-    hits = [name for name, patterns in _CONTENT_FRESHNESS_SIGNALS.items()
-            if any(re.search(p, text) for p in patterns)]
+    hits = [
+        name
+        for name, patterns in _CONTENT_FRESHNESS_SIGNALS.items()
+        if any(re.search(p, text) for p in patterns)
+    ]
     return {"signals": hits, "boost": min(len(hits) * 2.0, 6.0)}
 
 
@@ -2711,8 +3536,12 @@ def _freshness_score(result: dict, url: str, query: str = "") -> float:
     Returns roughly -6..+18.
     """
     verification = _verify_publication_date(result, url)
-    content      = _detect_content_freshness_signals(result)
-    category     = classify_freshness_category(query) if query else {"categories": [], "window": None}
+    content = _detect_content_freshness_signals(result)
+    category = (
+        classify_freshness_category(query)
+        if query
+        else {"categories": [], "window": None}
+    )
 
     score = 0.0
     days_old = verification["days_old"]
@@ -2726,9 +3555,9 @@ def _freshness_score(result: dict, url: str, query: str = "") -> float:
         if not verification["verified"]:
             score -= 3  # active distrust for a future/placeholder date
     elif verification["confidence"] == "low":
-        score += 1     # weak year-in-URL signal only
+        score += 1  # weak year-in-URL signal only
     elif verification["confidence"] == "none":
-        score -= 3      # no date signal at all
+        score -= 3  # no date signal at all
 
     # ── Content-based corroboration ──
     score += content["boost"]
@@ -2749,8 +3578,6 @@ def _freshness_score(result: dict, url: str, query: str = "") -> float:
             score += {"day": 4, "week": 3, "month": 2}[window]
 
     return round(score, 1)
-
-
 
     """
     ── NEW ──────────────────────────────────────────────────────────────────
@@ -2795,29 +3622,29 @@ def _content_quality_score(result: dict) -> float:
     length = len(body)
 
     if length < 80:
-        score -= 3   # too thin to be substantive
+        score -= 3  # too thin to be substantive
     elif 200 <= length <= 6000:
-        score += 3   # healthy, readable amount of content
+        score += 3  # healthy, readable amount of content
     elif length > 6000:
-        score += 1   # long is fine but not extra credit past a point
+        score += 1  # long is fine but not extra credit past a point
 
     # Concrete facts/numbers tend to correlate with real reporting/reference
     # content rather than generic filler.
-    number_hits = len(re.findall(r'\b\d[\d,.]*\b', body))
+    number_hits = len(re.findall(r"\b\d[\d,.]*\b", body))
     if number_hits >= 3:
         score += 2
 
     # Sentence structure sanity check
-    sentences = re.split(r'(?<=[.!?])\s+', body)
+    sentences = re.split(r"(?<=[.!?])\s+", body)
     real_sentences = [s for s in sentences if 20 <= len(s) <= 300]
     if len(real_sentences) >= 3:
         score += 2
 
     # Shouting / spammy punctuation
-    caps_words = re.findall(r'\b[A-Z]{4,}\b', body)
+    caps_words = re.findall(r"\b[A-Z]{4,}\b", body)
     if len(caps_words) > 5:
         score -= 2
-    if body.count('!') > 5:
+    if body.count("!") > 5:
         score -= 2
 
     return max(-5.0, min(score, 8.0))
@@ -2831,7 +3658,9 @@ def _ai_spam_penalty(result: dict) -> float:
     heuristic pattern match that catches the stock phrases mass-produced
     SEO/content-farm generators lean on. Returns -12..0.
     """
-    text = ((result.get("title", "") or "") + " " + (result.get("body", "") or "")).lower()
+    text = (
+        (result.get("title", "") or "") + " " + (result.get("body", "") or "")
+    ).lower()
     if not text.strip():
         return 0.0
 
@@ -2866,7 +3695,7 @@ def _official_source_boost(domain: str) -> float:
     """
     if not domain:
         return 0.0
-    if re.search(r'\.(gov|mil|int)(\.[a-z]{2})?$', domain) or ".gov." in domain:
+    if re.search(r"\.(gov|mil|int)(\.[a-z]{2})?$", domain) or ".gov." in domain:
         return 6.0
     if any(domain == t or domain.endswith("." + t) for t in TRUST_TIERS.get(1, ())):
         return 6.0
@@ -2890,7 +3719,7 @@ def _source_diversity_boost(results: list[dict]) -> dict[int, float]:
         body = (r.get("body", "") or r.get("snippet", "") or "").strip().lower()
         if not body:
             continue
-        words = re.findall(r'[a-z0-9]+', body)[:40]
+        words = re.findall(r"[a-z0-9]+", body)[:40]
         fp = hashlib.md5(" ".join(words).encode("utf-8", "ignore")).hexdigest()[:10]
         domain = _get_domain(r.get("url", ""))
         clusters.setdefault(fp, set()).add(domain)
@@ -2919,7 +3748,7 @@ def _duplicate_penalty(results: list[dict]) -> dict[int, float]:
         body = (r.get("body", "") or r.get("snippet", "") or "").strip().lower()
         if not body:
             continue
-        words = re.findall(r'[a-z0-9]+', body)[:40]
+        words = re.findall(r"[a-z0-9]+", body)[:40]
         fp = hashlib.md5(" ".join(words).encode("utf-8", "ignore")).hexdigest()[:10]
         clusters.setdefault(fp, []).append(i)
 
@@ -2975,7 +3804,7 @@ def compute_trust_score(
 
     try:
         domain = urlparse(url).netloc.lower()
-        domain = re.sub(r'^(www\d?|m|mobile|amp)\.', '', domain)
+        domain = re.sub(r"^(www\d?|m|mobile|amp)\.", "", domain)
     except (ValueError, AttributeError):
         domain = ""
 
@@ -3009,7 +3838,7 @@ def compute_trust_score(
 
     # ── Semantic relevance to the query ──────────────────────────────────────
     if query:
-        score += _semantic_relevance_score(query, result) * 8   # 0..8
+        score += _semantic_relevance_score(query, result) * 8  # 0..8
 
     # ── Content quality ───────────────────────────────────────────────────────
     score += _content_quality_score(result)
@@ -3033,7 +3862,7 @@ def score_all_results(results: list[dict], query: str = "") -> list[dict]:
     result in isolation), then scores each result with those signals plus
     the semantic-relevance-to-query factor folded in.
     """
-    diversity  = _source_diversity_boost(results)
+    diversity = _source_diversity_boost(results)
     duplicates = _duplicate_penalty(results)
 
     for i, r in enumerate(results):
@@ -3052,12 +3881,13 @@ def score_all_results(results: list[dict], query: str = "") -> list[dict]:
 # Looks for agreement and conflicts across result bodies
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def _extract_key_claims(text: str) -> list[str]:
     """
     Extract short factual sentences from a snippet.
     Heuristic: sentences under 120 chars that start with a capital letter.
     """
-    sentences = re.split(r'(?<=[.!?])\s+', text.strip())
+    sentences = re.split(r"(?<=[.!?])\s+", text.strip())
     return [s.strip() for s in sentences if 20 < len(s) < 120 and s[0].isupper()]
 
 
@@ -3081,11 +3911,16 @@ def _estimate_source_age_days(result: dict) -> Optional[float]:
 
     date_str = (result.get("date") or "").lower().strip()
     if date_str:
-        m = re.match(r'(\d+)\s*(hour|day|week|month|year)s?\s*ago', date_str)
+        m = re.match(r"(\d+)\s*(hour|day|week|month|year)s?\s*ago", date_str)
         if m:
             n, unit = int(m.group(1)), m.group(2)
-            return {"hour": n / 24, "day": n, "week": n * 7,
-                    "month": n * 30, "year": n * 365}[unit]
+            return {
+                "hour": n / 24,
+                "day": n,
+                "week": n * 7,
+                "month": n * 30,
+                "year": n * 365,
+            }[unit]
 
     return None
 
@@ -3115,13 +3950,17 @@ def _analyze_contradiction(entity: str, records: list[dict]) -> dict:
     value_groups: dict[str, list[dict]] = {}
     for rec in records:
         value_groups.setdefault(rec["value"], []).append(rec)
-    majority_value, majority_records = max(value_groups.items(), key=lambda kv: len(kv[1]))
+    majority_value, majority_records = max(
+        value_groups.items(), key=lambda kv: len(kv[1])
+    )
     majority_share = len(majority_records) / total if total else 0.0
 
     # ── Identify newest source (across ALL conflicting records) ────────────
     dated = [(rec, _estimate_source_age_days(rec["result"])) for rec in records]
     dated_known = [(rec, age) for rec, age in dated if age is not None]
-    newest_rec, newest_age = min(dated_known, key=lambda t: t[1]) if dated_known else (records[0], None)
+    newest_rec, newest_age = (
+        min(dated_known, key=lambda t: t[1]) if dated_known else (records[0], None)
+    )
 
     # ── Identify official source (across ALL conflicting records) ──────────
     official_matches = [rec for rec in records if _is_official_domain(rec["domain"])]
@@ -3131,7 +3970,9 @@ def _analyze_contradiction(entity: str, records: list[dict]) -> dict:
     # Blends: how dominant the majority is, average trust of the sources
     # backing it, whether an official source backs it, and whether the
     # newest source agrees with it.
-    avg_trust = sum(rec["result"].get("trust_score", 50) for rec in majority_records) / len(majority_records)
+    avg_trust = sum(
+        rec["result"].get("trust_score", 50) for rec in majority_records
+    ) / len(majority_records)
     confidence = (majority_share * 50) + (avg_trust / 100 * 30)
     if official_rec is not None and official_rec in majority_records:
         confidence += 15
@@ -3142,12 +3983,16 @@ def _analyze_contradiction(entity: str, records: list[dict]) -> dict:
     # ── Explain why sources disagree ────────────────────────────────────────
     reasons = []
     if majority_share < 1.0:
-        reasons.append(f"{len(majority_records)}/{total} sources agree on '{majority_value}'")
+        reasons.append(
+            f"{len(majority_records)}/{total} sources agree on '{majority_value}'"
+        )
     if official_rec is not None:
         if official_rec["value"] == majority_value:
             reasons.append(f"an official source ({official_rec['domain']}) confirms it")
         else:
-            reasons.append(f"an official source ({official_rec['domain']}) instead reports '{official_rec['value']}'")
+            reasons.append(
+                f"an official source ({official_rec['domain']}) instead reports '{official_rec['value']}'"
+            )
     if newest_age is not None:
         if newest_rec["value"] != majority_value:
             reasons.append(
@@ -3155,27 +4000,39 @@ def _analyze_contradiction(entity: str, records: list[dict]) -> dict:
                 f"reports a different value ('{newest_rec['value']}') — may reflect an update"
             )
         else:
-            reasons.append(f"the most recent source ({newest_rec['domain']}) agrees with the majority")
+            reasons.append(
+                f"the most recent source ({newest_rec['domain']}) agrees with the majority"
+            )
     if not reasons:
-        reasons.append("sources differ with no clear majority, official confirmation, or recency signal")
+        reasons.append(
+            "sources differ with no clear majority, official confirmation, or recency signal"
+        )
 
     return {
-        "entity":            entity,
-        "values":            list(value_groups.keys())[:3],
-        "sources":           [rec["domain"] for rec in records[:4]],
-        "majority_value":    majority_value,
-        "majority_share":    round(majority_share, 2),
-        "newest_source": {
-            "domain": newest_rec["domain"],
-            "value":  newest_rec["value"],
-            "age_days": newest_age,
-        } if dated_known else None,
-        "official_source": {
-            "domain": official_rec["domain"],
-            "value":  official_rec["value"],
-        } if official_rec is not None else None,
-        "confidence_score":  confidence,
-        "explanation":       "; ".join(reasons),
+        "entity": entity,
+        "values": list(value_groups.keys())[:3],
+        "sources": [rec["domain"] for rec in records[:4]],
+        "majority_value": majority_value,
+        "majority_share": round(majority_share, 2),
+        "newest_source": (
+            {
+                "domain": newest_rec["domain"],
+                "value": newest_rec["value"],
+                "age_days": newest_age,
+            }
+            if dated_known
+            else None
+        ),
+        "official_source": (
+            {
+                "domain": official_rec["domain"],
+                "value": official_rec["value"],
+            }
+            if official_rec is not None
+            else None
+        ),
+        "confidence_score": confidence,
+        "explanation": "; ".join(reasons),
     }
 
 
@@ -3200,7 +4057,7 @@ def cross_reference_results(results: list[dict], top_n: int = 6) -> dict:
     claim_sources: dict[str, list[str]] = {}
 
     for r in sample:
-        body   = r.get("body", "")
+        body = r.get("body", "")
         domain = _get_domain(r.get("url", ""))
         claims = _extract_key_claims(body)
         for claim in claims:
@@ -3222,18 +4079,22 @@ def cross_reference_results(results: list[dict], top_n: int = 6) -> dict:
     entity_values: dict[str, list[dict]] = {}  # entity → [{"value","domain","result"}]
 
     for r in sample:
-        body   = r.get("body", "")
+        body = r.get("body", "")
         domain = _get_domain(r.get("url", "")) or "unknown"
         # Pattern: "<Entity> is <Value>" — e.g. "The CM is Mamata Banerjee"
         for m in re.finditer(
-            r'\b([A-Z][a-zA-Z ]{3,30})\s+(?:is|was|are|were)\s+([A-Z][a-zA-Z ]{3,40})',
-            body
+            r"\b([A-Z][a-zA-Z ]{3,30})\s+(?:is|was|are|were)\s+([A-Z][a-zA-Z ]{3,40})",
+            body,
         ):
             entity = m.group(1).strip()
-            value  = m.group(2).strip()
-            entity_values.setdefault(entity, []).append({
-                "value": value, "domain": domain, "result": r,
-            })
+            value = m.group(2).strip()
+            entity_values.setdefault(entity, []).append(
+                {
+                    "value": value,
+                    "domain": domain,
+                    "result": r,
+                }
+            )
 
     # ── STEPS 2-6: for every entity with 2+ distinct values, run the full
     # analysis pipeline (newest source → official source → majority
@@ -3249,16 +4110,16 @@ def cross_reference_results(results: list[dict], top_n: int = 6) -> dict:
     contradictions.sort(key=lambda c: c["confidence_score"])
 
     return {
-        "consensus_count":      len(consensus),
-        "contradiction_count":  len(contradictions),
-        "contradictions":       contradictions[:3],  # top 3 conflicts
+        "consensus_count": len(consensus),
+        "contradiction_count": len(contradictions),
+        "contradictions": contradictions[:3],  # top 3 conflicts
     }
 
 
 def _get_domain(url: str) -> str:
     try:
         d = urlparse(url).netloc.lower()
-        return re.sub(r'^(www\d?|m|mobile|amp)\.', '', d)
+        return re.sub(r"^(www\d?|m|mobile|amp)\.", "", d)
     except Exception:
         return ""
 
@@ -3275,106 +4136,304 @@ def _get_domain(url: str) -> str:
 # domain can contribute and interleaves different SOURCE TYPES in a
 # preferred order, so the final set is both relevant and diverse.
 _SOURCE_TYPE_ORDER = [
-    "official", "news", "documentation", "wikipedia",
-    "academic", "community", "blogs", "other",
+    "official",
+    "news",
+    "documentation",
+    "wikipedia",
+    "academic",
+    "community",
+    "blogs",
+    "other",
 ]
 _MAX_PER_DOMAIN = 2
 
 _NEWS_DOMAINS = {
     # Wire services
-    "reuters.com", "apnews.com", "afp.com", "pti.in",
+    "reuters.com",
+    "apnews.com",
+    "afp.com",
+    "pti.in",
     # Indian news
-    "thehindu.com", "indianexpress.com", "livemint.com", "business-standard.com",
-    "businessstandard.com", "thehindubusinessline.com", "livelaw.in", "barandbench.com",
-    "medianama.com", "factchecker.in", "altnews.in", "indiaspend.com",
-    "timesofindia.com", "hindustantimes.com", "ndtv.com", "economictimes.indiatimes.com",
-    "financialexpress.com", "thewire.in", "theprint.in", "scroll.in", "thequint.com",
-    "news18.com", "indiatoday.in",
+    "thehindu.com",
+    "indianexpress.com",
+    "livemint.com",
+    "business-standard.com",
+    "businessstandard.com",
+    "thehindubusinessline.com",
+    "livelaw.in",
+    "barandbench.com",
+    "medianama.com",
+    "factchecker.in",
+    "altnews.in",
+    "indiaspend.com",
+    "timesofindia.com",
+    "hindustantimes.com",
+    "ndtv.com",
+    "economictimes.indiatimes.com",
+    "financialexpress.com",
+    "thewire.in",
+    "theprint.in",
+    "scroll.in",
+    "thequint.com",
+    "news18.com",
+    "indiatoday.in",
     # Flagship global news
-    "bbc.com", "bbc.co.uk", "nytimes.com", "theguardian.com", "washingtonpost.com",
-    "ft.com", "economist.com", "wsj.com", "abcnews.go.com", "cnn.com", "npr.org",
-    "pbs.org", "aljazeera.com", "dw.com", "france24.com", "cbc.ca", "cbcnews.ca",
-    "sky.com", "abc.net.au", "smh.com.au", "straitstimes.com", "scmp.com",
-    "nikkei.com", "asia.nikkei.com",
+    "bbc.com",
+    "bbc.co.uk",
+    "nytimes.com",
+    "theguardian.com",
+    "washingtonpost.com",
+    "ft.com",
+    "economist.com",
+    "wsj.com",
+    "abcnews.go.com",
+    "cnn.com",
+    "npr.org",
+    "pbs.org",
+    "aljazeera.com",
+    "dw.com",
+    "france24.com",
+    "cbc.ca",
+    "cbcnews.ca",
+    "sky.com",
+    "abc.net.au",
+    "smh.com.au",
+    "straitstimes.com",
+    "scmp.com",
+    "nikkei.com",
+    "asia.nikkei.com",
     # Business/finance news & data
-    "bloomberg.com", "cnbc.com", "forbes.com", "moneycontrol.com", "finance.yahoo.com",
-    "fred.stlouisfed.org", "morningstar.com", "marketwatch.com", "investopedia.com",
-    "tradingeconomics.com", "coinmarketcap.com", "coingecko.com", "statista.com",
+    "bloomberg.com",
+    "cnbc.com",
+    "forbes.com",
+    "moneycontrol.com",
+    "finance.yahoo.com",
+    "fred.stlouisfed.org",
+    "morningstar.com",
+    "marketwatch.com",
+    "investopedia.com",
+    "tradingeconomics.com",
+    "coinmarketcap.com",
+    "coingecko.com",
+    "statista.com",
     # Tech news
-    "techcrunch.com", "theverge.com", "arstechnica.com", "wired.com", "engadget.com",
-    "tomshardware.com", "anandtech.com", "9to5google.com", "9to5mac.com",
-    "androidauthority.com", "androidpolice.com", "macrumors.com", "xda-developers.com",
+    "techcrunch.com",
+    "theverge.com",
+    "arstechnica.com",
+    "wired.com",
+    "engadget.com",
+    "tomshardware.com",
+    "anandtech.com",
+    "9to5google.com",
+    "9to5mac.com",
+    "androidauthority.com",
+    "androidpolice.com",
+    "macrumors.com",
+    "xda-developers.com",
     # Science/space news
-    "sciencedaily.com", "livescience.com", "space.com", "spacenews.com",
+    "sciencedaily.com",
+    "livescience.com",
+    "space.com",
+    "spacenews.com",
     # Sports data/news
-    "cricbuzz.com", "espncricinfo.com", "sportskeeda.com", "espn.com",
+    "cricbuzz.com",
+    "espncricinfo.com",
+    "sportskeeda.com",
+    "espn.com",
     # Security news
-    "krebsonsecurity.com", "bleepingcomputer.com",
+    "krebsonsecurity.com",
+    "bleepingcomputer.com",
 }
 
 _DOCUMENTATION_DOMAINS = {
     # AI vendors / infra / model hubs
-    "huggingface.co", "paperswithcode.com", "kaggle.com", "ai.google.dev",
-    "deepmind.google", "ollama.com", "mistral.ai", "cohere.com", "meta.com",
-    "llama.com", "perplexity.ai", "together.ai", "replicate.com", "fireworks.ai",
-    "groq.com", "vllm.ai", "langchain.com", "langchain.dev", "langgraph.dev",
-    "openai.com", "anthropic.com", "nvidia.com", "microsoft.com", "google.com",
-    "apple.com", "amazon.com",
+    "huggingface.co",
+    "paperswithcode.com",
+    "kaggle.com",
+    "ai.google.dev",
+    "deepmind.google",
+    "ollama.com",
+    "mistral.ai",
+    "cohere.com",
+    "meta.com",
+    "llama.com",
+    "perplexity.ai",
+    "together.ai",
+    "replicate.com",
+    "fireworks.ai",
+    "groq.com",
+    "vllm.ai",
+    "langchain.com",
+    "langchain.dev",
+    "langgraph.dev",
+    "openai.com",
+    "anthropic.com",
+    "nvidia.com",
+    "microsoft.com",
+    "google.com",
+    "apple.com",
+    "amazon.com",
     # Languages / runtimes / package registries
-    "python.org", "docs.python.org", "nodejs.org", "npmjs.com", "rust-lang.org",
-    "crates.io", "golang.org", "go.dev", "kotlinlang.org", "oracle.com", "java.com",
+    "python.org",
+    "docs.python.org",
+    "nodejs.org",
+    "npmjs.com",
+    "rust-lang.org",
+    "crates.io",
+    "golang.org",
+    "go.dev",
+    "kotlinlang.org",
+    "oracle.com",
+    "java.com",
     "docs.oracle.com",
     # Databases / infra / containers / OS
-    "postgresql.org", "mysql.com", "mariadb.org", "sqlite.org", "redis.io",
-    "mongodb.com", "docker.com", "kubernetes.io", "helm.sh", "nginx.org",
-    "apache.org", "gnu.org", "linux.org", "kernel.org", "ubuntu.com", "debian.org",
-    "fedora.org", "archlinux.org",
+    "postgresql.org",
+    "mysql.com",
+    "mariadb.org",
+    "sqlite.org",
+    "redis.io",
+    "mongodb.com",
+    "docker.com",
+    "kubernetes.io",
+    "helm.sh",
+    "nginx.org",
+    "apache.org",
+    "gnu.org",
+    "linux.org",
+    "kernel.org",
+    "ubuntu.com",
+    "debian.org",
+    "fedora.org",
+    "archlinux.org",
     # Cloud/hosting platforms
-    "cloudflare.com", "vercel.com", "netlify.com", "render.com", "digitalocean.com",
-    "aws.amazon.com", "azure.microsoft.com", "cloud.google.com", "gitlab.com",
-    "sourceforge.net", "freedesktop.org", "gnome.org", "kde.org",
+    "cloudflare.com",
+    "vercel.com",
+    "netlify.com",
+    "render.com",
+    "digitalocean.com",
+    "aws.amazon.com",
+    "azure.microsoft.com",
+    "cloud.google.com",
+    "gitlab.com",
+    "sourceforge.net",
+    "freedesktop.org",
+    "gnome.org",
+    "kde.org",
     # Dev references
-    "stackoverflow.com", "github.com", "developer.mozilla.org",
+    "stackoverflow.com",
+    "github.com",
+    "developer.mozilla.org",
     # Security references (advisory/tooling, not news)
-    "mitre.org", "cve.org", "nvd.nist.gov", "owasp.org", "sans.org",
-    "malwarebytes.com", "virustotal.com", "abuse.ch", "security.googleblog.com",
+    "mitre.org",
+    "cve.org",
+    "nvd.nist.gov",
+    "owasp.org",
+    "sans.org",
+    "malwarebytes.com",
+    "virustotal.com",
+    "abuse.ch",
+    "security.googleblog.com",
     # Learning/tutorial platforms
-    "geeksforgeeks.org", "w3schools.com", "tutorialspoint.com", "javatpoint.com",
-    "codecademy.com", "freecodecamp.org", "edx.org", "coursera.org", "udacity.com",
+    "geeksforgeeks.org",
+    "w3schools.com",
+    "tutorialspoint.com",
+    "javatpoint.com",
+    "codecademy.com",
+    "freecodecamp.org",
+    "edx.org",
+    "coursera.org",
+    "udacity.com",
 }
 
 _ACADEMIC_DOMAINS = {
     # Peer-reviewed journals
-    "nature.com", "science.org", "thelancet.com", "nejm.org", "cell.com",
-    "pnas.org", "jamanetwork.com", "bmj.com",
+    "nature.com",
+    "science.org",
+    "thelancet.com",
+    "nejm.org",
+    "cell.com",
+    "pnas.org",
+    "jamanetwork.com",
+    "bmj.com",
     # Reference / research indexes
-    "scholar.google.com", "pubmed.ncbi.nlm.nih.gov", "arxiv.org", "britannica.com",
+    "scholar.google.com",
+    "pubmed.ncbi.nlm.nih.gov",
+    "arxiv.org",
+    "britannica.com",
     # Established health institutions
-    "mayoclinic.org", "webmd.com", "healthline.com", "clevelandclinic.org",
+    "mayoclinic.org",
+    "webmd.com",
+    "healthline.com",
+    "clevelandclinic.org",
     # Universities
-    "mit.edu", "stanford.edu", "harvard.edu", "ox.ac.uk", "cam.ac.uk",
-    "berkeley.edu", "iisc.ac.in",
+    "mit.edu",
+    "stanford.edu",
+    "harvard.edu",
+    "ox.ac.uk",
+    "cam.ac.uk",
+    "berkeley.edu",
+    "iisc.ac.in",
 }
 
 _COMMUNITY_DOMAINS = {
-    "reddit.com", "quora.com", "stackexchange.com", "superuser.com",
-    "serverfault.com", "askubuntu.com", "hashnode.com", "codeproject.com",
-    "daniweb.com", "bytes.com", "news.ycombinator.com", "lobste.rs",
-    "linuxquestions.org", "ubuntuforums.org", "bbs.archlinux.org",
-    "forum.manjaro.org", "forums.opensuse.org", "discuss.huggingface.co",
-    "community.openai.com", "community.cloudflare.com", "community.atlassian.com",
-    "discuss.python.org", "discuss.kotlinlang.org", "github.community",
-    "linustechtips.com", "forums.tomshardware.com", "overclock.net",
-    "xdaforums.com", "steamcommunity.com", "gamefaqs.gamespot.com",
-    "webmasterworld.com", "discourse.org", "facebook.com", "instagram.com",
-    "threads.net", "mastodon.social", "youtu.be", "youtube.com", "tiktok.com",
-    "bilibili.com", "rumble.com", "odysee.com", "fandom.com", "techenclave.com",
-    "pagalguy.com", "mouthshut.com", "team-bhp.com",
+    "reddit.com",
+    "quora.com",
+    "stackexchange.com",
+    "superuser.com",
+    "serverfault.com",
+    "askubuntu.com",
+    "hashnode.com",
+    "codeproject.com",
+    "daniweb.com",
+    "bytes.com",
+    "news.ycombinator.com",
+    "lobste.rs",
+    "linuxquestions.org",
+    "ubuntuforums.org",
+    "bbs.archlinux.org",
+    "forum.manjaro.org",
+    "forums.opensuse.org",
+    "discuss.huggingface.co",
+    "community.openai.com",
+    "community.cloudflare.com",
+    "community.atlassian.com",
+    "discuss.python.org",
+    "discuss.kotlinlang.org",
+    "github.community",
+    "linustechtips.com",
+    "forums.tomshardware.com",
+    "overclock.net",
+    "xdaforums.com",
+    "steamcommunity.com",
+    "gamefaqs.gamespot.com",
+    "webmasterworld.com",
+    "discourse.org",
+    "facebook.com",
+    "instagram.com",
+    "threads.net",
+    "mastodon.social",
+    "youtu.be",
+    "youtube.com",
+    "tiktok.com",
+    "bilibili.com",
+    "rumble.com",
+    "odysee.com",
+    "fandom.com",
+    "techenclave.com",
+    "pagalguy.com",
+    "mouthshut.com",
+    "team-bhp.com",
 }
 
 _BLOG_DOMAINS = {
-    "medium.com", "substack.com", "dev.to", "hackernoon.com",
-    "towardsdatascience.com", "blogspot.com", "wordpress.com", "tumblr.com",
+    "medium.com",
+    "substack.com",
+    "dev.to",
+    "hackernoon.com",
+    "towardsdatascience.com",
+    "blogspot.com",
+    "wordpress.com",
+    "tumblr.com",
 }
 
 
@@ -3396,29 +4455,43 @@ def _classify_source_type(domain: str) -> str:
     def _matches(d: str, domain_set) -> bool:
         return any(d == t or d.endswith("." + t) for t in domain_set)
 
-    if re.search(r'\.(gov|mil|int)(\.[a-z]{2})?$', domain) or ".gov." in domain:
+    if re.search(r"\.(gov|mil|int)(\.[a-z]{2})?$", domain) or ".gov." in domain:
         return "official"
     if _matches(domain, TRUST_TIERS.get(1, ())):
         return "official"
 
-    if domain == "wikipedia.org" or domain.endswith(".wikipedia.org") \
-            or domain in ("wikimedia.org", "wiktionary.org"):
+    if (
+        domain == "wikipedia.org"
+        or domain.endswith(".wikipedia.org")
+        or domain in ("wikimedia.org", "wiktionary.org")
+    ):
         return "wikipedia"
 
-    if domain.startswith("docs.") or domain.startswith("developer.") \
-            or _matches(domain, _DOCUMENTATION_DOMAINS):
+    if (
+        domain.startswith("docs.")
+        or domain.startswith("developer.")
+        or _matches(domain, _DOCUMENTATION_DOMAINS)
+    ):
         return "documentation"
 
-    if domain.endswith(".edu") or domain.endswith(".ac.uk") or domain.endswith(".ac.in") \
-            or _matches(domain, _ACADEMIC_DOMAINS):
+    if (
+        domain.endswith(".edu")
+        or domain.endswith(".ac.uk")
+        or domain.endswith(".ac.in")
+        or _matches(domain, _ACADEMIC_DOMAINS)
+    ):
         return "academic"
 
     if _matches(domain, _NEWS_DOMAINS):
         return "news"
 
-    if domain.startswith("community.") or domain.startswith("discuss.") \
-            or domain.startswith("forum") \
-            or _matches(domain, _COMMUNITY_DOMAINS) or _matches(domain, TRUST_TIERS.get(6, ())):
+    if (
+        domain.startswith("community.")
+        or domain.startswith("discuss.")
+        or domain.startswith("forum")
+        or _matches(domain, _COMMUNITY_DOMAINS)
+        or _matches(domain, TRUST_TIERS.get(6, ()))
+    ):
         return "community"
 
     if _matches(domain, _BLOG_DOMAINS) or _matches(domain, TRUST_TIERS.get(5, ())):
@@ -3523,14 +4596,14 @@ def _domain_frequency_map(results: list[dict]) -> dict[str, int]:
 
 
 _RERANK_WEIGHTS = {
-    "semantic_relevance":     0.25,
-    "trust":                  0.20,
-    "freshness":              0.12,
-    "source_diversity":       0.08,
+    "semantic_relevance": 0.25,
+    "trust": 0.20,
+    "freshness": 0.12,
+    "source_diversity": 0.08,
     "cross_source_agreement": 0.10,
-    "officiality":            0.08,
-    "recency":                0.07,
-    "evidence_quality":       0.10,
+    "officiality": 0.08,
+    "recency": 0.07,
+    "evidence_quality": 0.10,
 }
 
 
@@ -3564,10 +4637,14 @@ def compute_blended_rerank_score(
     scale (e.g. trust_score's 0-100 vs freshness's -6..+18) can dominate the
     blend by accident.
     """
-    url    = result.get("url", "")
+    url = result.get("url", "")
     domain = _get_domain(url)
 
-    semantic = cohere_score if cohere_score is not None else _semantic_relevance_score(query, result)
+    semantic = (
+        cohere_score
+        if cohere_score is not None
+        else _semantic_relevance_score(query, result)
+    )
     semantic = max(0.0, min(semantic, 1.0))
 
     trust = result.get("trust_score", 50) / 100.0
@@ -3575,7 +4652,7 @@ def compute_blended_rerank_score(
     freshness = _normalize(_freshness_score(result, url, query), -6, 18)
 
     domain_count = domain_freq.get(domain, 1) if domain else 1
-    diversity    = 1.0 / domain_count
+    diversity = 1.0 / domain_count
 
     agreement = _normalize(_cross_source_agreement_boost(result), 0, 12)
 
@@ -3586,20 +4663,22 @@ def compute_blended_rerank_score(
     evidence_quality = _normalize(_content_quality_score(result), -5, 8)
 
     blended = (
-        _RERANK_WEIGHTS["semantic_relevance"]     * semantic
-        + _RERANK_WEIGHTS["trust"]                  * trust
-        + _RERANK_WEIGHTS["freshness"]              * freshness
-        + _RERANK_WEIGHTS["source_diversity"]       * diversity
+        _RERANK_WEIGHTS["semantic_relevance"] * semantic
+        + _RERANK_WEIGHTS["trust"] * trust
+        + _RERANK_WEIGHTS["freshness"] * freshness
+        + _RERANK_WEIGHTS["source_diversity"] * diversity
         + _RERANK_WEIGHTS["cross_source_agreement"] * agreement
-        + _RERANK_WEIGHTS["officiality"]            * officiality
-        + _RERANK_WEIGHTS["recency"]                * recency
-        + _RERANK_WEIGHTS["evidence_quality"]       * evidence_quality
+        + _RERANK_WEIGHTS["officiality"] * officiality
+        + _RERANK_WEIGHTS["recency"] * recency
+        + _RERANK_WEIGHTS["evidence_quality"] * evidence_quality
     )
 
     return round(blended * 100, 2)
 
 
-def rerank_with_cohere(query: str, results: list[dict], top_n: int = RERANK_TOP_N) -> list[dict]:
+def rerank_with_cohere(
+    query: str, results: list[dict], top_n: int = RERANK_TOP_N
+) -> list[dict]:
     """
     ── CHANGED ──────────────────────────────────────────────────────────────
     Use Cohere Rerank API for semantic relevance, then blend it with trust,
@@ -3616,10 +4695,9 @@ def rerank_with_cohere(query: str, results: list[dict], top_n: int = RERANK_TOP_
         return _trust_sort(results, top_n)
 
     # Prepare documents for Cohere — use title + body
-    candidates = results[:min(len(results), 20)]  # Cohere limit per call
-    documents  = [
-        f"{r.get('title', '')} — {r.get('body', '')[:300]}"
-        for r in candidates
+    candidates = results[: min(len(results), 20)]  # Cohere limit per call
+    documents = [
+        f"{r.get('title', '')} — {r.get('body', '')[:300]}" for r in candidates
     ]
 
     # Ask Cohere to rank ALL candidates (not just top_n) so diversity
@@ -3632,30 +4710,30 @@ def rerank_with_cohere(query: str, results: list[dict], top_n: int = RERANK_TOP_
             "https://api.cohere.com/v2/rerank",
             headers={
                 "Authorization": f"Bearer {COHERE_KEY}",
-                "Content-Type":  "application/json",
+                "Content-Type": "application/json",
             },
             json={
-                "model":      "rerank-v3.5",
-                "query":      query,
-                "documents":  documents,
-                "top_n":      cohere_n,
+                "model": "rerank-v3.5",
+                "query": query,
+                "documents": documents,
+                "top_n": cohere_n,
                 "return_documents": False,
             },
-            timeout=6,   # hard 6s timeout — fall back to trust-sort if slow
+            timeout=6,  # hard 6s timeout — fall back to trust-sort if slow
         )
 
         if resp.status_code != 200:
             print(f"⚠️ [Cohere] HTTP {resp.status_code} — falling back to trust sort")
             return _trust_sort(results, top_n)
 
-        data    = resp.json()
+        data = resp.json()
         results_reranked = data.get("results", [])
 
         domain_freq = _domain_frequency_map(candidates)
 
         reordered = []
         for item in results_reranked:
-            idx   = item["index"]
+            idx = item["index"]
             score = item.get("relevance_score", 0.5)
             candidate = candidates[idx].copy()
             candidate["cohere_score"] = round(score, 4)
@@ -3670,8 +4748,10 @@ def rerank_with_cohere(query: str, results: list[dict], top_n: int = RERANK_TOP_
         reordered.sort(key=lambda r: r.get("final_score", 0), reverse=True)
 
         balanced = _apply_diversity_balance(reordered, top_n)
-        print(f"✅ [Cohere] Reranked {len(reordered)} results → "
-              f"{len(balanced)} after diversity balancing")
+        print(
+            f"✅ [Cohere] Reranked {len(reordered)} results → "
+            f"{len(balanced)} after diversity balancing"
+        )
         return balanced
 
     except Exception as e:
@@ -3694,7 +4774,9 @@ def _trust_sort(results: list[dict], top_n: int) -> list[dict]:
     scored = []
     for r in results:
         candidate = r.copy()
-        candidate["final_score"] = compute_blended_rerank_score("", candidate, domain_freq)
+        candidate["final_score"] = compute_blended_rerank_score(
+            "", candidate, domain_freq
+        )
         scored.append(candidate)
     scored.sort(
         key=lambda r: (r.get("is_direct_answer", False), r.get("final_score", 0)),
@@ -3707,6 +4789,7 @@ def _trust_sort(results: list[dict], top_n: int) -> list[dict]:
 # STEP 8 — CITATION BUILDER
 # Assigns [1], [2], [3] citation numbers to results for the AI to reference
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 def build_citations(results: list[dict]) -> tuple[list[dict], dict]:
     """
@@ -3723,8 +4806,8 @@ def build_citations(results: list[dict]) -> tuple[list[dict], dict]:
         if url:
             r["citation_num"] = num
             citation_map[num] = {
-                "url":    url,
-                "title":  r.get("title", url),
+                "url": url,
+                "title": r.get("title", url),
                 "domain": _get_domain(url),
             }
             num += 1
@@ -3737,6 +4820,7 @@ def build_citations(results: list[dict]) -> tuple[list[dict], dict]:
 # ══════════════════════════════════════════════════════════════════════════════
 # CONFIDENCE SCORING — overall answer confidence (0-100)
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 def compute_answer_confidence(query: str, results: list[dict], cross_ref: dict) -> int:
     """
@@ -3759,51 +4843,64 @@ def compute_answer_confidence(query: str, results: list[dict], cross_ref: dict) 
 
     # ── Agreement — multi-source corroboration + cross-ref consensus ───────
     multi_source_frac = sum(1 for r in top if r.get("multi_source")) / n
-    consensus_bonus   = min(cross_ref.get("consensus_count", 0) * 2, 10)
-    agreement_score   = (multi_source_frac * 10) + consensus_bonus  # 0..20
+    consensus_bonus = min(cross_ref.get("consensus_count", 0) * 2, 10)
+    agreement_score = (multi_source_frac * 10) + consensus_bonus  # 0..20
 
     # ── Source count — distinct domains among top results ──────────────────
-    distinct_domains   = len({_get_domain(r.get("url", "")) for r in top if r.get("url")})
+    distinct_domains = len({_get_domain(r.get("url", "")) for r in top if r.get("url")})
     source_count_score = min(distinct_domains * 2.5, 15)  # 0..15
 
     # ── Trust — average trust_score of top results ──────────────────────────
-    avg_trust    = sum(r.get("trust_score", 50) for r in top) / n
+    avg_trust = sum(r.get("trust_score", 50) for r in top) / n
     trust_score_ = (avg_trust / 100) * 25  # 0..25
 
     # ── Freshness — fraction with a verified, reasonably recent date ───────
     fresh_hits = 0
     for r in top:
         verification = _verify_publication_date(r, r.get("url", ""))
-        if verification["verified"] and verification["days_old"] is not None \
-                and verification["days_old"] <= 365:
+        if (
+            verification["verified"]
+            and verification["days_old"] is not None
+            and verification["days_old"] <= 365
+        ):
             fresh_hits += 1
     freshness_score = (fresh_hits / n) * 15  # 0..15
 
     # ── Official confirmation — bonus if ANY top result is official ────────
-    has_official   = any(_official_source_boost(_get_domain(r.get("url", ""))) > 0 for r in top)
+    has_official = any(
+        _official_source_boost(_get_domain(r.get("url", ""))) > 0 for r in top
+    )
     official_score = 10.0 if has_official else 0.0
 
     # ── Semantic similarity — average relevance of results to the query ────
-    avg_relevance  = sum(_semantic_relevance_score(query, r) for r in top) / n
+    avg_relevance = sum(_semantic_relevance_score(query, r) for r in top) / n
     semantic_score = avg_relevance * 15  # 0..15
 
     base = (
-        agreement_score + source_count_score + trust_score_
-        + freshness_score + official_score + semantic_score
+        agreement_score
+        + source_count_score
+        + trust_score_
+        + freshness_score
+        + official_score
+        + semantic_score
     )
 
     # ── Contradictions — penalize unresolved conflicts between sources ──────
     contradiction_count = cross_ref.get("contradiction_count", 0)
-    contradictions       = cross_ref.get("contradictions", [])
+    contradictions = cross_ref.get("contradictions", [])
     if contradiction_count:
         avg_conflict_confidence = (
-            sum(c.get("confidence_score", 50) for c in contradictions) / len(contradictions)
-            if contradictions else 50
+            sum(c.get("confidence_score", 50) for c in contradictions)
+            / len(contradictions)
+            if contradictions
+            else 50
         )
         # More unresolved conflicts, and lower confidence in how they resolved,
         # both push the penalty up — capped so a couple of minor conflicts
         # can't tank an otherwise well-supported answer.
-        penalty = min(contradiction_count * 5 + (100 - avg_conflict_confidence) * 0.2, 30)
+        penalty = min(
+            contradiction_count * 5 + (100 - avg_conflict_confidence) * 0.2, 30
+        )
     else:
         penalty = 0.0
 
@@ -3820,68 +4917,159 @@ def compute_answer_confidence(query: str, results: list[dict], cross_ref: dict) 
 # ══════════════════════════════════════════════════════════════════════════════
 
 _TITLE_PREFIXES = (
-    r'(?:Mr|Mrs|Ms|Dr|Prof|Sir|Justice|President|PM|Prime Minister|CEO|'
-    r'Chairman|Governor|Minister|Senator|Judge)\.?'
+    r"(?:Mr|Mrs|Ms|Dr|Prof|Sir|Justice|President|PM|Prime Minister|CEO|"
+    r"Chairman|Governor|Minister|Senator|Judge)\.?"
 )
-_PERSON_RE            = re.compile(r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})\b')
+_PERSON_RE = re.compile(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})\b")
 _PERSON_TITLE_HINT_RE = re.compile(
-    rf'\b{_TITLE_PREFIXES}\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){{0,2}})\b'
+    rf"\b{_TITLE_PREFIXES}\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){{0,2}})\b"
 )
 
 _COMPANY_SUFFIXES = (
-    "Inc.", "Inc", "Corp.", "Corp", "Corporation", "Ltd.", "Ltd", "LLC", "LLP",
-    "Co.", "Co", "Company", "Group", "Holdings", "Industries", "Technologies",
-    "Labs", "Ventures", "Partners", "Enterprises",
+    "Inc.",
+    "Inc",
+    "Corp.",
+    "Corp",
+    "Corporation",
+    "Ltd.",
+    "Ltd",
+    "LLC",
+    "LLP",
+    "Co.",
+    "Co",
+    "Company",
+    "Group",
+    "Holdings",
+    "Industries",
+    "Technologies",
+    "Labs",
+    "Ventures",
+    "Partners",
+    "Enterprises",
 )
 _COMPANY_RE = re.compile(
-    r'\b([A-Z][a-zA-Z0-9&]*(?:\s+[A-Z][a-zA-Z0-9&]*){0,3})\s+('
-    + "|".join(re.escape(s) for s in _COMPANY_SUFFIXES) + r')\b'
+    r"\b([A-Z][a-zA-Z0-9&]*(?:\s+[A-Z][a-zA-Z0-9&]*){0,3})\s+("
+    + "|".join(re.escape(s) for s in _COMPANY_SUFFIXES)
+    + r")\b"
 )
 
 _ORGANIZATION_HINTS = (
-    "Ministry", "Department", "Commission", "Authority", "Agency", "Bureau",
-    "Council", "Committee", "Organization", "Organisation", "Foundation",
-    "Institute", "University", "Association", "Federation", "Union", "Court",
+    "Ministry",
+    "Department",
+    "Commission",
+    "Authority",
+    "Agency",
+    "Bureau",
+    "Council",
+    "Committee",
+    "Organization",
+    "Organisation",
+    "Foundation",
+    "Institute",
+    "University",
+    "Association",
+    "Federation",
+    "Union",
+    "Court",
 )
 _ORGANIZATION_RE = re.compile(
-    r'\b((?:[A-Z][a-zA-Z]*\s+){0,3}(?:' + "|".join(_ORGANIZATION_HINTS)
-    + r')(?:\s+of\s+[A-Z][a-zA-Z]+)?)\b'
+    r"\b((?:[A-Z][a-zA-Z]*\s+){0,3}(?:"
+    + "|".join(_ORGANIZATION_HINTS)
+    + r")(?:\s+of\s+[A-Z][a-zA-Z]+)?)\b"
 )
 
 _PRODUCT_CUE_RE = re.compile(
-    r'\b(?:launched|released|unveiled|announced|introduces?|debuts?)\s+(?:its|the|a|an)?\s*'
-    r'([A-Z][a-zA-Z0-9]*(?:\s+[A-Z0-9][a-zA-Z0-9]*){0,3})\b'
+    r"\b(?:launched|released|unveiled|announced|introduces?|debuts?)\s+(?:its|the|a|an)?\s*"
+    r"([A-Z][a-zA-Z0-9]*(?:\s+[A-Z0-9][a-zA-Z0-9]*){0,3})\b"
 )
 
 _DATE_RE = re.compile(
-    r'\b(?:'
-    r'\d{4}-\d{2}-\d{2}'
-    r'|(?:January|February|March|April|May|June|July|August|September|October|November|December)'
-    r'\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}'
-    r'|\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}'
-    r'|\b(?:19|20)\d{2}\b'
-    r')\b'
+    r"\b(?:"
+    r"\d{4}-\d{2}-\d{2}"
+    r"|(?:January|February|March|April|May|June|July|August|September|October|November|December)"
+    r"\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}"
+    r"|\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}"
+    r"|\b(?:19|20)\d{2}\b"
+    r")\b"
 )
 
 _LOCATION_HINTS = {
     # Countries
-    "india", "united states", "usa", "uk", "united kingdom", "china", "japan",
-    "germany", "france", "canada", "australia", "brazil", "russia", "italy",
-    "spain", "netherlands", "sweden", "switzerland", "south korea", "mexico",
-    "singapore", "uae",
+    "india",
+    "united states",
+    "usa",
+    "uk",
+    "united kingdom",
+    "china",
+    "japan",
+    "germany",
+    "france",
+    "canada",
+    "australia",
+    "brazil",
+    "russia",
+    "italy",
+    "spain",
+    "netherlands",
+    "sweden",
+    "switzerland",
+    "south korea",
+    "mexico",
+    "singapore",
+    "uae",
     # US cities
-    "washington", "new york", "san francisco", "los angeles", "chicago",
-    "boston", "seattle", "austin", "houston", "miami", "atlanta", "dallas",
-    "san jose", "denver", "philadelphia",
+    "washington",
+    "new york",
+    "san francisco",
+    "los angeles",
+    "chicago",
+    "boston",
+    "seattle",
+    "austin",
+    "houston",
+    "miami",
+    "atlanta",
+    "dallas",
+    "san jose",
+    "denver",
+    "philadelphia",
     # Other global cities
-    "london", "paris", "tokyo", "beijing", "shanghai", "dubai", "berlin",
-    "toronto", "sydney", "hong kong", "amsterdam", "zurich", "seoul",
+    "london",
+    "paris",
+    "tokyo",
+    "beijing",
+    "shanghai",
+    "dubai",
+    "berlin",
+    "toronto",
+    "sydney",
+    "hong kong",
+    "amsterdam",
+    "zurich",
+    "seoul",
     # Indian cities/states
-    "delhi", "mumbai", "bengaluru", "bangalore", "kolkata", "chennai",
-    "hyderabad", "pune", "california", "texas", "west bengal", "maharashtra",
-    "karnataka", "tamil nadu", "gujarat", "punjab", "kerala", "rajasthan",
+    "delhi",
+    "mumbai",
+    "bengaluru",
+    "bangalore",
+    "kolkata",
+    "chennai",
+    "hyderabad",
+    "pune",
+    "california",
+    "texas",
+    "west bengal",
+    "maharashtra",
+    "karnataka",
+    "tamil nadu",
+    "gujarat",
+    "punjab",
+    "kerala",
+    "rajasthan",
 }
-_LOCATION_PREP_RE = re.compile(r'\b(?:in|at|near|from|to)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,2})\b')
+_LOCATION_PREP_RE = re.compile(
+    r"\b(?:in|at|near|from|to)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,2})\b"
+)
 
 # Words that indicate a nearby capitalized phrase is likely a PERSON being
 # quoted/described, used to gate the generic capitalized-phrase fallback
@@ -3889,20 +5077,21 @@ _LOCATION_PREP_RE = re.compile(r'\b(?:in|at|near|from|to)\s+([A-Z][a-zA-Z]+(?:\s
 # without a corporate suffix, a product, a place) gets misclassified as a
 # person.
 _PERSON_CONTEXT_CUE_RE = re.compile(
-    r'\b(said|told|stated|according to|explained|noted|added|announced|'
-    r'claims?|argues?|wrote|tweeted|posted)\b', re.IGNORECASE
+    r"\b(said|told|stated|according to|explained|noted|added|announced|"
+    r"claims?|argues?|wrote|tweeted|posted)\b",
+    re.IGNORECASE,
 )
 
 _RELATIONSHIP_RE = re.compile(
-    r'\b([A-Z][a-zA-Z0-9 ]{2,40}?)\s+'
-    r'(is|was|are|were|founded|co-founded|acquired|merged with|partnered with|'
-    r'owns|leads|heads|joined|appointed as|works for|based in|headquartered in)\s+'
-    r'([A-Z][a-zA-Z0-9 &]{2,50})\b'
+    r"\b([A-Z][a-zA-Z0-9 ]{2,40}?)\s+"
+    r"(is|was|are|were|founded|co-founded|acquired|merged with|partnered with|"
+    r"owns|leads|heads|joined|appointed as|works for|based in|headquartered in)\s+"
+    r"([A-Z][a-zA-Z0-9 &]{2,50})\b"
 )
 
 
 def _clean_entity_name(name: str) -> str:
-    return re.sub(r'\s+', ' ', name).strip().strip('.,;:')
+    return re.sub(r"\s+", " ", name).strip().strip(".,;:")
 
 
 def extract_entities_from_text(text: str) -> dict:
@@ -3913,15 +5102,26 @@ def extract_entities_from_text(text: str) -> dict:
     organizations, dates, locations. Deliberately dependency-free (no NER
     model) — cheap enough to run on every result in the pipeline.
     """
-    empty = {"people": set(), "companies": set(), "products": set(),
-             "organizations": set(), "dates": set(), "locations": set()}
+    empty = {
+        "people": set(),
+        "companies": set(),
+        "products": set(),
+        "organizations": set(),
+        "dates": set(),
+        "locations": set(),
+    }
     if not text:
         return empty
 
-    companies     = {_clean_entity_name(f"{m.group(1)} {m.group(2)}") for m in _COMPANY_RE.finditer(text)}
-    organizations = {_clean_entity_name(m.group(1)) for m in _ORGANIZATION_RE.finditer(text)}
-    products      = {_clean_entity_name(m.group(1)) for m in _PRODUCT_CUE_RE.finditer(text)}
-    dates         = {m.group(0).strip() for m in _DATE_RE.finditer(text)}
+    companies = {
+        _clean_entity_name(f"{m.group(1)} {m.group(2)}")
+        for m in _COMPANY_RE.finditer(text)
+    }
+    organizations = {
+        _clean_entity_name(m.group(1)) for m in _ORGANIZATION_RE.finditer(text)
+    }
+    products = {_clean_entity_name(m.group(1)) for m in _PRODUCT_CUE_RE.finditer(text)}
+    dates = {m.group(0).strip() for m in _DATE_RE.finditer(text)}
 
     locations = set()
     for m in _LOCATION_PREP_RE.finditer(text):
@@ -3936,7 +5136,9 @@ def extract_entities_from_text(text: str) -> dict:
     # person-context cue (said/told/announced/...) — without that gate, any
     # bare capitalized phrase (a suffix-less company or product name) would
     # get misclassified as a person.
-    people = {_clean_entity_name(m.group(1)) for m in _PERSON_TITLE_HINT_RE.finditer(text)}
+    people = {
+        _clean_entity_name(m.group(1)) for m in _PERSON_TITLE_HINT_RE.finditer(text)
+    }
     exclude = companies | organizations | products | locations
     if _PERSON_CONTEXT_CUE_RE.search(text):
         for m in _PERSON_RE.finditer(text):
@@ -3945,8 +5147,12 @@ def extract_entities_from_text(text: str) -> dict:
                 people.add(name)
 
     return {
-        "people": people, "companies": companies, "products": products,
-        "organizations": organizations, "dates": dates, "locations": locations,
+        "people": people,
+        "companies": companies,
+        "products": products,
+        "organizations": organizations,
+        "dates": dates,
+        "locations": locations,
     }
 
 
@@ -3962,9 +5168,9 @@ def extract_relationships_from_text(text: str) -> list[dict]:
         return []
     triples = []
     for m in _RELATIONSHIP_RE.finditer(text):
-        subject  = _clean_entity_name(m.group(1))
+        subject = _clean_entity_name(m.group(1))
         relation = m.group(2).strip().lower()
-        obj      = _clean_entity_name(m.group(3))
+        obj = _clean_entity_name(m.group(3))
         if subject and obj and subject.lower() != obj.lower():
             triples.append({"subject": subject, "relation": relation, "object": obj})
     return triples
@@ -4003,14 +5209,15 @@ def build_knowledge_graph(results: list[dict]) -> dict:
     def _add_edge(subject: str, relation: str, obj: str, domain: str) -> None:
         key = (subject.lower(), relation, obj.lower())
         edge = edge_map.setdefault(
-            key, {"subject": subject, "relation": relation, "object": obj, "sources": set()}
+            key,
+            {"subject": subject, "relation": relation, "object": obj, "sources": set()},
         )
         if domain:
             edge["sources"].add(domain)
 
     for r in results:
-        title  = (r.get("title") or "").strip()
-        body   = (r.get("body") or "").strip()
+        title = (r.get("title") or "").strip()
+        body = (r.get("body") or "").strip()
         domain = _get_domain(r.get("url", ""))
         if not title and not body:
             continue
@@ -4021,8 +5228,10 @@ def build_knowledge_graph(results: list[dict]) -> dict:
         # across the title/body boundary or between unrelated sentences,
         # and makes co-occurrence ("related_to") edges reflect entities
         # actually mentioned together locally, not just anywhere in the page.
-        combined  = f"{title}. {body}" if title and body else (title or body)
-        sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', combined) if s.strip()]
+        combined = f"{title}. {body}" if title and body else (title or body)
+        sentences = [
+            s.strip() for s in re.split(r"(?<=[.!?])\s+", combined) if s.strip()
+        ]
 
         for sentence in sentences:
             entities = extract_entities_from_text(sentence)
@@ -4033,12 +5242,22 @@ def build_knowledge_graph(results: list[dict]) -> dict:
 
             triples = extract_relationships_from_text(sentence)
             for triple in triples:
-                _add_edge(triple["subject"], triple["relation"], triple["object"], domain)
-                nodes.setdefault(triple["subject"], {"type": "unknown", "mentions": 0, "sources": set()})
-                nodes.setdefault(triple["object"], {"type": "unknown", "mentions": 0, "sources": set()})
+                _add_edge(
+                    triple["subject"], triple["relation"], triple["object"], domain
+                )
+                nodes.setdefault(
+                    triple["subject"],
+                    {"type": "unknown", "mentions": 0, "sources": set()},
+                )
+                nodes.setdefault(
+                    triple["object"],
+                    {"type": "unknown", "mentions": 0, "sources": set()},
+                )
 
             # ── Connect related entities via co-occurrence (same sentence) ──
-            explicit_pairs = {frozenset([t["subject"].lower(), t["object"].lower()]) for t in triples}
+            explicit_pairs = {
+                frozenset([t["subject"].lower(), t["object"].lower()]) for t in triples
+            }
             all_names = [n for names in entities.values() for n in names]
             for i in range(len(all_names)):
                 for j in range(i + 1, len(all_names)):
@@ -4057,7 +5276,9 @@ def build_knowledge_graph(results: list[dict]) -> dict:
     return {"nodes": nodes, "edges": edges}
 
 
-def format_knowledge_graph_for_context(graph: dict, max_per_type: int = 5, max_edges: int = 10) -> str:
+def format_knowledge_graph_for_context(
+    graph: dict, max_per_type: int = 5, max_edges: int = 10
+) -> str:
     """
     ── NEW ──────────────────────────────────────────────────────────────────
     Renders the knowledge graph as plain text so it can be injected into the
@@ -4073,13 +5294,21 @@ def format_knowledge_graph_for_context(graph: dict, max_per_type: int = 5, max_e
     for name, info in nodes.items():
         by_type.setdefault(info.get("type", "unknown"), []).append((name, info))
 
-    lines = ["=== KNOWLEDGE GRAPH (entities & relationships extracted from sources) ==="]
+    lines = [
+        "=== KNOWLEDGE GRAPH (entities & relationships extracted from sources) ==="
+    ]
     type_labels = {
-        "person": "People", "company": "Companies", "product": "Products",
-        "organization": "Organizations", "date": "Dates", "location": "Locations",
+        "person": "People",
+        "company": "Companies",
+        "product": "Products",
+        "organization": "Organizations",
+        "date": "Dates",
+        "location": "Locations",
     }
     for etype, label in type_labels.items():
-        entries = sorted(by_type.get(etype, []), key=lambda t: t[1]["mentions"], reverse=True)
+        entries = sorted(
+            by_type.get(etype, []), key=lambda t: t[1]["mentions"], reverse=True
+        )
         if entries:
             names = ", ".join(name for name, _ in entries[:max_per_type])
             lines.append(f"{label}: {names}")
@@ -4096,6 +5325,7 @@ def format_knowledge_graph_for_context(graph: dict, max_per_type: int = 5, max_e
 # ══════════════════════════════════════════════════════════════════════════════
 # MAIN PIPELINE — Full production web search
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 def run_production_search(query: str) -> dict:
     """
@@ -4117,7 +5347,9 @@ def run_production_search(query: str) -> dict:
     # through (including run_search_pipeline, which calls this) — so no
     # internal call site needs to duplicate the check.
     if query and len(query) > QUERY_MAX_LENGTH:
-        print(f"⚠️ [Security] Query truncated from {len(query)} to {QUERY_MAX_LENGTH} chars")
+        print(
+            f"⚠️ [Security] Query truncated from {len(query)} to {QUERY_MAX_LENGTH} chars"
+        )
         query = query[:QUERY_MAX_LENGTH]
 
     print(f"\n🚀 [Search Engine] Starting pipeline for: '{query[:80]}'")
@@ -4131,16 +5363,16 @@ def run_production_search(query: str) -> dict:
     if not all_raw:
         print("⚠️ [Pipeline] No results from any engine")
         return {
-            "tool":            "web_search",
-            "query":           query,
-            "queries_run":     queries,
-            "result_count":    0,
-            "results":         [],
-            "citations":       {},
-            "cross_ref":       {},
-            "confidence":      0,
+            "tool": "web_search",
+            "query": query,
+            "queries_run": queries,
+            "result_count": 0,
+            "results": [],
+            "citations": {},
+            "cross_ref": {},
+            "confidence": 0,
             "knowledge_graph": {"nodes": {}, "edges": []},
-            "search_engine":   "production",
+            "search_engine": "production",
         }
 
     # Step 3: Deduplication
@@ -4151,26 +5383,32 @@ def run_production_search(query: str) -> dict:
     # (Tavily answer + Serper answerBox = we don't need full page crawls)
     has_tavily_answer = any(r.get("source_engine") == "tavily_answer" for r in deduped)
     has_serper_answer = any(r.get("source_engine") == "serper_answer" for r in deduped)
-    skip_firecrawl    = has_tavily_answer and has_serper_answer
+    skip_firecrawl = has_tavily_answer and has_serper_answer
 
     if skip_firecrawl:
         print(f"⚡ [Firecrawl] Skipping — direct answers from both engines available")
         enriched = deduped
     else:
-        enriched = enrich_with_firecrawl(deduped, query)  # dynamic 5-15 pages, see function docstring
+        enriched = enrich_with_firecrawl(
+            deduped, query
+        )  # dynamic 5-15 pages, see function docstring
 
     # Step 5: Trust scoring
     scored = score_all_results(enriched, query)
 
     # Step 6: Entity processing — build the internal knowledge graph
     knowledge_graph = build_knowledge_graph(scored)
-    print(f"🕸️ [EntityGraph] {len(knowledge_graph['nodes'])} entities, "
-          f"{len(knowledge_graph['edges'])} relationships")
+    print(
+        f"🕸️ [EntityGraph] {len(knowledge_graph['nodes'])} entities, "
+        f"{len(knowledge_graph['edges'])} relationships"
+    )
 
     # Step 7: Cross-reference analysis
     cross_ref = cross_reference_results(scored)
-    print(f"🔬 [CrossRef] {cross_ref['consensus_count']} consensus signals, "
-          f"{cross_ref['contradiction_count']} contradictions")
+    print(
+        f"🔬 [CrossRef] {cross_ref['consensus_count']} consensus signals, "
+        f"{cross_ref['contradiction_count']} contradictions"
+    )
 
     # Step 8: Cohere reranking (blends semantic relevance + trust)
     reranked = rerank_with_cohere(query, scored, top_n=RERANK_TOP_N)
@@ -4180,20 +5418,22 @@ def run_production_search(query: str) -> dict:
 
     # Step 10: Overall answer confidence (0-100)
     confidence = compute_answer_confidence(query, reranked, cross_ref)
-    print(f"✅ [Pipeline] Complete. Final results: {len(cited)}, "
-          f"Citations: {len(citation_map)}, Confidence: {confidence}\n")
+    print(
+        f"✅ [Pipeline] Complete. Final results: {len(cited)}, "
+        f"Citations: {len(citation_map)}, Confidence: {confidence}\n"
+    )
 
     return {
-        "tool":            "web_search",
-        "query":           query,
-        "queries_run":     queries,
-        "result_count":    len(cited),
-        "results":         cited,
-        "citations":       citation_map,
-        "cross_ref":       cross_ref,
-        "confidence":      confidence,
+        "tool": "web_search",
+        "query": query,
+        "queries_run": queries,
+        "result_count": len(cited),
+        "results": cited,
+        "citations": citation_map,
+        "cross_ref": cross_ref,
+        "confidence": confidence,
         "knowledge_graph": knowledge_graph,
-        "search_engine":   "production",
+        "search_engine": "production",
     }
 
 
@@ -4201,6 +5441,7 @@ def run_production_search(query: str) -> dict:
 # AI CONTEXT BUILDER
 # Formats pipeline output into a detailed system-prompt injection for the AI
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 def build_production_search_context(result: dict) -> str:
     """
@@ -4212,24 +5453,34 @@ def build_production_search_context(result: dict) -> str:
 
     lines = []
     queries_run = result.get("queries_run", [result.get("query", "")])
-    cross_ref   = result.get("cross_ref", {})
-    citations   = result.get("citations", {})
+    cross_ref = result.get("cross_ref", {})
+    citations = result.get("citations", {})
 
-    lines.append(f"🔍 WEB SEARCH RESULTS — Production Engine (Tavily + Serper + Firecrawl + Cohere)")
+    lines.append(
+        f"🔍 WEB SEARCH RESULTS — Production Engine (Tavily + Serper + Firecrawl + Cohere)"
+    )
     lines.append(f"Primary query: {result['query']}")
     if len(queries_run) > 1:
         lines.append(f"Also searched: {' | '.join(queries_run[1:])}")
-    lines.append(f"Total unique results after dedup + rerank: {result['result_count']}\n")
+    lines.append(
+        f"Total unique results after dedup + rerank: {result['result_count']}\n"
+    )
 
     # Cross-reference summary
     if cross_ref.get("contradiction_count", 0) > 0:
-        lines.append(f"⚠️ CONTRADICTIONS DETECTED ({cross_ref['contradiction_count']} conflicts):")
+        lines.append(
+            f"⚠️ CONTRADICTIONS DETECTED ({cross_ref['contradiction_count']} conflicts):"
+        )
         for c in cross_ref.get("contradictions", []):
-            lines.append(f"   • '{c['entity']}' — sources disagree: {' vs '.join(c['values'][:2])}")
+            lines.append(
+                f"   • '{c['entity']}' — sources disagree: {' vs '.join(c['values'][:2])}"
+            )
         lines.append("")
 
     if cross_ref.get("consensus_count", 0) > 0:
-        lines.append(f"✅ Consensus: {cross_ref['consensus_count']} facts confirmed by multiple sources\n")
+        lines.append(
+            f"✅ Consensus: {cross_ref['consensus_count']} facts confirmed by multiple sources\n"
+        )
 
     # Knowledge graph — entities & relationships extracted from all sources,
     # surfaced so the AI can reason over connections (e.g. "who founded X",
@@ -4242,15 +5493,15 @@ def build_production_search_context(result: dict) -> str:
     lines.append("=== SEARCH RESULTS (use [N] to cite inline in your answer) ===\n")
 
     for r in result["results"]:
-        num        = r.get("citation_num")
-        title      = r.get("title", "")
-        body       = r.get("body", "")
-        url        = r.get("url", "")
-        trust      = r.get("trust_score", 50)
-        engine     = r.get("source_engine", "")
-        is_direct  = r.get("is_direct_answer", False)
+        num = r.get("citation_num")
+        title = r.get("title", "")
+        body = r.get("body", "")
+        url = r.get("url", "")
+        trust = r.get("trust_score", 50)
+        engine = r.get("source_engine", "")
+        is_direct = r.get("is_direct_answer", False)
         firecrawled = r.get("firecrawled", False)
-        multi      = r.get("multi_source", False)
+        multi = r.get("multi_source", False)
 
         # Label line
         label_parts = []
@@ -4278,7 +5529,9 @@ def build_production_search_context(result: dict) -> str:
     if citations:
         lines.append("=== CITATION INDEX ===")
         for num, info in sorted(citations.items()):
-            lines.append(f"[{num}] {info['title'][:60]} — {info['domain']} — {info['url']}")
+            lines.append(
+                f"[{num}] {info['title'][:60]} — {info['domain']} — {info['url']}"
+            )
         lines.append("")
 
     # AI instructions
@@ -4307,6 +5560,7 @@ def build_production_search_context(result: dict) -> str:
 # SOURCE PAYLOAD BUILDER — for frontend citation chips
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def build_production_sources_payload(result: dict) -> Optional[str]:
     """
     Build SSE sources payload for the frontend citation chips.
@@ -4319,23 +5573,25 @@ def build_production_sources_payload(result: dict) -> Optional[str]:
         for r in result.get("results", []):
             url = r.get("url", "")
             if url:
-                sources.append({
-                    "url":    url,
-                    "title":  r.get("title", url),
-                    "domain": _get_domain(url),
-                    "trust":  r.get("trust_score", 50),
-                    "num":    r.get("citation_num"),
-                })
+                sources.append(
+                    {
+                        "url": url,
+                        "title": r.get("title", url),
+                        "domain": _get_domain(url),
+                        "trust": r.get("trust_score", 50),
+                        "num": r.get("citation_num"),
+                    }
+                )
         if not sources:
             return None
         return json.dumps({"sources": sources[:8]})
 
     sources = [
         {
-            "url":    info["url"],
-            "title":  info["title"],
+            "url": info["url"],
+            "title": info["title"],
             "domain": info["domain"],
-            "num":    num,
+            "num": num,
         }
         for num, info in sorted(citations.items())
     ]
@@ -4351,8 +5607,8 @@ def build_production_sources_payload(result: dict) -> Optional[str]:
 
 ANSWER_GENERATION_TIMEOUT = 20
 ANSWER_GENERATION_MAX_TOK = 1200
-ANSWER_VERIFIER_TIMEOUT   = 15
-ANSWER_VERIFIER_MAX_TOK   = 1400
+ANSWER_VERIFIER_TIMEOUT = 15
+ANSWER_VERIFIER_MAX_TOK = 1400
 
 _ANSWER_GENERATION_SYSTEM_PROMPT = """You are answering a user's question using ONLY the numbered web search evidence provided.
 Follow the AI INSTRUCTIONS included in the evidence block exactly (citation style, no fabrication, etc).
@@ -4403,22 +5659,26 @@ def _generate_answer_llm(query: str, context: str) -> Optional[str]:
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={
-                "x-api-key":         QUERY_PLANNER_KEY,
+                "x-api-key": QUERY_PLANNER_KEY,
                 "anthropic-version": "2023-06-01",
-                "content-type":      "application/json",
+                "content-type": "application/json",
             },
             json={
-                "model":      QUERY_PLANNER_MODEL,
+                "model": QUERY_PLANNER_MODEL,
                 "max_tokens": ANSWER_GENERATION_MAX_TOK,
-                "system":     _ANSWER_GENERATION_SYSTEM_PROMPT,
-                "messages":   [{"role": "user", "content": f"{context}\n\nUser question: {query}"}],
+                "system": _ANSWER_GENERATION_SYSTEM_PROMPT,
+                "messages": [
+                    {"role": "user", "content": f"{context}\n\nUser question: {query}"}
+                ],
             },
             timeout=ANSWER_GENERATION_TIMEOUT,
         )
         resp.raise_for_status()
         data = resp.json()
         text = "".join(
-            block.get("text", "") for block in data.get("content", []) if block.get("type") == "text"
+            block.get("text", "")
+            for block in data.get("content", [])
+            if block.get("type") == "text"
         ).strip()
         return text or None
     except Exception as e:
@@ -4450,15 +5710,15 @@ def _verify_answer_llm(query: str, context: str, draft_answer: str) -> dict:
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={
-                "x-api-key":         QUERY_PLANNER_KEY,
+                "x-api-key": QUERY_PLANNER_KEY,
                 "anthropic-version": "2023-06-01",
-                "content-type":      "application/json",
+                "content-type": "application/json",
             },
             json={
-                "model":      QUERY_PLANNER_MODEL,
+                "model": QUERY_PLANNER_MODEL,
                 "max_tokens": ANSWER_VERIFIER_MAX_TOK,
-                "system":     _ANSWER_VERIFIER_SYSTEM_PROMPT,
-                "messages":   [{"role": "user", "content": user_content}],
+                "system": _ANSWER_VERIFIER_SYSTEM_PROMPT,
+                "messages": [{"role": "user", "content": user_content}],
             },
             timeout=ANSWER_VERIFIER_TIMEOUT,
         )
@@ -4466,16 +5726,18 @@ def _verify_answer_llm(query: str, context: str, draft_answer: str) -> dict:
         data = resp.json()
 
         text = "".join(
-            block.get("text", "") for block in data.get("content", []) if block.get("type") == "text"
+            block.get("text", "")
+            for block in data.get("content", [])
+            if block.get("type") == "text"
         ).strip()
-        text = re.sub(r'^```(?:json)?\s*|\s*```$', '', text.strip())
+        text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
 
         parsed = json.loads(text)
         if not isinstance(parsed, dict):
             return {"passed": True, "issues": [], "revised_answer": None}
 
-        passed  = bool(parsed.get("passed", True))
-        issues  = [str(i) for i in (parsed.get("issues") or []) if str(i).strip()]
+        passed = bool(parsed.get("passed", True))
+        issues = [str(i) for i in (parsed.get("issues") or []) if str(i).strip()]
         revised = parsed.get("revised_answer")
         revised = str(revised).strip() if revised else None
 
@@ -4484,7 +5746,11 @@ def _verify_answer_llm(query: str, context: str, draft_answer: str) -> dict:
         if not issues and not revised:
             passed = True
 
-        return {"passed": passed, "issues": issues, "revised_answer": revised if not passed else None}
+        return {
+            "passed": passed,
+            "issues": issues,
+            "revised_answer": revised if not passed else None,
+        }
 
     except Exception as e:
         print(f"⚠️ [Verifier] Verification failed, trusting draft answer: {e}")
@@ -4513,11 +5779,11 @@ def generate_verified_answer(query: str, result: dict) -> dict:
 
     if not draft:
         return {
-            "answer":     None,
-            "verified":   False,
-            "revised":    False,
-            "issues":     ["draft answer generation unavailable"],
-            "citations":  result.get("citations", {}),
+            "answer": None,
+            "verified": False,
+            "revised": False,
+            "issues": ["draft answer generation unavailable"],
+            "citations": result.get("citations", {}),
             "confidence": result.get("confidence", 0),
         }
 
@@ -4534,11 +5800,11 @@ def generate_verified_answer(query: str, result: dict) -> dict:
         final_answer, revised = draft, False
 
     return {
-        "answer":     final_answer,
-        "verified":   verdict["passed"],
-        "revised":    revised,
-        "issues":     verdict["issues"],
-        "citations":  result.get("citations", {}),
+        "answer": final_answer,
+        "verified": verdict["passed"],
+        "revised": revised,
+        "issues": verdict["issues"],
+        "citations": result.get("citations", {}),
         "confidence": result.get("confidence", 0),
     }
 
@@ -4560,8 +5826,10 @@ def generate_verified_answer(query: str, result: dict) -> dict:
 # directly when only the evidence stage is needed.
 # ══════════════════════════════════════════════════════════════════════════════
 
-PIPELINE_MAX_EVIDENCE_CYCLES = 2    # "Search again → Repeat" hard cap — no infinite loops
-PIPELINE_MIN_CONFIDENCE      = 55   # below this after Reason, evidence is considered insufficient
+PIPELINE_MAX_EVIDENCE_CYCLES = 2  # "Search again → Repeat" hard cap — no infinite loops
+PIPELINE_MIN_CONFIDENCE = (
+    55  # below this after Reason, evidence is considered insufficient
+)
 
 
 def _needs_more_evidence(evidence: dict) -> bool:
@@ -4583,7 +5851,8 @@ def _needs_more_evidence(evidence: dict) -> bool:
 
     cross_ref = evidence.get("cross_ref", {}) or {}
     unresolved = [
-        c for c in cross_ref.get("contradictions", [])
+        c
+        for c in cross_ref.get("contradictions", [])
         if c.get("confidence_score", 100) < 50
     ]
     if unresolved:
@@ -4630,7 +5899,7 @@ def run_search_pipeline(query: str) -> dict:
        "answer": str|None, "verified": bool, "revised": bool,
        "issues": list[str], "citations": dict, "confidence": int}
     """
-    evidence = run_production_search(query)   # Search → Retrieve → Extract → Reason
+    evidence = run_production_search(query)  # Search → Retrieve → Extract → Reason
     cycles = 1
 
     while _needs_more_evidence(evidence) and cycles < PIPELINE_MAX_EVIDENCE_CYCLES:
@@ -4639,18 +5908,18 @@ def run_search_pipeline(query: str) -> dict:
             f"results={evidence.get('result_count', 0)}) — searching again "
             f"(cycle {cycles + 1}/{PIPELINE_MAX_EVIDENCE_CYCLES})"
         )
-        evidence = run_production_search(query)   # Search again → Repeat
+        evidence = run_production_search(query)  # Search again → Repeat
         cycles += 1
 
-    verdict = generate_verified_answer(query, evidence)   # Verify → Answer
+    verdict = generate_verified_answer(query, evidence)  # Verify → Answer
 
     return {
-        "evidence":        evidence,
+        "evidence": evidence,
         "evidence_cycles": cycles,
-        "answer":          verdict["answer"],
-        "verified":        verdict["verified"],
-        "revised":         verdict["revised"],
-        "issues":          verdict["issues"],
-        "citations":       verdict["citations"],
-        "confidence":      verdict["confidence"],
+        "answer": verdict["answer"],
+        "verified": verdict["verified"],
+        "revised": verdict["revised"],
+        "issues": verdict["issues"],
+        "citations": verdict["citations"],
+        "confidence": verdict["confidence"],
     }

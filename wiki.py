@@ -180,15 +180,17 @@ from typing import Optional, List, Dict, Any
 # FIX (§4.4): these were hardcoded to en.wikipedia.org with no way to
 # query a regional Wikipedia. Now templates taking a `lang` subdomain —
 # see DEFAULT_LANG and the `lang` param threaded through search_wikipedia().
-WIKI_SEARCH_URL_TEMPLATE  = "https://{lang}.wikipedia.org/w/rest.php/v1/search/page"
-WIKI_SUMMARY_URL_TEMPLATE = "https://{lang}.wikipedia.org/api/rest_v1/page/summary/{title}"
+WIKI_SEARCH_URL_TEMPLATE = "https://{lang}.wikipedia.org/w/rest.php/v1/search/page"
+WIKI_SUMMARY_URL_TEMPLATE = (
+    "https://{lang}.wikipedia.org/api/rest_v1/page/summary/{title}"
+)
 DEFAULT_LANG = "en"
 
-WIKI_HEADERS     = {
+WIKI_HEADERS = {
     "User-Agent": "CaturaAI/1.0 (educational AI assistant; python-requests)",
-    "Accept":     "application/json",
+    "Accept": "application/json",
 }
-REQUEST_TIMEOUT  = 6   # seconds — keep it snappy
+REQUEST_TIMEOUT = 6  # seconds — keep it snappy
 
 # FIX (§4.1): one shared session instead of a fresh TCP/TLS connection on
 # every single requests.get() call.
@@ -199,17 +201,17 @@ _SESSION.headers.update(WIKI_HEADERS)
 # transient failures (timeouts, connection errors, 5xx). 4xx responses
 # are never retried since the request itself is the problem, not the
 # network.
-MAX_RETRIES          = 2
-RETRY_BACKOFF_BASE    = 0.5   # seconds; actual sleep = BASE * (2 ** attempt)
+MAX_RETRIES = 2
+RETRY_BACKOFF_BASE = 0.5  # seconds; actual sleep = BASE * (2 ** attempt)
 
 # FIX (§4.3): simple in-memory TTL cache. Not persisted across process
 # restarts and not safe for multi-process deployment (each worker gets
 # its own cache) — fine for a single-process app; swap for
 # redis/memcached if you scale out.
 _CACHE: dict = {}
-CACHE_TTL_SECONDS = 24 * 60 * 60   # 24h — Wikipedia content doesn't move
-                                     # fast enough to need less than this
-                                     # for the vast majority of topics
+CACHE_TTL_SECONDS = 24 * 60 * 60  # 24h — Wikipedia content doesn't move
+# fast enough to need less than this
+# for the vast majority of topics
 
 # Minimum extract length to be considered a useful result.
 # NOTE: this is intentionally the WEAKEST quality check and is applied
@@ -217,7 +219,7 @@ CACHE_TTL_SECONDS = 24 * 60 * 60   # 24h — Wikipedia content doesn't move
 # disambiguation stub or a totally unrelated short bio can both clear
 # this easily). The disambiguation-type check and MIN_RELEVANCE_SCORE
 # below are stronger signals and are checked first.
-MIN_EXTRACT_LEN  = 80
+MIN_EXTRACT_LEN = 80
 
 # Minimum lexical-overlap score (see _score_candidate) for a candidate to
 # be trusted as an actual match for the query, rather than an unrelated
@@ -249,54 +251,48 @@ _SKIP_WIKI_PATTERNS = [
     # request; if that matters in practice, swap for the narrower
     # alternative: r'\bcurrent (ceo|president|pm|prime minister|leader|
     # head|holder|champion|price|rate|status)\b'
-    r'\b(today|right now|currently|current|now|at present|as of now|'
-    r'live|latest|breaking|just now|this moment|'
-    r'this week|this year|recently|upcoming|next)\b',
-
+    r"\b(today|right now|currently|current|now|at present|as of now|"
+    r"live|latest|breaking|just now|this moment|"
+    r"this week|this year|recently|upcoming|next)\b",
     # FIX (§3.2): bare "stock"/"share" wrongly skipped things like "stock
     # structure of the East India Company" or "market share of the Roman
     # Empire's trade". Now requires a co-occurring market/price cue.
     # nifty/sensex/crypto/bitcoin are kept bare — they have no dominant
     # non-financial meaning, so the false-positive risk is negligible.
-    r'\b(stock|share)\s+(price|market|value|today|now)\b',
-    r'\b(nifty|sensex|crypto|bitcoin)\b',
-    r'\bhow (much|many).*(cost|price|rupee|dollar)\b',
-
+    r"\b(stock|share)\s+(price|market|value|today|now)\b",
+    r"\b(nifty|sensex|crypto|bitcoin)\b",
+    r"\bhow (much|many).*(cost|price|rupee|dollar)\b",
     # FIX (§3.2): bare "weather"/"temperature" wrongly skipped "temperature
     # of the sun" — a textbook encyclopedia question. "temperature" now
     # needs a live-conditions cue. Bare "weather" is left as-is since it's
     # overwhelmingly asked as a live-conditions question in practice.
-    r'\bweather\b',
-    r'\b(temperature|forecast)\s+(today|now|right now|this week|outside)\b',
-
+    r"\bweather\b",
+    r"\b(temperature|forecast)\s+(today|now|right now|this week|outside)\b",
     # FIX (§3.2): bare "score" wrongly skipped "what is a music/film
     # score" and "credit score history". Now requires a live-sports cue.
-    r'\b(live score|match score|current score|score update|'
-    r'who (won|is winning)|ipl today)\b',
-
+    r"\b(live score|match score|current score|score update|"
+    r"who (won|is winning)|ipl today)\b",
     # FIX (§3.1): "who holds the record" / "who currently leads" had no
     # coverage at all.
-    r'\bwho (holds|currently leads|is leading)\b',
-
-    r'\b(news|headlines|happened today|recent news)\b',
-    r'\bmy (name|age|location|city)\b',
-
+    r"\bwho (holds|currently leads|is leading)\b",
+    r"\b(news|headlines|happened today|recent news)\b",
+    r"\bmy (name|age|location|city)\b",
     # FIX (§3.2): the old pattern matched ANY "create/build/implement a
     # ___", wrongly skipping "create a timeline of WW2" and "build a
     # case for why Rome fell". Now requires an actual code-ish noun next
     # to the verb, so only real dev requests trigger it.
-    r'\b(debug|fix|error|implement) (this|the|a|my) (\w+\s+)?'
-    r'(code|script|function|bug|program)\b',
-    r'\b(write|create|build) (a|the|this|my) (\w+\s+)?'
-    r'(script|function|program|app|api|component|code)\b',
-
+    r"\b(debug|fix|error|implement) (this|the|a|my) (\w+\s+)?"
+    r"(code|script|function|bug|program)\b",
+    r"\b(write|create|build) (a|the|this|my) (\w+\s+)?"
+    r"(script|function|program|app|api|component|code)\b",
     # FIX (§3.1): common Hindi/Bengali/Hinglish real-time words — the
     # original patterns were English-only despite an India-based
     # userbase, so e.g. "abhi ka PM kaun hai" never got skipped.
-    r'\b(abhi|abhi ka|is samay|vartaman)\b',      # Hindi/Hinglish: now/at present/current
-    r'अभी|वर्तमान|इस\s*समय',                        # Hindi (Devanagari)
-    r'এখন|বর্তমান|এই\s*মুহূর্তে',                    # Bengali
+    r"\b(abhi|abhi ka|is samay|vartaman)\b",  # Hindi/Hinglish: now/at present/current
+    r"अभी|वर्तमान|इस\s*समय",  # Hindi (Devanagari)
+    r"এখন|বর্তমান|এই\s*মুহূর্তে",  # Bengali
 ]
+
 
 def should_skip_wikipedia(query: str) -> bool:
     """Return True if the query is clearly not suitable for Wikipedia."""
@@ -316,11 +312,11 @@ def should_skip_wikipedia(query: str) -> bool:
 # (in either order — "budget 2026" or "2026 budget"), mark it as a
 # fast-changing, non-encyclopedic query rather than history.
 _YEAR_ANCHORED_REALTIME_WORDS = re.compile(
-    r'\b(election results?|results?|winner|champion|budget|standings|'
-    r'schedule|fixtures?)\b',
+    r"\b(election results?|results?|winner|champion|budget|standings|"
+    r"schedule|fixtures?)\b",
     re.IGNORECASE,
 )
-_YEAR_TOKEN = re.compile(r'\b(19|20)\d{2}\b')
+_YEAR_TOKEN = re.compile(r"\b(19|20)\d{2}\b")
 
 
 def _has_year_anchored_realtime(query: str) -> bool:
@@ -342,9 +338,9 @@ def _has_year_anchored_realtime(query: str) -> bool:
 # NOT used to skip Wikipedia — only to attach a freshness caveat so the
 # caller/AI knows to double check fast-changing sub-facts elsewhere.
 _VOLATILE_TOPIC_PATTERNS = re.compile(
-    r'\b(president|prime minister|ceo|chairman|chairperson|current|incumbent|'
-    r'champion|record holder|title holder|population|list of|governor|'
-    r'head coach|director general|secretary general)\b|\b(19|20)\d{2}\b',
+    r"\b(president|prime minister|ceo|chairman|chairperson|current|incumbent|"
+    r"champion|record holder|title holder|population|list of|governor|"
+    r"head coach|director general|secretary general)\b|\b(19|20)\d{2}\b",
     re.IGNORECASE,
 )
 
@@ -362,7 +358,9 @@ def _is_volatile_topic(query: str, title: str, description: str) -> bool:
 
 
 # ── Shared request helper (§4.1, §4.2, §4.5) ───────────────────────────────────
-def _request_get(url: str, params: Optional[dict] = None) -> Optional[requests.Response]:
+def _request_get(
+    url: str, params: Optional[dict] = None
+) -> Optional[requests.Response]:
     """
     GET a URL through the shared session, retrying transient failures
     with short exponential backoff. Returns the Response on success (any
@@ -380,9 +378,11 @@ def _request_get(url: str, params: Optional[dict] = None) -> Optional[requests.R
         try:
             resp = _SESSION.get(url, params=params, timeout=REQUEST_TIMEOUT)
             if resp.status_code >= 500 and attempt < MAX_RETRIES:
-                wait = RETRY_BACKOFF_BASE * (2 ** attempt)
-                print(f"[WIKI][WARN] HTTP {resp.status_code} from {url} - "
-                      f"retrying in {wait:.1f}s (attempt {attempt + 1}/{MAX_RETRIES})")
+                wait = RETRY_BACKOFF_BASE * (2**attempt)
+                print(
+                    f"[WIKI][WARN] HTTP {resp.status_code} from {url} - "
+                    f"retrying in {wait:.1f}s (attempt {attempt + 1}/{MAX_RETRIES})"
+                )
                 time.sleep(wait)
                 continue
             return resp  # success, or a non-5xx status the caller should handle
@@ -390,23 +390,31 @@ def _request_get(url: str, params: Optional[dict] = None) -> Optional[requests.R
         except requests.exceptions.Timeout as e:
             last_error = e
             if attempt < MAX_RETRIES:
-                wait = RETRY_BACKOFF_BASE * (2 ** attempt)
-                print(f"[WIKI][WARN] timeout on {url} - retrying in {wait:.1f}s "
-                      f"(attempt {attempt + 1}/{MAX_RETRIES})")
+                wait = RETRY_BACKOFF_BASE * (2**attempt)
+                print(
+                    f"[WIKI][WARN] timeout on {url} - retrying in {wait:.1f}s "
+                    f"(attempt {attempt + 1}/{MAX_RETRIES})"
+                )
                 time.sleep(wait)
             else:
-                print(f"[WIKI][ERROR] timeout on {url} after {MAX_RETRIES} retries: {e}")
+                print(
+                    f"[WIKI][ERROR] timeout on {url} after {MAX_RETRIES} retries: {e}"
+                )
 
         except requests.exceptions.ConnectionError as e:
             last_error = e
             if attempt < MAX_RETRIES:
-                wait = RETRY_BACKOFF_BASE * (2 ** attempt)
-                print(f"[WIKI][WARN] connection error on {url} - retrying in "
-                      f"{wait:.1f}s (attempt {attempt + 1}/{MAX_RETRIES})")
+                wait = RETRY_BACKOFF_BASE * (2**attempt)
+                print(
+                    f"[WIKI][WARN] connection error on {url} - retrying in "
+                    f"{wait:.1f}s (attempt {attempt + 1}/{MAX_RETRIES})"
+                )
                 time.sleep(wait)
             else:
-                print(f"[WIKI][ERROR] connection error on {url} after "
-                      f"{MAX_RETRIES} retries: {e}")
+                print(
+                    f"[WIKI][ERROR] connection error on {url} after "
+                    f"{MAX_RETRIES} retries: {e}"
+                )
 
         except requests.exceptions.RequestException as e:
             # Anything else requests-specific (bad URL, too many redirects,
@@ -482,8 +490,9 @@ def _search_wikipedia(query: str, lang: str = DEFAULT_LANG) -> List[dict]:
         for p in pages
         if p.get("title")
     ]
-    print(f"[WIKI] search hits: '{query[:50]}' -> "
-          f"{[c['title'] for c in candidates]}")
+    print(
+        f"[WIKI] search hits: '{query[:50]}' -> " f"{[c['title'] for c in candidates]}"
+    )
     return candidates
 
 
@@ -614,7 +623,7 @@ def _format_context(query: str, title: str, data: dict) -> str:
     # FIX 1.1: same None-vs-absent guard as _fetch_summary — "description"
     # is null on plenty of real pages (disambiguation stubs, freshly
     # created articles, some biographies), not just missing.
-    extract     = (data.get("extract") or "").strip()
+    extract = (data.get("extract") or "").strip()
     description = (data.get("description") or "").strip()
 
     # FIX 1.2: content_urls, or content_urls["desktop"], can themselves be
@@ -624,14 +633,14 @@ def _format_context(query: str, title: str, data: dict) -> str:
     # never applied and the next .get() call crashes on None. Guard every
     # level with `or {}` before calling .get() on it.
     content_urls = data.get("content_urls") or {}
-    desktop      = content_urls.get("desktop") or {}
-    page_url     = desktop.get("page", "")
+    desktop = content_urls.get("desktop") or {}
+    page_url = desktop.get("page", "")
 
     # FIX: capture the article's last-revision timestamp instead of
     # discarding it. Wikipedia summary timestamps look like
     # "2025-11-02T14:03:00Z" — take just the date portion for readability.
     raw_timestamp = (data.get("timestamp") or "").strip()
-    last_updated  = raw_timestamp.split("T")[0] if raw_timestamp else ""
+    last_updated = raw_timestamp.split("T")[0] if raw_timestamp else ""
 
     # FIX (§5.4): use _smart_truncate() — sentence boundary, then clause
     # boundary, then word boundary, in that order — instead of a single
@@ -724,8 +733,10 @@ def search_wikipedia(query: str, lang: str = DEFAULT_LANG) -> dict:
     # FIX (§4.4): if a non-English search found nothing usable, retry once
     # in English before giving up entirely, instead of just failing.
     if not result["found"] and lang != DEFAULT_LANG:
-        print(f"[WIKI][INFO] no usable result in lang={lang}, falling back to "
-              f"{DEFAULT_LANG}")
+        print(
+            f"[WIKI][INFO] no usable result in lang={lang}, falling back to "
+            f"{DEFAULT_LANG}"
+        )
         result = _search_and_build(query, DEFAULT_LANG)
 
     if result["found"] or result.get("reason") in ("no_result", "short_extract"):
@@ -758,9 +769,9 @@ def _search_and_build(query: str, lang: str) -> dict:
     # Only fall back to the zero-score leftovers if nothing relevant
     # panned out, so an unusual/short query still gets *some* answer
     # rather than a hard no_result.
-    relevant    = [c for c in ranked if c["score"] >= MIN_RELEVANCE_SCORE]
-    fallback    = [c for c in ranked if c["score"] < MIN_RELEVANCE_SCORE]
-    try_order   = relevant + fallback
+    relevant = [c for c in ranked if c["score"] >= MIN_RELEVANCE_SCORE]
+    fallback = [c for c in ranked if c["score"] < MIN_RELEVANCE_SCORE]
+    try_order = relevant + fallback
 
     # Step 2: Fetch summary — try each candidate in that order until one
     # isn't a disambiguation page (strongest check) and clears
@@ -790,8 +801,8 @@ def _search_and_build(query: str, lang: str) -> dict:
     print(f"[WIKI][OK] context ready: {len(context)} chars for '{title}' (lang={lang})")
 
     return {
-        "found":   True,
-        "title":   title,
+        "found": True,
+        "title": title,
         "context": context,
-        "tool":    "wikipedia",
+        "tool": "wikipedia",
     }

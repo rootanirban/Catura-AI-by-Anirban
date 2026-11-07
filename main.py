@@ -4,7 +4,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import requests
 import anyio  # ✅ lets async routes run blocking calls (requests, supabase-py) in a worker
-              #    thread instead of freezing the single Uvicorn event loop.
+
+#    thread instead of freezing the single Uvicorn event loop.
 import os
 import uuid
 import json
@@ -36,6 +37,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger("catura")
+
 
 # ── Exception-handling policy ──────────────────────────────────────────────
 # Broad `except Exception` blocks below are intentional in a few narrow
@@ -99,6 +101,7 @@ _http.headers.update({"User-Agent": "CaturaAI/1.0"})
 # "session_id=..." Set-Cookie string anywhere else.
 SESSION_COOKIE_MAX_AGE = 31536000  # 1 year, in seconds
 
+
 def build_session_cookie(session_id: str) -> str:
     """Builds the hardened Set-Cookie header value for the session cookie.
 
@@ -112,9 +115,11 @@ def build_session_cookie(session_id: str) -> str:
         f"Max-Age={SESSION_COOKIE_MAX_AGE}; Secure; HttpOnly"
     )
 
+
 def set_session_cookie(response, session_id: str) -> None:
     """Attaches the hardened session cookie to a Response/StreamingResponse object."""
     response.headers["Set-Cookie"] = build_session_cookie(session_id)
+
 
 # ── Production Search Engine (Tavily + Serper + Firecrawl + Cohere) ──────────
 try:
@@ -123,29 +128,91 @@ try:
         build_production_search_context,
         build_production_sources_payload,
     )
+
     PRODUCTION_SEARCH_ENABLED = True
-    logger.info("✅ [Search] Production search engine loaded (Tavily + Serper + Firecrawl + Cohere)")
+    logger.info(
+        "✅ [Search] Production search engine loaded (Tavily + Serper + Firecrawl + Cohere)"
+    )
 except ImportError as _e:
     PRODUCTION_SEARCH_ENABLED = False
-    logger.warning(f"⚠️ [Search] Production engine not available ({_e}) — falling back to legacy Tavily/DDG")
+    logger.warning(
+        f"⚠️ [Search] Production engine not available ({_e}) — falling back to legacy Tavily/DDG"
+    )
 
 # ── File content fetcher ──────────────────────────────────────────────────────
 # Extension → broad category map used when Content-Type is missing/wrong
 _CODE_EXTENSIONS = {
-    'py','js','ts','jsx','tsx','html','htm','css','json','java','c','cpp','cs',
-    'go','rs','rb','php','swift','kt','sh','bash','zsh','xml','yaml','yml',
-    'toml','md','markdown','sql','r','lua','dart','scala','hs','txt','csv',
-    'dockerfile','makefile','gitignore','env','ini','cfg','conf','log',
+    "py",
+    "js",
+    "ts",
+    "jsx",
+    "tsx",
+    "html",
+    "htm",
+    "css",
+    "json",
+    "java",
+    "c",
+    "cpp",
+    "cs",
+    "go",
+    "rs",
+    "rb",
+    "php",
+    "swift",
+    "kt",
+    "sh",
+    "bash",
+    "zsh",
+    "xml",
+    "yaml",
+    "yml",
+    "toml",
+    "md",
+    "markdown",
+    "sql",
+    "r",
+    "lua",
+    "dart",
+    "scala",
+    "hs",
+    "txt",
+    "csv",
+    "dockerfile",
+    "makefile",
+    "gitignore",
+    "env",
+    "ini",
+    "cfg",
+    "conf",
+    "log",
 }
-_IMAGE_EXTENSIONS = {'jpg','jpeg','png','gif','webp','bmp','svg','ico','tiff','tif'}
-_PDF_EXTENSION    = {'pdf'}
-_DOC_EXTENSIONS   = {'doc','docx'}
+_IMAGE_EXTENSIONS = {
+    "jpg",
+    "jpeg",
+    "png",
+    "gif",
+    "webp",
+    "bmp",
+    "svg",
+    "ico",
+    "tiff",
+    "tif",
+}
+_PDF_EXTENSION = {"pdf"}
+_DOC_EXTENSIONS = {"doc", "docx"}
 
-MAX_TEXT_FILE_BYTES = 200_000   # ~200 KB — enough for large code files
-MAX_IMAGE_B64_BYTES = 4_000_000 # 4 MB base64 limit for vision APIs
-MAX_IMAGE_RAW_BYTES  = 15_000_000  # 15 MB raw download ceiling for images (before compression)
-MAX_BINARY_DOC_BYTES = 15_000_000  # 15 MB raw download ceiling for PDF/docx (need full body to parse)
-HARD_DOWNLOAD_CEILING_BYTES = 25_000_000  # 25 MB — reject anything claiming to be bigger than this, of any type
+MAX_TEXT_FILE_BYTES = 200_000  # ~200 KB — enough for large code files
+MAX_IMAGE_B64_BYTES = 4_000_000  # 4 MB base64 limit for vision APIs
+MAX_IMAGE_RAW_BYTES = (
+    15_000_000  # 15 MB raw download ceiling for images (before compression)
+)
+MAX_BINARY_DOC_BYTES = (
+    15_000_000  # 15 MB raw download ceiling for PDF/docx (need full body to parse)
+)
+HARD_DOWNLOAD_CEILING_BYTES = (
+    25_000_000  # 25 MB — reject anything claiming to be bigger than this, of any type
+)
 
 
 def _read_capped(resp, cap_bytes: int):
@@ -174,8 +241,8 @@ def _read_capped(resp, cap_bytes: int):
 def _ext(url: str) -> str:
     """Return lowercase extension from a URL path, no dot."""
     path = url.split("?")[0].rstrip("/")
-    dot  = path.rfind(".")
-    return path[dot+1:].lower() if dot != -1 else ""
+    dot = path.rfind(".")
+    return path[dot + 1 :].lower() if dot != -1 else ""
 
 
 # ── SSRF protection for user-supplied file URLs ───────────────────────────────
@@ -191,7 +258,9 @@ def _get_allowed_file_hosts() -> set:
         if supa_host:
             hosts.add(supa_host.lower())
     except (ValueError, AttributeError) as e:
-        logger.warning(f"⚠️ [_get_allowed_file_hosts] could not parse SUPABASE_URL: {e}")
+        logger.warning(
+            f"⚠️ [_get_allowed_file_hosts] could not parse SUPABASE_URL: {e}"
+        )
     extra = os.getenv("FILE_FETCH_EXTRA_HOSTS", "")
     for h in extra.split(","):
         h = h.strip().lower()
@@ -237,7 +306,9 @@ def _is_safe_public_url(url: str, allowed_hosts: set | None = None) -> tuple:
     if not parsed.hostname:
         return False, "URL has no hostname"
 
-    allowed_hosts = allowed_hosts if allowed_hosts is not None else _get_allowed_file_hosts()
+    allowed_hosts = (
+        allowed_hosts if allowed_hosts is not None else _get_allowed_file_hosts()
+    )
     if not allowed_hosts:
         # Fail closed: if we don't know our own storage host, don't fetch anything.
         return False, "File fetching is not configured (no allowed hosts)"
@@ -252,7 +323,9 @@ def _is_safe_public_url(url: str, allowed_hosts: set | None = None) -> tuple:
     try:
         resolved_ips = {res[4][0] for res in socket.getaddrinfo(parsed.hostname, None)}
     except (socket.gaierror, UnicodeError) as e:
-        logger.info(f"[_is_safe_public_url] DNS resolution failed for {parsed.hostname!r}: {e}")
+        logger.info(
+            f"[_is_safe_public_url] DNS resolution failed for {parsed.hostname!r}: {e}"
+        )
         return False, "Could not resolve host"
 
     for ip_str in resolved_ips:
@@ -273,7 +346,9 @@ def _is_safe_public_url(url: str, allowed_hosts: set | None = None) -> tuple:
     return True, ""
 
 
-async def _safe_httpx_get(url: str, allowed_hosts: set, timeout: float = 15.0, max_redirects: int = 5):
+async def _safe_httpx_get(
+    url: str, allowed_hosts: set, timeout: float = 15.0, max_redirects: int = 5
+):
     """
     SSRF-safe async GET: validates `url` against `allowed_hosts` (host
     allow-list + private/loopback/link-local IP rejection, via
@@ -291,7 +366,9 @@ async def _safe_httpx_get(url: str, allowed_hosts: set, timeout: float = 15.0, m
     if not ok:
         return None, f"URL not allowed: {reason}"
 
-    async with _safe_httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+    async with _safe_httpx.AsyncClient(
+        timeout=timeout, follow_redirects=False
+    ) as client:
         hops = 0
         while True:
             resp = await client.get(url)
@@ -365,7 +442,10 @@ def fetch_file_content_for_ai(url: str) -> dict:
             next_url = requests.compat.urljoin(url, location)
             ok, reason = _is_safe_public_url(next_url)
             if not ok:
-                return {"kind": "error", "reason": f"Redirect target not allowed: {reason}"}
+                return {
+                    "kind": "error",
+                    "reason": f"Redirect target not allowed: {reason}",
+                }
             url = next_url
             resp = _http.get(url, timeout=12, stream=True, allow_redirects=False)
             redirect_hops += 1
@@ -385,7 +465,9 @@ def fetch_file_content_for_ai(url: str) -> dict:
             except ValueError:
                 pass
 
-        content_type = resp.headers.get("Content-Type", "").split(";")[0].strip().lower()
+        content_type = (
+            resp.headers.get("Content-Type", "").split(";")[0].strip().lower()
+        )
 
         # ── Images ──────────────────────────────────────────────────────────
         is_image = ext in _IMAGE_EXTENSIONS or content_type.startswith("image/")
@@ -397,18 +479,20 @@ def fetch_file_content_for_ai(url: str) -> dict:
                     img = Image.open(io.BytesIO(raw))
                     img.thumbnail((1280, 1280), Image.LANCZOS)
                     buf = io.BytesIO()
-                    fmt = "JPEG" if ext in ("jpg","jpeg") else "PNG"
+                    fmt = "JPEG" if ext in ("jpg", "jpeg") else "PNG"
                     img.save(buf, format=fmt, quality=82)
                     raw = buf.getvalue()
                 except (OSError, ValueError) as e:
-                    logger.info(f"[fetch_file_content_for_ai] image resize skipped: {e}")
+                    logger.info(
+                        f"[fetch_file_content_for_ai] image resize skipped: {e}"
+                    )
                     # send original if resize fails
             mime = content_type if content_type.startswith("image/") else f"image/{ext}"
             return {
                 "kind": "image",
-                "ext" : ext,
+                "ext": ext,
                 "mime": mime,
-                "b64" : base64.b64encode(raw).decode("utf-8"),
+                "b64": base64.b64encode(raw).decode("utf-8"),
             }
 
         # ── PDF — extract text ───────────────────────────────────────────────
@@ -418,12 +502,15 @@ def fetch_file_content_for_ai(url: str) -> dict:
                 return {"kind": "error", "reason": "PDF exceeds maximum allowed size"}
             text = _extract_pdf_text(raw)
             if not text:
-                return {"kind": "error", "reason": "PDF has no extractable text (scanned/image-only)"}
+                return {
+                    "kind": "error",
+                    "reason": "PDF has no extractable text (scanned/image-only)",
+                }
             truncated = len(text) > MAX_TEXT_FILE_BYTES
             return {
-                "kind"     : "text",
-                "ext"      : "pdf",
-                "content"  : text[:MAX_TEXT_FILE_BYTES],
+                "kind": "text",
+                "ext": "pdf",
+                "content": text[:MAX_TEXT_FILE_BYTES],
                 "truncated": truncated,
             }
 
@@ -431,15 +518,18 @@ def fetch_file_content_for_ai(url: str) -> dict:
         if ext == "docx" or "wordprocessingml" in content_type:
             raw, doc_truncated = _read_capped(resp, MAX_BINARY_DOC_BYTES)
             if doc_truncated:
-                return {"kind": "error", "reason": "Document exceeds maximum allowed size"}
+                return {
+                    "kind": "error",
+                    "reason": "Document exceeds maximum allowed size",
+                }
             text = _extract_docx_text(raw)
             if not text:
                 return {"kind": "error", "reason": "Could not extract text from .docx"}
             truncated = len(text) > MAX_TEXT_FILE_BYTES
             return {
-                "kind"     : "text",
-                "ext"      : "docx",
-                "content"  : text[:MAX_TEXT_FILE_BYTES],
+                "kind": "text",
+                "ext": "docx",
+                "content": text[:MAX_TEXT_FILE_BYTES],
                 "truncated": truncated,
             }
 
@@ -447,8 +537,13 @@ def fetch_file_content_for_ai(url: str) -> dict:
         is_text = (
             ext in _CODE_EXTENSIONS
             or content_type.startswith("text/")
-            or content_type in ("application/json", "application/xml",
-                                "application/javascript", "application/x-yaml")
+            or content_type
+            in (
+                "application/json",
+                "application/xml",
+                "application/javascript",
+                "application/x-yaml",
+            )
         )
         if is_text:
             raw, truncated = _read_capped(resp, MAX_TEXT_FILE_BYTES)
@@ -460,9 +555,9 @@ def fetch_file_content_for_ai(url: str) -> dict:
                 except UnicodeDecodeError:
                     return {"kind": "error", "reason": "File is binary (not text)"}
             return {
-                "kind"     : "text",
-                "ext"      : ext or "txt",
-                "content"  : text,
+                "kind": "text",
+                "ext": ext or "txt",
+                "content": text,
                 "truncated": truncated,
             }
 
@@ -471,22 +566,31 @@ def fetch_file_content_for_ai(url: str) -> dict:
         try:
             text = raw.decode("utf-8")
             return {
-                "kind"     : "text",
-                "ext"      : ext or "bin",
-                "content"  : text,
+                "kind": "text",
+                "ext": ext or "bin",
+                "content": text,
                 "truncated": truncated,
             }
         except UnicodeDecodeError:
-            return {"kind": "error", "reason": f"Unsupported binary file type: {ext or content_type}"}
+            return {
+                "kind": "error",
+                "reason": f"Unsupported binary file type: {ext or content_type}",
+            }
 
     except requests.exceptions.Timeout:
         return {"kind": "error", "reason": "Timeout downloading file"}
     except requests.exceptions.RequestException as exc:
         logger.warning(f"⚠️ [fetch_file_content_for_ai] network error: {exc}")
-        return {"kind": "error", "reason": _client_safe_error(exc, "fetch_file_content_for_ai")}
+        return {
+            "kind": "error",
+            "reason": _client_safe_error(exc, "fetch_file_content_for_ai"),
+        }
     except Exception as exc:
         _log_unexpected("fetch_file_content_for_ai", exc)
-        return {"kind": "error", "reason": _client_safe_error(exc, "fetch_file_content_for_ai")}
+        return {
+            "kind": "error",
+            "reason": _client_safe_error(exc, "fetch_file_content_for_ai"),
+        }
 
 
 def _extract_pdf_text(raw: bytes) -> str:
@@ -494,8 +598,9 @@ def _extract_pdf_text(raw: bytes) -> str:
     # Try pypdf first (fast, no extra deps beyond what's usually installed)
     try:
         import pypdf
+
         reader = pypdf.PdfReader(io.BytesIO(raw))
-        parts  = []
+        parts = []
         for page in reader.pages:
             t = page.extract_text()
             if t:
@@ -514,6 +619,7 @@ def _extract_pdf_text(raw: bytes) -> str:
     # Fallback: try pdfminer.six
     try:
         from pdfminer.high_level import extract_text as pm_extract
+
         return pm_extract(io.BytesIO(raw)).strip()
     except ImportError:
         pass
@@ -527,7 +633,8 @@ def _extract_docx_text(raw: bytes) -> str:
     """Extract plain text from a .docx binary using python-docx."""
     try:
         import docx
-        doc   = docx.Document(io.BytesIO(raw))
+
+        doc = docx.Document(io.BytesIO(raw))
         lines = [p.text for p in doc.paragraphs if p.text.strip()]
         return "\n".join(lines).strip()
     except ImportError:
@@ -550,26 +657,30 @@ def build_file_context_for_prompt(file_urls: list) -> tuple:
     if not file_urls:
         return "", []
 
-    text_parts    = []
+    text_parts = []
     vision_images = []
 
     for url in file_urls:
         if not url:
             continue
         result = fetch_file_content_for_ai(url)
-        kind   = result.get("kind")
-        ext    = result.get("ext", "")
+        kind = result.get("kind")
+        ext = result.get("ext", "")
 
         if kind == "image":
             vision_images.append({"mime": result["mime"], "b64": result["b64"]})
             text_parts.append(f"[Image attached: {ext.upper()} — analysed via vision]")
 
         elif kind == "text":
-            content   = result["content"]
+            content = result["content"]
             truncated = result.get("truncated", False)
-            label     = ext.upper() if ext else "FILE"
-            header    = f"=== ATTACHED FILE ({label}) ==="
-            footer    = "[...file truncated — showing first 200 KB...]" if truncated else f"=== END OF {label} ==="
+            label = ext.upper() if ext else "FILE"
+            header = f"=== ATTACHED FILE ({label}) ==="
+            footer = (
+                "[...file truncated — showing first 200 KB...]"
+                if truncated
+                else f"=== END OF {label} ==="
+            )
             text_parts.append(f"{header}\n{content}\n{footer}")
 
         elif kind == "error":
@@ -578,6 +689,7 @@ def build_file_context_for_prompt(file_urls: list) -> tuple:
 
     text_context = "\n\n".join(text_parts)
     return text_context, vision_images
+
 
 app = FastAPI()
 
@@ -615,7 +727,10 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # ✅ CORS MIDDLEWARE
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://catura.duckdns.org", "https://my-ai-assistant-9bbd.onrender.com"],
+    allow_origins=[
+        "https://catura.duckdns.org",
+        "https://my-ai-assistant-9bbd.onrender.com",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -637,8 +752,12 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # Admin client uses service_role key → bypasses Row Level Security for server-side writes
 # Set SUPABASE_SERVICE_KEY in your Render env vars (Supabase → Project Settings → API → service_role)
-_svc_key = os.getenv("SUPABASE_SERVICE_KEY", "") or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
-_supabase_admin: Client = create_client(SUPABASE_URL, _svc_key) if _svc_key else supabase
+_svc_key = os.getenv("SUPABASE_SERVICE_KEY", "") or os.getenv(
+    "SUPABASE_SERVICE_ROLE_KEY", ""
+)
+_supabase_admin: Client = (
+    create_client(SUPABASE_URL, _svc_key) if _svc_key else supabase
+)
 
 
 async def _db(func, *args, **kwargs):
@@ -668,7 +787,9 @@ async def require_auth(authorization: str = Header(default=None)) -> dict:
     Raises 401 if missing/invalid. Returns {"user_id": ..., "email": ...} on success.
     """
     if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(status_code=401, detail="Missing or malformed Authorization header")
+        raise HTTPException(
+            status_code=401, detail="Missing or malformed Authorization header"
+        )
 
     token = authorization.split(" ", 1)[1].strip()
     if not token:
@@ -692,6 +813,7 @@ async def require_auth(authorization: str = Header(default=None)) -> dict:
 
     return {"user_id": user.id, "email": user.email}
 
+
 # ============================================================
 # ✅ BOUNDED LRU DICT — generic helper for in-memory caches/trackers
 # so nothing here grows unbounded on a long-running Render instance.
@@ -707,6 +829,7 @@ class LRUDict(_RL_OrderedDict):
     the least-recently-used key is evicted on the next insert. Access via
     __getitem__ or get_touch() refreshes recency.
     """
+
     def __init__(self, maxsize=5000, *args, **kwargs):
         self.maxsize = maxsize
         super().__init__(*args, **kwargs)
@@ -751,10 +874,10 @@ user_memory: "LRUDict" = LRUDict(maxsize=20000)
 # otherwise track its own independent counters and users could get up to
 # N_instances × 15 messages per window by hitting different instances.
 # ============================================================
-CHAT_RATE_LIMIT = 15            # messages
-CHAT_RATE_WINDOW_SECONDS = 20 * 60   # 20 minutes, rolling — not a fixed clock reset
+CHAT_RATE_LIMIT = 15  # messages
+CHAT_RATE_WINDOW_SECONDS = 20 * 60  # 20 minutes, rolling — not a fixed clock reset
 
-_chat_rate_store: "LRUDict" = LRUDict(maxsize=20000)   # "user_id:model" -> [timestamps]
+_chat_rate_store: "LRUDict" = LRUDict(maxsize=20000)  # "user_id:model" -> [timestamps]
 _chat_rate_lock = _rl_threading.Lock()
 
 
@@ -774,7 +897,9 @@ def _chat_quota_check(user_id: str, model: str):
             oldest = timestamps[0]
             reset_epoch = oldest + CHAT_RATE_WINDOW_SECONDS
             retry_after = max(1, int(round(reset_epoch - now)))
-            _chat_rate_store[key] = timestamps  # keep pruned list; don't record this rejected attempt
+            _chat_rate_store[key] = (
+                timestamps  # keep pruned list; don't record this rejected attempt
+            )
             return False, 0, reset_epoch, retry_after
 
         timestamps.append(now)
@@ -783,22 +908,37 @@ def _chat_quota_check(user_id: str, model: str):
         reset_epoch = timestamps[0] + CHAT_RATE_WINDOW_SECONDS
         return True, remaining, reset_epoch, 0
 
+
 # ✅ RENDER APP URL
 APP_URL = os.getenv("APP_URL", "https://my-ai-assistant-9bbd.onrender.com/")
 
 # ✅ API KEYS (set these as environment variables)
-OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY", "")       # https://openweathermap.org/api (free)
-NEWSDATA_API_KEY    = os.getenv("NEWSDATA_API_KEY", "")           # https://newsdata.io (free)
-ALPHAVANTAGE_KEY    = os.getenv("ALPHAVANTAGE_API_KEY", "")       # https://www.alphavantage.co (free)
-CRICAPI_KEY         = os.getenv("CRICAPI_KEY", "")                # https://www.cricapi.com (free)
-GEMINI_API_KEY      = os.getenv("GEMINI_API_KEY", "")               # https://aistudio.google.com (free)
-TAVILY_API_KEY      = os.getenv("TAVILY_API_KEY", "")               # https://tavily.com (free — 1000 searches/month)
-GROQ_API_KEY        = os.getenv("GROQ_API_KEY", "")                 # https://console.groq.com (free tier)
-ZAI_API_KEY         = os.getenv("ZAI_API_KEY", "")                  # https://z.ai (GLM-4.7-Flash — free tier)
-NARAROUTER_API_KEY  = os.getenv("NARAROUTER_API_KEY", "")           # https://router.bynara.id (Agnes 2.5 Flash, Ling 3.0 Flash, Atria Dawn — free tier)
-SERPER_API_KEY      = os.getenv("SERPER_API_KEY", "")               # https://serper.dev (2500 free searches)
-FIRECRAWL_API_KEY   = os.getenv("FIRECRAWL_API_KEY", "")            # https://firecrawl.dev (free tier)
-COHERE_API_KEY      = os.getenv("COHERE_API_KEY", "")               # https://cohere.com (1000 free reranks/month)
+OPENWEATHER_API_KEY = os.getenv(
+    "OPENWEATHER_API_KEY", ""
+)  # https://openweathermap.org/api (free)
+NEWSDATA_API_KEY = os.getenv("NEWSDATA_API_KEY", "")  # https://newsdata.io (free)
+ALPHAVANTAGE_KEY = os.getenv(
+    "ALPHAVANTAGE_API_KEY", ""
+)  # https://www.alphavantage.co (free)
+CRICAPI_KEY = os.getenv("CRICAPI_KEY", "")  # https://www.cricapi.com (free)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")  # https://aistudio.google.com (free)
+TAVILY_API_KEY = os.getenv(
+    "TAVILY_API_KEY", ""
+)  # https://tavily.com (free — 1000 searches/month)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")  # https://console.groq.com (free tier)
+ZAI_API_KEY = os.getenv("ZAI_API_KEY", "")  # https://z.ai (GLM-4.7-Flash — free tier)
+NARAROUTER_API_KEY = os.getenv(
+    "NARAROUTER_API_KEY", ""
+)  # https://router.bynara.id (Agnes 2.5 Flash, Ling 3.0 Flash, Atria Dawn — free tier)
+SERPER_API_KEY = os.getenv(
+    "SERPER_API_KEY", ""
+)  # https://serper.dev (2500 free searches)
+FIRECRAWL_API_KEY = os.getenv(
+    "FIRECRAWL_API_KEY", ""
+)  # https://firecrawl.dev (free tier)
+COHERE_API_KEY = os.getenv(
+    "COHERE_API_KEY", ""
+)  # https://cohere.com (1000 free reranks/month)
 
 
 # ============================================================
@@ -825,28 +965,37 @@ async def add_cache_headers(request: Request, call_next):
 def home():
     return FileResponse(os.path.join(BASE_DIR, "index.html"), media_type="text/html")
 
+
 @app.get("/auth.html")
 def auth_page_html():
     from fastapi.responses import RedirectResponse
+
     return RedirectResponse(url="/auth", status_code=301)
+
 
 @app.get("/auth")
 def auth_page():
     p = os.path.join(BASE_DIR, "auth.html")
-    if not os.path.isfile(p): return JSONResponse({"error": "auth.html not found"}, status_code=404)
+    if not os.path.isfile(p):
+        return JSONResponse({"error": "auth.html not found"}, status_code=404)
     return FileResponse(p, media_type="text/html")
+
 
 @app.get("/manifest.json")
 async def serve_manifest():
     p = os.path.join(BASE_DIR, "manifest.json")
-    if not os.path.isfile(p): return JSONResponse({"error": "manifest.json not found"}, status_code=404)
+    if not os.path.isfile(p):
+        return JSONResponse({"error": "manifest.json not found"}, status_code=404)
     return FileResponse(p, media_type="application/manifest+json")
+
 
 @app.get("/service-worker.js")
 async def serve_sw():
     p = os.path.join(BASE_DIR, "service-worker.js")
-    if not os.path.isfile(p): return JSONResponse({"error": "service-worker.js not found"}, status_code=404)
+    if not os.path.isfile(p):
+        return JSONResponse({"error": "service-worker.js not found"}, status_code=404)
     return FileResponse(p, media_type="application/javascript")
+
 
 @app.get("/share/{slug}")
 def share_page(slug: str):
@@ -859,41 +1008,67 @@ def share_page(slug: str):
         return JSONResponse({"error": "share.html not found"}, status_code=404)
     return FileResponse(p, media_type="text/html")
 
+
 @app.get("/ping")
 def ping():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "version": "0.0.495"}
+    return {
+        "status": "ok",
+        "timestamp": datetime.utcnow().isoformat(),
+        "version": "0.0.496",
+    }
+
 
 @app.get("/google5869a60ba00ea65a.html")
 def google_verify():
     p = os.path.join(BASE_DIR, "google5869a60ba00ea65a.html")
-    if not os.path.isfile(p): return JSONResponse({"error": "not found"}, status_code=404)
+    if not os.path.isfile(p):
+        return JSONResponse({"error": "not found"}, status_code=404)
     return FileResponse(p, media_type="text/html")
+
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.495", "timestamp": datetime.utcnow().isoformat()}
+    return {
+        "status": "healthy",
+        "version": "0.0.496",
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
 
 # ── 🧠 MEMORY MODELS ────────────────────────────────────────────────────────
 from pydantic import BaseModel as _MemBaseModel
 
+
 class MemorySaveRequest(_MemBaseModel):
     memory_text: str
-    user_id: str | None = None   # optional legacy field; ignored if it doesn't match the authed user
+    user_id: str | None = (
+        None  # optional legacy field; ignored if it doesn't match the authed user
+    )
+
 
 class MemoryClearRequest(_MemBaseModel):
-    user_id: str | None = None   # optional legacy field; ignored if it doesn't match the authed user
+    user_id: str | None = (
+        None  # optional legacy field; ignored if it doesn't match the authed user
+    )
+
 
 class MemoryExtractRequest(_MemBaseModel):
     message: str
     existing_memories: list = []
-    user_id: str | None = None   # optional legacy field; ignored if it doesn't match the authed user
+    user_id: str | None = (
+        None  # optional legacy field; ignored if it doesn't match the authed user
+    )
+
 
 # Small helper: if the client still sends a user_id, it must match the authenticated
 # user or we reject outright. Otherwise we always use the token's user_id.
 def _resolve_owner(auth: dict, client_supplied_user_id: str | None) -> str:
     if client_supplied_user_id and client_supplied_user_id != auth["user_id"]:
-        raise HTTPException(status_code=403, detail="user_id does not match authenticated user")
+        raise HTTPException(
+            status_code=403, detail="user_id does not match authenticated user"
+        )
     return auth["user_id"]
+
 
 # ============================================================
 # ✅ SKILLS FEATURE — Stage 1: data layer + endpoints
@@ -935,6 +1110,7 @@ class SkillDeleteRequest(_MemBaseModel):
 #     for Skills), calls the matching tool live over MCP (tools/call), and
 #     feeds the result into the model's context so it can actually use it.
 # ============================================================
+
 
 class ConnectorCustomAddRequest(_MemBaseModel):
     name: str
@@ -1016,7 +1192,9 @@ def _connector_public_row(row: dict) -> dict:
 _MCP_PROTOCOL_VERSION = "2025-06-18"
 
 
-async def _mcp_rpc(url: str, method: str, params: dict | None, headers: dict | None = None):
+async def _mcp_rpc(
+    url: str, method: str, params: dict | None, headers: dict | None = None
+):
     """Sends one JSON-RPC 2.0 request to a remote MCP server. Returns (result, error)."""
     payload = {
         "jsonrpc": "2.0",
@@ -1041,7 +1219,12 @@ async def _mcp_rpc(url: str, method: str, params: dict | None, headers: dict | N
         ctype = resp.headers.get("content-type", "")
         if "text/event-stream" in ctype:
             data_line = next(
-                (l[5:].strip() for l in resp.text.splitlines() if l.startswith("data:")), None
+                (
+                    l[5:].strip()
+                    for l in resp.text.splitlines()
+                    if l.startswith("data:")
+                ),
+                None,
             )
             if not data_line:
                 return None, "Empty MCP stream response"
@@ -1053,7 +1236,11 @@ async def _mcp_rpc(url: str, method: str, params: dict | None, headers: dict | N
         return body.get("result"), None
     except requests.exceptions.Timeout:
         return None, "MCP server timed out"
-    except (requests.exceptions.RequestException, ValueError, json.JSONDecodeError) as e:
+    except (
+        requests.exceptions.RequestException,
+        ValueError,
+        json.JSONDecodeError,
+    ) as e:
         return None, f"MCP connection failed: {e}"
     except Exception as e:
         _log_unexpected("_mcp_rpc", e)
@@ -1066,23 +1253,34 @@ async def mcp_handshake_and_list_tools(url: str, headers: dict | None = None):
     initialize → notifications/initialized → tools/list.
     Returns (tools_list, error).
     """
-    _, err = await _mcp_rpc(url, "initialize", {
-        "protocolVersion": _MCP_PROTOCOL_VERSION,
-        "capabilities": {},
-        "clientInfo": {"name": "Catura AI", "version": "0.0.495"},
-    }, headers)
+    _, err = await _mcp_rpc(
+        url,
+        "initialize",
+        {
+            "protocolVersion": _MCP_PROTOCOL_VERSION,
+            "capabilities": {},
+            "clientInfo": {"name": "Catura AI", "version": "0.0.496"},
+        },
+        headers,
+    )
     if err:
         return None, err
 
     # Best-effort — some servers require this notification before tools/list,
     # but per spec it has no response, so we don't treat a failure as fatal.
     try:
-        await anyio.to_thread.run_sync(lambda: _http.post(
-            url,
-            json={"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}},
-            headers={"Content-Type": "application/json"},
-            timeout=10,
-        ))
+        await anyio.to_thread.run_sync(
+            lambda: _http.post(
+                url,
+                json={
+                    "jsonrpc": "2.0",
+                    "method": "notifications/initialized",
+                    "params": {},
+                },
+                headers={"Content-Type": "application/json"},
+                timeout=10,
+            )
+        )
     except Exception:
         pass
 
@@ -1092,16 +1290,27 @@ async def mcp_handshake_and_list_tools(url: str, headers: dict | None = None):
     return (tools_result or {}).get("tools", []), None
 
 
-async def mcp_call_tool(url: str, tool_name: str, arguments: dict, headers: dict | None = None):
+async def mcp_call_tool(
+    url: str, tool_name: str, arguments: dict, headers: dict | None = None
+):
     """Invokes one tool on a remote MCP server. Returns (result_text, error)."""
-    result, err = await _mcp_rpc(url, "tools/call", {
-        "name": tool_name,
-        "arguments": arguments or {},
-    }, headers)
+    result, err = await _mcp_rpc(
+        url,
+        "tools/call",
+        {
+            "name": tool_name,
+            "arguments": arguments or {},
+        },
+        headers,
+    )
     if err:
         return None, err
     content = (result or {}).get("content", [])
-    text_parts = [c.get("text", "") for c in content if isinstance(c, dict) and c.get("type") == "text"]
+    text_parts = [
+        c.get("text", "")
+        for c in content
+        if isinstance(c, dict) and c.get("type") == "text"
+    ]
     return "\n".join(text_parts).strip() or "(tool returned no text output)", None
 
 
@@ -1119,10 +1328,18 @@ async def get_matching_connector_tool(user_id: str, prompt: str):
     (None, None) if nothing relevant is connected.
     """
     try:
+
         def _load():
-            return _supabase_admin.table("connectors") \
-                .select("id, name, mcp_url, provider, type, status, access_token, tools") \
-                .eq("user_id", user_id).eq("status", "connected").execute()
+            return (
+                _supabase_admin.table("connectors")
+                .select(
+                    "id, name, mcp_url, provider, type, status, access_token, tools"
+                )
+                .eq("user_id", user_id)
+                .eq("status", "connected")
+                .execute()
+            )
+
         rows = (await _db(_load)).data or []
         if not rows:
             return None, None
@@ -1135,9 +1352,11 @@ async def get_matching_connector_tool(user_id: str, prompt: str):
         best = None
         best_score = 0
         for row in rows:
-            for tool in (row.get("tools") or []):
+            for tool in row.get("tools") or []:
                 haystack = f"{tool.get('name','')} {tool.get('description','')}".lower()
-                tool_words = {w for w in re.findall(r"[a-z0-9]+", haystack) if len(w) > 3}
+                tool_words = {
+                    w for w in re.findall(r"[a-z0-9]+", haystack) if len(w) > 3
+                }
                 overlap = len(prompt_words & tool_words)
                 if overlap > best_score:
                     best_score, best = overlap, (row, tool)
@@ -1182,9 +1401,13 @@ async def run_connector_tool(user_id: str, prompt: str):
             # Tool needs structured args we can't safely guess — skip silently.
             return None
 
-    text, err = await mcp_call_tool(row["mcp_url"], tool["name"], args, _connector_headers(row))
+    text, err = await mcp_call_tool(
+        row["mcp_url"], tool["name"], args, _connector_headers(row)
+    )
     if err:
-        logger.warning(f"⚠️ [Connector] '{row.get('name')}' tool '{tool.get('name')}' call failed: {err}")
+        logger.warning(
+            f"⚠️ [Connector] '{row.get('name')}' tool '{tool.get('name')}' call failed: {err}"
+        )
         return None
     return {
         "tool": "connector",
@@ -1222,7 +1445,9 @@ def _parse_skill_md(raw: str, fallback_name: str = "Untitled Skill") -> dict:
                 description = str(meta.get("description", "")).strip()
                 trigger_hint = str(meta.get("trigger_hint", "")).strip()
             except (_skill_yaml.YAMLError, AttributeError, TypeError) as e:
-                logger.warning(f"⚠️ [Skills] frontmatter parse failed, using raw file: {e}")
+                logger.warning(
+                    f"⚠️ [Skills] frontmatter parse failed, using raw file: {e}"
+                )
             body = parts[2].strip()
 
     if not description:
@@ -1260,12 +1485,21 @@ def get_matching_skills(user_id: str, prompt: str, max_skills: int = 2) -> list:
     completely unaffected.
     """
     try:
-        own = _supabase_admin.table("skills") \
-            .select("id, name, description, trigger_hint, content") \
-            .eq("user_id", user_id).eq("enabled", True).execute()
-        preinstalled = _supabase_admin.table("skills") \
-            .select("id, name, description, trigger_hint, content") \
-            .is_("user_id", "null").eq("is_preinstalled", True).eq("enabled", True).execute()
+        own = (
+            _supabase_admin.table("skills")
+            .select("id, name, description, trigger_hint, content")
+            .eq("user_id", user_id)
+            .eq("enabled", True)
+            .execute()
+        )
+        preinstalled = (
+            _supabase_admin.table("skills")
+            .select("id, name, description, trigger_hint, content")
+            .is_("user_id", "null")
+            .eq("is_preinstalled", True)
+            .eq("enabled", True)
+            .execute()
+        )
         all_skills = (own.data or []) + (preinstalled.data or [])
         if not all_skills:
             return []
@@ -1299,13 +1533,17 @@ def build_skill_context(matched_skills: list) -> str:
         "and let them guide your approach and answer quality:\n\n"
     )
     for s in matched_skills:
-        block += f"### Skill: {s.get('name','Unnamed')}\n{s.get('content','')[:6000]}\n\n"
+        block += (
+            f"### Skill: {s.get('name','Unnamed')}\n{s.get('content','')[:6000]}\n\n"
+        )
     return block
 
 
 @app.post("/api/skills/install")
 @limiter.limit("10/minute")
-async def install_skill(request: Request, req: SkillInstallRequest, auth: dict = Depends(require_auth)):
+async def install_skill(
+    request: Request, req: SkillInstallRequest, auth: dict = Depends(require_auth)
+):
     """
     Installs a skill from a URL. Supports:
       - Direct raw SKILL.md links (raw.githubusercontent.com/.../SKILL.md)
@@ -1315,30 +1553,47 @@ async def install_skill(request: Request, req: SkillInstallRequest, auth: dict =
         user_id = _resolve_owner(auth, req.user_id)
         url = req.source_url.strip()
         if not url:
-            return JSONResponse({"ok": False, "error": "Missing source_url"}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "error": "Missing source_url"}, status_code=400
+            )
 
         # Convert github.com/.../blob/... links to raw links automatically
         fetch_url = url
         if "github.com" in url and "/blob/" in url:
-            fetch_url = url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
+            fetch_url = url.replace("github.com", "raw.githubusercontent.com").replace(
+                "/blob/", "/"
+            )
 
         # SSRF guard: only ever fetch from GitHub (raw or blob), reject
         # private/internal IPs, and re-validate every redirect hop by hand
         # instead of following redirects blindly.
-        resp, err = await _safe_httpx_get(fetch_url, allowed_hosts=_get_allowed_skill_hosts(), timeout=15.0)
+        resp, err = await _safe_httpx_get(
+            fetch_url, allowed_hosts=_get_allowed_skill_hosts(), timeout=15.0
+        )
         if resp is None:
-            return JSONResponse({"ok": False, "error": err or "Could not fetch skill. Check the link."}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "error": err or "Could not fetch skill. Check the link."},
+                status_code=400,
+            )
         if resp.status_code != 200:
             return JSONResponse(
-                {"ok": False, "error": f"Could not fetch skill (HTTP {resp.status_code}). Check the link."},
+                {
+                    "ok": False,
+                    "error": f"Could not fetch skill (HTTP {resp.status_code}). Check the link.",
+                },
                 status_code=400,
             )
         raw_content = resp.text
 
         if len(raw_content.strip()) < 10:
-            return JSONResponse({"ok": False, "error": "Fetched file is empty or invalid."}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "error": "Fetched file is empty or invalid."},
+                status_code=400,
+            )
 
-        fallback_name = url.rstrip("/").split("/")[-1].replace(".md", "").replace("-", " ").title()
+        fallback_name = (
+            url.rstrip("/").split("/")[-1].replace(".md", "").replace("-", " ").title()
+        )
         parsed = _parse_skill_md(raw_content, fallback_name=fallback_name)
 
         row = {
@@ -1353,14 +1608,21 @@ async def install_skill(request: Request, req: SkillInstallRequest, auth: dict =
             "enabled": True,
             "updated_at": datetime.utcnow().isoformat(),
         }
-        result = await _db(lambda: _supabase_admin.table("skills").insert(row).execute())
-        return JSONResponse({"ok": True, "skill": result.data[0] if result.data else row})
+        result = await _db(
+            lambda: _supabase_admin.table("skills").insert(row).execute()
+        )
+        return JSONResponse(
+            {"ok": True, "skill": result.data[0] if result.data else row}
+        )
 
     except HTTPException:
         raise
     except Exception as e:
         _log_unexpected("Skills install", e)
-        return JSONResponse({"ok": False, "error": _client_safe_error(e, "Skills install")}, status_code=500)
+        return JSONResponse(
+            {"ok": False, "error": _client_safe_error(e, "Skills install")},
+            status_code=500,
+        )
 
 
 @app.get("/api/skills/list")
@@ -1370,12 +1632,24 @@ async def list_skills(request: Request, auth: dict = Depends(require_auth)):
         user_id = auth["user_id"]
 
         def _load():
-            own = _supabase_admin.table("skills") \
-                .select("id, name, slug, description, trigger_hint, source_url, is_preinstalled, enabled, created_at") \
-                .eq("user_id", user_id).order("created_at", desc=True).execute()
-            preinstalled = _supabase_admin.table("skills") \
-                .select("id, name, slug, description, trigger_hint, source_url, is_preinstalled, enabled, created_at") \
-                .is_("user_id", "null").eq("is_preinstalled", True).execute()
+            own = (
+                _supabase_admin.table("skills")
+                .select(
+                    "id, name, slug, description, trigger_hint, source_url, is_preinstalled, enabled, created_at"
+                )
+                .eq("user_id", user_id)
+                .order("created_at", desc=True)
+                .execute()
+            )
+            preinstalled = (
+                _supabase_admin.table("skills")
+                .select(
+                    "id, name, slug, description, trigger_hint, source_url, is_preinstalled, enabled, created_at"
+                )
+                .is_("user_id", "null")
+                .eq("is_preinstalled", True)
+                .execute()
+            )
             return (own.data or []) + (preinstalled.data or [])
 
         skills = await _db(_load)
@@ -1387,16 +1661,25 @@ async def list_skills(request: Request, auth: dict = Depends(require_auth)):
 
 @app.post("/api/skills/toggle")
 @limiter.limit("30/minute")
-async def toggle_skill(request: Request, req: SkillToggleRequest, auth: dict = Depends(require_auth)):
+async def toggle_skill(
+    request: Request, req: SkillToggleRequest, auth: dict = Depends(require_auth)
+):
     try:
         user_id = auth["user_id"]
-        await _db(lambda: _supabase_admin.table("skills")
-                  .update({"enabled": req.enabled})
-                  .eq("id", req.skill_id).eq("user_id", user_id).execute())
+        await _db(
+            lambda: _supabase_admin.table("skills")
+            .update({"enabled": req.enabled})
+            .eq("id", req.skill_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
         return JSONResponse({"ok": True})
     except Exception as e:
         _log_unexpected("Skills toggle", e)
-        return JSONResponse({"ok": False, "error": _client_safe_error(e, "Skills toggle")}, status_code=500)
+        return JSONResponse(
+            {"ok": False, "error": _client_safe_error(e, "Skills toggle")},
+            status_code=500,
+        )
 
 
 @app.delete("/api/skills/delete")
@@ -1404,11 +1687,21 @@ async def toggle_skill(request: Request, req: SkillToggleRequest, auth: dict = D
 async def delete_skill(request: Request, id: str, auth: dict = Depends(require_auth)):
     try:
         user_id = auth["user_id"]
-        await _db(lambda: _supabase_admin.table("skills").delete().eq("id", id).eq("user_id", user_id).execute())
+        await _db(
+            lambda: _supabase_admin.table("skills")
+            .delete()
+            .eq("id", id)
+            .eq("user_id", user_id)
+            .execute()
+        )
         return JSONResponse({"ok": True})
     except Exception as e:
         _log_unexpected("Skills delete", e)
-        return JSONResponse({"ok": False, "error": _client_safe_error(e, "Skills delete")}, status_code=500)
+        return JSONResponse(
+            {"ok": False, "error": _client_safe_error(e, "Skills delete")},
+            status_code=500,
+        )
+
 
 # ── 🔌 CONNECTORS ENDPOINTS ───────────────────────────────────────────────────
 # Data layer note: needs a `connectors` table in Supabase with columns:
@@ -1419,6 +1712,7 @@ async def delete_skill(request: Request, id: str, auth: dict = Depends(require_a
 #   oauth_state text, created_at timestamptz default now(),
 #   updated_at timestamptz default now()
 # (RLS: users can only select/insert/update/delete rows where user_id = auth.uid())
+
 
 @app.get("/api/connectors/list")
 @limiter.limit("30/minute")
@@ -1432,26 +1726,36 @@ async def list_connectors(request: Request, auth: dict = Depends(require_auth)):
         user_id = auth["user_id"]
 
         def _load():
-            return _supabase_admin.table("connectors") \
-                .select("id, name, provider, type, mcp_url, status, tools, created_at") \
-                .eq("user_id", user_id).order("created_at", desc=True).execute()
+            return (
+                _supabase_admin.table("connectors")
+                .select("id, name, provider, type, mcp_url, status, tools, created_at")
+                .eq("user_id", user_id)
+                .order("created_at", desc=True)
+                .execute()
+            )
 
         rows = (await _db(_load)).data or []
-        by_provider = {r["provider"]: r for r in rows if r.get("type") == "builtin" and r.get("provider")}
+        by_provider = {
+            r["provider"]: r
+            for r in rows
+            if r.get("type") == "builtin" and r.get("provider")
+        }
         custom_rows = [r for r in rows if r.get("type") == "custom"]
 
         popular = []
         for provider, meta in _BUILTIN_CONNECTORS.items():
             existing = by_provider.get(provider)
-            popular.append({
-                "id": existing["id"] if existing else None,
-                "provider": provider,
-                "name": meta["name"],
-                "icon": meta["icon"],
-                "type": "builtin",
-                "status": existing["status"] if existing else "not_connected",
-                "configured": bool(os.getenv(meta["client_id_env"])),
-            })
+            popular.append(
+                {
+                    "id": existing["id"] if existing else None,
+                    "provider": provider,
+                    "name": meta["name"],
+                    "icon": meta["icon"],
+                    "type": "builtin",
+                    "status": existing["status"] if existing else "not_connected",
+                    "configured": bool(os.getenv(meta["client_id_env"])),
+                }
+            )
 
         custom = [_connector_public_row(r) for r in custom_rows]
         return JSONResponse({"ok": True, "popular": popular, "custom": custom})
@@ -1462,7 +1766,9 @@ async def list_connectors(request: Request, auth: dict = Depends(require_auth)):
 
 @app.post("/api/connectors/custom/add")
 @limiter.limit("10/minute")
-async def add_custom_connector(request: Request, req: ConnectorCustomAddRequest, auth: dict = Depends(require_auth)):
+async def add_custom_connector(
+    request: Request, req: ConnectorCustomAddRequest, auth: dict = Depends(require_auth)
+):
     """
     Adds a custom MCP connector. Performs a real MCP handshake
     (initialize → tools/list) against the given URL right away — the
@@ -1474,35 +1780,59 @@ async def add_custom_connector(request: Request, req: ConnectorCustomAddRequest,
         name = (req.name or "").strip()
         mcp_url = (req.mcp_url or "").strip()
         if not name:
-            return JSONResponse({"ok": False, "error": "Name is required."}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "error": "Name is required."}, status_code=400
+            )
         if not mcp_url:
-            return JSONResponse({"ok": False, "error": "Remote MCP server URL is required."}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "error": "Remote MCP server URL is required."},
+                status_code=400,
+            )
 
         parsed = urlparse(mcp_url)
         if parsed.scheme != "https":
-            return JSONResponse({"ok": False, "error": "MCP server URL must start with https://"}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "error": "MCP server URL must start with https://"},
+                status_code=400,
+            )
 
         # Reject private/internal hosts — same SSRF principle used for skill installs.
         try:
             resolved_ips = socket.getaddrinfo(parsed.hostname, None)
             for _fam, _type, _proto, _cn, sockaddr in resolved_ips:
                 ip = ipaddress.ip_address(sockaddr[0])
-                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
-                    return JSONResponse({"ok": False, "error": "That MCP server URL is not reachable."}, status_code=400)
+                if (
+                    ip.is_private
+                    or ip.is_loopback
+                    or ip.is_link_local
+                    or ip.is_reserved
+                ):
+                    return JSONResponse(
+                        {"ok": False, "error": "That MCP server URL is not reachable."},
+                        status_code=400,
+                    )
         except (socket.gaierror, ValueError) as e:
-            return JSONResponse({"ok": False, "error": f"Could not resolve MCP server host: {e}"}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "error": f"Could not resolve MCP server host: {e}"},
+                status_code=400,
+            )
 
         headers = {}
         if req.oauth_client_id and req.oauth_client_secret:
             # Custom connectors may gate their MCP endpoint behind basic client
             # credentials rather than a full OAuth flow — pass them through.
-            headers["Authorization"] = "Bearer " + base64.b64encode(
-                f"{req.oauth_client_id}:{req.oauth_client_secret}".encode()
-            ).decode()
+            headers["Authorization"] = (
+                "Bearer "
+                + base64.b64encode(
+                    f"{req.oauth_client_id}:{req.oauth_client_secret}".encode()
+                ).decode()
+            )
 
         tools, err = await mcp_handshake_and_list_tools(mcp_url, headers)
         if err:
-            return JSONResponse({"ok": False, "error": f"Couldn't connect: {err}"}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "error": f"Couldn't connect: {err}"}, status_code=400
+            )
 
         row = {
             "user_id": user_id,
@@ -1517,21 +1847,32 @@ async def add_custom_connector(request: Request, req: ConnectorCustomAddRequest,
             "tools": tools,
             "updated_at": datetime.utcnow().isoformat(),
         }
-        result = await _db(lambda: _supabase_admin.table("connectors").insert(row).execute())
+        result = await _db(
+            lambda: _supabase_admin.table("connectors").insert(row).execute()
+        )
         saved = result.data[0] if result.data else row
-        logger.info(f"🔌 [Connectors] custom connector added: {name} ({len(tools)} tools)")
+        logger.info(
+            f"🔌 [Connectors] custom connector added: {name} ({len(tools)} tools)"
+        )
         return JSONResponse({"ok": True, "connector": _connector_public_row(saved)})
 
     except HTTPException:
         raise
     except Exception as e:
         _log_unexpected("Connectors custom add", e)
-        return JSONResponse({"ok": False, "error": _client_safe_error(e, "Connectors custom add")}, status_code=500)
+        return JSONResponse(
+            {"ok": False, "error": _client_safe_error(e, "Connectors custom add")},
+            status_code=500,
+        )
 
 
 @app.post("/api/connectors/builtin/connect")
 @limiter.limit("20/minute")
-async def connect_builtin_connector(request: Request, req: ConnectorBuiltinConnectRequest, auth: dict = Depends(require_auth)):
+async def connect_builtin_connector(
+    request: Request,
+    req: ConnectorBuiltinConnectRequest,
+    auth: dict = Depends(require_auth),
+):
     """
     Starts the OAuth flow for a built-in "popular" connector (Gmail, Google
     Drive, Slack, GitHub). Returns an authorize_url the frontend redirects
@@ -1544,30 +1885,42 @@ async def connect_builtin_connector(request: Request, req: ConnectorBuiltinConne
         provider = req.provider
         meta = _BUILTIN_CONNECTORS.get(provider)
         if not meta:
-            return JSONResponse({"ok": False, "error": "Unknown connector."}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "error": "Unknown connector."}, status_code=400
+            )
 
         client_id = os.getenv(meta["client_id_env"])
         if not client_id:
-            return JSONResponse({
-                "ok": False,
-                "error": f"{meta['name']} isn't configured yet. Set {meta['client_id_env']} and "
-                         f"{meta['client_secret_env']} in your environment to enable it.",
-            }, status_code=400)
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "error": f"{meta['name']} isn't configured yet. Set {meta['client_id_env']} and "
+                    f"{meta['client_secret_env']} in your environment to enable it.",
+                },
+                status_code=400,
+            )
 
         user_id = auth["user_id"]
         state = str(uuid.uuid4())
         # Stash the state on a pending row so the callback can verify it and
         # know which user/provider it belongs to (OAuth state has no other
         # way to carry that safely).
-        await _db(lambda: _supabase_admin.table("connectors").upsert({
-            "user_id": user_id,
-            "provider": provider,
-            "type": "builtin",
-            "name": meta["name"],
-            "status": "not_connected",
-            "oauth_state": state,
-            "updated_at": datetime.utcnow().isoformat(),
-        }, on_conflict="user_id,provider").execute())
+        await _db(
+            lambda: _supabase_admin.table("connectors")
+            .upsert(
+                {
+                    "user_id": user_id,
+                    "provider": provider,
+                    "type": "builtin",
+                    "name": meta["name"],
+                    "status": "not_connected",
+                    "oauth_state": state,
+                    "updated_at": datetime.utcnow().isoformat(),
+                },
+                on_conflict="user_id,provider",
+            )
+            .execute()
+        )
 
         redirect_uri = f"{APP_URL.rstrip('/')}/api/connectors/oauth/callback"
         params = {
@@ -1578,16 +1931,25 @@ async def connect_builtin_connector(request: Request, req: ConnectorBuiltinConne
             "response_type": "code",
             "access_type": "offline",
         }
-        auth_url = meta["authorize_url"] + "?" + "&".join(f"{k}={requests.utils.quote(str(v))}" for k, v in params.items())
+        auth_url = (
+            meta["authorize_url"]
+            + "?"
+            + "&".join(f"{k}={requests.utils.quote(str(v))}" for k, v in params.items())
+        )
         return JSONResponse({"ok": True, "auth_url": auth_url})
     except Exception as e:
         _log_unexpected("Connectors builtin connect", e)
-        return JSONResponse({"ok": False, "error": _client_safe_error(e, "Connectors builtin connect")}, status_code=500)
+        return JSONResponse(
+            {"ok": False, "error": _client_safe_error(e, "Connectors builtin connect")},
+            status_code=500,
+        )
 
 
 @app.get("/api/connectors/oauth/callback")
 @limiter.limit("20/minute")
-async def connectors_oauth_callback(request: Request, code: str = "", state: str = "", error: str = ""):
+async def connectors_oauth_callback(
+    request: Request, code: str = "", state: str = "", error: str = ""
+):
     """
     OAuth redirect target for built-in connectors. Exchanges the code for
     an access token and marks the connector connected, then redirects back
@@ -1606,52 +1968,80 @@ async def connectors_oauth_callback(request: Request, code: str = "", state: str
             return _oauth_result_page(False, "Unknown connector.")
 
         def _get_row():
-            return _supabase_admin.table("connectors").select("*") \
-                .eq("user_id", user_id).eq("provider", provider).limit(1).execute()
+            return (
+                _supabase_admin.table("connectors")
+                .select("*")
+                .eq("user_id", user_id)
+                .eq("provider", provider)
+                .limit(1)
+                .execute()
+            )
+
         existing = (await _db(_get_row)).data
         if not existing or existing[0].get("oauth_state") != oauth_state:
-            return _oauth_result_page(False, "OAuth state mismatch — please try connecting again.")
+            return _oauth_result_page(
+                False, "OAuth state mismatch — please try connecting again."
+            )
 
         client_id = os.getenv(meta["client_id_env"])
         client_secret = os.getenv(meta["client_secret_env"])
         redirect_uri = f"{APP_URL.rstrip('/')}/api/connectors/oauth/callback"
 
-        resp = await anyio.to_thread.run_sync(lambda: _http.post(
-            meta["token_url"],
-            data={
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "code": code,
-                "redirect_uri": redirect_uri,
-                "grant_type": "authorization_code",
-            },
-            headers={"Accept": "application/json"},
-            timeout=15,
-        ))
-        token_data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+        resp = await anyio.to_thread.run_sync(
+            lambda: _http.post(
+                meta["token_url"],
+                data={
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "code": code,
+                    "redirect_uri": redirect_uri,
+                    "grant_type": "authorization_code",
+                },
+                headers={"Accept": "application/json"},
+                timeout=15,
+            )
+        )
+        token_data = (
+            resp.json()
+            if resp.headers.get("content-type", "").startswith("application/json")
+            else {}
+        )
         access_token = token_data.get("access_token")
         if not access_token:
-            return _oauth_result_page(False, token_data.get("error_description") or "Token exchange failed.")
+            return _oauth_result_page(
+                False, token_data.get("error_description") or "Token exchange failed."
+            )
 
-        await _db(lambda: _supabase_admin.table("connectors").update({
-            "status": "connected",
-            "access_token": access_token,
-            "refresh_token": token_data.get("refresh_token"),
-            "oauth_state": None,
-            "updated_at": datetime.utcnow().isoformat(),
-        }).eq("id", existing[0]["id"]).execute())
+        await _db(
+            lambda: _supabase_admin.table("connectors")
+            .update(
+                {
+                    "status": "connected",
+                    "access_token": access_token,
+                    "refresh_token": token_data.get("refresh_token"),
+                    "oauth_state": None,
+                    "updated_at": datetime.utcnow().isoformat(),
+                }
+            )
+            .eq("id", existing[0]["id"])
+            .execute()
+        )
 
         return _oauth_result_page(True, f"{meta['name']} connected!")
     except Exception as e:
         _log_unexpected("Connectors OAuth callback", e)
-        return _oauth_result_page(False, "Something went wrong connecting this account.")
+        return _oauth_result_page(
+            False, "Something went wrong connecting this account."
+        )
 
 
 def _oauth_result_page(ok: bool, message: str):
     """Tiny HTML page that posts the result to the opener window and closes itself."""
     from fastapi.responses import HTMLResponse
+
     safe_msg = json.dumps(message)
-    return HTMLResponse(f"""<!doctype html><html><body style="background:#111;color:#eee;
+    return HTMLResponse(
+        f"""<!doctype html><html><body style="background:#111;color:#eee;
         font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
         <p>{'✓' if ok else '✗'} {message}</p>
         <script>
@@ -1660,88 +2050,151 @@ def _oauth_result_page(ok: bool, message: str):
             }}
             setTimeout(() => window.close(), 1200);
         </script>
-    </body></html>""")
+    </body></html>"""
+    )
 
 
 @app.post("/api/connectors/disconnect")
 @limiter.limit("20/minute")
-async def disconnect_connector(request: Request, req: ConnectorIdRequest, auth: dict = Depends(require_auth)):
+async def disconnect_connector(
+    request: Request, req: ConnectorIdRequest, auth: dict = Depends(require_auth)
+):
     try:
         user_id = auth["user_id"]
-        await _db(lambda: _supabase_admin.table("connectors").update({
-            "status": "not_connected",
-            "access_token": None,
-            "refresh_token": None,
-            "updated_at": datetime.utcnow().isoformat(),
-        }).eq("id", req.connector_id).eq("user_id", user_id).execute())
+        await _db(
+            lambda: _supabase_admin.table("connectors")
+            .update(
+                {
+                    "status": "not_connected",
+                    "access_token": None,
+                    "refresh_token": None,
+                    "updated_at": datetime.utcnow().isoformat(),
+                }
+            )
+            .eq("id", req.connector_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
         return JSONResponse({"ok": True})
     except Exception as e:
         _log_unexpected("Connectors disconnect", e)
-        return JSONResponse({"ok": False, "error": _client_safe_error(e, "Connectors disconnect")}, status_code=500)
+        return JSONResponse(
+            {"ok": False, "error": _client_safe_error(e, "Connectors disconnect")},
+            status_code=500,
+        )
 
 
 @app.delete("/api/connectors/delete")
 @limiter.limit("10/minute")
-async def delete_connector(request: Request, id: str, auth: dict = Depends(require_auth)):
+async def delete_connector(
+    request: Request, id: str, auth: dict = Depends(require_auth)
+):
     try:
         user_id = auth["user_id"]
-        await _db(lambda: _supabase_admin.table("connectors").delete().eq("id", id).eq("user_id", user_id).execute())
+        await _db(
+            lambda: _supabase_admin.table("connectors")
+            .delete()
+            .eq("id", id)
+            .eq("user_id", user_id)
+            .execute()
+        )
         return JSONResponse({"ok": True})
     except Exception as e:
         _log_unexpected("Connectors delete", e)
-        return JSONResponse({"ok": False, "error": _client_safe_error(e, "Connectors delete")}, status_code=500)
+        return JSONResponse(
+            {"ok": False, "error": _client_safe_error(e, "Connectors delete")},
+            status_code=500,
+        )
 
 
 @app.post("/api/connectors/custom/test")
 @limiter.limit("15/minute")
-async def test_custom_connector(request: Request, id: str = "", auth: dict = Depends(require_auth)):
+async def test_custom_connector(
+    request: Request, id: str = "", auth: dict = Depends(require_auth)
+):
     """Re-runs the MCP handshake for an existing custom connector and refreshes its tool list."""
     try:
         user_id = auth["user_id"]
 
         def _get_row():
-            return _supabase_admin.table("connectors").select("*").eq("id", id).eq("user_id", user_id).limit(1).execute()
+            return (
+                _supabase_admin.table("connectors")
+                .select("*")
+                .eq("id", id)
+                .eq("user_id", user_id)
+                .limit(1)
+                .execute()
+            )
+
         rows = (await _db(_get_row)).data
         if not rows:
-            return JSONResponse({"ok": False, "error": "Connector not found."}, status_code=404)
+            return JSONResponse(
+                {"ok": False, "error": "Connector not found."}, status_code=404
+            )
         row = rows[0]
 
-        tools, err = await mcp_handshake_and_list_tools(row["mcp_url"], _connector_headers(row))
+        tools, err = await mcp_handshake_and_list_tools(
+            row["mcp_url"], _connector_headers(row)
+        )
         new_status = "connected" if not err else "error"
-        await _db(lambda: _supabase_admin.table("connectors").update({
-            "status": new_status,
-            "tools": tools if not err else row.get("tools"),
-            "updated_at": datetime.utcnow().isoformat(),
-        }).eq("id", id).execute())
+        await _db(
+            lambda: _supabase_admin.table("connectors")
+            .update(
+                {
+                    "status": new_status,
+                    "tools": tools if not err else row.get("tools"),
+                    "updated_at": datetime.utcnow().isoformat(),
+                }
+            )
+            .eq("id", id)
+            .execute()
+        )
 
         if err:
             return JSONResponse({"ok": False, "error": err})
         return JSONResponse({"ok": True, "tool_count": len(tools)})
     except Exception as e:
         _log_unexpected("Connectors custom test", e)
-        return JSONResponse({"ok": False, "error": _client_safe_error(e, "Connectors custom test")}, status_code=500)
+        return JSONResponse(
+            {"ok": False, "error": _client_safe_error(e, "Connectors custom test")},
+            status_code=500,
+        )
 
 
 # ── 🧠 MEMORY ENDPOINTS ───────────────────────────────────────────────────────
 
+
 @app.post("/api/memory/save")
 @limiter.limit("10/minute")
-async def save_memory(request: Request, req: MemorySaveRequest, auth: dict = Depends(require_auth)):
+async def save_memory(
+    request: Request, req: MemorySaveRequest, auth: dict = Depends(require_auth)
+):
     try:
         user_id = _resolve_owner(auth, req.user_id)
         if not req.memory_text.strip():
-            return JSONResponse({"ok": False, "error": "Missing fields"}, status_code=400)
-        await _db(lambda: _supabase_admin.table("user_memories").insert({
-            "user_id": user_id,
-            "memory_text": req.memory_text.strip()[:500],
-            "created_at": datetime.utcnow().isoformat()
-        }).execute())
+            return JSONResponse(
+                {"ok": False, "error": "Missing fields"}, status_code=400
+            )
+        await _db(
+            lambda: _supabase_admin.table("user_memories")
+            .insert(
+                {
+                    "user_id": user_id,
+                    "memory_text": req.memory_text.strip()[:500],
+                    "created_at": datetime.utcnow().isoformat(),
+                }
+            )
+            .execute()
+        )
         return JSONResponse({"ok": True})
     except HTTPException:
         raise
     except Exception as e:
         _log_unexpected("Memory save", e)
-        return JSONResponse({"ok": False, "error": _client_safe_error(e, "Memory save")}, status_code=500)
+        return JSONResponse(
+            {"ok": False, "error": _client_safe_error(e, "Memory save")},
+            status_code=500,
+        )
 
 
 @app.get("/api/memory/load")
@@ -1749,11 +2202,14 @@ async def save_memory(request: Request, req: MemorySaveRequest, auth: dict = Dep
 async def load_memory(request: Request, auth: dict = Depends(require_auth)):
     try:
         user_id = auth["user_id"]
-        result = await _db(lambda: _supabase_admin.table("user_memories")
-                            .select("id, memory_text, created_at")
-                            .eq("user_id", user_id)
-                            .order("created_at", desc=False)
-                            .limit(100).execute())
+        result = await _db(
+            lambda: _supabase_admin.table("user_memories")
+            .select("id, memory_text, created_at")
+            .eq("user_id", user_id)
+            .order("created_at", desc=False)
+            .limit(100)
+            .execute()
+        )
         return JSONResponse({"ok": True, "memories": result.data or []})
     except Exception as e:
         _log_unexpected("Memory load", e)
@@ -1762,55 +2218,82 @@ async def load_memory(request: Request, auth: dict = Depends(require_auth)):
 
 @app.delete("/api/memory/clear")
 @limiter.limit("10/minute")
-async def clear_memory(request: Request, req: MemoryClearRequest, auth: dict = Depends(require_auth)):
+async def clear_memory(
+    request: Request, req: MemoryClearRequest, auth: dict = Depends(require_auth)
+):
     try:
         user_id = _resolve_owner(auth, req.user_id)
-        await _db(lambda: _supabase_admin.table("user_memories").delete().eq("user_id", user_id).execute())
+        await _db(
+            lambda: _supabase_admin.table("user_memories")
+            .delete()
+            .eq("user_id", user_id)
+            .execute()
+        )
         return JSONResponse({"ok": True})
     except HTTPException:
         raise
     except Exception as e:
         _log_unexpected("Memory clear", e)
-        return JSONResponse({"ok": False, "error": _client_safe_error(e, "Memory clear")}, status_code=500)
+        return JSONResponse(
+            {"ok": False, "error": _client_safe_error(e, "Memory clear")},
+            status_code=500,
+        )
 
 
 @app.delete("/api/memory/delete-one")
 @limiter.limit("10/minute")
-async def delete_one_memory(request: Request, id: str, auth: dict = Depends(require_auth)):
+async def delete_one_memory(
+    request: Request, id: str, auth: dict = Depends(require_auth)
+):
     try:
         user_id = auth["user_id"]
-        await _db(lambda: _supabase_admin.table("user_memories").delete().eq("id", id).eq("user_id", user_id).execute())
+        await _db(
+            lambda: _supabase_admin.table("user_memories")
+            .delete()
+            .eq("id", id)
+            .eq("user_id", user_id)
+            .execute()
+        )
         return JSONResponse({"ok": True})
     except Exception as e:
         _log_unexpected("Memory delete-one", e)
-        return JSONResponse({"ok": False, "error": _client_safe_error(e, "Memory delete-one")}, status_code=500)
+        return JSONResponse(
+            {"ok": False, "error": _client_safe_error(e, "Memory delete-one")},
+            status_code=500,
+        )
 
 
 @app.post("/api/memory/extract")
 @limiter.limit("10/minute")
-async def extract_and_save_memory(request: Request, req: MemoryExtractRequest, auth: dict = Depends(require_auth)):
+async def extract_and_save_memory(
+    request: Request, req: MemoryExtractRequest, auth: dict = Depends(require_auth)
+):
     """AI-powered: extract personal facts from a message, save new ones to Supabase."""
     try:
         user_id = _resolve_owner(auth, req.user_id)
         if not req.message.strip():
             return JSONResponse({"ok": False, "facts": []})
 
-        existing_str = "\n".join(f"- {m}" for m in req.existing_memories[:30]) if req.existing_memories else "None yet."
+        existing_str = (
+            "\n".join(f"- {m}" for m in req.existing_memories[:30])
+            if req.existing_memories
+            else "None yet."
+        )
 
         extraction_prompt = (
             "You are a personal memory extraction assistant for an AI chat app.\n"
             "Your ONLY job: read the user message below and extract personal facts as JSON.\n\n"
-            f"User message: \"{req.message}\"\n\n"
+            f'User message: "{req.message}"\n\n'
             f"Already known (DO NOT repeat these):\n{existing_str}\n\n"
             "Extract ALL that apply: name, age, location/city/country, job/profession, "
             "education/course/year/semester, hobbies, interests, preferences, goals, dreams, "
             "skills, languages, relationships, schedule, subjects studied, projects.\n\n"
             "STRICT RULES:\n"
             "- Only extract facts EXPLICITLY stated — never infer or assume\n"
-            "- Write each fact as: \'The user [fact]\' e.g. \'The user\'s name is Anirban Das\'\n"
-            "- \'my name is X\' → \'The user\'s name is X\'\n"
-            "- \'I study BCA\' → \'The user studies BCA\'\n"
-            "- \'I am from Kolkata\' → \'The user is from Kolkata\'\n"
+            "- Write each fact as: 'The user [fact]' e.g. 'The user's name is Anirban Das'\n"
+            "- 'my name is X' → 'The user's name is X'\n"
+            "- 'I study BCA' → 'The user studies BCA'\n"
+            "- 'I am from Kolkata' → 'The user is from Kolkata'\n"
             "- Return empty list if zero personal facts\n"
             "- Output ONLY raw JSON — no markdown, no backticks, no explanation\n"
             'REQUIRED FORMAT (nothing else): {"facts": ["fact1", "fact2"]}\n'
@@ -1836,31 +2319,49 @@ async def extract_and_save_memory(request: Request, req: MemoryExtractRequest, a
         ]
 
         import httpx as _httpx
+
         text = None
         for model_name in EXTRACTION_MODELS:
             payload = {
                 "model": model_name,
                 "max_tokens": 300,
                 "temperature": 0.1,
-                "messages": [{"role": "user", "content": extraction_prompt}]
+                "messages": [{"role": "user", "content": extraction_prompt}],
             }
             try:
                 async with _httpx.AsyncClient(timeout=10.0) as client:
-                    r = await client.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
+                    r = await client.post(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        headers=headers,
+                        json=payload,
+                    )
                 if r.status_code == 200:
                     raw = r.json()
-                    candidate = raw.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
-                    candidate = candidate.replace("```json", "").replace("```", "").strip()
+                    candidate = (
+                        raw.get("choices", [{}])[0]
+                        .get("message", {})
+                        .get("content", "")
+                        .strip()
+                    )
+                    candidate = (
+                        candidate.replace("```json", "").replace("```", "").strip()
+                    )
                     if candidate and "{" in candidate:
                         text = candidate
                         logger.info(f"🧠 [Memory] extraction model used: {model_name}")
                         break
                     else:
-                        logger.warning(f"⚠️ [Memory] {model_name} returned empty/bad content, trying next")
+                        logger.warning(
+                            f"⚠️ [Memory] {model_name} returned empty/bad content, trying next"
+                        )
                 else:
-                    logger.warning(f"⚠️ [Memory] {model_name} HTTP {r.status_code}, trying next")
+                    logger.warning(
+                        f"⚠️ [Memory] {model_name} HTTP {r.status_code}, trying next"
+                    )
             except _httpx.HTTPError as model_err:
-                logger.warning(f"⚠️ [Memory] {model_name} network error: {model_err}, trying next")
+                logger.warning(
+                    f"⚠️ [Memory] {model_name} network error: {model_err}, trying next"
+                )
             except Exception as model_err:
                 _log_unexpected(f"Memory extraction model {model_name}", model_err)
 
@@ -1873,6 +2374,7 @@ async def extract_and_save_memory(request: Request, req: MemoryExtractRequest, a
         except json.JSONDecodeError:
             # Try to salvage a partial JSON response
             import re as _re_mem
+
             match = _re_mem.search(r'\{.*?"facts".*?\].*?\}', text, _re_mem.DOTALL)
             if match:
                 try:
@@ -1894,17 +2396,21 @@ async def extract_and_save_memory(request: Request, req: MemoryExtractRequest, a
                 if not fact:
                     continue
                 try:
-                    _supabase_admin.table("user_memories").insert({
-                        "user_id": user_id,
-                        "memory_text": fact,
-                        "created_at": datetime.utcnow().isoformat()
-                    }).execute()
+                    _supabase_admin.table("user_memories").insert(
+                        {
+                            "user_id": user_id,
+                            "memory_text": fact,
+                            "created_at": datetime.utcnow().isoformat(),
+                        }
+                    ).execute()
                     saved.append(fact)
                 except Exception as save_err:
                     # supabase-py doesn't expose a narrow, stable exception
                     # type for insert failures, so this stays broad — but a
                     # failed save is unusual enough to warrant a traceback.
-                    _log_unexpected(f"Memory save in extract (fact={fact[:40]!r})", save_err)
+                    _log_unexpected(
+                        f"Memory save in extract (fact={fact[:40]!r})", save_err
+                    )
             return saved
 
         saved_facts = await _db(_save_facts)
@@ -1916,10 +2422,13 @@ async def extract_and_save_memory(request: Request, req: MemoryExtractRequest, a
         _log_unexpected("Memory extract", e)
         return JSONResponse({"ok": False, "facts": []})
 
+
 # ── Guaranteed direct save — no AI, no models, just write to Supabase ────────
 @app.post("/api/memory/save-direct")
 @limiter.limit("10/minute")
-async def save_memory_direct(request: Request, req: MemorySaveRequest, auth: dict = Depends(require_auth)):
+async def save_memory_direct(
+    request: Request, req: MemorySaveRequest, auth: dict = Depends(require_auth)
+):
     """Saves a fact directly to Supabase — used as frontend fallback when AI extraction fails."""
     try:
         # user_id is NEVER taken from the client body for this endpoint — the field is
@@ -1929,20 +2438,31 @@ async def save_memory_direct(request: Request, req: MemorySaveRequest, auth: dic
         if not req.memory_text.strip():
             return JSONResponse({"ok": False})
         fact = req.memory_text.strip()[:500]
-        await _db(lambda: _supabase_admin.table("user_memories").insert({
-            "user_id": user_id,
-            "memory_text": fact,
-            "created_at": datetime.utcnow().isoformat()
-        }).execute())
+        await _db(
+            lambda: _supabase_admin.table("user_memories")
+            .insert(
+                {
+                    "user_id": user_id,
+                    "memory_text": fact,
+                    "created_at": datetime.utcnow().isoformat(),
+                }
+            )
+            .execute()
+        )
         logger.info(f"🧠 [Memory] direct-saved: '{fact[:60]}' for {user_id[:8]}")
         return JSONResponse({"ok": True, "fact": fact})
     except HTTPException:
         raise
     except Exception as e:
         _log_unexpected("Memory direct-save", e)
-        return JSONResponse({"ok": False, "error": _client_safe_error(e, "Memory direct-save")}, status_code=500)
+        return JSONResponse(
+            {"ok": False, "error": _client_safe_error(e, "Memory direct-save")},
+            status_code=500,
+        )
+
 
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 @app.get("/robots.txt")
 async def serve_robots():
@@ -1950,6 +2470,7 @@ async def serve_robots():
     if not os.path.isfile(p):
         return JSONResponse({"error": "robots.txt not found"}, status_code=404)
     return FileResponse(p, media_type="text/plain")
+
 
 # ✅ ADD THIS ↓
 @app.get("/sitemap.xml")
@@ -1971,25 +2492,33 @@ from datetime import datetime as _dt
 
 # ── PII Sanitizer (mirrors frontend) ─────────────────────────
 _PII_PATTERNS = [
-    (_re.compile(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}'), '[email]'),
-    (_re.compile(r'(\+?\d[\d\s\-().]{7,}\d)'), '[phone]'),
-    (_re.compile(r'password\s*[=:]\s*\S+', _re.IGNORECASE), '[credential]'),
-    (_re.compile(r'bearer\s+[A-Za-z0-9\-_.~+/]+=*', _re.IGNORECASE), '[bearer]'),
-    (_re.compile(r'\b(?:\d[ \-]?){13,19}\b'), '[card]'),
-    (_re.compile(r'\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b'), '[id-number]'),
-    (_re.compile(r'[-+]?\d{1,3}\.\d{4,},\s*[-+]?\d{1,3}\.\d{4,}'), '[coordinates]'),
-    (_re.compile(r'\b(session[_-]?id|auth[_-]?token|access[_-]?token)\s*=\s*\S+', _re.IGNORECASE), '[session]'),
+    (_re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"), "[email]"),
+    (_re.compile(r"(\+?\d[\d\s\-().]{7,}\d)"), "[phone]"),
+    (_re.compile(r"password\s*[=:]\s*\S+", _re.IGNORECASE), "[credential]"),
+    (_re.compile(r"bearer\s+[A-Za-z0-9\-_.~+/]+=*", _re.IGNORECASE), "[bearer]"),
+    (_re.compile(r"\b(?:\d[ \-]?){13,19}\b"), "[card]"),
+    (_re.compile(r"\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b"), "[id-number]"),
+    (_re.compile(r"[-+]?\d{1,3}\.\d{4,},\s*[-+]?\d{1,3}\.\d{4,}"), "[coordinates]"),
+    (
+        _re.compile(
+            r"\b(session[_-]?id|auth[_-]?token|access[_-]?token)\s*=\s*\S+",
+            _re.IGNORECASE,
+        ),
+        "[session]",
+    ),
     # Long token-like strings (API keys, JWTs, etc.)
-    (_re.compile(r'\b([A-Za-z0-9_\-]{32,})\b'), '[token]'),
+    (_re.compile(r"\b([A-Za-z0-9_\-]{32,})\b"), "[token]"),
 ]
+
 
 def _sanitize(text: str) -> str:
     if not text:
-        return ''
+        return ""
     out = str(text)
     for pattern, mask in _PII_PATTERNS:
         out = pattern.sub(mask, out)
     return out.strip()
+
 
 # ── Pydantic models ───────────────────────────────────────────
 class _AnalyticsEvent(_BaseModel):
@@ -1997,35 +2526,40 @@ class _AnalyticsEvent(_BaseModel):
     event_name: str
     metadata: _Dict[str, _Any] = {}
 
+
 class _AnalyticsBatch(_BaseModel):
     events: _List[_AnalyticsEvent]
+
 
 class _TrainingConvo(_BaseModel):
     anonymous_user_id: str
     sanitized_user_message: str
     sanitized_assistant_response: str
     feedback_score: _Optional[float] = None
-    language: _Optional[str] = 'en'
+    language: _Optional[str] = "en"
     coarse_region: _Optional[str] = None
+
 
 class _TrainingBatch(_BaseModel):
     conversations: _List[_TrainingConvo]
+
 
 # ── Memory request models ─────────────────────────────────────
 # ── IP → coarse region helper ─────────────────────────────────
 def _coarse_region_from_request(request: Request) -> _Optional[str]:
     """Extract country/region from forwarded IP header — never stores raw IP."""
     try:
-        forwarded = request.headers.get('x-forwarded-for', '')
-        ip = forwarded.split(',')[0].strip() if forwarded else str(request.client.host)
+        forwarded = request.headers.get("x-forwarded-for", "")
+        ip = forwarded.split(",")[0].strip() if forwarded else str(request.client.host)
         # Use ipapi.co free tier — returns country_name, region
-        r = _http.get(f'https://ipapi.co/{ip}/json/', timeout=3)
+        r = _http.get(f"https://ipapi.co/{ip}/json/", timeout=3)
         if r.status_code == 200:
             d = r.json()
-            return d.get('country_name') or d.get('country') or None
+            return d.get("country_name") or d.get("country") or None
     except (requests.exceptions.RequestException, ValueError, KeyError) as e:
         logger.info(f"[_coarse_region_from_request] lookup failed (non-fatal): {e}")
     return None
+
 
 # ── Analytics endpoint ────────────────────────────────────────
 @app.post("/api/privacy/analytics")
@@ -2043,24 +2577,27 @@ async def collect_analytics(batch: _AnalyticsBatch, request: Request):
             safe_meta = {
                 k: _sanitize(str(v)) if isinstance(v, str) else v
                 for k, v in ev.metadata.items()
-                if k not in ('password', 'token', 'key', 'secret', 'auth')
+                if k not in ("password", "token", "key", "secret", "auth")
             }
-            rows.append({
-                'anonymous_user_id': ev.anonymous_user_id[:64],
-                'event_name': ev.event_name[:64],
-                'metadata': safe_meta,
-                'created_at': _dt.utcnow().isoformat(),
-            })
+            rows.append(
+                {
+                    "anonymous_user_id": ev.anonymous_user_id[:64],
+                    "event_name": ev.event_name[:64],
+                    "metadata": safe_meta,
+                    "created_at": _dt.utcnow().isoformat(),
+                }
+            )
 
         if rows:
-            await _db(lambda: supabase.table('analytics_events').insert(rows).execute())
+            await _db(lambda: supabase.table("analytics_events").insert(rows).execute())
 
-        return JSONResponse({'ok': True, 'stored': len(rows)})
+        return JSONResponse({"ok": True, "stored": len(rows)})
     except Exception as e:
         # Never surface internal errors to client — but do log with a
         # traceback so a real bug in the batch-insert path isn't invisible.
         _log_unexpected("Analytics collect", e)
-        return JSONResponse({'ok': False}, status_code=200)  # always 200 to client
+        return JSONResponse({"ok": False}, status_code=200)  # always 200 to client
+
 
 # ── Training endpoint ─────────────────────────────────────────
 @app.post("/api/privacy/training")
@@ -2084,23 +2621,28 @@ async def collect_training(batch: _TrainingBatch, request: Request):
             if not clean_user.strip() or not clean_asst.strip():
                 continue
 
-            rows.append({
-                'anonymous_user_id': convo.anonymous_user_id[:64],
-                'sanitized_user_message': clean_user[:4000],
-                'sanitized_assistant_response': clean_asst[:8000],
-                'feedback_score': convo.feedback_score,
-                'language': (convo.language or 'en')[:10],
-                'coarse_region': coarse_region,
-                'created_at': _dt.utcnow().isoformat(),
-            })
+            rows.append(
+                {
+                    "anonymous_user_id": convo.anonymous_user_id[:64],
+                    "sanitized_user_message": clean_user[:4000],
+                    "sanitized_assistant_response": clean_asst[:8000],
+                    "feedback_score": convo.feedback_score,
+                    "language": (convo.language or "en")[:10],
+                    "coarse_region": coarse_region,
+                    "created_at": _dt.utcnow().isoformat(),
+                }
+            )
 
         if rows:
-            await _db(lambda: supabase.table('training_conversations').insert(rows).execute())
+            await _db(
+                lambda: supabase.table("training_conversations").insert(rows).execute()
+            )
 
-        return JSONResponse({'ok': True, 'stored': len(rows)})
+        return JSONResponse({"ok": True, "stored": len(rows)})
     except Exception as e:
         _log_unexpected("Training collect", e)
-        return JSONResponse({'ok': False}, status_code=200)
+        return JSONResponse({"ok": False}, status_code=200)
+
 
 # ── Quality signal helper (called from existing thumbs up/down) ─
 @app.post("/api/privacy/feedback")
@@ -2108,27 +2650,33 @@ async def collect_feedback(request: Request):
     """Single-event shortcut for thumbs up/down — wires into training pipeline."""
     try:
         body = await request.json()
-        score        = body.get('score')       # 1 or -1
-        user_msg     = _sanitize(body.get('user_message', ''))
-        asst_resp    = _sanitize(body.get('assistant_response', ''))
-        anon_id      = body.get('anonymous_user_id', 'unknown')[:64]
+        score = body.get("score")  # 1 or -1
+        user_msg = _sanitize(body.get("user_message", ""))
+        asst_resp = _sanitize(body.get("assistant_response", ""))
+        anon_id = body.get("anonymous_user_id", "unknown")[:64]
         coarse_region = _coarse_region_from_request(request)
 
         if user_msg and asst_resp:
-            await _db(lambda: supabase.table('training_conversations').insert({
-                'anonymous_user_id': anon_id,
-                'sanitized_user_message': user_msg[:4000],
-                'sanitized_assistant_response': asst_resp[:8000],
-                'feedback_score': score,
-                'language': body.get('language', 'en')[:10],
-                'coarse_region': coarse_region,
-                'created_at': _dt.utcnow().isoformat(),
-            }).execute())
+            await _db(
+                lambda: supabase.table("training_conversations")
+                .insert(
+                    {
+                        "anonymous_user_id": anon_id,
+                        "sanitized_user_message": user_msg[:4000],
+                        "sanitized_assistant_response": asst_resp[:8000],
+                        "feedback_score": score,
+                        "language": body.get("language", "en")[:10],
+                        "coarse_region": coarse_region,
+                        "created_at": _dt.utcnow().isoformat(),
+                    }
+                )
+                .execute()
+            )
 
-        return JSONResponse({'ok': True})
+        return JSONResponse({"ok": True})
     except Exception as e:
         _log_unexpected("Feedback collect", e)
-        return JSONResponse({'ok': False}, status_code=200)
+        return JSONResponse({"ok": False}, status_code=200)
 
 
 # ============================================================
@@ -2142,6 +2690,7 @@ async def collect_feedback(request: Request):
 class _CoarseCoords(_BaseModel):
     coarse_lat: float
     coarse_lng: float
+
 
 def _reverse_geocode(lat: float, lng: float) -> dict:
     """
@@ -2174,8 +2723,8 @@ def _reverse_geocode(lat: float, lng: float) -> dict:
             geo = geo_resp.json()
             addr = geo.get("address", {})
             country = addr.get("country", "")
-            region  = addr.get("state", addr.get("region", ""))
-            city    = (
+            region = addr.get("state", addr.get("region", ""))
+            city = (
                 addr.get("city")
                 or addr.get("town")
                 or addr.get("village")
@@ -2184,21 +2733,36 @@ def _reverse_geocode(lat: float, lng: float) -> dict:
             )
 
         # Derive locale from country code (simple mapping for common cases)
-        country_code = geo_resp.json().get("address", {}).get("country_code", "").upper() if geo_resp.status_code == 200 else ""
+        country_code = (
+            geo_resp.json().get("address", {}).get("country_code", "").upper()
+            if geo_resp.status_code == 200
+            else ""
+        )
         locale_map = {
-            "IN": "en-IN", "US": "en-US", "GB": "en-GB", "AU": "en-AU",
-            "CA": "en-CA", "DE": "de-DE", "FR": "fr-FR", "JP": "ja-JP",
-            "CN": "zh-CN", "BR": "pt-BR", "ES": "es-ES", "IT": "it-IT",
+            "IN": "en-IN",
+            "US": "en-US",
+            "GB": "en-GB",
+            "AU": "en-AU",
+            "CA": "en-CA",
+            "DE": "de-DE",
+            "FR": "fr-FR",
+            "JP": "ja-JP",
+            "CN": "zh-CN",
+            "BR": "pt-BR",
+            "ES": "es-ES",
+            "IT": "it-IT",
         }
-        locale = locale_map.get(country_code, f"en-{country_code}" if country_code else "en")
+        locale = locale_map.get(
+            country_code, f"en-{country_code}" if country_code else "en"
+        )
 
         # Return ONLY the safe fields — raw coords never leave this function
         return {
-            "country":  country,
-            "region":   region,
-            "city":     city,
+            "country": country,
+            "region": region,
+            "city": city,
             "timezone": timezone,
-            "locale":   locale,
+            "locale": locale,
         }
     except (requests.exceptions.RequestException, ValueError, KeyError) as e:
         logger.info(f"[Location] Reverse geocode failed: {e}")
@@ -2213,7 +2777,7 @@ async def location_metadata_from_coords(body: _CoarseCoords):
     Only called when the user has enabled the location toggle.
     """
     # Clamp to valid ranges just in case
-    lat = max(-90.0,  min(90.0,  round(body.coarse_lat, 2)))
+    lat = max(-90.0, min(90.0, round(body.coarse_lat, 2)))
     lng = max(-180.0, min(180.0, round(body.coarse_lng, 2)))
 
     # _reverse_geocode makes two blocking `requests.get` calls (Open-Meteo +
@@ -2237,29 +2801,48 @@ async def location_metadata_from_ip(request: Request):
             client_ip = request.client.host if request.client else ""
 
         # Skip for loopback / private IPs
-        if not client_ip or client_ip in ("127.0.0.1", "::1") or client_ip.startswith("192.168.") or client_ip.startswith("10."):
+        if (
+            not client_ip
+            or client_ip in ("127.0.0.1", "::1")
+            or client_ip.startswith("192.168.")
+            or client_ip.startswith("10.")
+        ):
             tz = "Asia/Kolkata"  # safe default for Catura's primary user base
-            return JSONResponse(content={"timezone": tz, "locale": "en-IN", "country": "India", "region": "", "city": ""})
+            return JSONResponse(
+                content={
+                    "timezone": tz,
+                    "locale": "en-IN",
+                    "country": "India",
+                    "region": "",
+                    "city": "",
+                }
+            )
 
         ip_resp = await _db(
             _http.get,
             f"http://ip-api.com/json/{client_ip}?fields=country,regionName,city,timezone",
-            timeout=5
+            timeout=5,
         )
         if ip_resp.status_code == 200:
             d = ip_resp.json()
-            country_code_map = {"India": "IN", "United States": "US", "United Kingdom": "GB"}
+            country_code_map = {
+                "India": "IN",
+                "United States": "US",
+                "United Kingdom": "GB",
+            }
             country = d.get("country", "")
             cc = country_code_map.get(country, "")
             locale_map = {"IN": "en-IN", "US": "en-US", "GB": "en-GB"}
             locale = locale_map.get(cc, "en")
-            return JSONResponse(content={
-                "country":  country,
-                "region":   d.get("regionName", ""),
-                "city":     d.get("city", ""),
-                "timezone": d.get("timezone", "UTC"),
-                "locale":   locale,
-            })
+            return JSONResponse(
+                content={
+                    "country": country,
+                    "region": d.get("regionName", ""),
+                    "city": d.get("city", ""),
+                    "timezone": d.get("timezone", "UTC"),
+                    "locale": locale,
+                }
+            )
     except (requests.exceptions.RequestException, ValueError, KeyError) as e:
         logger.info(f"[Location] IP fallback failed: {e}")
 
@@ -2281,31 +2864,115 @@ def detect_intent(text: str) -> str:
     # kamon acho, ki obostha, kemon acho, kem cho, vanakkam, sat sri akal,
     # kya haal, theek ho, wassup, good morning/afternoon/evening/night, etc.
     _GREETING_EXACT = {
-        "hi", "hii", "hiii", "hiiii", "hiiiii", "hey", "heya", "hello", "helo",
-        "hellow", "yo", "sup", "wassup", "whatsup", "howdy", "hola", "ola",
+        "hi",
+        "hii",
+        "hiii",
+        "hiiii",
+        "hiiiii",
+        "hey",
+        "heya",
+        "hello",
+        "helo",
+        "hellow",
+        "yo",
+        "sup",
+        "wassup",
+        "whatsup",
+        "howdy",
+        "hola",
+        "ola",
         # French / Spanish / Portuguese / common global
-        "bonjour", "bonsoir", "salut", "hola", "ola", "ciao", "hallo", "hei",
+        "bonjour",
+        "bonsoir",
+        "salut",
+        "hola",
+        "ola",
+        "ciao",
+        "hallo",
+        "hei",
         # Bengali (Roman)
-        "kamon acho", "kemon acho", "ki obostha", "ki holo", "ভালো আছি",
-        "kamon achho", "kemon achho", "ki korcho", "ki korchen", "asha kori bhalo acho",
+        "kamon acho",
+        "kemon acho",
+        "ki obostha",
+        "ki holo",
+        "ভালো আছি",
+        "kamon achho",
+        "kemon achho",
+        "ki korcho",
+        "ki korchen",
+        "asha kori bhalo acho",
         # Hindi (Roman)
-        "kya haal", "kya haal hai", "kaise ho", "kaise hain", "kaisa hai",
-        "theek ho", "theek hain", "sab theek", "kya chal raha hai",
+        "kya haal",
+        "kya haal hai",
+        "kaise ho",
+        "kaise hain",
+        "kaisa hai",
+        "theek ho",
+        "theek hain",
+        "sab theek",
+        "kya chal raha hai",
         # Tamil / Telugu / Kannada / Malayalam (Roman)
-        "vanakkam", "namaskaram", "hege iddira", "sukhamano", "ela unnaru",
+        "vanakkam",
+        "namaskaram",
+        "hege iddira",
+        "sukhamano",
+        "ela unnaru",
         # Punjabi / Gujarati
-        "sat sri akal", "kem cho", "maja ma",
+        "sat sri akal",
+        "kem cho",
+        "maja ma",
         # Urdu
-        "aadab", "adaab", "assalamualaikum", "salam",
+        "aadab",
+        "adaab",
+        "assalamualaikum",
+        "salam",
         # Universal
-        "namaste", "namaskar", "pranam", "nomoskar",
-        "thanks", "thank you", "thx", "ty", "thnx", "thankyou",
-        "bye", "goodbye", "see ya", "cya", "see you", "alvida",
-        "dhonnobad", "shukriya", "dhanyavaad", "nandri",
-        "ok", "okay", "okk", "okie", "okiee", "k", "kk",
-        "cool", "nice", "great", "awesome", "good", "bad",
-        "yes", "no", "yep", "nope", "yeah", "nah", "sure",
-        "hmm", "hm", "ohh", "oh", "aha", "ah",
+        "namaste",
+        "namaskar",
+        "pranam",
+        "nomoskar",
+        "thanks",
+        "thank you",
+        "thx",
+        "ty",
+        "thnx",
+        "thankyou",
+        "bye",
+        "goodbye",
+        "see ya",
+        "cya",
+        "see you",
+        "alvida",
+        "dhonnobad",
+        "shukriya",
+        "dhanyavaad",
+        "nandri",
+        "ok",
+        "okay",
+        "okk",
+        "okie",
+        "okiee",
+        "k",
+        "kk",
+        "cool",
+        "nice",
+        "great",
+        "awesome",
+        "good",
+        "bad",
+        "yes",
+        "no",
+        "yep",
+        "nope",
+        "yeah",
+        "nah",
+        "sure",
+        "hmm",
+        "hm",
+        "ohh",
+        "oh",
+        "aha",
+        "ah",
     }
 
     # Check exact match first
@@ -2316,27 +2983,76 @@ def detect_intent(text: str) -> str:
     words = lower.split()
     if len(words) <= 5:
         _GREETING_STARTERS = (
-            "hi ", "hii", "hey ", "hello", "good morning", "good afternoon",
-            "good evening", "good night", "good day", "greetings",
-            "how are you", "how r u", "how are u", "how ru", "how have you",
-            "what's up", "whats up", "sup ", "yo ", "hola ", "bonjour",
-            "namaste", "namaskar", "nomoskar", "pranam",
-            "kamon", "kemon", "kaise ho", "kya haal", "kem cho",
-            "sat sri", "vanakkam", "sukha", "ela un",
-            "thanks", "thank ", "thx ", "thnx",
-            "bye", "goodbye", "see ya", "cya",
-            "nice ", "cool ", "great ", "awesome ", "good job",
+            "hi ",
+            "hii",
+            "hey ",
+            "hello",
+            "good morning",
+            "good afternoon",
+            "good evening",
+            "good night",
+            "good day",
+            "greetings",
+            "how are you",
+            "how r u",
+            "how are u",
+            "how ru",
+            "how have you",
+            "what's up",
+            "whats up",
+            "sup ",
+            "yo ",
+            "hola ",
+            "bonjour",
+            "namaste",
+            "namaskar",
+            "nomoskar",
+            "pranam",
+            "kamon",
+            "kemon",
+            "kaise ho",
+            "kya haal",
+            "kem cho",
+            "sat sri",
+            "vanakkam",
+            "sukha",
+            "ela un",
+            "thanks",
+            "thank ",
+            "thx ",
+            "thnx",
+            "bye",
+            "goodbye",
+            "see ya",
+            "cya",
+            "nice ",
+            "cool ",
+            "great ",
+            "awesome ",
+            "good job",
         )
         if any(lower.startswith(g) for g in _GREETING_STARTERS):
             return "general"
 
     # ── IDENTITY (always general — never run a tool for these) ─────────────
     identity_patterns = [
-        r'which model', r'what model', r'what ai', r'which ai',
-        r'which version', r'what version', r'are you', r'who are you',
-        r'what are you', r'your model', r'current model', r'using.*model',
-        r'model.*right now', r'model.*using', r'what.*running',
-        r'who (made|created|built|developed) you', r'your (creator|developer|maker)',
+        r"which model",
+        r"what model",
+        r"what ai",
+        r"which ai",
+        r"which version",
+        r"what version",
+        r"are you",
+        r"who are you",
+        r"what are you",
+        r"your model",
+        r"current model",
+        r"using.*model",
+        r"model.*right now",
+        r"model.*using",
+        r"what.*running",
+        r"who (made|created|built|developed) you",
+        r"your (creator|developer|maker)",
     ]
     if any(re.search(p, lower) for p in identity_patterns):
         return "general"
@@ -2346,127 +3062,212 @@ def detect_intent(text: str) -> str:
     # currently, recently) combined with an information-seeking phrase,
     # always force web_search — never Wikipedia.
     realtime_signals = [
-        r'\bnow\b', r'\bnew\b', r'\bcurrent(ly)?\b', r'\blatest\b',
-        r'\btoday\b', r'\brecent(ly)?\b', r'\bright now\b', r'\bat (the )?moment\b',
-        r'\bthis (year|month|week|day)\b', r'\b2024\b', r'\b2025\b',
-        r'\bjust (happened|announced|elected|appointed|named|won|became)\b',
-        r'\bwho (is|are) (the |now |currently |now the )?(new |current )?(cm|pm|president|minister|governor|ceo|chief|head|leader|director|chairman)\b',
-        r'\bwho (won|became|is leading|got elected|was elected|was appointed|was named)\b',
-        r'\bwho (is|are) (in charge|running|leading|governing|heading)\b',
-        r'\b(cm|chief minister|prime minister|president|governor) of\b',
-        r'\b(current|new|latest|now) (cm|pm|president|minister|governor|ceo|chief|leader|head)\b',
-        r'\belection result\b', r'\belected\b', r'\bappointed\b',
-        r'\blatest\b', r'\bnewest\b', r'\bmost recent\b',
-        r'\btoday\b', r'\btonight\b', r'\bthis (week|month|year|morning|evening)\b',
-        r'\bcurrent(ly)?\b', r'\bright now\b', r'\bat (the )?moment\b',
-        r'\brecently?\b', r'\bjust (announced|launched|happened|released|came out)\b',
-        r'\b(202[4-9])\b', r'\b(203[0-9])\b',
-        r'\bbreaking\b', r'\bupdate(s|d)?\b.*\btoday\b',
-        r'\bnow available\b', r'\bjust released\b',
+        r"\bnow\b",
+        r"\bnew\b",
+        r"\bcurrent(ly)?\b",
+        r"\blatest\b",
+        r"\btoday\b",
+        r"\brecent(ly)?\b",
+        r"\bright now\b",
+        r"\bat (the )?moment\b",
+        r"\bthis (year|month|week|day)\b",
+        r"\b2024\b",
+        r"\b2025\b",
+        r"\bjust (happened|announced|elected|appointed|named|won|became)\b",
+        r"\bwho (is|are) (the |now |currently |now the )?(new |current )?(cm|pm|president|minister|governor|ceo|chief|head|leader|director|chairman)\b",
+        r"\bwho (won|became|is leading|got elected|was elected|was appointed|was named)\b",
+        r"\bwho (is|are) (in charge|running|leading|governing|heading)\b",
+        r"\b(cm|chief minister|prime minister|president|governor) of\b",
+        r"\b(current|new|latest|now) (cm|pm|president|minister|governor|ceo|chief|leader|head)\b",
+        r"\belection result\b",
+        r"\belected\b",
+        r"\bappointed\b",
+        r"\blatest\b",
+        r"\bnewest\b",
+        r"\bmost recent\b",
+        r"\btoday\b",
+        r"\btonight\b",
+        r"\bthis (week|month|year|morning|evening)\b",
+        r"\bcurrent(ly)?\b",
+        r"\bright now\b",
+        r"\bat (the )?moment\b",
+        r"\brecently?\b",
+        r"\bjust (announced|launched|happened|released|came out)\b",
+        r"\b(202[4-9])\b",
+        r"\b(203[0-9])\b",
+        r"\bbreaking\b",
+        r"\bupdate(s|d)?\b.*\btoday\b",
+        r"\bnow available\b",
+        r"\bjust released\b",
     ]
     # If ANY real-time signal is present AND it looks like an info-seeking query → web_search
-    info_seeking = any(re.search(p, lower) for p in [
-        r'\bwho\b', r'\bwhat\b', r'\bwhich\b', r'\bwhere\b', r'\bwhen\b',
-        r'\bwho is\b', r'\bwho are\b', r'\btell me\b', r'\bfind\b',
-    ])
+    info_seeking = any(
+        re.search(p, lower)
+        for p in [
+            r"\bwho\b",
+            r"\bwhat\b",
+            r"\bwhich\b",
+            r"\bwhere\b",
+            r"\bwhen\b",
+            r"\bwho is\b",
+            r"\bwho are\b",
+            r"\btell me\b",
+            r"\bfind\b",
+        ]
+    )
     if info_seeking and any(re.search(p, lower) for p in realtime_signals):
         return "web_search"
 
     # ── CLOCK / TIME ────────────────────────────────────────────────────────
     clock_patterns = [
-        r'\btime\b', r'\bclock\b', r'\bwhat time\b', r'\bcurrent time\b',
-        r'\btime (in|at|of|now)\b', r'\btime (is it|right now)\b',
-        r'\bwhat.*(time|hour|clock)\b', r'\b(hour|minute|second)s?\b',
-        r'\bam\b.*\bpm\b', r'\bist\b', r'\butc\b', r'\bgmt\b',
-        r'\btimezone\b', r'\btime zone\b',
-        r'\b(morning|afternoon|evening|night)\b.*\bthere\b',
-        r'\bwhat\s+(time|hour|day|date)\s+(is\s+it|is\s+it\s+now|now)\b',
-        r'\bcurrent\s+(time|date|day|hour)\b',
-        r'\btime\s+(in|at|of)\s+\w+',
-        r'\bwhat\s+time\b.*\b(now|right now|currently)\b',
+        r"\btime\b",
+        r"\bclock\b",
+        r"\bwhat time\b",
+        r"\bcurrent time\b",
+        r"\btime (in|at|of|now)\b",
+        r"\btime (is it|right now)\b",
+        r"\bwhat.*(time|hour|clock)\b",
+        r"\b(hour|minute|second)s?\b",
+        r"\bam\b.*\bpm\b",
+        r"\bist\b",
+        r"\butc\b",
+        r"\bgmt\b",
+        r"\btimezone\b",
+        r"\btime zone\b",
+        r"\b(morning|afternoon|evening|night)\b.*\bthere\b",
+        r"\bwhat\s+(time|hour|day|date)\s+(is\s+it|is\s+it\s+now|now)\b",
+        r"\bcurrent\s+(time|date|day|hour)\b",
+        r"\btime\s+(in|at|of)\s+\w+",
+        r"\bwhat\s+time\b.*\b(now|right now|currently)\b",
         r"\btoday'?s?\s+date\b",
-        r'\bwhat.{0,8}date.{0,8}(today|now)\b',
-        r'\b(time|clock)\s+(right )?now\b',
-        r'^\s*time\??\s*$',
-        r'^\s*date\??\s*$',
-        r'^\s*what time\??\s*$',
-        r'^\s*what date\??\s*$',
-        r'\bcurrent\s+(ist|utc|gmt|pst|est)\b',
-        r'\btimezone\s+(in|of|for)\b',
+        r"\bwhat.{0,8}date.{0,8}(today|now)\b",
+        r"\b(time|clock)\s+(right )?now\b",
+        r"^\s*time\??\s*$",
+        r"^\s*date\??\s*$",
+        r"^\s*what time\??\s*$",
+        r"^\s*what date\??\s*$",
+        r"\bcurrent\s+(ist|utc|gmt|pst|est)\b",
+        r"\btimezone\s+(in|of|for)\b",
     ]
     if any(re.search(p, lower) for p in clock_patterns):
         return "clock"
     weather_patterns = [
-        r'\bweather\b', r'\btemperature\b', r'\bhumidity\b', r'\brain\b',
-        r'\bsnow\b', r'\bwind\b', r'\bforecast\b', r'\bclimate\b',
-        r'\bsunny\b', r'\bcloudy\b', r'\bhot\b.*\boutside\b',
-        r'\bcold\b.*\boutside\b', r'\bwill it rain\b', r'\bfeels like\b',
-        r'\bdegrees (celsius|fahrenheit|today)\b',
-        r'\bweather\s+(in|at|of|today|tomorrow|now|right now)\b',
-        r'\btemperature\s+(in|at|of|today|tomorrow|now|right now|outside)\b',
-        r'\bhumidity\s+(in|at|of|today|now)\b',
-        r'\b(will|is)\s+it\s+(rain|snow|hot|cold|sunny|cloudy)\b',
-        r'\bforecast\s+(for|in|today|tomorrow|this week)\b',
-        r'\bfeels\s+like\b.*\b(today|now|outside)\b',
-        r'\bhow\s+(hot|cold|warm)\s+is\s+it\b',
-        r'\bclimate\s+(today|now|in)\b',
-        r'\b(rain|snow|wind|storm)\s+(today|tomorrow|now|in)\b',
+        r"\bweather\b",
+        r"\btemperature\b",
+        r"\bhumidity\b",
+        r"\brain\b",
+        r"\bsnow\b",
+        r"\bwind\b",
+        r"\bforecast\b",
+        r"\bclimate\b",
+        r"\bsunny\b",
+        r"\bcloudy\b",
+        r"\bhot\b.*\boutside\b",
+        r"\bcold\b.*\boutside\b",
+        r"\bwill it rain\b",
+        r"\bfeels like\b",
+        r"\bdegrees (celsius|fahrenheit|today)\b",
+        r"\bweather\s+(in|at|of|today|tomorrow|now|right now)\b",
+        r"\btemperature\s+(in|at|of|today|tomorrow|now|right now|outside)\b",
+        r"\bhumidity\s+(in|at|of|today|now)\b",
+        r"\b(will|is)\s+it\s+(rain|snow|hot|cold|sunny|cloudy)\b",
+        r"\bforecast\s+(for|in|today|tomorrow|this week)\b",
+        r"\bfeels\s+like\b.*\b(today|now|outside)\b",
+        r"\bhow\s+(hot|cold|warm)\s+is\s+it\b",
+        r"\bclimate\s+(today|now|in)\b",
+        r"\b(rain|snow|wind|storm)\s+(today|tomorrow|now|in)\b",
         r"\btoday'?s?\s+weather\b",
-        r'^\s*weather\??\s*$',
+        r"^\s*weather\??\s*$",
     ]
     if any(re.search(p, lower) for p in weather_patterns):
         return "weather"
 
     # ── FINANCE ────────────────────────────────────────────────────────────
     finance_patterns = [
-        r'\bshare price\b', r'\bstock price\b', r'\bstock market\b',
-        r'\bnse\b', r'\bbse\b', r'\bnifty\b', r'\bsensex\b',
-        r'\bcrypto\b', r'\bbitcoin\b', r'\bethereum\b', r'\bcoin\b',
-        r'\binr\b', r'\busd\b', r'\bexchange rate\b', r'\brupee\b',
-        r'\bmarketcap\b', r'\bmarket cap\b', r'\bdividend\b',
-        r'\btrade(d|ing)?\b.*\bstock\b', r'\bprice of\b.*\bshare\b',
-        r'\bstock\b.*\btoday\b', r'\bshares?\b.*\bprice\b',
-        r'\bprice.*\b(tata|reliance|infosys|wipro|hdfc|icici|bajaj|sbi)\b',
-        r'\b(tata|reliance|infosys|wipro|hdfc|icici|bajaj|sbi)\b.*\bprice\b',
+        r"\bshare price\b",
+        r"\bstock price\b",
+        r"\bstock market\b",
+        r"\bnse\b",
+        r"\bbse\b",
+        r"\bnifty\b",
+        r"\bsensex\b",
+        r"\bcrypto\b",
+        r"\bbitcoin\b",
+        r"\bethereum\b",
+        r"\bcoin\b",
+        r"\binr\b",
+        r"\busd\b",
+        r"\bexchange rate\b",
+        r"\brupee\b",
+        r"\bmarketcap\b",
+        r"\bmarket cap\b",
+        r"\bdividend\b",
+        r"\btrade(d|ing)?\b.*\bstock\b",
+        r"\bprice of\b.*\bshare\b",
+        r"\bstock\b.*\btoday\b",
+        r"\bshares?\b.*\bprice\b",
+        r"\bprice.*\b(tata|reliance|infosys|wipro|hdfc|icici|bajaj|sbi)\b",
+        r"\b(tata|reliance|infosys|wipro|hdfc|icici|bajaj|sbi)\b.*\bprice\b",
     ]
     if any(re.search(p, lower) for p in finance_patterns):
         return "finance"
 
     # ── SPORTS ─────────────────────────────────────────────────────────────
     sports_patterns = [
-        r'\bcricket\b', r'\bipl\b', r'\btest match\b', r'\bodi\b', r'\bt20\b',
-        r'\bfootball\b', r'\bsoccer\b', r'\bfifa\b', r'\bpremier league\b',
-        r'\bnba\b', r'\bnfl\b', r'\btennis\b', r'\bwimbledon\b',
-        r'\bmatch score\b', r'\blive score\b', r'\bscore(card)?\b',
-        r'\bwho (won|is winning|is playing)\b', r'\bmatch today\b',
-        r'\bfinal score\b', r'\btournament\b',
-        r'\b(live|today\'?s?|current)\s+(score|match)\b',
-        r'\bscore\s+(of|today|now|live|right now)\b',
-        r'\b(ipl|test match|odi|t20|world cup|champions league|epl|la liga)\s+(today|score|match|live|now|result)\b',
-        r'\bwho\s+(won|is winning|is playing|is leading)\s+(today|now|the match)\b',
-        r'\bmatch\s+(today|now|live|score|result)\b',
-        r'\bcricket\s+(score|match|live|today|now)\b',
-        r'\bfootball\s+(score|match|live|today|now)\b',
-        r'\bfinal\s+score\b',
-        r'\btournament\s+(today|now|live|result)\b',
+        r"\bcricket\b",
+        r"\bipl\b",
+        r"\btest match\b",
+        r"\bodi\b",
+        r"\bt20\b",
+        r"\bfootball\b",
+        r"\bsoccer\b",
+        r"\bfifa\b",
+        r"\bpremier league\b",
+        r"\bnba\b",
+        r"\bnfl\b",
+        r"\btennis\b",
+        r"\bwimbledon\b",
+        r"\bmatch score\b",
+        r"\blive score\b",
+        r"\bscore(card)?\b",
+        r"\bwho (won|is winning|is playing)\b",
+        r"\bmatch today\b",
+        r"\bfinal score\b",
+        r"\btournament\b",
+        r"\b(live|today\'?s?|current)\s+(score|match)\b",
+        r"\bscore\s+(of|today|now|live|right now)\b",
+        r"\b(ipl|test match|odi|t20|world cup|champions league|epl|la liga)\s+(today|score|match|live|now|result)\b",
+        r"\bwho\s+(won|is winning|is playing|is leading)\s+(today|now|the match)\b",
+        r"\bmatch\s+(today|now|live|score|result)\b",
+        r"\bcricket\s+(score|match|live|today|now)\b",
+        r"\bfootball\s+(score|match|live|today|now)\b",
+        r"\bfinal\s+score\b",
+        r"\btournament\s+(today|now|live|result)\b",
     ]
     if any(re.search(p, lower) for p in sports_patterns):
         return "sports"
 
     # ── NEWS ───────────────────────────────────────────────────────────────
     news_patterns = [
-        r'\bnews\b', r'\bheadlines\b', r'\bbreaking\b', r'\blatest (news|update|development)\b',
-        r"\bwhat('s| is) happening\b", r'\bwhat happened\b', r'\bcurrent events\b',
-        r"\btoday'?s news\b", r'\brecent news\b', r'\bannouncement\b',
-        r'\b(latest|todays?|recent|breaking|current)\s+news\b',
-        r'\bnews\s+(today|now|about|on|regarding)\b',
-        r'\bheadlines\s+(today|now)\b',
-        r'\bbreaking\s+(news|story)\b',
+        r"\bnews\b",
+        r"\bheadlines\b",
+        r"\bbreaking\b",
+        r"\blatest (news|update|development)\b",
+        r"\bwhat('s| is) happening\b",
+        r"\bwhat happened\b",
+        r"\bcurrent events\b",
+        r"\btoday'?s news\b",
+        r"\brecent news\b",
+        r"\bannouncement\b",
+        r"\b(latest|todays?|recent|breaking|current)\s+news\b",
+        r"\bnews\s+(today|now|about|on|regarding)\b",
+        r"\bheadlines\s+(today|now)\b",
+        r"\bbreaking\s+(news|story)\b",
         r"\bwhat'?s?\s+(happening|in the news)\s+(today|now|currently)\b",
-        r'\bwhat\s+happened\s+(today|yesterday|recently)\b',
-        r'\bcurrent\s+events\b',
-        r'\bnews\s+about\s+\w+',
-        r'^\s*news\??\s*$',
+        r"\bwhat\s+happened\s+(today|yesterday|recently)\b",
+        r"\bcurrent\s+events\b",
+        r"\bnews\s+about\s+\w+",
+        r"^\s*news\??\s*$",
     ]
     if any(re.search(p, lower) for p in news_patterns):
         return "news"
@@ -2477,33 +3278,83 @@ def detect_intent(text: str) -> str:
     # by mistake will still fall through to web_search automatically.
     wikipedia_patterns = [
         # Definition / explanation
-        r'\bwhat is\b', r'\bwhat are\b', r'\bwhat was\b', r'\bwhat were\b',
-        r'\bwho was\b', r'\bwho were\b',
-        r'\bwhere was\b',
-        r'\bwhen (was|did|were|is) (the|a|an)\b',
-        r'\bhow (does|do|did|was|were|is|are)\b',
-        r'\bwhy (is|are|was|were|did|does)\b',
-        r'\bexplain\b', r'\bdescribe\b', r'\bdefine\b', r'\bdefinition\b',
-        r'\bmeaning of\b', r'\bmeant by\b',
+        r"\bwhat is\b",
+        r"\bwhat are\b",
+        r"\bwhat was\b",
+        r"\bwhat were\b",
+        r"\bwho was\b",
+        r"\bwho were\b",
+        r"\bwhere was\b",
+        r"\bwhen (was|did|were|is) (the|a|an)\b",
+        r"\bhow (does|do|did|was|were|is|are)\b",
+        r"\bwhy (is|are|was|were|did|does)\b",
+        r"\bexplain\b",
+        r"\bdescribe\b",
+        r"\bdefine\b",
+        r"\bdefinition\b",
+        r"\bmeaning of\b",
+        r"\bmeant by\b",
         # Knowledge domains
-        r'\bhistory of\b', r'\bhistorical\b', r'\borigin of\b', r'\borigins of\b',
-        r'\bbiography\b', r'\bborn in\b', r'\bfounded by\b', r'\binvented by\b',
-        r'\bdiscovered by\b', r'\bcreated by\b',
-        r'\bcountry\b', r'\bcapital of\b', r'\bpopulation of\b',
-        r'\bplanet\b', r'\bgalaxy\b', r'\bstar\b', r'\buniverse\b', r'\bsolar system\b',
-        r'\bscience\b', r'\bphysics\b', r'\bchemistry\b', r'\bbiology\b',
-        r'\bmathematics?\b', r'\bformula\b', r'\bequation\b', r'\btheorem\b',
-        r'\blanguage\b', r'\balphabet\b', r'\bliterature\b', r'\bauthor of\b',
-        r'\bmovie\b', r'\bfilm\b', r'\bdirected by\b',
-        r'\breligion\b', r'\bphilosophy\b', r'\bmythology\b',
-        r'\bwar\b', r'\bempire\b', r'\bcivilization\b', r'\bdynasty\b',  # FIX: "dinasty" → "dynasty"
-        r'\btechnology\b', r'\binvention\b', r'\bdiscovery\b',
-        r'\beconomics?\b', r'\btheory\b', r'\bconcept\b', r'\bprinciple\b',
-        r'\bfamous\b', r'\blegendary\b', r'\bnotable\b', r'\bknown for\b',
-        r'\btell me about\b', r'\blearn about\b', r'\binformation (about|on)\b',
-        r'\bfacts? about\b', r'\bwhat do you know about\b',
-        r'\bhow (many|much|far|long|tall|big|old|deep|high)\b',
-        r'\blocation of\b', r'\bsituated\b', r'\blocated\b',
+        r"\bhistory of\b",
+        r"\bhistorical\b",
+        r"\borigin of\b",
+        r"\borigins of\b",
+        r"\bbiography\b",
+        r"\bborn in\b",
+        r"\bfounded by\b",
+        r"\binvented by\b",
+        r"\bdiscovered by\b",
+        r"\bcreated by\b",
+        r"\bcountry\b",
+        r"\bcapital of\b",
+        r"\bpopulation of\b",
+        r"\bplanet\b",
+        r"\bgalaxy\b",
+        r"\bstar\b",
+        r"\buniverse\b",
+        r"\bsolar system\b",
+        r"\bscience\b",
+        r"\bphysics\b",
+        r"\bchemistry\b",
+        r"\bbiology\b",
+        r"\bmathematics?\b",
+        r"\bformula\b",
+        r"\bequation\b",
+        r"\btheorem\b",
+        r"\blanguage\b",
+        r"\balphabet\b",
+        r"\bliterature\b",
+        r"\bauthor of\b",
+        r"\bmovie\b",
+        r"\bfilm\b",
+        r"\bdirected by\b",
+        r"\breligion\b",
+        r"\bphilosophy\b",
+        r"\bmythology\b",
+        r"\bwar\b",
+        r"\bempire\b",
+        r"\bcivilization\b",
+        r"\bdynasty\b",  # FIX: "dinasty" → "dynasty"
+        r"\btechnology\b",
+        r"\binvention\b",
+        r"\bdiscovery\b",
+        r"\beconomics?\b",
+        r"\btheory\b",
+        r"\bconcept\b",
+        r"\bprinciple\b",
+        r"\bfamous\b",
+        r"\blegendary\b",
+        r"\bnotable\b",
+        r"\bknown for\b",
+        r"\btell me about\b",
+        r"\blearn about\b",
+        r"\binformation (about|on)\b",
+        r"\bfacts? about\b",
+        r"\bwhat do you know about\b",
+        r"\bhow (many|much|far|long|tall|big|old|deep|high)\b",
+        r"\blocation of\b",
+        r"\bsituated\b",
+        r"\blocated\b",
     ]
     if any(re.search(p, lower) for p in wikipedia_patterns):
         return "wikipedia"
@@ -2512,34 +3363,48 @@ def detect_intent(text: str) -> str:
     # FIX: was overwriting the initial web_search_patterns list entirely.
     # Now all pattern groups are combined correctly from the start.
     currentposition_signals = [
-        r'\bwho is (the )?(current|new|now|present)\s+(cm|chief minister|pm|prime minister|president|governor|mayor|minister|ceo|chairman)\b',
-        r'\b(current|new|now|present)\s+(cm|chief minister|pm|prime minister|president|governor|mayor|minister|ceo|chairman)\b',
-        r'\bwho (won|became|got elected|was elected|was appointed|was named)\b.*\b(202[4-9]|today|this year|recently)\b',
-        r'\bwho is leading\b', r'\bwho is in charge\b',
+        r"\bwho is (the )?(current|new|now|present)\s+(cm|chief minister|pm|prime minister|president|governor|mayor|minister|ceo|chairman)\b",
+        r"\b(current|new|now|present)\s+(cm|chief minister|pm|prime minister|president|governor|mayor|minister|ceo|chairman)\b",
+        r"\bwho (won|became|got elected|was elected|was appointed|was named)\b.*\b(202[4-9]|today|this year|recently)\b",
+        r"\bwho is leading\b",
+        r"\bwho is in charge\b",
     ]
     techlaunch_signals = [
-        r'\blatest version of\b', r'\bnew(est)? (version|update|release|feature)\b',
-        r'\bjust (launched|released|announced)\b',
-        r'\bthis (week|month).{0,10}(launch|release|announce)\b',
-        r'\bwhat.{0,15}(launched|released|announced).{0,15}(this week|today|recently)\b',
-        r'\b(reddit|twitter|x|hackernews|hn)\s+(saying|discussion|trending)\b',
-        r'\bgithub trending\b', r'\bproducthunt\b',
-        r'\b(hugging\s*face|huggingface)\s+.{0,30}(latest|new|recent|2024|2025|2026)\b',
-        r'\bfind.{0,20}(launched|released|new|latest).{0,20}(202[4-9]|this (week|month|year))\b',
+        r"\blatest version of\b",
+        r"\bnew(est)? (version|update|release|feature)\b",
+        r"\bjust (launched|released|announced)\b",
+        r"\bthis (week|month).{0,10}(launch|release|announce)\b",
+        r"\bwhat.{0,15}(launched|released|announced).{0,15}(this week|today|recently)\b",
+        r"\b(reddit|twitter|x|hackernews|hn)\s+(saying|discussion|trending)\b",
+        r"\bgithub trending\b",
+        r"\bproducthunt\b",
+        r"\b(hugging\s*face|huggingface)\s+.{0,30}(latest|new|recent|2024|2025|2026)\b",
+        r"\bfind.{0,20}(launched|released|new|latest).{0,20}(202[4-9]|this (week|month|year))\b",
     ]
     status_signals = [
-        r'\bis\s+\w+\s+(down|up|working|running|having issues|offline|online)\s+(right now|today|currently)\b',
-        r'\bstatus of\b.*\btoday\b',
-        r'\bwhich (websites?|domains?|sites?).{0,20}(rank|indexed|blocked|currently)\b',
-        r'\bcurrently rank\b', r'\bnow ranking\b',
-        r'\b(seo|search ranking).{0,15}(update|new|latest|today|this (week|month))\b',
+        r"\bis\s+\w+\s+(down|up|working|running|having issues|offline|online)\s+(right now|today|currently)\b",
+        r"\bstatus of\b.*\btoday\b",
+        r"\bwhich (websites?|domains?|sites?).{0,20}(rank|indexed|blocked|currently)\b",
+        r"\bcurrently rank\b",
+        r"\bnow ranking\b",
+        r"\b(seo|search ranking).{0,15}(update|new|latest|today|this (week|month))\b",
     ]
     base_web_search_patterns = [
-        r'\blatest\b', r'\bcurrently?\b', r'\bright now\b', r'\btoday\b',
-        r'\brecently?\b', r'\bwho is\b', r'\bwhen (is|was|did)\b',
-        r'\bwhere is\b', r'\bprice of\b', r'\bhow much (is|does|did)\b',
-        r'\bwhat is the (current|latest|new)\b', r'\bfind (me|out|information)\b',
-        r'\bsearch (for|about)\b', r'\blook up\b', r'\b\d{4}\b',
+        r"\blatest\b",
+        r"\bcurrently?\b",
+        r"\bright now\b",
+        r"\btoday\b",
+        r"\brecently?\b",
+        r"\bwho is\b",
+        r"\bwhen (is|was|did)\b",
+        r"\bwhere is\b",
+        r"\bprice of\b",
+        r"\bhow much (is|does|did)\b",
+        r"\bwhat is the (current|latest|new)\b",
+        r"\bfind (me|out|information)\b",
+        r"\bsearch (for|about)\b",
+        r"\blook up\b",
+        r"\b\d{4}\b",
     ]
     all_web_search_patterns = (
         base_web_search_patterns
@@ -2567,208 +3432,379 @@ def detect_intent(text: str) -> str:
 # ── Comprehensive location → IANA timezone mapping ──────────────────────────
 TIMEZONE_MAP: dict[str, str] = {
     # ── INDIA (default + states/cities) ─────────────────────────────────────
-    "india": "Asia/Kolkata", "indian": "Asia/Kolkata", "ist": "Asia/Kolkata",
-    "kolkata": "Asia/Kolkata", "calcutta": "Asia/Kolkata",
-    "mumbai": "Asia/Kolkata", "bombay": "Asia/Kolkata",
-    "delhi": "Asia/Kolkata", "new delhi": "Asia/Kolkata",
-    "bangalore": "Asia/Kolkata", "bengaluru": "Asia/Kolkata",
-    "chennai": "Asia/Kolkata", "madras": "Asia/Kolkata",
-    "hyderabad": "Asia/Kolkata", "pune": "Asia/Kolkata",
-    "ahmedabad": "Asia/Kolkata", "jaipur": "Asia/Kolkata",
-    "lucknow": "Asia/Kolkata", "kanpur": "Asia/Kolkata",
-    "nagpur": "Asia/Kolkata", "indore": "Asia/Kolkata",
-    "bhopal": "Asia/Kolkata", "patna": "Asia/Kolkata",
-    "vadodara": "Asia/Kolkata", "ludhiana": "Asia/Kolkata",
-    "agra": "Asia/Kolkata", "nashik": "Asia/Kolkata",
-    "surat": "Asia/Kolkata", "varanasi": "Asia/Kolkata",
-    "siliguri": "Asia/Kolkata", "guwahati": "Asia/Kolkata",
-    "bhubaneswar": "Asia/Kolkata", "thiruvananthapuram": "Asia/Kolkata",
-    "kochi": "Asia/Kolkata", "coimbatore": "Asia/Kolkata",
-    "visakhapatnam": "Asia/Kolkata", "vijayawada": "Asia/Kolkata",
-    "chandigarh": "Asia/Kolkata", "amritsar": "Asia/Kolkata",
-    "ranchi": "Asia/Kolkata", "raipur": "Asia/Kolkata",
-    "goa": "Asia/Kolkata", "panaji": "Asia/Kolkata",
-    "jammu": "Asia/Kolkata", "srinagar": "Asia/Kolkata",
-    "shimla": "Asia/Kolkata", "dehradun": "Asia/Kolkata",
-    "imphal": "Asia/Kolkata", "aizawl": "Asia/Kolkata",
-    "shillong": "Asia/Kolkata", "kohima": "Asia/Kolkata",
-    "itanagar": "Asia/Kolkata", "agartala": "Asia/Kolkata",
-    "gangtok": "Asia/Kolkata", "dispur": "Asia/Kolkata",
+    "india": "Asia/Kolkata",
+    "indian": "Asia/Kolkata",
+    "ist": "Asia/Kolkata",
+    "kolkata": "Asia/Kolkata",
+    "calcutta": "Asia/Kolkata",
+    "mumbai": "Asia/Kolkata",
+    "bombay": "Asia/Kolkata",
+    "delhi": "Asia/Kolkata",
+    "new delhi": "Asia/Kolkata",
+    "bangalore": "Asia/Kolkata",
+    "bengaluru": "Asia/Kolkata",
+    "chennai": "Asia/Kolkata",
+    "madras": "Asia/Kolkata",
+    "hyderabad": "Asia/Kolkata",
+    "pune": "Asia/Kolkata",
+    "ahmedabad": "Asia/Kolkata",
+    "jaipur": "Asia/Kolkata",
+    "lucknow": "Asia/Kolkata",
+    "kanpur": "Asia/Kolkata",
+    "nagpur": "Asia/Kolkata",
+    "indore": "Asia/Kolkata",
+    "bhopal": "Asia/Kolkata",
+    "patna": "Asia/Kolkata",
+    "vadodara": "Asia/Kolkata",
+    "ludhiana": "Asia/Kolkata",
+    "agra": "Asia/Kolkata",
+    "nashik": "Asia/Kolkata",
+    "surat": "Asia/Kolkata",
+    "varanasi": "Asia/Kolkata",
+    "siliguri": "Asia/Kolkata",
+    "guwahati": "Asia/Kolkata",
+    "bhubaneswar": "Asia/Kolkata",
+    "thiruvananthapuram": "Asia/Kolkata",
+    "kochi": "Asia/Kolkata",
+    "coimbatore": "Asia/Kolkata",
+    "visakhapatnam": "Asia/Kolkata",
+    "vijayawada": "Asia/Kolkata",
+    "chandigarh": "Asia/Kolkata",
+    "amritsar": "Asia/Kolkata",
+    "ranchi": "Asia/Kolkata",
+    "raipur": "Asia/Kolkata",
+    "goa": "Asia/Kolkata",
+    "panaji": "Asia/Kolkata",
+    "jammu": "Asia/Kolkata",
+    "srinagar": "Asia/Kolkata",
+    "shimla": "Asia/Kolkata",
+    "dehradun": "Asia/Kolkata",
+    "imphal": "Asia/Kolkata",
+    "aizawl": "Asia/Kolkata",
+    "shillong": "Asia/Kolkata",
+    "kohima": "Asia/Kolkata",
+    "itanagar": "Asia/Kolkata",
+    "agartala": "Asia/Kolkata",
+    "gangtok": "Asia/Kolkata",
+    "dispur": "Asia/Kolkata",
     # Indian states
-    "maharashtra": "Asia/Kolkata", "karnataka": "Asia/Kolkata",
-    "tamil nadu": "Asia/Kolkata", "telangana": "Asia/Kolkata",
-    "andhra pradesh": "Asia/Kolkata", "kerala": "Asia/Kolkata",
-    "gujarat": "Asia/Kolkata", "rajasthan": "Asia/Kolkata",
-    "uttar pradesh": "Asia/Kolkata", "madhya pradesh": "Asia/Kolkata",
-    "bihar": "Asia/Kolkata", "west bengal": "Asia/Kolkata",
-    "odisha": "Asia/Kolkata", "jharkhand": "Asia/Kolkata",
-    "haryana": "Asia/Kolkata", "punjab": "Asia/Kolkata",
-    "himachal pradesh": "Asia/Kolkata", "uttarakhand": "Asia/Kolkata",
-    "chhattisgarh": "Asia/Kolkata", "assam": "Asia/Kolkata",
-    "tripura": "Asia/Kolkata", "meghalaya": "Asia/Kolkata",
-    "manipur": "Asia/Kolkata", "mizoram": "Asia/Kolkata",
-    "nagaland": "Asia/Kolkata", "arunachal pradesh": "Asia/Kolkata",
+    "maharashtra": "Asia/Kolkata",
+    "karnataka": "Asia/Kolkata",
+    "tamil nadu": "Asia/Kolkata",
+    "telangana": "Asia/Kolkata",
+    "andhra pradesh": "Asia/Kolkata",
+    "kerala": "Asia/Kolkata",
+    "gujarat": "Asia/Kolkata",
+    "rajasthan": "Asia/Kolkata",
+    "uttar pradesh": "Asia/Kolkata",
+    "madhya pradesh": "Asia/Kolkata",
+    "bihar": "Asia/Kolkata",
+    "west bengal": "Asia/Kolkata",
+    "odisha": "Asia/Kolkata",
+    "jharkhand": "Asia/Kolkata",
+    "haryana": "Asia/Kolkata",
+    "punjab": "Asia/Kolkata",
+    "himachal pradesh": "Asia/Kolkata",
+    "uttarakhand": "Asia/Kolkata",
+    "chhattisgarh": "Asia/Kolkata",
+    "assam": "Asia/Kolkata",
+    "tripura": "Asia/Kolkata",
+    "meghalaya": "Asia/Kolkata",
+    "manipur": "Asia/Kolkata",
+    "mizoram": "Asia/Kolkata",
+    "nagaland": "Asia/Kolkata",
+    "arunachal pradesh": "Asia/Kolkata",
     "sikkim": "Asia/Kolkata",
-
     # ── ASIA ──────────────────────────────────────────────────────────────────
-    "pakistan": "Asia/Karachi", "karachi": "Asia/Karachi",
-    "lahore": "Asia/Karachi", "islamabad": "Asia/Karachi",
-    "bangladesh": "Asia/Dhaka", "dhaka": "Asia/Dhaka",
-    "sri lanka": "Asia/Colombo", "colombo": "Asia/Colombo",
-    "nepal": "Asia/Kathmandu", "kathmandu": "Asia/Kathmandu",
-    "bhutan": "Asia/Thimphu", "thimphu": "Asia/Thimphu",
-    "myanmar": "Asia/Yangon", "yangon": "Asia/Yangon", "rangoon": "Asia/Yangon",
-    "thailand": "Asia/Bangkok", "bangkok": "Asia/Bangkok",
-    "vietnam": "Asia/Ho_Chi_Minh", "ho chi minh": "Asia/Ho_Chi_Minh",
+    "pakistan": "Asia/Karachi",
+    "karachi": "Asia/Karachi",
+    "lahore": "Asia/Karachi",
+    "islamabad": "Asia/Karachi",
+    "bangladesh": "Asia/Dhaka",
+    "dhaka": "Asia/Dhaka",
+    "sri lanka": "Asia/Colombo",
+    "colombo": "Asia/Colombo",
+    "nepal": "Asia/Kathmandu",
+    "kathmandu": "Asia/Kathmandu",
+    "bhutan": "Asia/Thimphu",
+    "thimphu": "Asia/Thimphu",
+    "myanmar": "Asia/Yangon",
+    "yangon": "Asia/Yangon",
+    "rangoon": "Asia/Yangon",
+    "thailand": "Asia/Bangkok",
+    "bangkok": "Asia/Bangkok",
+    "vietnam": "Asia/Ho_Chi_Minh",
+    "ho chi minh": "Asia/Ho_Chi_Minh",
     "hanoi": "Asia/Bangkok",
-    "cambodia": "Asia/Phnom_Penh", "phnom penh": "Asia/Phnom_Penh",
-    "laos": "Asia/Vientiane", "vientiane": "Asia/Vientiane",
-    "malaysia": "Asia/Kuala_Lumpur", "kuala lumpur": "Asia/Kuala_Lumpur",
+    "cambodia": "Asia/Phnom_Penh",
+    "phnom penh": "Asia/Phnom_Penh",
+    "laos": "Asia/Vientiane",
+    "vientiane": "Asia/Vientiane",
+    "malaysia": "Asia/Kuala_Lumpur",
+    "kuala lumpur": "Asia/Kuala_Lumpur",
     "singapore": "Asia/Singapore",
-    "indonesia": "Asia/Jakarta", "jakarta": "Asia/Jakarta",
+    "indonesia": "Asia/Jakarta",
+    "jakarta": "Asia/Jakarta",
     "bali": "Asia/Makassar",
-    "philippines": "Asia/Manila", "manila": "Asia/Manila",
-    "china": "Asia/Shanghai", "beijing": "Asia/Shanghai",
-    "shanghai": "Asia/Shanghai", "hong kong": "Asia/Hong_Kong",
-    "taiwan": "Asia/Taipei", "taipei": "Asia/Taipei",
-    "japan": "Asia/Tokyo", "tokyo": "Asia/Tokyo", "osaka": "Asia/Tokyo",
-    "south korea": "Asia/Seoul", "korea": "Asia/Seoul", "seoul": "Asia/Seoul",
-    "north korea": "Asia/Pyongyang", "pyongyang": "Asia/Pyongyang",
-    "mongolia": "Asia/Ulaanbaatar", "ulaanbaatar": "Asia/Ulaanbaatar",
-    "afghanistan": "Asia/Kabul", "kabul": "Asia/Kabul",
-    "iran": "Asia/Tehran", "tehran": "Asia/Tehran",
-    "iraq": "Asia/Baghdad", "baghdad": "Asia/Baghdad",
-    "saudi arabia": "Asia/Riyadh", "riyadh": "Asia/Riyadh",
-    "uae": "Asia/Dubai", "dubai": "Asia/Dubai",
-    "abu dhabi": "Asia/Dubai", "sharjah": "Asia/Dubai",
-    "qatar": "Asia/Qatar", "doha": "Asia/Qatar",
-    "bahrain": "Asia/Bahrain", "manama": "Asia/Bahrain",
-    "kuwait": "Asia/Kuwait", "kuwait city": "Asia/Kuwait",
-    "oman": "Asia/Muscat", "muscat": "Asia/Muscat",
-    "yemen": "Asia/Aden", "aden": "Asia/Aden", "sanaa": "Asia/Aden",
-    "jordan": "Asia/Amman", "amman": "Asia/Amman",
-    "israel": "Asia/Jerusalem", "jerusalem": "Asia/Jerusalem",
+    "philippines": "Asia/Manila",
+    "manila": "Asia/Manila",
+    "china": "Asia/Shanghai",
+    "beijing": "Asia/Shanghai",
+    "shanghai": "Asia/Shanghai",
+    "hong kong": "Asia/Hong_Kong",
+    "taiwan": "Asia/Taipei",
+    "taipei": "Asia/Taipei",
+    "japan": "Asia/Tokyo",
+    "tokyo": "Asia/Tokyo",
+    "osaka": "Asia/Tokyo",
+    "south korea": "Asia/Seoul",
+    "korea": "Asia/Seoul",
+    "seoul": "Asia/Seoul",
+    "north korea": "Asia/Pyongyang",
+    "pyongyang": "Asia/Pyongyang",
+    "mongolia": "Asia/Ulaanbaatar",
+    "ulaanbaatar": "Asia/Ulaanbaatar",
+    "afghanistan": "Asia/Kabul",
+    "kabul": "Asia/Kabul",
+    "iran": "Asia/Tehran",
+    "tehran": "Asia/Tehran",
+    "iraq": "Asia/Baghdad",
+    "baghdad": "Asia/Baghdad",
+    "saudi arabia": "Asia/Riyadh",
+    "riyadh": "Asia/Riyadh",
+    "uae": "Asia/Dubai",
+    "dubai": "Asia/Dubai",
+    "abu dhabi": "Asia/Dubai",
+    "sharjah": "Asia/Dubai",
+    "qatar": "Asia/Qatar",
+    "doha": "Asia/Qatar",
+    "bahrain": "Asia/Bahrain",
+    "manama": "Asia/Bahrain",
+    "kuwait": "Asia/Kuwait",
+    "kuwait city": "Asia/Kuwait",
+    "oman": "Asia/Muscat",
+    "muscat": "Asia/Muscat",
+    "yemen": "Asia/Aden",
+    "aden": "Asia/Aden",
+    "sanaa": "Asia/Aden",
+    "jordan": "Asia/Amman",
+    "amman": "Asia/Amman",
+    "israel": "Asia/Jerusalem",
+    "jerusalem": "Asia/Jerusalem",
     "tel aviv": "Asia/Jerusalem",
-    "lebanon": "Asia/Beirut", "beirut": "Asia/Beirut",
-    "syria": "Asia/Damascus", "damascus": "Asia/Damascus",
-    "turkey": "Europe/Istanbul", "istanbul": "Europe/Istanbul",
+    "lebanon": "Asia/Beirut",
+    "beirut": "Asia/Beirut",
+    "syria": "Asia/Damascus",
+    "damascus": "Asia/Damascus",
+    "turkey": "Europe/Istanbul",
+    "istanbul": "Europe/Istanbul",
     "ankara": "Europe/Istanbul",
-    "azerbaijan": "Asia/Baku", "baku": "Asia/Baku",
-    "georgia": "Asia/Tbilisi", "tbilisi": "Asia/Tbilisi",
-    "armenia": "Asia/Yerevan", "yerevan": "Asia/Yerevan",
-    "kazakhstan": "Asia/Almaty", "almaty": "Asia/Almaty",
-    "uzbekistan": "Asia/Tashkent", "tashkent": "Asia/Tashkent",
-    "kyrgyzstan": "Asia/Bishkek", "bishkek": "Asia/Bishkek",
-    "tajikistan": "Asia/Dushanbe", "dushanbe": "Asia/Dushanbe",
-    "turkmenistan": "Asia/Ashgabat", "ashgabat": "Asia/Ashgabat",
-
+    "azerbaijan": "Asia/Baku",
+    "baku": "Asia/Baku",
+    "georgia": "Asia/Tbilisi",
+    "tbilisi": "Asia/Tbilisi",
+    "armenia": "Asia/Yerevan",
+    "yerevan": "Asia/Yerevan",
+    "kazakhstan": "Asia/Almaty",
+    "almaty": "Asia/Almaty",
+    "uzbekistan": "Asia/Tashkent",
+    "tashkent": "Asia/Tashkent",
+    "kyrgyzstan": "Asia/Bishkek",
+    "bishkek": "Asia/Bishkek",
+    "tajikistan": "Asia/Dushanbe",
+    "dushanbe": "Asia/Dushanbe",
+    "turkmenistan": "Asia/Ashgabat",
+    "ashgabat": "Asia/Ashgabat",
     # ── EUROPE ────────────────────────────────────────────────────────────────
-    "uk": "Europe/London", "united kingdom": "Europe/London",
-    "england": "Europe/London", "london": "Europe/London",
-    "scotland": "Europe/London", "wales": "Europe/London",
-    "ireland": "Europe/Dublin", "dublin": "Europe/Dublin",
-    "france": "Europe/Paris", "paris": "Europe/Paris",
-    "germany": "Europe/Berlin", "berlin": "Europe/Berlin",
-    "frankfurt": "Europe/Berlin", "munich": "Europe/Berlin",
-    "italy": "Europe/Rome", "rome": "Europe/Rome", "milan": "Europe/Rome",
-    "spain": "Europe/Madrid", "madrid": "Europe/Madrid",
+    "uk": "Europe/London",
+    "united kingdom": "Europe/London",
+    "england": "Europe/London",
+    "london": "Europe/London",
+    "scotland": "Europe/London",
+    "wales": "Europe/London",
+    "ireland": "Europe/Dublin",
+    "dublin": "Europe/Dublin",
+    "france": "Europe/Paris",
+    "paris": "Europe/Paris",
+    "germany": "Europe/Berlin",
+    "berlin": "Europe/Berlin",
+    "frankfurt": "Europe/Berlin",
+    "munich": "Europe/Berlin",
+    "italy": "Europe/Rome",
+    "rome": "Europe/Rome",
+    "milan": "Europe/Rome",
+    "spain": "Europe/Madrid",
+    "madrid": "Europe/Madrid",
     "barcelona": "Europe/Madrid",
-    "portugal": "Europe/Lisbon", "lisbon": "Europe/Lisbon",
-    "netherlands": "Europe/Amsterdam", "amsterdam": "Europe/Amsterdam",
-    "belgium": "Europe/Brussels", "brussels": "Europe/Brussels",
-    "switzerland": "Europe/Zurich", "zurich": "Europe/Zurich",
+    "portugal": "Europe/Lisbon",
+    "lisbon": "Europe/Lisbon",
+    "netherlands": "Europe/Amsterdam",
+    "amsterdam": "Europe/Amsterdam",
+    "belgium": "Europe/Brussels",
+    "brussels": "Europe/Brussels",
+    "switzerland": "Europe/Zurich",
+    "zurich": "Europe/Zurich",
     "geneva": "Europe/Zurich",
-    "austria": "Europe/Vienna", "vienna": "Europe/Vienna",
-    "sweden": "Europe/Stockholm", "stockholm": "Europe/Stockholm",
-    "norway": "Europe/Oslo", "oslo": "Europe/Oslo",
-    "denmark": "Europe/Copenhagen", "copenhagen": "Europe/Copenhagen",
-    "finland": "Europe/Helsinki", "helsinki": "Europe/Helsinki",
-    "poland": "Europe/Warsaw", "warsaw": "Europe/Warsaw",
-    "czech republic": "Europe/Prague", "czechia": "Europe/Prague",
+    "austria": "Europe/Vienna",
+    "vienna": "Europe/Vienna",
+    "sweden": "Europe/Stockholm",
+    "stockholm": "Europe/Stockholm",
+    "norway": "Europe/Oslo",
+    "oslo": "Europe/Oslo",
+    "denmark": "Europe/Copenhagen",
+    "copenhagen": "Europe/Copenhagen",
+    "finland": "Europe/Helsinki",
+    "helsinki": "Europe/Helsinki",
+    "poland": "Europe/Warsaw",
+    "warsaw": "Europe/Warsaw",
+    "czech republic": "Europe/Prague",
+    "czechia": "Europe/Prague",
     "prague": "Europe/Prague",
-    "hungary": "Europe/Budapest", "budapest": "Europe/Budapest",
-    "romania": "Europe/Bucharest", "bucharest": "Europe/Bucharest",
-    "bulgaria": "Europe/Sofia", "sofia": "Europe/Sofia",
-    "greece": "Europe/Athens", "athens": "Europe/Athens",
-    "russia": "Europe/Moscow", "moscow": "Europe/Moscow",
+    "hungary": "Europe/Budapest",
+    "budapest": "Europe/Budapest",
+    "romania": "Europe/Bucharest",
+    "bucharest": "Europe/Bucharest",
+    "bulgaria": "Europe/Sofia",
+    "sofia": "Europe/Sofia",
+    "greece": "Europe/Athens",
+    "athens": "Europe/Athens",
+    "russia": "Europe/Moscow",
+    "moscow": "Europe/Moscow",
     "saint petersburg": "Europe/Moscow",
-    "ukraine": "Europe/Kiev", "kyiv": "Europe/Kiev", "kiev": "Europe/Kiev",
-    "serbia": "Europe/Belgrade", "belgrade": "Europe/Belgrade",
-    "croatia": "Europe/Zagreb", "zagreb": "Europe/Zagreb",
-    "slovenia": "Europe/Ljubljana", "ljubljana": "Europe/Ljubljana",
-    "slovakia": "Europe/Bratislava", "bratislava": "Europe/Bratislava",
-    "estonia": "Europe/Tallinn", "tallinn": "Europe/Tallinn",
-    "latvia": "Europe/Riga", "riga": "Europe/Riga",
-    "lithuania": "Europe/Vilnius", "vilnius": "Europe/Vilnius",
-    "iceland": "Atlantic/Reykjavik", "reykjavik": "Atlantic/Reykjavik",
+    "ukraine": "Europe/Kiev",
+    "kyiv": "Europe/Kiev",
+    "kiev": "Europe/Kiev",
+    "serbia": "Europe/Belgrade",
+    "belgrade": "Europe/Belgrade",
+    "croatia": "Europe/Zagreb",
+    "zagreb": "Europe/Zagreb",
+    "slovenia": "Europe/Ljubljana",
+    "ljubljana": "Europe/Ljubljana",
+    "slovakia": "Europe/Bratislava",
+    "bratislava": "Europe/Bratislava",
+    "estonia": "Europe/Tallinn",
+    "tallinn": "Europe/Tallinn",
+    "latvia": "Europe/Riga",
+    "riga": "Europe/Riga",
+    "lithuania": "Europe/Vilnius",
+    "vilnius": "Europe/Vilnius",
+    "iceland": "Atlantic/Reykjavik",
+    "reykjavik": "Atlantic/Reykjavik",
     "luxembourg": "Europe/Luxembourg",
     "malta": "Europe/Malta",
-    "cyprus": "Asia/Nicosia", "nicosia": "Asia/Nicosia",
-
+    "cyprus": "Asia/Nicosia",
+    "nicosia": "Asia/Nicosia",
     # ── AFRICA ────────────────────────────────────────────────────────────────
-    "nigeria": "Africa/Lagos", "lagos": "Africa/Lagos", "abuja": "Africa/Lagos",
-    "egypt": "Africa/Cairo", "cairo": "Africa/Cairo",
-    "south africa": "Africa/Johannesburg", "johannesburg": "Africa/Johannesburg",
+    "nigeria": "Africa/Lagos",
+    "lagos": "Africa/Lagos",
+    "abuja": "Africa/Lagos",
+    "egypt": "Africa/Cairo",
+    "cairo": "Africa/Cairo",
+    "south africa": "Africa/Johannesburg",
+    "johannesburg": "Africa/Johannesburg",
     "cape town": "Africa/Johannesburg",
-    "kenya": "Africa/Nairobi", "nairobi": "Africa/Nairobi",
-    "ethiopia": "Africa/Addis_Ababa", "addis ababa": "Africa/Addis_Ababa",
-    "ghana": "Africa/Accra", "accra": "Africa/Accra",
-    "tanzania": "Africa/Dar_es_Salaam", "dar es salaam": "Africa/Dar_es_Salaam",
-    "uganda": "Africa/Kampala", "kampala": "Africa/Kampala",
-    "morocco": "Africa/Casablanca", "casablanca": "Africa/Casablanca",
-    "algiers": "Africa/Algiers", "algeria": "Africa/Algiers",
-    "tunisia": "Africa/Tunis", "tunis": "Africa/Tunis",
-    "libya": "Africa/Tripoli", "tripoli": "Africa/Tripoli",
-    "sudan": "Africa/Khartoum", "khartoum": "Africa/Khartoum",
-    "zimbabwe": "Africa/Harare", "harare": "Africa/Harare",
-    "zambia": "Africa/Lusaka", "lusaka": "Africa/Lusaka",
-    "angola": "Africa/Luanda", "luanda": "Africa/Luanda",
-    "cameroon": "Africa/Douala", "douala": "Africa/Douala",
-    "senegal": "Africa/Dakar", "dakar": "Africa/Dakar",
-
+    "kenya": "Africa/Nairobi",
+    "nairobi": "Africa/Nairobi",
+    "ethiopia": "Africa/Addis_Ababa",
+    "addis ababa": "Africa/Addis_Ababa",
+    "ghana": "Africa/Accra",
+    "accra": "Africa/Accra",
+    "tanzania": "Africa/Dar_es_Salaam",
+    "dar es salaam": "Africa/Dar_es_Salaam",
+    "uganda": "Africa/Kampala",
+    "kampala": "Africa/Kampala",
+    "morocco": "Africa/Casablanca",
+    "casablanca": "Africa/Casablanca",
+    "algiers": "Africa/Algiers",
+    "algeria": "Africa/Algiers",
+    "tunisia": "Africa/Tunis",
+    "tunis": "Africa/Tunis",
+    "libya": "Africa/Tripoli",
+    "tripoli": "Africa/Tripoli",
+    "sudan": "Africa/Khartoum",
+    "khartoum": "Africa/Khartoum",
+    "zimbabwe": "Africa/Harare",
+    "harare": "Africa/Harare",
+    "zambia": "Africa/Lusaka",
+    "lusaka": "Africa/Lusaka",
+    "angola": "Africa/Luanda",
+    "luanda": "Africa/Luanda",
+    "cameroon": "Africa/Douala",
+    "douala": "Africa/Douala",
+    "senegal": "Africa/Dakar",
+    "dakar": "Africa/Dakar",
     # ── AMERICAS ──────────────────────────────────────────────────────────────
-    "usa": "America/New_York", "us": "America/New_York",
-    "united states": "America/New_York", "america": "America/New_York",
-    "new york": "America/New_York", "nyc": "America/New_York",
-    "boston": "America/New_York", "miami": "America/New_York",
-    "washington": "America/New_York", "dc": "America/New_York",
+    "usa": "America/New_York",
+    "us": "America/New_York",
+    "united states": "America/New_York",
+    "america": "America/New_York",
+    "new york": "America/New_York",
+    "nyc": "America/New_York",
+    "boston": "America/New_York",
+    "miami": "America/New_York",
+    "washington": "America/New_York",
+    "dc": "America/New_York",
     "chicago": "America/Chicago",
-    "houston": "America/Chicago", "dallas": "America/Chicago",
+    "houston": "America/Chicago",
+    "dallas": "America/Chicago",
     "denver": "America/Denver",
-    "los angeles": "America/Los_Angeles", "la": "America/Los_Angeles",
-    "san francisco": "America/Los_Angeles", "seattle": "America/Los_Angeles",
-    "las vegas": "America/Los_Angeles", "phoenix": "America/Phoenix",
-    "alaska": "America/Anchorage", "anchorage": "America/Anchorage",
-    "hawaii": "Pacific/Honolulu", "honolulu": "Pacific/Honolulu",
-    "canada": "America/Toronto", "toronto": "America/Toronto",
-    "vancouver": "America/Vancouver", "montreal": "America/Toronto",
+    "los angeles": "America/Los_Angeles",
+    "la": "America/Los_Angeles",
+    "san francisco": "America/Los_Angeles",
+    "seattle": "America/Los_Angeles",
+    "las vegas": "America/Los_Angeles",
+    "phoenix": "America/Phoenix",
+    "alaska": "America/Anchorage",
+    "anchorage": "America/Anchorage",
+    "hawaii": "Pacific/Honolulu",
+    "honolulu": "Pacific/Honolulu",
+    "canada": "America/Toronto",
+    "toronto": "America/Toronto",
+    "vancouver": "America/Vancouver",
+    "montreal": "America/Toronto",
     "calgary": "America/Edmonton",
-    "mexico": "America/Mexico_City", "mexico city": "America/Mexico_City",
-    "brazil": "America/Sao_Paulo", "sao paulo": "America/Sao_Paulo",
-    "brasilia": "America/Sao_Paulo", "rio": "America/Sao_Paulo",
+    "mexico": "America/Mexico_City",
+    "mexico city": "America/Mexico_City",
+    "brazil": "America/Sao_Paulo",
+    "sao paulo": "America/Sao_Paulo",
+    "brasilia": "America/Sao_Paulo",
+    "rio": "America/Sao_Paulo",
     "rio de janeiro": "America/Sao_Paulo",
     "argentina": "America/Argentina/Buenos_Aires",
     "buenos aires": "America/Argentina/Buenos_Aires",
-    "chile": "America/Santiago", "santiago": "America/Santiago",
-    "colombia": "America/Bogota", "bogota": "America/Bogota",
-    "peru": "America/Lima", "lima": "America/Lima",
-    "venezuela": "America/Caracas", "caracas": "America/Caracas",
-    "ecuador": "America/Guayaquil", "quito": "America/Guayaquil",
-    "cuba": "America/Havana", "havana": "America/Havana",
-    "jamaica": "America/Jamaica", "kingston": "America/Jamaica",
-
+    "chile": "America/Santiago",
+    "santiago": "America/Santiago",
+    "colombia": "America/Bogota",
+    "bogota": "America/Bogota",
+    "peru": "America/Lima",
+    "lima": "America/Lima",
+    "venezuela": "America/Caracas",
+    "caracas": "America/Caracas",
+    "ecuador": "America/Guayaquil",
+    "quito": "America/Guayaquil",
+    "cuba": "America/Havana",
+    "havana": "America/Havana",
+    "jamaica": "America/Jamaica",
+    "kingston": "America/Jamaica",
     # ── OCEANIA ───────────────────────────────────────────────────────────────
-    "australia": "Australia/Sydney", "sydney": "Australia/Sydney",
-    "melbourne": "Australia/Melbourne", "brisbane": "Australia/Brisbane",
-    "perth": "Australia/Perth", "adelaide": "Australia/Adelaide",
-    "new zealand": "Pacific/Auckland", "auckland": "Pacific/Auckland",
+    "australia": "Australia/Sydney",
+    "sydney": "Australia/Sydney",
+    "melbourne": "Australia/Melbourne",
+    "brisbane": "Australia/Brisbane",
+    "perth": "Australia/Perth",
+    "adelaide": "Australia/Adelaide",
+    "new zealand": "Pacific/Auckland",
+    "auckland": "Pacific/Auckland",
     "wellington": "Pacific/Auckland",
-    "fiji": "Pacific/Fiji", "suva": "Pacific/Fiji",
+    "fiji": "Pacific/Fiji",
+    "suva": "Pacific/Fiji",
     "papua new guinea": "Pacific/Port_Moresby",
-
     # ── UTC / GMT ──────────────────────────────────────────────────────────────
-    "utc": "UTC", "gmt": "UTC", "greenwich": "UTC",
+    "utc": "UTC",
+    "gmt": "UTC",
+    "greenwich": "UTC",
 }
+
 
 def tool_clock(prompt: str) -> dict:
     """
@@ -2777,6 +3813,7 @@ def tool_clock(prompt: str) -> dict:
     Falls back gracefully if zoneinfo is unavailable.
     """
     from datetime import datetime
+
     try:
         from zoneinfo import ZoneInfo
     except ImportError:
@@ -2788,7 +3825,7 @@ def tool_clock(prompt: str) -> dict:
     logger.info(f"🕐 [TOOL] clock | prompt: {prompt[:80]}")
 
     lower = prompt.lower()
-    tz_key   = "Asia/Kolkata"
+    tz_key = "Asia/Kolkata"
     location = "India"
 
     # Try longest-match first so "new york" beats "york"
@@ -2801,34 +3838,35 @@ def tool_clock(prompt: str) -> dict:
 
     try:
         if ZoneInfo:
-            tz     = ZoneInfo(tz_key)
-            now    = datetime.now(tz)
+            tz = ZoneInfo(tz_key)
+            now = datetime.now(tz)
         else:
             import pytz
-            tz  = pytz.timezone(tz_key)
+
+            tz = pytz.timezone(tz_key)
             now = datetime.now(tz)
 
         # UTC offset string e.g. "+05:30"
-        offset_secs  = int(now.utcoffset().total_seconds())
-        sign         = "+" if offset_secs >= 0 else "-"
-        offset_secs  = abs(offset_secs)
-        offset_h, r  = divmod(offset_secs, 3600)
-        offset_m     = r // 60
-        utc_offset   = f"{sign}{offset_h:02d}:{offset_m:02d}"
+        offset_secs = int(now.utcoffset().total_seconds())
+        sign = "+" if offset_secs >= 0 else "-"
+        offset_secs = abs(offset_secs)
+        offset_h, r = divmod(offset_secs, 3600)
+        offset_m = r // 60
+        utc_offset = f"{sign}{offset_h:02d}:{offset_m:02d}"
 
         # Abbrev from tzname
         tz_abbrev = now.strftime("%Z") or tz_key.split("/")[-1]
 
         result = {
-            "tool"      : "clock",
-            "location"  : location,
-            "timezone"  : tz_key,
-            "tz_abbrev" : tz_abbrev,
+            "tool": "clock",
+            "location": location,
+            "timezone": tz_key,
+            "tz_abbrev": tz_abbrev,
             "utc_offset": utc_offset,
-            "time_12h"  : now.strftime("%I:%M:%S %p"),
-            "time_24h"  : now.strftime("%H:%M:%S"),
-            "date"      : now.strftime("%A, %d %B %Y"),
-            "day"       : now.strftime("%A"),
+            "time_12h": now.strftime("%I:%M:%S %p"),
+            "time_24h": now.strftime("%H:%M:%S"),
+            "date": now.strftime("%A, %d %B %Y"),
+            "day": now.strftime("%A"),
         }
         logger.info(f"✅ [TOOL] clock: {result['time_12h']} — {location} ({tz_key})")
         return result
@@ -2837,32 +3875,34 @@ def tool_clock(prompt: str) -> dict:
         logger.warning(f"⚠️ [TOOL] clock: unrecognized location/timezone: {e}")
         # Pure UTC fallback
         from datetime import timezone
+
         now = datetime.now(timezone.utc)
         return {
-            "tool"      : "clock",
-            "location"  : location,
-            "timezone"  : "UTC",
-            "tz_abbrev" : "UTC",
+            "tool": "clock",
+            "location": location,
+            "timezone": "UTC",
+            "tz_abbrev": "UTC",
             "utc_offset": "+00:00",
-            "time_12h"  : now.strftime("%I:%M:%S %p"),
-            "time_24h"  : now.strftime("%H:%M:%S"),
-            "date"      : now.strftime("%A, %d %B %Y"),
-            "day"       : now.strftime("%A"),
+            "time_12h": now.strftime("%I:%M:%S %p"),
+            "time_24h": now.strftime("%H:%M:%S"),
+            "date": now.strftime("%A, %d %B %Y"),
+            "day": now.strftime("%A"),
         }
     except Exception as e:
         _log_unexpected("TOOL clock", e)
         from datetime import timezone
+
         now = datetime.now(timezone.utc)
         return {
-            "tool"      : "clock",
-            "location"  : location,
-            "timezone"  : "UTC",
-            "tz_abbrev" : "UTC",
+            "tool": "clock",
+            "location": location,
+            "timezone": "UTC",
+            "tz_abbrev": "UTC",
             "utc_offset": "+00:00",
-            "time_12h"  : now.strftime("%I:%M:%S %p"),
-            "time_24h"  : now.strftime("%H:%M:%S"),
-            "date"      : now.strftime("%A, %d %B %Y"),
-            "day"       : now.strftime("%A"),
+            "time_12h": now.strftime("%I:%M:%S %p"),
+            "time_24h": now.strftime("%H:%M:%S"),
+            "date": now.strftime("%A, %d %B %Y"),
+            "day": now.strftime("%A"),
         }
 
 
@@ -2880,27 +3920,27 @@ def tool_weather(prompt: str) -> dict:
     # Extract city name — heuristic
     city = None
     patterns = [
-        r'weather (?:in|at|for|of) ([a-zA-Z\s]+)',
-        r'temperature (?:in|at|of) ([a-zA-Z\s]+)',
-        r'(?:in|at) ([A-Z][a-zA-Z\s]+) (?:weather|temperature|today)',
-        r'([A-Z][a-zA-Z\s]+) weather',
-        r'([A-Z][a-zA-Z]+) temperature',
+        r"weather (?:in|at|for|of) ([a-zA-Z\s]+)",
+        r"temperature (?:in|at|of) ([a-zA-Z\s]+)",
+        r"(?:in|at) ([A-Z][a-zA-Z\s]+) (?:weather|temperature|today)",
+        r"([A-Z][a-zA-Z\s]+) weather",
+        r"([A-Z][a-zA-Z]+) temperature",
     ]
     for pat in patterns:
         m = re.search(pat, prompt, re.IGNORECASE)
         if m:
-            city = m.group(1).strip().rstrip('?.,!')
+            city = m.group(1).strip().rstrip("?.,!")
             break
 
     # Default to India if asking "temperature in India" broadly
     if not city:
         lower = prompt.lower()
-        if 'india' in lower:
-            city = 'New Delhi'
-        elif 'kolkata' in lower or 'calcutta' in lower:
-            city = 'Kolkata'
+        if "india" in lower:
+            city = "New Delhi"
+        elif "kolkata" in lower or "calcutta" in lower:
+            city = "Kolkata"
         else:
-            city = 'Mumbai'  # safe default
+            city = "Mumbai"  # safe default
 
     if not OPENWEATHER_API_KEY:
         # Fallback: DuckDuckGo search
@@ -2937,7 +3977,9 @@ def tool_weather(prompt: str) -> dict:
         return result
 
     except (requests.exceptions.RequestException, KeyError, ValueError, TypeError) as e:
-        logger.warning(f"⚠️ [TOOL] weather: expected failure, falling back to search: {e}")
+        logger.warning(
+            f"⚠️ [TOOL] weather: expected failure, falling back to search: {e}"
+        )
         return tool_web_search(f"current weather {city} today")
     except Exception as e:
         _log_unexpected("TOOL weather", e)
@@ -2958,228 +4000,228 @@ def tool_weather(prompt: str) -> dict:
 KNOWN_TICKERS: list[tuple[str, str, str]] = [
     # keyword (lowercase)          yahoo symbol      display name
     # ── Reliance group ──────────────────────────────────────────────────────
-    ("reliance power",          "RPOWER.NS",        "Reliance Power"),
-    ("reliance infrastructure", "RELINFRA.NS",      "Reliance Infrastructure"),
-    ("reliance capital",        "RELCAPITAL.NS",    "Reliance Capital"),
-    ("reliance communications", "RCOM.NS",          "Reliance Communications"),
-    ("reliance industries",     "RELIANCE.NS",      "Reliance Industries"),
-    ("reliance",                "RELIANCE.NS",      "Reliance Industries"),
+    ("reliance power", "RPOWER.NS", "Reliance Power"),
+    ("reliance infrastructure", "RELINFRA.NS", "Reliance Infrastructure"),
+    ("reliance capital", "RELCAPITAL.NS", "Reliance Capital"),
+    ("reliance communications", "RCOM.NS", "Reliance Communications"),
+    ("reliance industries", "RELIANCE.NS", "Reliance Industries"),
+    ("reliance", "RELIANCE.NS", "Reliance Industries"),
     # ── Tata group ──────────────────────────────────────────────────────────
-    ("tata consultancy",        "TCS.NS",           "Tata Consultancy Services"),
-    ("tata steel",              "TATASTEEL.NS",     "Tata Steel"),
-    ("tata motors",             "TATAMOTORS.NS",    "Tata Motors"),
-    ("tata power",              "TATAPOWER.NS",     "Tata Power"),
-    ("tata chemicals",          "TATACHEM.NS",      "Tata Chemicals"),
-    ("tata consumer",           "TATACONSUM.NS",    "Tata Consumer Products"),
-    ("tata elxsi",              "TATAELXSI.NS",     "Tata Elxsi"),
-    ("tcs",                     "TCS.NS",           "TCS"),
-    ("tata",                    "TATAMOTORS.NS",    "Tata Motors"),
+    ("tata consultancy", "TCS.NS", "Tata Consultancy Services"),
+    ("tata steel", "TATASTEEL.NS", "Tata Steel"),
+    ("tata motors", "TATAMOTORS.NS", "Tata Motors"),
+    ("tata power", "TATAPOWER.NS", "Tata Power"),
+    ("tata chemicals", "TATACHEM.NS", "Tata Chemicals"),
+    ("tata consumer", "TATACONSUM.NS", "Tata Consumer Products"),
+    ("tata elxsi", "TATAELXSI.NS", "Tata Elxsi"),
+    ("tcs", "TCS.NS", "TCS"),
+    ("tata", "TATAMOTORS.NS", "Tata Motors"),
     # ── Adani group ─────────────────────────────────────────────────────────
-    ("adani power",             "ADANIPOWER.NS",    "Adani Power"),
-    ("adani green",             "ADANIGREEN.NS",    "Adani Green Energy"),
-    ("adani enterprises",       "ADANIENT.NS",      "Adani Enterprises"),
-    ("adani ports",             "ADANIPORTS.NS",    "Adani Ports"),
-    ("adani total",             "ATGL.NS",          "Adani Total Gas"),
-    ("adani wilmar",            "AWL.NS",           "Adani Wilmar"),
-    ("adani transmission",      "ADANITRANS.NS",    "Adani Transmission"),
-    ("adani",                   "ADANIENT.NS",      "Adani Enterprises"),
+    ("adani power", "ADANIPOWER.NS", "Adani Power"),
+    ("adani green", "ADANIGREEN.NS", "Adani Green Energy"),
+    ("adani enterprises", "ADANIENT.NS", "Adani Enterprises"),
+    ("adani ports", "ADANIPORTS.NS", "Adani Ports"),
+    ("adani total", "ATGL.NS", "Adani Total Gas"),
+    ("adani wilmar", "AWL.NS", "Adani Wilmar"),
+    ("adani transmission", "ADANITRANS.NS", "Adani Transmission"),
+    ("adani", "ADANIENT.NS", "Adani Enterprises"),
     # ── IT ──────────────────────────────────────────────────────────────────
-    ("infosys",                 "INFY.NS",          "Infosys"),
-    ("wipro",                   "WIPRO.NS",         "Wipro"),
-    ("hcl technologies",        "HCLTECH.NS",       "HCL Technologies"),
-    ("hcl tech",                "HCLTECH.NS",       "HCL Technologies"),
-    ("tech mahindra",           "TECHM.NS",         "Tech Mahindra"),
-    ("mphasis",                 "MPHASIS.NS",       "Mphasis"),
-    ("ltimindtree",             "LTIM.NS",          "LTIMindtree"),
-    ("l&t technology",          "LTTS.NS",          "L&T Technology Services"),
-    ("persistent",              "PERSISTENT.NS",    "Persistent Systems"),
-    ("coforge",                 "COFORGE.NS",       "Coforge"),
-    ("zensar",                  "ZENSARTECH.NS",    "Zensar Technologies"),
-    ("cyient",                  "CYIENT.NS",        "Cyient"),
+    ("infosys", "INFY.NS", "Infosys"),
+    ("wipro", "WIPRO.NS", "Wipro"),
+    ("hcl technologies", "HCLTECH.NS", "HCL Technologies"),
+    ("hcl tech", "HCLTECH.NS", "HCL Technologies"),
+    ("tech mahindra", "TECHM.NS", "Tech Mahindra"),
+    ("mphasis", "MPHASIS.NS", "Mphasis"),
+    ("ltimindtree", "LTIM.NS", "LTIMindtree"),
+    ("l&t technology", "LTTS.NS", "L&T Technology Services"),
+    ("persistent", "PERSISTENT.NS", "Persistent Systems"),
+    ("coforge", "COFORGE.NS", "Coforge"),
+    ("zensar", "ZENSARTECH.NS", "Zensar Technologies"),
+    ("cyient", "CYIENT.NS", "Cyient"),
     # ── Banking ─────────────────────────────────────────────────────────────
-    ("hdfc bank",               "HDFCBANK.NS",      "HDFC Bank"),
-    ("hdfc life",               "HDFCLIFE.NS",      "HDFC Life"),
-    ("hdfc amc",                "HDFCAMC.NS",       "HDFC AMC"),
-    ("hdfc",                    "HDFCBANK.NS",      "HDFC Bank"),
-    ("icici bank",              "ICICIBANK.NS",     "ICICI Bank"),
-    ("icici lombard",           "ICICIGI.NS",       "ICICI Lombard"),
-    ("icici prudential",        "ICICIPRULI.NS",    "ICICI Prudential"),
-    ("icici",                   "ICICIBANK.NS",     "ICICI Bank"),
-    ("state bank",              "SBIN.NS",          "State Bank of India"),
-    ("sbi",                     "SBIN.NS",          "SBI"),
-    ("axis bank",               "AXISBANK.NS",      "Axis Bank"),
-    ("kotak mahindra",          "KOTAKBANK.NS",     "Kotak Mahindra Bank"),
-    ("kotak",                   "KOTAKBANK.NS",     "Kotak Mahindra Bank"),
-    ("yes bank",                "YESBANK.NS",       "Yes Bank"),
-    ("pnb",                     "PNB.NS",           "Punjab National Bank"),
-    ("punjab national",         "PNB.NS",           "Punjab National Bank"),
-    ("bank of baroda",          "BANKBARODA.NS",    "Bank of Baroda"),
-    ("canara bank",             "CANBK.NS",         "Canara Bank"),
-    ("union bank",              "UNIONBANK.NS",     "Union Bank of India"),
-    ("indusind",                "INDUSINDBK.NS",    "IndusInd Bank"),
-    ("bandhan bank",            "BANDHANBNK.NS",    "Bandhan Bank"),
-    ("idfc first",              "IDFCFIRSTB.NS",    "IDFC First Bank"),
-    ("au small",                "AUBANK.NS",        "AU Small Finance Bank"),
-    ("bajaj finance",           "BAJFINANCE.NS",    "Bajaj Finance"),
-    ("bajaj finserv",           "BAJAJFINSV.NS",    "Bajaj Finserv"),
-    ("bajaj auto",              "BAJAJ-AUTO.NS",    "Bajaj Auto"),
-    ("bajaj",                   "BAJAJ-AUTO.NS",    "Bajaj Auto"),
-    ("shriram finance",         "SHRIRAMFIN.NS",    "Shriram Finance"),
-    ("muthoot",                 "MUTHOOTFIN.NS",    "Muthoot Finance"),
-    ("manappuram",              "MANAPPURAM.NS",    "Manappuram Finance"),
-    ("cholamandalam",           "CHOLAFIN.NS",      "Cholamandalam Finance"),
-    ("lic",                     "LICI.NS",          "LIC India"),
+    ("hdfc bank", "HDFCBANK.NS", "HDFC Bank"),
+    ("hdfc life", "HDFCLIFE.NS", "HDFC Life"),
+    ("hdfc amc", "HDFCAMC.NS", "HDFC AMC"),
+    ("hdfc", "HDFCBANK.NS", "HDFC Bank"),
+    ("icici bank", "ICICIBANK.NS", "ICICI Bank"),
+    ("icici lombard", "ICICIGI.NS", "ICICI Lombard"),
+    ("icici prudential", "ICICIPRULI.NS", "ICICI Prudential"),
+    ("icici", "ICICIBANK.NS", "ICICI Bank"),
+    ("state bank", "SBIN.NS", "State Bank of India"),
+    ("sbi", "SBIN.NS", "SBI"),
+    ("axis bank", "AXISBANK.NS", "Axis Bank"),
+    ("kotak mahindra", "KOTAKBANK.NS", "Kotak Mahindra Bank"),
+    ("kotak", "KOTAKBANK.NS", "Kotak Mahindra Bank"),
+    ("yes bank", "YESBANK.NS", "Yes Bank"),
+    ("pnb", "PNB.NS", "Punjab National Bank"),
+    ("punjab national", "PNB.NS", "Punjab National Bank"),
+    ("bank of baroda", "BANKBARODA.NS", "Bank of Baroda"),
+    ("canara bank", "CANBK.NS", "Canara Bank"),
+    ("union bank", "UNIONBANK.NS", "Union Bank of India"),
+    ("indusind", "INDUSINDBK.NS", "IndusInd Bank"),
+    ("bandhan bank", "BANDHANBNK.NS", "Bandhan Bank"),
+    ("idfc first", "IDFCFIRSTB.NS", "IDFC First Bank"),
+    ("au small", "AUBANK.NS", "AU Small Finance Bank"),
+    ("bajaj finance", "BAJFINANCE.NS", "Bajaj Finance"),
+    ("bajaj finserv", "BAJAJFINSV.NS", "Bajaj Finserv"),
+    ("bajaj auto", "BAJAJ-AUTO.NS", "Bajaj Auto"),
+    ("bajaj", "BAJAJ-AUTO.NS", "Bajaj Auto"),
+    ("shriram finance", "SHRIRAMFIN.NS", "Shriram Finance"),
+    ("muthoot", "MUTHOOTFIN.NS", "Muthoot Finance"),
+    ("manappuram", "MANAPPURAM.NS", "Manappuram Finance"),
+    ("cholamandalam", "CHOLAFIN.NS", "Cholamandalam Finance"),
+    ("lic", "LICI.NS", "LIC India"),
     # ── Energy & Power ──────────────────────────────────────────────────────
-    ("ntpc",                    "NTPC.NS",          "NTPC"),
-    ("power grid",              "POWERGRID.NS",     "Power Grid Corp"),
-    ("bhel",                    "BHEL.NS",          "BHEL"),
-    ("ongc",                    "ONGC.NS",          "ONGC"),
-    ("coal india",              "COALINDIA.NS",     "Coal India"),
-    ("indian oil",              "IOC.NS",           "Indian Oil Corp"),
-    ("ioc",                     "IOC.NS",           "Indian Oil Corp"),
-    ("bpcl",                    "BPCL.NS",          "BPCL"),
-    ("hpcl",                    "HPCL.NS",          "HPCL"),
-    ("gail",                    "GAIL.NS",          "GAIL India"),
-    ("petronet",                "PETRONET.NS",      "Petronet LNG"),
-    ("torrent power",           "TORNTPOWER.NS",    "Torrent Power"),
-    ("cesc",                    "CESC.NS",          "CESC"),
-    ("jsw energy",              "JSWENERGY.NS",     "JSW Energy"),
+    ("ntpc", "NTPC.NS", "NTPC"),
+    ("power grid", "POWERGRID.NS", "Power Grid Corp"),
+    ("bhel", "BHEL.NS", "BHEL"),
+    ("ongc", "ONGC.NS", "ONGC"),
+    ("coal india", "COALINDIA.NS", "Coal India"),
+    ("indian oil", "IOC.NS", "Indian Oil Corp"),
+    ("ioc", "IOC.NS", "Indian Oil Corp"),
+    ("bpcl", "BPCL.NS", "BPCL"),
+    ("hpcl", "HPCL.NS", "HPCL"),
+    ("gail", "GAIL.NS", "GAIL India"),
+    ("petronet", "PETRONET.NS", "Petronet LNG"),
+    ("torrent power", "TORNTPOWER.NS", "Torrent Power"),
+    ("cesc", "CESC.NS", "CESC"),
+    ("jsw energy", "JSWENERGY.NS", "JSW Energy"),
     # ── Auto ────────────────────────────────────────────────────────────────
-    ("maruti",                  "MARUTI.NS",        "Maruti Suzuki"),
-    ("hero motocorp",           "HEROMOTOCO.NS",    "Hero MotoCorp"),
-    ("hero moto",               "HEROMOTOCO.NS",    "Hero MotoCorp"),
-    ("mahindra & mahindra",     "M&M.NS",           "Mahindra & Mahindra"),
-    ("mahindra",                "M&M.NS",           "Mahindra & Mahindra"),
-    ("m&m",                     "M&M.NS",           "Mahindra & Mahindra"),
-    ("ashok leyland",           "ASHOKLEY.NS",      "Ashok Leyland"),
-    ("eicher",                  "EICHERMOT.NS",     "Eicher Motors (Royal Enfield)"),
-    ("tvs motor",               "TVSMOTOR.NS",      "TVS Motor"),
-    ("tvs",                     "TVSMOTOR.NS",      "TVS Motor"),
-    ("bosch",                   "BOSCHLTD.NS",      "Bosch India"),
-    ("motherson",               "MOTHERSON.NS",     "Samvardhana Motherson"),
-    ("minda",                   "MINDAIND.NS",      "Minda Industries"),
-    ("exide",                   "EXIDEIND.NS",      "Exide Industries"),
-    ("amara raja",              "AMARAJABAT.NS",    "Amara Raja Energy"),
+    ("maruti", "MARUTI.NS", "Maruti Suzuki"),
+    ("hero motocorp", "HEROMOTOCO.NS", "Hero MotoCorp"),
+    ("hero moto", "HEROMOTOCO.NS", "Hero MotoCorp"),
+    ("mahindra & mahindra", "M&M.NS", "Mahindra & Mahindra"),
+    ("mahindra", "M&M.NS", "Mahindra & Mahindra"),
+    ("m&m", "M&M.NS", "Mahindra & Mahindra"),
+    ("ashok leyland", "ASHOKLEY.NS", "Ashok Leyland"),
+    ("eicher", "EICHERMOT.NS", "Eicher Motors (Royal Enfield)"),
+    ("tvs motor", "TVSMOTOR.NS", "TVS Motor"),
+    ("tvs", "TVSMOTOR.NS", "TVS Motor"),
+    ("bosch", "BOSCHLTD.NS", "Bosch India"),
+    ("motherson", "MOTHERSON.NS", "Samvardhana Motherson"),
+    ("minda", "MINDAIND.NS", "Minda Industries"),
+    ("exide", "EXIDEIND.NS", "Exide Industries"),
+    ("amara raja", "AMARAJABAT.NS", "Amara Raja Energy"),
     # ── Pharma ──────────────────────────────────────────────────────────────
-    ("sun pharma",              "SUNPHARMA.NS",     "Sun Pharma"),
-    ("sun pharmaceutical",      "SUNPHARMA.NS",     "Sun Pharma"),
-    ("dr reddy",                "DRREDDY.NS",       "Dr. Reddy's"),
-    ("cipla",                   "CIPLA.NS",         "Cipla"),
-    ("divi's",                  "DIVISLAB.NS",      "Divi's Laboratories"),
-    ("divis",                   "DIVISLAB.NS",      "Divi's Laboratories"),
-    ("aurobindo",               "AUROPHARMA.NS",    "Aurobindo Pharma"),
-    ("lupin",                   "LUPIN.NS",         "Lupin"),
-    ("torrent pharma",          "TORNTPHARM.NS",    "Torrent Pharma"),
-    ("alkem",                   "ALKEM.NS",         "Alkem Laboratories"),
-    ("biocon",                  "BIOCON.NS",        "Biocon"),
-    ("abbott india",            "ABBOTINDIA.NS",    "Abbott India"),
-    ("pfizer india",            "PFIZER.NS",        "Pfizer India"),
-    ("gland pharma",            "GLAND.NS",         "Gland Pharma"),
-    ("ipca",                    "IPCALAB.NS",       "IPCA Laboratories"),
-    ("laurus",                  "LAURUSLABS.NS",    "Laurus Labs"),
-    ("granules",                "GRANULES.NS",      "Granules India"),
+    ("sun pharma", "SUNPHARMA.NS", "Sun Pharma"),
+    ("sun pharmaceutical", "SUNPHARMA.NS", "Sun Pharma"),
+    ("dr reddy", "DRREDDY.NS", "Dr. Reddy's"),
+    ("cipla", "CIPLA.NS", "Cipla"),
+    ("divi's", "DIVISLAB.NS", "Divi's Laboratories"),
+    ("divis", "DIVISLAB.NS", "Divi's Laboratories"),
+    ("aurobindo", "AUROPHARMA.NS", "Aurobindo Pharma"),
+    ("lupin", "LUPIN.NS", "Lupin"),
+    ("torrent pharma", "TORNTPHARM.NS", "Torrent Pharma"),
+    ("alkem", "ALKEM.NS", "Alkem Laboratories"),
+    ("biocon", "BIOCON.NS", "Biocon"),
+    ("abbott india", "ABBOTINDIA.NS", "Abbott India"),
+    ("pfizer india", "PFIZER.NS", "Pfizer India"),
+    ("gland pharma", "GLAND.NS", "Gland Pharma"),
+    ("ipca", "IPCALAB.NS", "IPCA Laboratories"),
+    ("laurus", "LAURUSLABS.NS", "Laurus Labs"),
+    ("granules", "GRANULES.NS", "Granules India"),
     # ── FMCG ────────────────────────────────────────────────────────────────
-    ("hindustan unilever",      "HINDUNILVR.NS",    "Hindustan Unilever"),
-    ("hul",                     "HINDUNILVR.NS",    "HUL"),
-    ("itc",                     "ITC.NS",           "ITC"),
-    ("nestle india",            "NESTLEIND.NS",     "Nestlé India"),
-    ("nestleind",               "NESTLEIND.NS",     "Nestlé India"),
-    ("nestle",                  "NESTLEIND.NS",     "Nestlé India"),
-    ("asian paints",            "ASIANPAINT.NS",    "Asian Paints"),
-    ("pidilite",                "PIDILITIND.NS",    "Pidilite (Fevicol)"),
-    ("dabur",                   "DABUR.NS",         "Dabur"),
-    ("marico",                  "MARICO.NS",        "Marico"),
-    ("godrej consumer",         "GODREJCP.NS",      "Godrej Consumer Products"),
-    ("godrej industries",       "GODREJIND.NS",     "Godrej Industries"),
-    ("godrej",                  "GODREJCP.NS",      "Godrej Consumer Products"),
-    ("emami",                   "EMAMILTD.NS",      "Emami"),
-    ("britannia",               "BRITANNIA.NS",     "Britannia"),
-    ("tata consumer",           "TATACONSUM.NS",    "Tata Consumer Products"),
-    ("varun beverages",         "VBL.NS",           "Varun Beverages (PepsiCo)"),
-    ("radico",                  "RADICO.NS",        "Radico Khaitan"),
-    ("united spirits",          "MCDOWELL-N.NS",    "United Spirits"),
+    ("hindustan unilever", "HINDUNILVR.NS", "Hindustan Unilever"),
+    ("hul", "HINDUNILVR.NS", "HUL"),
+    ("itc", "ITC.NS", "ITC"),
+    ("nestle india", "NESTLEIND.NS", "Nestlé India"),
+    ("nestleind", "NESTLEIND.NS", "Nestlé India"),
+    ("nestle", "NESTLEIND.NS", "Nestlé India"),
+    ("asian paints", "ASIANPAINT.NS", "Asian Paints"),
+    ("pidilite", "PIDILITIND.NS", "Pidilite (Fevicol)"),
+    ("dabur", "DABUR.NS", "Dabur"),
+    ("marico", "MARICO.NS", "Marico"),
+    ("godrej consumer", "GODREJCP.NS", "Godrej Consumer Products"),
+    ("godrej industries", "GODREJIND.NS", "Godrej Industries"),
+    ("godrej", "GODREJCP.NS", "Godrej Consumer Products"),
+    ("emami", "EMAMILTD.NS", "Emami"),
+    ("britannia", "BRITANNIA.NS", "Britannia"),
+    ("tata consumer", "TATACONSUM.NS", "Tata Consumer Products"),
+    ("varun beverages", "VBL.NS", "Varun Beverages (PepsiCo)"),
+    ("radico", "RADICO.NS", "Radico Khaitan"),
+    ("united spirits", "MCDOWELL-N.NS", "United Spirits"),
     # ── Telecom ─────────────────────────────────────────────────────────────
-    ("bharti airtel",           "BHARTIARTL.NS",    "Bharti Airtel"),
-    ("airtel",                  "BHARTIARTL.NS",    "Bharti Airtel"),
-    ("vodafone idea",           "IDEA.NS",          "Vodafone Idea"),
-    ("vi ",                     "IDEA.NS",          "Vodafone Idea"),
-    ("idea",                    "IDEA.NS",          "Vodafone Idea"),
-    ("indus towers",            "INDUSTOWER.NS",    "Indus Towers"),
+    ("bharti airtel", "BHARTIARTL.NS", "Bharti Airtel"),
+    ("airtel", "BHARTIARTL.NS", "Bharti Airtel"),
+    ("vodafone idea", "IDEA.NS", "Vodafone Idea"),
+    ("vi ", "IDEA.NS", "Vodafone Idea"),
+    ("idea", "IDEA.NS", "Vodafone Idea"),
+    ("indus towers", "INDUSTOWER.NS", "Indus Towers"),
     # ── Cement ──────────────────────────────────────────────────────────────
-    ("ultratech",               "ULTRACEMCO.NS",    "UltraTech Cement"),
-    ("shree cement",            "SHREECEM.NS",      "Shree Cement"),
-    ("acc",                     "ACC.NS",           "ACC Cement"),
-    ("ambuja",                  "AMBUJACEM.NS",     "Ambuja Cement"),
-    ("jk cement",               "JKCEMENT.NS",      "JK Cement"),
-    ("dalmia",                  "DALBHARAT.NS",     "Dalmia Bharat"),
-    ("birla corporation",       "BIRLACORPN.NS",    "Birla Corporation"),
+    ("ultratech", "ULTRACEMCO.NS", "UltraTech Cement"),
+    ("shree cement", "SHREECEM.NS", "Shree Cement"),
+    ("acc", "ACC.NS", "ACC Cement"),
+    ("ambuja", "AMBUJACEM.NS", "Ambuja Cement"),
+    ("jk cement", "JKCEMENT.NS", "JK Cement"),
+    ("dalmia", "DALBHARAT.NS", "Dalmia Bharat"),
+    ("birla corporation", "BIRLACORPN.NS", "Birla Corporation"),
     # ── Steel & Metals ──────────────────────────────────────────────────────
-    ("jsw steel",               "JSWSTEEL.NS",      "JSW Steel"),
-    ("jsw",                     "JSWSTEEL.NS",      "JSW Steel"),
-    ("steel authority",         "SAIL.NS",          "SAIL"),
-    ("sail",                    "SAIL.NS",          "SAIL"),
-    ("hindalco",                "HINDALCO.NS",      "Hindalco"),
-    ("vedanta",                 "VEDL.NS",          "Vedanta"),
-    ("national aluminium",      "NATIONALUM.NS",    "NALCO"),
-    ("nalco",                   "NATIONALUM.NS",    "NALCO"),
-    ("nmdc",                    "NMDC.NS",          "NMDC"),
-    ("hindustan zinc",          "HINDZINC.NS",      "Hindustan Zinc"),
+    ("jsw steel", "JSWSTEEL.NS", "JSW Steel"),
+    ("jsw", "JSWSTEEL.NS", "JSW Steel"),
+    ("steel authority", "SAIL.NS", "SAIL"),
+    ("sail", "SAIL.NS", "SAIL"),
+    ("hindalco", "HINDALCO.NS", "Hindalco"),
+    ("vedanta", "VEDL.NS", "Vedanta"),
+    ("national aluminium", "NATIONALUM.NS", "NALCO"),
+    ("nalco", "NATIONALUM.NS", "NALCO"),
+    ("nmdc", "NMDC.NS", "NMDC"),
+    ("hindustan zinc", "HINDZINC.NS", "Hindustan Zinc"),
     # ── Consumer & Retail ───────────────────────────────────────────────────
-    ("avenue supermarts",       "DMART.NS",         "D-Mart (Avenue Supermarts)"),
-    ("dmart",                   "DMART.NS",         "D-Mart"),
-    ("titan",                   "TITAN.NS",         "Titan Company"),
-    ("trent",                   "TRENT.NS",         "Trent (Westside/Zudio)"),
-    ("kalyan jewellers",        "KALYANKJIL.NS",    "Kalyan Jewellers"),
-    ("senco gold",              "SENCO.NS",         "Senco Gold"),
-    ("pc jeweller",             "PCJEWELLER.NS",    "PC Jeweller"),
-    ("zomato",                  "ZOMATO.NS",        "Zomato"),
-    ("swiggy",                  "SWIGGY.NS",        "Swiggy"),
-    ("nykaa",                   "FSN.NS",           "Nykaa (FSN E-Commerce)"),
-    ("paytm",                   "PAYTM.NS",         "Paytm (One 97 Communications)"),
-    ("policybazaar",            "POLICYBZR.NS",     "PolicyBazaar"),
-    ("cartrade",                "CARTRADE.NS",      "CarTrade Tech"),
-    ("irctc",                   "IRCTC.NS",         "IRCTC"),
-    ("india mart",              "INDIAMART.NS",     "IndiaMART InterMESH"),
-    ("indiamart",               "INDIAMART.NS",     "IndiaMART InterMESH"),
+    ("avenue supermarts", "DMART.NS", "D-Mart (Avenue Supermarts)"),
+    ("dmart", "DMART.NS", "D-Mart"),
+    ("titan", "TITAN.NS", "Titan Company"),
+    ("trent", "TRENT.NS", "Trent (Westside/Zudio)"),
+    ("kalyan jewellers", "KALYANKJIL.NS", "Kalyan Jewellers"),
+    ("senco gold", "SENCO.NS", "Senco Gold"),
+    ("pc jeweller", "PCJEWELLER.NS", "PC Jeweller"),
+    ("zomato", "ZOMATO.NS", "Zomato"),
+    ("swiggy", "SWIGGY.NS", "Swiggy"),
+    ("nykaa", "FSN.NS", "Nykaa (FSN E-Commerce)"),
+    ("paytm", "PAYTM.NS", "Paytm (One 97 Communications)"),
+    ("policybazaar", "POLICYBZR.NS", "PolicyBazaar"),
+    ("cartrade", "CARTRADE.NS", "CarTrade Tech"),
+    ("irctc", "IRCTC.NS", "IRCTC"),
+    ("india mart", "INDIAMART.NS", "IndiaMART InterMESH"),
+    ("indiamart", "INDIAMART.NS", "IndiaMART InterMESH"),
     # ── Infrastructure & Real Estate ────────────────────────────────────────
-    ("larsen",                  "LT.NS",            "L&T (Larsen & Toubro)"),
-    ("l&t",                     "LT.NS",            "L&T"),
-    ("dlf",                     "DLF.NS",           "DLF"),
-    ("godrej properties",       "GODREJPROP.NS",    "Godrej Properties"),
-    ("oberoi realty",           "OBEROIRLTY.NS",    "Oberoi Realty"),
-    ("prestige",                "PRESTIGE.NS",      "Prestige Estates"),
-    ("macrotech",               "LODHA.NS",         "Macrotech (Lodha)"),
-    ("brigade",                 "BRIGADE.NS",       "Brigade Enterprises"),
-    ("irb infra",               "IRB.NS",           "IRB Infrastructure"),
-    ("gmr airports",            "GMRAIRPORT.NS",    "GMR Airports"),
-    ("indian railways",         "IRFC.NS",          "IRFC"),
-    ("irfc",                    "IRFC.NS",          "IRFC"),
-    ("rvnl",                    "RVNL.NS",          "Rail Vikas Nigam"),
+    ("larsen", "LT.NS", "L&T (Larsen & Toubro)"),
+    ("l&t", "LT.NS", "L&T"),
+    ("dlf", "DLF.NS", "DLF"),
+    ("godrej properties", "GODREJPROP.NS", "Godrej Properties"),
+    ("oberoi realty", "OBEROIRLTY.NS", "Oberoi Realty"),
+    ("prestige", "PRESTIGE.NS", "Prestige Estates"),
+    ("macrotech", "LODHA.NS", "Macrotech (Lodha)"),
+    ("brigade", "BRIGADE.NS", "Brigade Enterprises"),
+    ("irb infra", "IRB.NS", "IRB Infrastructure"),
+    ("gmr airports", "GMRAIRPORT.NS", "GMR Airports"),
+    ("indian railways", "IRFC.NS", "IRFC"),
+    ("irfc", "IRFC.NS", "IRFC"),
+    ("rvnl", "RVNL.NS", "Rail Vikas Nigam"),
     # ── Defence & Aerospace ─────────────────────────────────────────────────
-    ("hal",                     "HAL.NS",           "HAL"),
-    ("hindustan aeronautics",   "HAL.NS",           "HAL"),
-    ("bharat electronics",      "BEL.NS",           "BEL"),
-    ("bel",                     "BEL.NS",           "BEL"),
-    ("bharat dynamics",         "BDL.NS",           "Bharat Dynamics"),
-    ("mazagon dock",            "MAZDOCK.NS",       "Mazagon Dock"),
-    ("garden reach",            "GRSE.NS",          "Garden Reach Shipbuilders"),
-    ("cochin shipyard",         "COCHINSHIP.NS",    "Cochin Shipyard"),
+    ("hal", "HAL.NS", "HAL"),
+    ("hindustan aeronautics", "HAL.NS", "HAL"),
+    ("bharat electronics", "BEL.NS", "BEL"),
+    ("bel", "BEL.NS", "BEL"),
+    ("bharat dynamics", "BDL.NS", "Bharat Dynamics"),
+    ("mazagon dock", "MAZDOCK.NS", "Mazagon Dock"),
+    ("garden reach", "GRSE.NS", "Garden Reach Shipbuilders"),
+    ("cochin shipyard", "COCHINSHIP.NS", "Cochin Shipyard"),
     # ── Indices ─────────────────────────────────────────────────────────────
-    ("nifty bank",              "^NSEBANK",         "Nifty Bank Index"),
-    ("nifty 50",                "^NSEI",            "Nifty 50 Index"),
-    ("nifty",                   "^NSEI",            "Nifty 50 Index"),
-    ("sensex",                  "^BSESN",           "BSE Sensex Index"),
+    ("nifty bank", "^NSEBANK", "Nifty Bank Index"),
+    ("nifty 50", "^NSEI", "Nifty 50 Index"),
+    ("nifty", "^NSEI", "Nifty 50 Index"),
+    ("sensex", "^BSESN", "BSE Sensex Index"),
     # ── Crypto ──────────────────────────────────────────────────────────────
-    ("bitcoin",                 "BTC-USD",          "Bitcoin"),
-    ("ethereum",                "ETH-USD",          "Ethereum"),
-    ("btc",                     "BTC-USD",          "Bitcoin"),
-    ("eth",                     "ETH-USD",          "Ethereum"),
-    ("solana",                  "SOL-USD",          "Solana"),
-    ("bnb",                     "BNB-USD",          "BNB"),
-    ("xrp",                     "XRP-USD",          "XRP"),
-    ("dogecoin",                "DOGE-USD",         "Dogecoin"),
-    ("doge",                    "DOGE-USD",         "Dogecoin"),
-    ("shiba",                   "SHIB-USD",         "Shiba Inu"),
+    ("bitcoin", "BTC-USD", "Bitcoin"),
+    ("ethereum", "ETH-USD", "Ethereum"),
+    ("btc", "BTC-USD", "Bitcoin"),
+    ("eth", "ETH-USD", "Ethereum"),
+    ("solana", "SOL-USD", "Solana"),
+    ("bnb", "BNB-USD", "BNB"),
+    ("xrp", "XRP-USD", "XRP"),
+    ("dogecoin", "DOGE-USD", "Dogecoin"),
+    ("doge", "DOGE-USD", "Dogecoin"),
+    ("shiba", "SHIB-USD", "Shiba Inu"),
 ]
 
 
@@ -3204,44 +4246,52 @@ def _yahoo_fetch_price(ticker: str, display_name: str) -> dict | None:
             logger.warning(f"⚠️ [Yahoo] HTTP {resp.status_code} for {ticker}")
             return None
 
-        data   = resp.json()
+        data = resp.json()
         result_list = data.get("chart", {}).get("result")
         if not result_list:
             logger.warning(f"⚠️ [Yahoo] empty result for {ticker}")
             return None
 
-        meta   = result_list[0].get("meta", {})
-        price  = meta.get("regularMarketPrice")
+        meta = result_list[0].get("meta", {})
+        price = meta.get("regularMarketPrice")
         if not price:
             return None
 
         prev_close = meta.get("chartPreviousClose") or meta.get("previousClose") or 0
-        currency   = meta.get("currency", "INR")
-        exchange   = meta.get("exchangeName", "")
-        mkt_state  = meta.get("marketState", "UNKNOWN")
+        currency = meta.get("currency", "INR")
+        exchange = meta.get("exchangeName", "")
+        mkt_state = meta.get("marketState", "UNKNOWN")
 
-        change     = round(price - prev_close, 2) if prev_close else 0
-        change_pct = f"{round((change / prev_close) * 100, 2)}%" if prev_close else "N/A"
-        sign       = "+" if change >= 0 else ""
+        change = round(price - prev_close, 2) if prev_close else 0
+        change_pct = (
+            f"{round((change / prev_close) * 100, 2)}%" if prev_close else "N/A"
+        )
+        sign = "+" if change >= 0 else ""
 
         sym_prefix = "₹" if currency == "INR" else ("$" if currency == "USD" else "")
-        fmt        = lambda v: f"{sym_prefix}{v:,.2f}" if v else "N/A"
+        fmt = lambda v: f"{sym_prefix}{v:,.2f}" if v else "N/A"
 
         return {
-            "tool":         "finance",
-            "source":       "Yahoo Finance (live)",
-            "symbol":       ticker,
+            "tool": "finance",
+            "source": "Yahoo Finance (live)",
+            "symbol": ticker,
             "display_name": display_name,
-            "price":        fmt(price),
-            "change":       f"{sign}{change}",
-            "change_pct":   change_pct,
-            "prev_close":   fmt(prev_close),
-            "currency":     currency,
-            "exchange":     exchange,
+            "price": fmt(price),
+            "change": f"{sign}{change}",
+            "change_pct": change_pct,
+            "prev_close": fmt(prev_close),
+            "currency": currency,
+            "exchange": exchange,
             "market_state": mkt_state,
             "data_quality": "LIVE — fetched right now from Yahoo Finance",
         }
-    except (requests.exceptions.RequestException, KeyError, ValueError, TypeError, IndexError) as e:
+    except (
+        requests.exceptions.RequestException,
+        KeyError,
+        ValueError,
+        TypeError,
+        IndexError,
+    ) as e:
         logger.warning(f"⚠️ [Yahoo] expected failure for {ticker}: {e}")
         return None
     except Exception as e:
@@ -3258,10 +4308,10 @@ def _yahoo_search_ticker(company_name: str) -> tuple[str, str] | tuple[None, Non
     try:
         url = "https://query1.finance.yahoo.com/v1/finance/search"
         params = {
-            "q":            company_name,
-            "quotesCount":  10,
-            "newsCount":    0,
-            "listsCount":   0,
+            "q": company_name,
+            "quotesCount": 10,
+            "newsCount": 0,
+            "listsCount": 0,
             "enableFuzzyQuery": False,
         }
         headers = {
@@ -3281,19 +4331,39 @@ def _yahoo_search_ticker(company_name: str) -> tuple[str, str] | tuple[None, Non
             return None, None
 
         # Priority: NSE equity > BSE equity > other exchanges
-        ns_hit  = next((q for q in quotes if str(q.get("symbol", "")).endswith(".NS")
-                        and q.get("quoteType") == "EQUITY"), None)
-        bo_hit  = next((q for q in quotes if str(q.get("symbol", "")).endswith(".BO")
-                        and q.get("quoteType") == "EQUITY"), None)
+        ns_hit = next(
+            (
+                q
+                for q in quotes
+                if str(q.get("symbol", "")).endswith(".NS")
+                and q.get("quoteType") == "EQUITY"
+            ),
+            None,
+        )
+        bo_hit = next(
+            (
+                q
+                for q in quotes
+                if str(q.get("symbol", "")).endswith(".BO")
+                and q.get("quoteType") == "EQUITY"
+            ),
+            None,
+        )
         any_hit = next((q for q in quotes if q.get("quoteType") == "EQUITY"), None)
 
         best = ns_hit or bo_hit or any_hit or quotes[0]
         symbol = best.get("symbol", "")
-        name   = best.get("longname") or best.get("shortname") or company_name.title()
+        name = best.get("longname") or best.get("shortname") or company_name.title()
         logger.info(f"🔎 [Yahoo Search] '{company_name}' → {symbol} ({name})")
         return symbol, name
 
-    except (requests.exceptions.RequestException, KeyError, ValueError, TypeError, IndexError) as e:
+    except (
+        requests.exceptions.RequestException,
+        KeyError,
+        ValueError,
+        TypeError,
+        IndexError,
+    ) as e:
         logger.warning(f"⚠️ [Yahoo Search] expected failure: {e}")
         return None, None
     except Exception as e:
@@ -3317,11 +4387,11 @@ def tool_finance(prompt: str) -> dict:
     lower = prompt.lower()
 
     # ── Step 1: Known ticker map (longest match wins) ────────────────────────
-    ticker       = None
+    ticker = None
     display_name = None
     for keyword, symbol, name in KNOWN_TICKERS:
         if keyword in lower:
-            ticker       = symbol
+            ticker = symbol
             display_name = name
             logger.info(f"✅ [Finance] known map hit: '{keyword}' → {symbol}")
             break
@@ -3330,13 +4400,15 @@ def tool_finance(prompt: str) -> dict:
     if not ticker:
         # Extract company name from prompt — strip finance keywords
         company_raw = re.sub(
-            r'\b(share price|stock price|price today|current price|nse|bse|'
-            r'today|live|what is|what\'s|the|of|for|tell me|how much|'
-            r'share|stock|market)\b',
-            " ", lower, flags=re.IGNORECASE
+            r"\b(share price|stock price|price today|current price|nse|bse|"
+            r"today|live|what is|what\'s|the|of|for|tell me|how much|"
+            r"share|stock|market)\b",
+            " ",
+            lower,
+            flags=re.IGNORECASE,
         ).strip()
         # Clean up extra spaces
-        company_raw = re.sub(r'\s+', ' ', company_raw).strip(" ?.,!")
+        company_raw = re.sub(r"\s+", " ", company_raw).strip(" ?.,!")
 
         if company_raw and len(company_raw) >= 2:
             logger.info(f"🔎 [Finance] searching Yahoo for: '{company_raw}'")
@@ -3346,7 +4418,9 @@ def tool_finance(prompt: str) -> dict:
     if ticker:
         result = _yahoo_fetch_price(ticker, display_name or ticker)
         if result:
-            logger.info(f"✅ [Finance] Yahoo live price: {display_name} ({ticker}) = {result['price']}")
+            logger.info(
+                f"✅ [Finance] Yahoo live price: {display_name} ({ticker}) = {result['price']}"
+            )
             return result
         # Ticker found but price fetch failed — try .NS variant if we have .BO
         if ticker.endswith(".BO"):
@@ -3358,23 +4432,30 @@ def tool_finance(prompt: str) -> dict:
     # ── Step 4: Alpha Vantage (US stocks only, if key is set) ────────────────
     if ALPHAVANTAGE_KEY and ticker and not ticker.endswith((".NS", ".BO")):
         try:
-            url   = (f"https://www.alphavantage.co/query"
-                     f"?function=GLOBAL_QUOTE&symbol={ticker}&apikey={ALPHAVANTAGE_KEY}")
-            resp  = _http.get(url, timeout=8)
+            url = (
+                f"https://www.alphavantage.co/query"
+                f"?function=GLOBAL_QUOTE&symbol={ticker}&apikey={ALPHAVANTAGE_KEY}"
+            )
+            resp = _http.get(url, timeout=8)
             quote = resp.json().get("Global Quote", {})
             if quote and quote.get("05. price"):
                 return {
-                    "tool":         "finance",
-                    "source":       "Alpha Vantage (live)",
-                    "symbol":       quote.get("01. symbol", ticker),
+                    "tool": "finance",
+                    "source": "Alpha Vantage (live)",
+                    "symbol": quote.get("01. symbol", ticker),
                     "display_name": display_name or ticker,
-                    "price":        quote.get("05. price", "N/A"),
-                    "change":       quote.get("09. change", "N/A"),
-                    "change_pct":   quote.get("10. change percent", "N/A"),
-                    "prev_close":   quote.get("08. previous close", "N/A"),
+                    "price": quote.get("05. price", "N/A"),
+                    "change": quote.get("09. change", "N/A"),
+                    "change_pct": quote.get("10. change percent", "N/A"),
+                    "prev_close": quote.get("08. previous close", "N/A"),
                     "data_quality": "LIVE — fetched right now from Alpha Vantage",
                 }
-        except (requests.exceptions.RequestException, KeyError, ValueError, TypeError) as e:
+        except (
+            requests.exceptions.RequestException,
+            KeyError,
+            ValueError,
+            TypeError,
+        ) as e:
             logger.warning(f"⚠️ [Finance] Alpha Vantage expected failure: {e}")
         except Exception as e:
             _log_unexpected("Finance Alpha Vantage", e)
@@ -3384,11 +4465,13 @@ def tool_finance(prompt: str) -> dict:
     # that the LLM will hallucinate as live data. Instead, return a clear signal
     # telling the model to refuse to quote any price.
     logger.warning("⚠️ [Finance] all APIs failed — returning price_unavailable")
-    searched_name = display_name or (company_raw if 'company_raw' in locals() else prompt[:60])
+    searched_name = display_name or (
+        company_raw if "company_raw" in locals() else prompt[:60]
+    )
     return {
-        "tool":              "finance",
+        "tool": "finance",
         "price_unavailable": True,
-        "searched_name":     searched_name,
+        "searched_name": searched_name,
     }
 
 
@@ -3404,7 +4487,7 @@ def tool_news(prompt: str) -> dict:
 
     # Extract topic
     topic_match = re.search(
-        r'news (?:about|on|regarding|of) (.+?)(?:\?|$)', prompt, re.IGNORECASE
+        r"news (?:about|on|regarding|of) (.+?)(?:\?|$)", prompt, re.IGNORECASE
     )
     topic = topic_match.group(1).strip() if topic_match else None
 
@@ -3439,10 +4522,15 @@ def tool_news(prompt: str) -> dict:
                 "url": a.get("link", ""),
                 "published": a.get("pubDate", ""),
             }
-            for a in articles if a.get("title")
+            for a in articles
+            if a.get("title")
         ]
 
-        result = {"tool": "news", "topic": topic or "Top Headlines", "articles": headlines}
+        result = {
+            "tool": "news",
+            "topic": topic or "Top Headlines",
+            "articles": headlines,
+        }
         logger.info(f"✅ [TOOL] news success: {len(headlines)} articles")
         return result
 
@@ -3467,13 +4555,15 @@ def tool_sports(prompt: str) -> dict:
     logger.info(f"🏏 [TOOL] sports | prompt: {prompt[:80]}")
 
     lower = prompt.lower()
-    is_cricket = any(k in lower for k in ["cricket", "ipl", "test match", "odi", "t20", "bcci"])
+    is_cricket = any(
+        k in lower for k in ["cricket", "ipl", "test match", "odi", "t20", "bcci"]
+    )
 
     if is_cricket and CRICAPI_KEY:
         try:
             resp = _http.get(
                 f"https://api.cricapi.com/v1/currentMatches?apikey={CRICAPI_KEY}&offset=0",
-                timeout=8
+                timeout=8,
             )
             data = resp.json()
 
@@ -3481,19 +4571,28 @@ def tool_sports(prompt: str) -> dict:
                 matches = data.get("data", [])[:4]
                 live_matches = []
                 for m in matches:
-                    live_matches.append({
-                        "name": m.get("name", ""),
-                        "status": m.get("status", ""),
-                        "score": m.get("score", []),
-                        "teams": m.get("teams", []),
-                        "match_type": m.get("matchType", ""),
-                        "venue": m.get("venue", ""),
-                    })
+                    live_matches.append(
+                        {
+                            "name": m.get("name", ""),
+                            "status": m.get("status", ""),
+                            "score": m.get("score", []),
+                            "teams": m.get("teams", []),
+                            "match_type": m.get("matchType", ""),
+                            "venue": m.get("venue", ""),
+                        }
+                    )
 
                 result = {"tool": "sports", "sport": "cricket", "matches": live_matches}
-                logger.info(f"✅ [TOOL] sports (cricket) success: {len(live_matches)} matches")
+                logger.info(
+                    f"✅ [TOOL] sports (cricket) success: {len(live_matches)} matches"
+                )
                 return result
-        except (requests.exceptions.RequestException, KeyError, ValueError, TypeError) as e:
+        except (
+            requests.exceptions.RequestException,
+            KeyError,
+            ValueError,
+            TypeError,
+        ) as e:
             logger.warning(f"⚠️ [TOOL] cricket API expected failure: {e}")
         except Exception as e:
             _log_unexpected("TOOL sports cricket", e)
@@ -3529,9 +4628,9 @@ def _ddg_search(query: str, max_results: int = 5) -> list:
                     "api_key": TAVILY_API_KEY,
                     "query": query,
                     "max_results": max_results,
-                    "include_answer": True,        # asks Tavily to synthesize a direct answer
+                    "include_answer": True,  # asks Tavily to synthesize a direct answer
                     "include_raw_content": False,
-                    "search_depth": "basic",       # "advanced" uses 2x credits — basic is enough
+                    "search_depth": "basic",  # "advanced" uses 2x credits — basic is enough
                     "include_domains": [],
                     "exclude_domains": [],
                 },
@@ -3543,31 +4642,52 @@ def _ddg_search(query: str, max_results: int = 5) -> list:
 
                 # Prepend Tavily's direct answer as a synthetic top result
                 if data.get("answer"):
-                    results.append({
-                        "title": "Direct Answer",
-                        "body": data["answer"],
-                        "href": "",
-                        "query_used": query,
-                        "is_direct_answer": True,
-                    })
+                    results.append(
+                        {
+                            "title": "Direct Answer",
+                            "body": data["answer"],
+                            "href": "",
+                            "query_used": query,
+                            "is_direct_answer": True,
+                        }
+                    )
 
                 for r in data.get("results", []):
-                    results.append({
-                        "title": r.get("title", ""),
-                        "body": (r.get("content", "") or "")[:400],
-                        "href": r.get("url", ""),
-                        "query_used": query,
-                    })
+                    results.append(
+                        {
+                            "title": r.get("title", ""),
+                            "body": (r.get("content", "") or "")[:400],
+                            "href": r.get("url", ""),
+                            "query_used": query,
+                        }
+                    )
 
-                logger.info(f"✅ [Tavily] '{query}' → {len(results)} results"
-                      + (f" | direct answer: {data['answer'][:80]}" if data.get("answer") else ""))
-                return results[:max_results + 1]  # +1 to account for the direct answer prepend
+                logger.info(
+                    f"✅ [Tavily] '{query}' → {len(results)} results"
+                    + (
+                        f" | direct answer: {data['answer'][:80]}"
+                        if data.get("answer")
+                        else ""
+                    )
+                )
+                return results[
+                    : max_results + 1
+                ]  # +1 to account for the direct answer prepend
 
             else:
-                logger.warning(f"⚠️ [Tavily] HTTP {resp.status_code} for '{query}' — falling back to DDG")
+                logger.warning(
+                    f"⚠️ [Tavily] HTTP {resp.status_code} for '{query}' — falling back to DDG"
+                )
 
-        except (requests.exceptions.RequestException, KeyError, ValueError, TypeError) as e:
-            logger.warning(f"⚠️ [Tavily] expected failure for '{query}': {e} — falling back to DDG")
+        except (
+            requests.exceptions.RequestException,
+            KeyError,
+            ValueError,
+            TypeError,
+        ) as e:
+            logger.warning(
+                f"⚠️ [Tavily] expected failure for '{query}': {e} — falling back to DDG"
+            )
         except Exception as e:
             _log_unexpected(f"Tavily search ({query!r})", e)
 
@@ -3582,7 +4702,8 @@ def _ddg_search(query: str, max_results: int = 5) -> list:
                 "href": r.get("href", ""),
                 "query_used": query,
             }
-            for r in raw if r.get("title")
+            for r in raw
+            if r.get("title")
         ]
         logger.info(f"✅ [DDG fallback] '{query}' → {len(results)} results")
         return results
@@ -3606,10 +4727,10 @@ def _build_smart_queries(original_query: str) -> list[str]:
 
     # Political / government positions → add recency + official source queries
     political_patterns = [
-        r'\b(cm|chief minister|prime minister|president|governor|minister)\b',
-        r'\b(mayor|mla|mp|senator|chancellor|premier|ceo|director|chairman)\b',
-        r'\b(who (is|are|was|won|became|got elected|was elected|was appointed))\b',
-        r'\b(election|elected|appointed|result|winner)\b',
+        r"\b(cm|chief minister|prime minister|president|governor|minister)\b",
+        r"\b(mayor|mla|mp|senator|chancellor|premier|ceo|director|chairman)\b",
+        r"\b(who (is|are|was|won|became|got elected|was elected|was appointed))\b",
+        r"\b(election|elected|appointed|result|winner)\b",
     ]
     is_political = any(re.search(p, lower) for p in political_patterns)
 
@@ -3620,14 +4741,18 @@ def _build_smart_queries(original_query: str) -> list[str]:
         queries.append("latest " + lower)
 
     # Current events / news → add date-qualified query
-    elif any(w in lower for w in ["now", "today", "current", "latest", "new", "recent"]):
+    elif any(
+        w in lower for w in ["now", "today", "current", "latest", "new", "recent"]
+    ):
         queries.append(lower + " 2025")
         # Add a news-specific query
         if not lower.startswith("news"):
             queries.append("news " + lower)
 
     # Factual lookups → add Wikipedia + authoritative source query
-    elif any(w in lower for w in ["what is", "who is", "when was", "where is", "how does"]):
+    elif any(
+        w in lower for w in ["what is", "who is", "when was", "where is", "how does"]
+    ):
         queries.append(lower + " explained")
         queries.append(lower + " official")
 
@@ -3657,16 +4782,25 @@ def tool_web_search(query: str, max_results: int = 5) -> dict:
     if PRODUCTION_SEARCH_ENABLED:
         try:
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as _pool:
                 future = _pool.submit(run_production_search, query)
-                result = future.result(timeout=30)   # 30s wall-clock max for whole pipeline
+                result = future.result(
+                    timeout=30
+                )  # 30s wall-clock max for whole pipeline
             if result.get("results"):
                 result["tool"] = "web_search"
-                logger.info(f"✅ [TOOL] Production search: {result['result_count']} results")
+                logger.info(
+                    f"✅ [TOOL] Production search: {result['result_count']} results"
+                )
                 return result
-            logger.warning("⚠️ [TOOL] Production search returned no results — falling back")
+            logger.warning(
+                "⚠️ [TOOL] Production search returned no results — falling back"
+            )
         except concurrent.futures.TimeoutError:
-            logger.warning("⚠️ [TOOL] Production search timed out after 30s — falling back")
+            logger.warning(
+                "⚠️ [TOOL] Production search timed out after 30s — falling back"
+            )
         except Exception as _pe:
             _log_unexpected("TOOL Production search", _pe)
 
@@ -3674,7 +4808,7 @@ def tool_web_search(query: str, max_results: int = 5) -> dict:
     logger.info("🔁 [TOOL] Using legacy search fallback")
     smart_queries = _build_smart_queries(query)
     all_results = []
-    seen_urls   = set()
+    seen_urls = set()
 
     for q in smart_queries:
         batch = _ddg_search(q, max_results=max_results)
@@ -3687,18 +4821,18 @@ def tool_web_search(query: str, max_results: int = 5) -> dict:
             break
 
     primary_results = [r for r in all_results if r.get("query_used", "") == query]
-    supplemental    = [r for r in all_results if r.get("query_used", "") != query]
-    final_results   = (primary_results + supplemental)[:10]
+    supplemental = [r for r in all_results if r.get("query_used", "") != query]
+    final_results = (primary_results + supplemental)[:10]
 
     logger.info(f"✅ [TOOL] Legacy search: {len(final_results)} results")
     return {
-        "tool":           "web_search",
-        "query":          query,
-        "queries_run":    smart_queries,
-        "result_count":   len(final_results),
-        "results":        final_results,
-        "citations":      {},
-        "search_engine":  "legacy",
+        "tool": "web_search",
+        "query": query,
+        "queries_run": smart_queries,
+        "result_count": len(final_results),
+        "results": final_results,
+        "citations": {},
+        "search_engine": "legacy",
     }
 
 
@@ -3712,13 +4846,15 @@ def tool_wikipedia(prompt: str) -> dict:
     result = search_wikipedia(prompt)
 
     if result["found"]:
-        return result  # {"tool": "wikipedia", "found": True, "title": ..., "context": ...}
+        return (
+            result  # {"tool": "wikipedia", "found": True, "title": ..., "context": ...}
+        )
 
     # Fallback: Wikipedia had no useful answer — use web search silently
     reason = result.get("reason", "")
     logger.info(f"⚡ [Wiki→Web] fallback reason='{reason}' — running web_search")
     web_result = tool_web_search(prompt)
-    web_result["wiki_fallback"] = True   # flag so context builder knows
+    web_result["wiki_fallback"] = True  # flag so context builder knows
     return web_result
 
 
@@ -3741,7 +4877,9 @@ def build_sources_payload(tool_result: dict) -> str | None:
             if payload:
                 return payload
         except (KeyError, TypeError, ValueError) as e:
-            logger.info(f"[sources payload] production payload build failed, using legacy: {e}")
+            logger.info(
+                f"[sources payload] production payload build failed, using legacy: {e}"
+            )
 
     # ── Legacy: build from results list ──────────────────────────────────────
     results = tool_result.get("results", [])
@@ -3749,21 +4887,24 @@ def build_sources_payload(tool_result: dict) -> str | None:
         return None
     sources = []
     for r in results[:8]:  # up to 8 sources
-        url   = r.get("href", "") or r.get("url", "")
+        url = r.get("href", "") or r.get("url", "")
         title = r.get("title", "") or r.get("name", "")
         if url:
             try:
                 from urllib.parse import urlparse
+
                 domain = urlparse(url).netloc.replace("www.", "")
             except (ValueError, AttributeError):
                 domain = url
-            sources.append({
-                "url":    url,
-                "title":  title or domain,
-                "domain": domain,
-                "num":    r.get("citation_num"),
-                "trust":  r.get("trust_score", 50),
-            })
+            sources.append(
+                {
+                    "url": url,
+                    "title": title or domain,
+                    "domain": domain,
+                    "num": r.get("citation_num"),
+                    "trust": r.get("trust_score", 50),
+                }
+            )
     if not sources:
         return None
     return json.dumps({"sources": sources})
@@ -3775,13 +4916,20 @@ def run_tool(intent: str, prompt: str) -> dict | None:
     Returns tool output dict, or None for 'general' (no tool needed).
     """
     logger.info(f"🗺️ [ROUTER] intent={intent}")
-    if intent == "clock":        return tool_clock(prompt)
-    if intent == "weather":     return tool_weather(prompt)
-    if intent == "finance":     return tool_finance(prompt)
-    if intent == "news":        return tool_news(prompt)
-    if intent == "sports":      return tool_sports(prompt)
-    if intent == "wikipedia":   return tool_wikipedia(prompt)
-    if intent == "web_search":  return tool_web_search(prompt)
+    if intent == "clock":
+        return tool_clock(prompt)
+    if intent == "weather":
+        return tool_weather(prompt)
+    if intent == "finance":
+        return tool_finance(prompt)
+    if intent == "news":
+        return tool_news(prompt)
+    if intent == "sports":
+        return tool_sports(prompt)
+    if intent == "wikipedia":
+        return tool_wikipedia(prompt)
+    if intent == "web_search":
+        return tool_web_search(prompt)
     return None  # general — no tool
 
 
@@ -3797,7 +4945,9 @@ def build_tool_context(tool_result: dict) -> str:
         return ""
 
     tool = tool_result.get("tool", "")
-    lines = [f"📡 LIVE DATA FROM TOOL [{tool.upper()}] — use this to answer accurately:\n"]
+    lines = [
+        f"📡 LIVE DATA FROM TOOL [{tool.upper()}] — use this to answer accurately:\n"
+    ]
 
     if tool == "clock":
         lines += [
@@ -3863,8 +5013,10 @@ def build_tool_context(tool_result: dict) -> str:
         lines.append(f"Topic: {tool_result['topic']}")
         for i, a in enumerate(tool_result.get("articles", []), 1):
             lines.append(f"\n{i}. {a['title']}")
-            if a["summary"]: lines.append(f"   {a['summary']}")
-            if a["published"]: lines.append(f"   Date: {a['published']}")
+            if a["summary"]:
+                lines.append(f"   {a['summary']}")
+            if a["published"]:
+                lines.append(f"   Date: {a['published']}")
         lines.append(
             "\n📌 INSTRUCTION: Summarize the news above clearly. "
             "Do NOT mention source names, URLs, or outlet names in your reply. "
@@ -3879,7 +5031,9 @@ def build_tool_context(tool_result: dict) -> str:
             lines.append(f"  Status: {m['status']}")
             lines.append(f"  Venue: {m.get('venue', 'N/A')}")
             for s in m.get("score", []):
-                lines.append(f"  Score: {s.get('inning', '')} — {s.get('r', 0)}/{s.get('w', 0)} in {s.get('o', 0)} overs")
+                lines.append(
+                    f"  Score: {s.get('inning', '')} — {s.get('r', 0)}/{s.get('w', 0)} in {s.get('o', 0)} overs"
+                )
 
     elif tool == "wikipedia":
         if tool_result.get("found"):
@@ -3902,7 +5056,9 @@ def build_tool_context(tool_result: dict) -> str:
         idx = 1
         for r in tool_result.get("results", []):
             if r.get("is_direct_answer"):
-                lines.append("\n⭐ DIRECT ANSWER (Tavily AI synthesis — treat as highest-confidence source):")
+                lines.append(
+                    "\n⭐ DIRECT ANSWER (Tavily AI synthesis — treat as highest-confidence source):"
+                )
                 lines.append(f"   {r['body']}")
             else:
                 lines.append(f"\n{idx}. {r['title']}")
@@ -3912,23 +5068,34 @@ def build_tool_context(tool_result: dict) -> str:
 
     elif tool == "web_search":
         # ── Production engine: use dedicated rich context builder ─────────────
-        if PRODUCTION_SEARCH_ENABLED and tool_result.get("search_engine") == "production":
+        if (
+            PRODUCTION_SEARCH_ENABLED
+            and tool_result.get("search_engine") == "production"
+        ):
             prod_context = build_production_search_context(tool_result)
             if prod_context:
-                return prod_context   # production builder handles everything
+                return prod_context  # production builder handles everything
 
         # ── Legacy fallback context (Tavily/DDG) ──────────────────────────────
         queries_run = tool_result.get("queries_run", [tool_result.get("query", "")])
         lines.append(f"Primary search: {tool_result['query']}")
         if len(queries_run) > 1:
             lines.append(f"Also searched: {' | '.join(queries_run[1:])}")
-        lines.append(f"Total unique results: {tool_result.get('result_count', len(tool_result.get('results', [])))}\n")
+        lines.append(
+            f"Total unique results: {tool_result.get('result_count', len(tool_result.get('results', [])))}\n"
+        )
 
         result_index = 1
         for r in tool_result.get("results", []):
-            q_tag = f" [via: {r.get('query_used','')}]" if r.get("query_used") and r["query_used"] != tool_result["query"] else ""
+            q_tag = (
+                f" [via: {r.get('query_used','')}]"
+                if r.get("query_used") and r["query_used"] != tool_result["query"]
+                else ""
+            )
             if r.get("is_direct_answer"):
-                lines.append("⭐ DIRECT ANSWER (Tavily AI synthesis — treat as highest-confidence source):")
+                lines.append(
+                    "⭐ DIRECT ANSWER (Tavily AI synthesis — treat as highest-confidence source):"
+                )
                 lines.append(f"   {r['body']}")
                 lines.append("")
             else:
@@ -4008,12 +5175,15 @@ async def delete_account(request: Request):
         # Verify the token and get the user ID using the regular client
         try:
             user_resp = await _db(supabase.auth.get_user, token)
-            user_id   = user_resp.user.id
+            user_id = user_resp.user.id
         except Exception as e:
             # Any failure validating the token here means "not authenticated" —
             # gotrue doesn't expose a stable exception type across versions.
             logger.info(f"[DELETE_ACCOUNT] Auth verification failed: {e}")
-            return JSONResponse({"error": "Auth verification failed. Please sign in again."}, status_code=401)
+            return JSONResponse(
+                {"error": "Auth verification failed. Please sign in again."},
+                status_code=401,
+            )
 
         if not user_id:
             return JSONResponse({"error": "Could not identify user"}, status_code=401)
@@ -4022,24 +5192,28 @@ async def delete_account(request: Request):
         service_key = os.getenv("SUPABASE_SERVICE_KEY", "")
         if not service_key:
             return JSONResponse(
-                {"error": "Account deletion is not configured yet. Please contact support."},
-                status_code=501
+                {
+                    "error": "Account deletion is not configured yet. Please contact support."
+                },
+                status_code=501,
             )
 
         admin_resp = await _db(
             _http.delete,
             f"{SUPABASE_URL}/auth/v1/admin/users/{user_id}",
             headers={
-                "apikey":        service_key,
+                "apikey": service_key,
                 "Authorization": f"Bearer {service_key}",
-                "Content-Type":  "application/json",
+                "Content-Type": "application/json",
             },
             timeout=10,
         )
 
         if admin_resp.status_code in (200, 204):
             logger.info(f"✅ [DELETE_ACCOUNT] User {user_id} deleted successfully")
-            return JSONResponse({"success": True, "message": "Account deleted successfully"})
+            return JSONResponse(
+                {"success": True, "message": "Account deleted successfully"}
+            )
         else:
             err = admin_resp.json().get("message", f"HTTP {admin_resp.status_code}")
             logger.error(f"❌ [DELETE_ACCOUNT] Failed for {user_id}: {err}")
@@ -4047,7 +5221,9 @@ async def delete_account(request: Request):
 
     except Exception as e:
         _log_unexpected("DELETE_ACCOUNT", e)
-        return JSONResponse({"error": _client_safe_error(e, "DELETE_ACCOUNT")}, status_code=500)
+        return JSONResponse(
+            {"error": _client_safe_error(e, "DELETE_ACCOUNT")}, status_code=500
+        )
 
 
 # ============================================================
@@ -4073,7 +5249,9 @@ HANDOFF_CONTINUE_PROMPT = (
 )
 
 
-def call_openrouter_stream(model_id, messages, api_key, file_urls=None, vision_images=None):
+def call_openrouter_stream(
+    model_id, messages, api_key, file_urls=None, vision_images=None
+):
     """
     Call OpenRouter streaming.
     - Text/code/PDF content is already injected into `messages` by the caller.
@@ -4094,10 +5272,14 @@ def call_openrouter_stream(model_id, messages, api_key, file_urls=None, vision_i
                 content_blocks = []
 
                 for img in vision_images:
-                    content_blocks.append({
-                        "type": "image_url",
-                        "image_url": {"url": f"data:{img['mime']};base64,{img['b64']}"}
-                    })
+                    content_blocks.append(
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{img['mime']};base64,{img['b64']}"
+                            },
+                        }
+                    )
 
                 text_str = original_content if isinstance(original_content, str) else ""
                 if not text_str:
@@ -4119,14 +5301,22 @@ def call_openrouter_stream(model_id, messages, api_key, file_urls=None, vision_i
                 "stream": True,
                 "temperature": 1.0,
                 "max_completion_tokens": 33000,
-                "max_tokens": 33000,   # optional compatibility
-                **({"provider": {"order": ["OpenAI"], "allow_fallbacks": True}} if "gpt-oss" in model_id else {}),
+                "max_tokens": 33000,  # optional compatibility
+                **(
+                    {"provider": {"order": ["OpenAI"], "allow_fallbacks": True}}
+                    if "gpt-oss" in model_id
+                    else {}
+                ),
                 # ✅ Cohere North Mini Code and Ling-3.0-flash are reasoning/thinking
                 # models — OpenRouter only runs the thinking pass when a "reasoning"
                 # object is explicitly sent. Ling-3.0-flash is a hybrid-reasoning model
                 # (thinking + non-thinking modes); "enabled": True turns thinking on.
                 # Scoped to these models only; no other model gets this field.
-                **({"reasoning": {"enabled": True}} if ("north-mini-code" in model_id or "ling-3.0-flash" in model_id) else {}),
+                **(
+                    {"reasoning": {"enabled": True}}
+                    if ("north-mini-code" in model_id or "ling-3.0-flash" in model_id)
+                    else {}
+                ),
             },
             stream=True,
             timeout=(10, 90),
@@ -4134,7 +5324,9 @@ def call_openrouter_stream(model_id, messages, api_key, file_urls=None, vision_i
         if resp.status_code != 200:
             try:
                 err_body = resp.json()
-                err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
+                err_msg = err_body.get("error", {}).get(
+                    "message", f"HTTP {resp.status_code}"
+                )
             except (ValueError, KeyError, AttributeError):
                 err_msg = f"HTTP {resp.status_code}"
             return None, err_msg
@@ -4168,10 +5360,7 @@ def call_gemini_stream(messages, system_prompt):
             if role == "system":
                 continue  # handled via system_instruction
             gemini_role = "user" if role == "user" else "model"
-            contents.append({
-                "role": gemini_role,
-                "parts": [{"text": msg["content"]}]
-            })
+            contents.append({"role": gemini_role, "parts": [{"text": msg["content"]}]})
 
         payload = {
             "system_instruction": {"parts": [{"text": system_prompt}]},
@@ -4179,7 +5368,7 @@ def call_gemini_stream(messages, system_prompt):
             "generationConfig": {
                 "temperature": 1.0,
                 "maxOutputTokens": 16000,
-            }
+            },
         }
 
         url = (
@@ -4199,7 +5388,9 @@ def call_gemini_stream(messages, system_prompt):
         if resp.status_code != 200:
             try:
                 err_body = resp.json()
-                err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
+                err_msg = err_body.get("error", {}).get(
+                    "message", f"HTTP {resp.status_code}"
+                )
             except (ValueError, KeyError, AttributeError):
                 err_msg = f"HTTP {resp.status_code}"
             return None, err_msg
@@ -4233,10 +5424,7 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
             if role == "system":
                 continue
             gemini_role = "user" if role == "user" else "model"
-            contents.append({
-                "role": gemini_role,
-                "parts": [{"text": msg["content"]}]
-            })
+            contents.append({"role": gemini_role, "parts": [{"text": msg["content"]}]})
         # NOTE: thinkingConfig is a Gemini-only field. Gemma 4 models
         # (gemma-4-31b-it / gemma-4-26b-a4b-it) control reasoning via a
         # <|think|> token baked into the prompt/model, not this API param.
@@ -4291,7 +5479,9 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
                 last_err = "Request timed out"
                 continue
             except requests.exceptions.RequestException as e:
-                logger.warning(f"⚠️ [call_gemma_google_stream] network error (attempt {attempt + 1}): {e}")
+                logger.warning(
+                    f"⚠️ [call_gemma_google_stream] network error (attempt {attempt + 1}): {e}"
+                )
                 last_err = _client_safe_error(e, "call_gemma_google_stream")
                 continue
             except Exception as e:
@@ -4304,7 +5494,9 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
 
             try:
                 err_body = resp.json()
-                last_err = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
+                last_err = err_body.get("error", {}).get(
+                    "message", f"HTTP {resp.status_code}"
+                )
             except (ValueError, KeyError, AttributeError):
                 last_err = f"HTTP {resp.status_code}"
 
@@ -4323,6 +5515,7 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
     except Exception as e:
         _log_unexpected("call_gemma_google_stream", e)
         return None, _client_safe_error(e, "call_gemma_google_stream")
+
 
 # ============================================================
 # ✅ HELPER: Call Groq with streaming — OpenAI-compatible
@@ -4356,7 +5549,9 @@ def call_groq_stream(messages, api_key):
         if resp.status_code != 200:
             try:
                 err_body = resp.json()
-                err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
+                err_msg = err_body.get("error", {}).get(
+                    "message", f"HTTP {resp.status_code}"
+                )
             except (ValueError, KeyError, AttributeError):
                 err_msg = f"HTTP {resp.status_code}"
             return None, err_msg
@@ -4436,23 +5631,31 @@ def _call_poolside_with_fallback(messages, api_key, model_candidates, label):
 
         if resp.status_code == 200:
             if i > 0:
-                logger.info(f"✅ [{label}] connected using fallback model id '{model_id}' "
-                            f"(candidate #{i + 1}/{len(model_candidates)}) — "
-                            f"consider updating the primary model id in code.")
+                logger.info(
+                    f"✅ [{label}] connected using fallback model id '{model_id}' "
+                    f"(candidate #{i + 1}/{len(model_candidates)}) — "
+                    f"consider updating the primary model id in code."
+                )
             return resp, None
 
         # Pull Poolside's real error body so failures are diagnosable, not just "HTTP 404"
         try:
             err_body = resp.json()
             err_msg = (
-                err_body.get("error", {}).get("message")
-                if isinstance(err_body.get("error"), dict)
-                else err_body.get("error")
-            ) or err_body.get("message") or f"HTTP {resp.status_code}"
+                (
+                    err_body.get("error", {}).get("message")
+                    if isinstance(err_body.get("error"), dict)
+                    else err_body.get("error")
+                )
+                or err_body.get("message")
+                or f"HTTP {resp.status_code}"
+            )
         except (ValueError, KeyError, AttributeError):
             err_msg = f"HTTP {resp.status_code}"
 
-        logger.warning(f"⚠️ [{label}] model id '{model_id}' rejected ({resp.status_code}): {err_msg}")
+        logger.warning(
+            f"⚠️ [{label}] model id '{model_id}' rejected ({resp.status_code}): {err_msg}"
+        )
         last_err = f"HTTP {resp.status_code} — {err_msg} (model id tried: {model_id})"
 
         if resp.status_code not in (400, 404):
@@ -4466,7 +5669,8 @@ def _call_poolside_with_fallback(messages, api_key, model_candidates, label):
 def call_poolside_laguna_core_stream(messages, api_key):
     """Laguna XS 2.1 via Poolside. Tries known model-id spellings in order."""
     return _call_poolside_with_fallback(
-        messages, api_key,
+        messages,
+        api_key,
         ["poolside/laguna-xs-2.1", "poolside/Laguna-XS-2.1"],
         "Laguna Core",
     )
@@ -4475,7 +5679,8 @@ def call_poolside_laguna_core_stream(messages, api_key):
 def call_poolside_laguna_s_stream(messages, api_key):
     """Laguna S 2.1 via Poolside. Tries known model-id spellings in order."""
     return _call_poolside_with_fallback(
-        messages, api_key,
+        messages,
+        api_key,
         ["poolside/laguna-s-2.1", "poolside/Laguna-S-2.1"],
         "Laguna S",
     )
@@ -4533,7 +5738,9 @@ def call_sambhav_groq_stream(messages, api_key, max_completion_tokens=12000):
         if resp.status_code != 200:
             try:
                 err_body = resp.json()
-                err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
+                err_msg = err_body.get("error", {}).get(
+                    "message", f"HTTP {resp.status_code}"
+                )
                 err_code = err_body.get("error", {}).get("code", "")
             except (ValueError, KeyError, AttributeError):
                 err_msg, err_code = f"HTTP {resp.status_code}", ""
@@ -4553,7 +5760,9 @@ def call_sambhav_groq_stream(messages, api_key, max_completion_tokens=12000):
                         return resp, None
                     try:
                         err_body = resp.json()
-                        err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
+                        err_msg = err_body.get("error", {}).get(
+                            "message", f"HTTP {resp.status_code}"
+                        )
                     except (ValueError, KeyError, AttributeError):
                         err_msg = f"HTTP {resp.status_code}"
 
@@ -4600,7 +5809,9 @@ def call_zai_stream(messages, api_key):
         if resp.status_code != 200:
             try:
                 err_body = resp.json()
-                err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
+                err_msg = err_body.get("error", {}).get(
+                    "message", f"HTTP {resp.status_code}"
+                )
             except (ValueError, KeyError, AttributeError):
                 err_msg = f"HTTP {resp.status_code}"
             return None, err_msg
@@ -4629,6 +5840,7 @@ class _FakeStreamResponse:
     synthetic SSE frame — see the Content-Type check in
     `call_nararouter_stream` for why this exists.
     """
+
     def __init__(self, lines):
         self._lines = lines
 
@@ -4636,7 +5848,9 @@ class _FakeStreamResponse:
         return iter(self._lines)
 
 
-def call_nararouter_stream(messages, api_key, model_id, max_tokens=32768, enable_thinking=False):
+def call_nararouter_stream(
+    messages, api_key, model_id, max_tokens=32768, enable_thinking=False
+):
     """
     Dedicated NaraRouter streaming function.
     Shared by all NaraRouter-hosted models (Agnes 2.5 Flash, Ling 3.0 Flash, etc.)
@@ -4680,7 +5894,9 @@ def call_nararouter_stream(messages, api_key, model_id, max_tokens=32768, enable
         if resp.status_code != 200:
             try:
                 err_body = resp.json()
-                err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
+                err_msg = err_body.get("error", {}).get(
+                    "message", f"HTTP {resp.status_code}"
+                )
             except (ValueError, KeyError, AttributeError):
                 err_msg = f"HTTP {resp.status_code}"
             return None, err_msg
@@ -4714,16 +5930,23 @@ def call_nararouter_stream(messages, api_key, model_id, max_tokens=32768, enable
                 choice = (body.get("choices") or [{}])[0]
                 message = choice.get("message") or {}
                 fake_chunk = {
-                    "choices": [{
-                        "delta": {
-                            "content": message.get("content", "") or "",
-                            "reasoning_content": message.get("reasoning_content", "") or "",
-                        },
-                        "finish_reason": choice.get("finish_reason") or "stop",
-                    }]
+                    "choices": [
+                        {
+                            "delta": {
+                                "content": message.get("content", "") or "",
+                                "reasoning_content": message.get(
+                                    "reasoning_content", ""
+                                )
+                                or "",
+                            },
+                            "finish_reason": choice.get("finish_reason") or "stop",
+                        }
+                    ]
                 }
                 fake_lines = [
-                    f"data: {json.dumps(fake_chunk, ensure_ascii=False)}".encode("utf-8"),
+                    f"data: {json.dumps(fake_chunk, ensure_ascii=False)}".encode(
+                        "utf-8"
+                    ),
                     b"data: [DONE]",
                 ]
                 logger.info(
@@ -4753,7 +5976,9 @@ def call_nararouter_stream(messages, api_key, model_id, max_tokens=32768, enable
 # ✅ HELPER: Call Inception Labs API — mercury-2
 # OpenAI-compatible endpoint at api.inceptionlabs.ai (INCEPTION_API_KEY)
 # ============================================================
-def call_inception_stream(messages, api_key, model_id="mercury-2", reasoning_effort="high"):
+def call_inception_stream(
+    messages, api_key, model_id="mercury-2", reasoning_effort="high"
+):
     """
     Dedicated Inception Labs streaming function for Mercury 2 (diffusion LLM).
     Uses Inception's official OpenAI-compatible endpoint. Completely isolated
@@ -4789,7 +6014,9 @@ def call_inception_stream(messages, api_key, model_id="mercury-2", reasoning_eff
         if resp.status_code != 200:
             try:
                 err_body = resp.json()
-                err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
+                err_msg = err_body.get("error", {}).get(
+                    "message", f"HTTP {resp.status_code}"
+                )
             except (ValueError, KeyError, AttributeError):
                 err_msg = f"HTTP {resp.status_code}"
             return None, err_msg
@@ -4808,8 +6035,15 @@ def call_inception_stream(messages, api_key, model_id="mercury-2", reasoning_eff
 # ✅ HELPER: Call NVIDIA NIM API — meta/muse-glimmer-30b
 # OpenAI-compatible endpoint at integrate.api.nvidia.com (NVIDIA_API_KEY)
 # ============================================================
-def call_nvidia_stream(messages, api_key, model_id, temperature=1.0, top_p=0.95,
-                        max_tokens=8192, template_kwargs=None):
+def call_nvidia_stream(
+    messages,
+    api_key,
+    model_id,
+    temperature=1.0,
+    top_p=0.95,
+    max_tokens=8192,
+    template_kwargs=None,
+):
     """
     Dedicated NVIDIA NIM streaming function. Uses NVIDIA's official
     OpenAI-compatible endpoint (integrate.api.nvidia.com), matching the
@@ -4857,7 +6091,9 @@ def call_nvidia_stream(messages, api_key, model_id, temperature=1.0, top_p=0.95,
         if resp.status_code != 200:
             try:
                 err_body = resp.json()
-                err_msg = err_body.get("error", {}).get("message", f"HTTP {resp.status_code}")
+                err_msg = err_body.get("error", {}).get(
+                    "message", f"HTTP {resp.status_code}"
+                )
             except (ValueError, KeyError, AttributeError):
                 err_msg = f"HTTP {resp.status_code}"
             return None, err_msg
@@ -4877,7 +6113,7 @@ def call_nvidia_stream(messages, api_key, model_id, temperature=1.0, top_p=0.95,
 # Generates a short, descriptive chat title from the first message
 # ============================================================
 _TITLE_THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.IGNORECASE | re.DOTALL)
-_TITLE_STRAY_TAG_RE   = re.compile(r"</?think>", re.IGNORECASE)
+_TITLE_STRAY_TAG_RE = re.compile(r"</?think>", re.IGNORECASE)
 
 
 def _sanitize_generated_title(raw: str) -> str:
@@ -4904,7 +6140,7 @@ def _sanitize_generated_title(raw: str) -> str:
     cleaned = _TITLE_STRAY_TAG_RE.sub("", cleaned)
     # Strip markdown emphasis, quotes, and surrounding whitespace/punctuation.
     cleaned = cleaned.replace("**", "").replace("*", "").replace("`", "")
-    cleaned = cleaned.strip().strip('"\'').strip()
+    cleaned = cleaned.strip().strip("\"'").strip()
     # A generated title should be one line — if the model still rambled,
     # keep only the first non-empty line.
     for line in cleaned.splitlines():
@@ -4927,7 +6163,7 @@ def _fallback_title(message: str) -> str:
 @limiter.limit("30/minute")
 async def generate_title(request: Request):
     try:
-        body    = await request.json()
+        body = await request.json()
         message = body.get("message", "").strip()
         if not message:
             return JSONResponse({"title": "New Chat"})
@@ -4973,6 +6209,7 @@ async def generate_title(request: Request):
             return JSONResponse({"title": _fallback_title(message)})
 
         import httpx as _title_httpx
+
         async with _title_httpx.AsyncClient(timeout=8.0) as client:
             resp = await client.post(
                 "https://api.groq.com/openai/v1/chat/completions",
@@ -4992,7 +6229,7 @@ async def generate_title(request: Request):
                     "model": "openai/gpt-oss-20b",
                     "messages": [
                         {"role": "system", "content": system_prompt},
-                        {"role": "user",   "content": message[:2000]}
+                        {"role": "user", "content": message[:2000]},
                     ],
                     "max_tokens": 20,
                     "temperature": 0.4,
@@ -5002,19 +6239,21 @@ async def generate_title(request: Request):
             )
 
         if resp.status_code == 200:
-            data  = resp.json()
+            data = resp.json()
             raw_title = (
-                data.get("choices", [{}])[0]
-                    .get("message", {})
-                    .get("content", "")
+                data.get("choices", [{}])[0].get("message", {}).get("content", "")
             )
             title = _sanitize_generated_title(raw_title)
             if title:
                 logger.info(f"✅ [Title] Generated: '{title}' for: '{message[:50]}'")
                 return JSONResponse({"title": title[:60]})
-            logger.warning(f"⚠️ [Title] Sanitized title was empty (raw: '{raw_title[:80]}') — using fallback")
+            logger.warning(
+                f"⚠️ [Title] Sanitized title was empty (raw: '{raw_title[:80]}') — using fallback"
+            )
         else:
-            logger.warning(f"⚠️ [Title] Groq returned {resp.status_code} — using fallback")
+            logger.warning(
+                f"⚠️ [Title] Groq returned {resp.status_code} — using fallback"
+            )
 
         return JSONResponse({"title": _fallback_title(message)})
 
@@ -5034,20 +6273,20 @@ async def generate_title(request: Request):
 async def chat_post(request: Request, auth: dict = Depends(require_auth)):
     try:
         body = await request.json()
-        prompt     = body.get("prompt", "")
-        model      = body.get("model", "dagr")
-        file_urls  = body.get("file_urls", [])
+        prompt = body.get("prompt", "")
+        model = body.get("model", "dagr")
+        file_urls = body.get("file_urls", [])
         web_search_forced = body.get("web_search_enabled", False)
-        ghost_mode    = body.get("ghost_mode", False)
-        ghost_history = body.get("ghost_history", [])   # list of {role, content}
-        user_memories_list = body.get("user_memories", [])   # 🧠 memory injection
+        ghost_mode = body.get("ghost_mode", False)
+        ghost_history = body.get("ghost_history", [])  # list of {role, content}
+        user_memories_list = body.get("user_memories", [])  # 🧠 memory injection
         # Legacy web_results from frontend removed — backend handles all search internally
 
         # ── FAIR-USE QUOTA: 15 messages per model per rolling 20-minute window ──
         # Checked before any upstream AI call so a blocked request never burns
         # OpenRouter/Groq/Poolside/Gemini/Z.ai credits.
-        _rl_allowed, _rl_remaining, _rl_reset_epoch, _rl_retry_after = _chat_quota_check(
-            auth["user_id"], model
+        _rl_allowed, _rl_remaining, _rl_reset_epoch, _rl_retry_after = (
+            _chat_quota_check(auth["user_id"], model)
         )
         if not _rl_allowed:
             _minutes = max(1, round(_rl_retry_after / 60))
@@ -5084,16 +6323,27 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
         prompt_lower = prompt.lower()
 
         # ── Identity overrides ─────────────────────────────────────────────
-        if any(q in prompt_lower for q in [
-            "who created you", "who is your developer",
-            "who made you", "who built you",
-            "your creator", "your developer"
-        ]):
+        if any(
+            q in prompt_lower
+            for q in [
+                "who created you",
+                "who is your developer",
+                "who made you",
+                "who built you",
+                "your creator",
+                "your developer",
+            ]
+        ):
+
             def quick():
                 yield f"data: {json.dumps({'token': 'I was created by Anirban.'}, ensure_ascii=False)}\n\n"
                 yield "data: [DONE]\n\n"
-            return StreamingResponse(quick(), media_type="text/event-stream",
-                headers=_rl({"Set-Cookie": build_session_cookie(session_id)}))
+
+            return StreamingResponse(
+                quick(),
+                media_type="text/event-stream",
+                headers=_rl({"Set-Cookie": build_session_cookie(session_id)}),
+            )
 
         if session_id not in user_memory:
             user_memory[session_id] = []
@@ -5102,7 +6352,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
         # In ghost mode the frontend owns the sliding window (max 12 exchanges).
         # We rebuild a temporary list just for this request and never write it back.
         if ghost_mode:
-            active_memory = list(ghost_history)   # previous turns sent by frontend
+            active_memory = list(ghost_history)  # previous turns sent by frontend
         else:
             active_memory = user_memory[session_id]
 
@@ -5116,7 +6366,9 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             # Downloads + parses each attached file with blocking `requests`/Pillow/PDF
             # calls — keep it off the event loop so a slow attachment download
             # doesn't stall every other concurrent chat request.
-            file_text_context, vision_images_for_prompt = await _db(build_file_context_for_prompt, file_urls)
+            file_text_context, vision_images_for_prompt = await _db(
+                build_file_context_for_prompt, file_urls
+            )
 
         # Compose the full user message that goes into memory + is sent to AI
         user_message_content = prompt
@@ -5141,28 +6393,34 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
         # ── MODEL POOLS ────────────────────────────────────────────────────
         # Gemma models → Google AI Studio (GEMINI_API_KEY), NOT OpenRouter
         GEMMA_GOOGLE_MODELS = {
-            "gemma":    "gemma-4-26b-a4b-it",
-            "gemma4":   "gemma-4-31b-it",
+            "gemma": "gemma-4-26b-a4b-it",
+            "gemma4": "gemma-4-31b-it",
             "gemini35flash": "gemini-3.5-flash-lite",
         }
         model_pools = {
-            "dagr":    ["inclusionai/ling-3.0-flash-sante:free", "apodex/apodex-1.1-mini:free"],
-            "apep":    ["apodex/apodex-1.1-mini:free", "inclusionai/ling-3.0-flash-sante:free"],
+            "dagr": [
+                "inclusionai/ling-3.0-flash-sante:free",
+                "apodex/apodex-1.1-mini:free",
+            ],
+            "apep": [
+                "apodex/apodex-1.1-mini:free",
+                "inclusionai/ling-3.0-flash-sante:free",
+            ],
             "sambhav": [],  # Routed via Groq API (qwen/qwen3.8-27b) — see call_sambhav_groq_stream()
-            "nivo":    [],  # Routed via Groq API (GROQ_API_KEY) — see generate_nivo()
-            "glm":     [],  # Routed via Z.ai API (ZAI_API_KEY) — glm-4.7-flash (free)
-            "agnes":      [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — agnes-2.5-flash
+            "nivo": [],  # Routed via Groq API (GROQ_API_KEY) — see generate_nivo()
+            "glm": [],  # Routed via Z.ai API (ZAI_API_KEY) — glm-4.7-flash (free)
+            "agnes": [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — agnes-2.5-flash
             "ox_alpha_bynara": [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — agnes-2.5-flash (full reasoning enabled)
-            "atria":       [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — atria-dawn (full reasoning + tools enabled)
+            "atria": [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — atria-dawn (full reasoning + tools enabled)
             "mercury2": [],  # Routed via Inception Labs API (INCEPTION_API_KEY) — mercury-2
             "muse_glimmer": [],  # Routed via NVIDIA NIM API (NVIDIA_API_KEY) — meta/muse-glimmer-30b
             "laguna_core": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2.1
-            "laguna_s":    [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna S.2.1
-            "cohere":       ["cohere/north-mini-code:free"],
-            "n_nano":  ["nvidia/nemotron-3.5-lightning:free"],
-            "omni":    ["nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"],
+            "laguna_s": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna S.2.1
+            "cohere": ["cohere/north-mini-code:free"],
+            "n_nano": ["nvidia/nemotron-3.5-lightning:free"],
+            "omni": ["nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"],
         }
-        model_key  = model.strip()
+        model_key = model.strip()
         model_pool = model_pools.get(model_key, model_pools["dagr"])
 
         # ── BASE SYSTEM PROMPTS ────────────────────────────────────────────
@@ -5174,7 +6432,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             "\n\nCRITICAL RULES — FOLLOW THESE WITHOUT EXCEPTION:\n"
             "1. You do NOT have any tools, functions, or APIs to call.\n"
             "2. NEVER output function calls, tool calls, or JSON like "
-            "{\"query\": ...} or Search web.{...} or any similar syntax.\n"
+            '{"query": ...} or Search web.{...} or any similar syntax.\n'
             "3. If live data (weather, finance, news, sports, search results) "
             "is provided above in your system context, use it directly to write "
             "your answer in natural language. Do NOT say you are 'using a tool'.\n"
@@ -5230,7 +6488,6 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             "This applies any time you are asked to build, create, or code a website, "
             "webpage, app, component, dashboard, landing page, game, tool, or any other "
             "visual UI (HTML/CSS/JS, React, etc.).\n\n"
-
             "### If the user's request does NOT specify a visual style:\n"
             "Do not jump straight to code. Before writing any code, silently work out "
             "(in your head, not as a visible step unless the user wants to see it) a short "
@@ -5252,7 +6509,6 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             "the brief calls for a plain/native look.\n"
             "4. **Signature detail** — one distinctive visual or interactive touch that makes "
             "this build memorable and specific to the subject, not generic.\n\n"
-
             "### Banned defaults (do NOT use unless the user explicitly asks for them):\n"
             "- Dark navy-to-black diagonal gradient background as the default canvas\n"
             "- A beige/tan 'room' or 'panel' card as the default container\n"
@@ -5262,7 +6518,6 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             "- The exact same layout/skin for every request in a topic — e.g. do not render "
             "every 'fan', 'switch', or 'gauge' request as a photorealistic dark-room scene; "
             "actively rotate between the concept modes above.\n\n"
-
             "### Quality bar:\n"
             "- Make deliberate, specific choices tied to THIS subject and request, not a "
             "one-size-fits-all template.\n"
@@ -5279,30 +6534,24 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 "Your name is Catura, (pronounced kuh-CHUR-uh) Sambhav Model. You are a creative, thoughtful, and "
                 "highly capable AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Sambhav, powered by advanced multimodal intelligence. "
-
                 # ── Personality & tone ──
                 "You are articulate, insightful, and adaptable. You speak clearly and helpfully. "
                 "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
                 "'Absolutely!', or similar hollow openers. Just answer directly. "
-
                 # ── Language behaviour ──
                 "If the user writes in Bengali, Hindi, or any other language, "
                 "respond naturally in that same language. Match the user's language automatically. "
-
                 # ── Response style ──
                 "Keep answers concise unless the user explicitly asks for detail. "
                 "Use bullet points or headers only when they genuinely improve clarity. "
                 "For simple questions, give simple answers. Don't pad responses. "
-
                 # ── Expertise ──
                 "You are knowledgeable about technology, science, reasoning, analysis, and creative tasks. "
                 "You excel at nuanced understanding and multi-step reasoning. "
-
                 # ── Identity rules ──
                 "If asked what model or AI you are, say you are Catura AI Sambhav and cannot share "
                 "details about the underlying technology. "
                 "If asked who made you, say 'I was created by Anirban.' "
-
                 # ── Hard rules ──
                 "Never make up facts. If you don't know something, say so honestly. "
                 "Never say 'I don't have real-time data' — if live data is provided in context, use it."
@@ -5314,33 +6563,27 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 "Your name is Catura (pronounced kuh-CHUR-uh) Degr Model. You are a smart, warm, and witty "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Dagr, the general-purpose model. "
-
                 # ── Personality & tone ──
                 "You speak like a knowledgeable friend — helpful, concise, and occasionally funny. "
                 "You are never robotic, never overly formal, and never sycophantic. "
                 "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
                 "'Absolutely!', or similar hollow openers. Just answer directly. "
-
                 # ── Language behaviour ──
                 "If the user writes in Bengali, Hindi, or any other language, "
                 "respond naturally in that same language. Match the user's language automatically. "
-
                 # ── Response style ──
                 "Keep answers concise unless the user explicitly asks for detail or a long explanation. "
                 "Use bullet points, numbered lists, or headers only when they genuinely improve clarity — "
                 "not for every single response. "
                 "For simple questions, give simple answers. Don't pad responses. "
-
                 # ── Expertise ──
                 "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
                 "For coding questions, write clean, well-commented code. "
                 "When analysing images or files, describe what you see in useful detail. "
-
                 # ── Identity rules ──
                 "If asked what model or AI you are, say you are Catura AI and cannot share "
                 "details about the underlying technology. "
                 "If asked who made you, say 'I was created by Anirban.' "
-
                 # ── Hard rules ──
                 "Never make up facts. If you don't know something, say so honestly. "
                 "Never say 'I don't have real-time data' — if live data is provided in context, use it; "
@@ -5353,12 +6596,10 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 "Your name is Catura (pronounced kuh-CHUR-uh) Apep Model. You are an expert coding and "
                 "technical AI specialist created by Anirban — an independent developer based in India. "
                 "You are Catura AI Apep, the developer-focused model. "
-
                 # ── Personality ──
                 "You are precise, confident, and direct. You speak like a senior engineer: "
                 "no fluff, no filler, just clean technical insight. "
                 "Never start with 'Certainly!', 'Great question!', or similar openers. Just answer. "
-
                 # ── Code style rules ──
                 "When writing code: ALWAYS use proper indentation (4 spaces per level). "
                 "Put each statement on its own line. "
@@ -5366,17 +6607,14 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 "Example: ```python\\n# your code here\\n``` "
                 "Add brief inline comments for non-obvious logic. "
                 "Prefer readability over cleverness unless performance is explicitly required. "
-
                 # ── Technical expertise ──
                 "You specialise in: Python, JavaScript, TypeScript, FastAPI, React, SQL, "
                 "system design, debugging, algorithms, and DevOps. "
                 "When debugging, always explain WHY something is wrong, not just what to change. "
                 "When reviewing code, point out both bugs and improvement opportunities. "
-
                 # ── Language behaviour ──
                 "If the user writes in Bengali, Hindi, or any other language, "
                 "respond in that same language but keep code and technical terms in English. "
-
                 # ── Hard rules ──
                 "Never make up APIs, function signatures, or library features that don't exist. "
                 "If unsure about a specific library version, say so and provide the general approach. "
@@ -5427,31 +6665,25 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 "Your name is Catura (pronounced kuh-CHUR-uh) Nivo Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Nivo, designed for versatile and high-quality responses. "
-
                 # ── Personality & tone ──
                 "You are thoughtful, clear, and direct. You speak like a knowledgeable friend — "
                 "helpful, intelligent, and never robotic or sycophantic. "
                 "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
                 "'Absolutely!', or similar hollow openers. Just answer directly. "
-
                 # ── Language behaviour ──
                 "If the user writes in Bengali, Hindi, or any other language, "
                 "respond naturally in that same language. Match the user's language automatically. "
-
                 # ── Response style ──
                 "Keep answers concise unless the user explicitly asks for detail or a long explanation. "
                 "Use bullet points, numbered lists, or headers only when they genuinely improve clarity. "
                 "For simple questions, give simple answers. Don't pad responses. "
-
                 # ── Expertise ──
                 "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
                 "For coding questions, write clean, well-commented code. "
-
                 # ── Identity rules ──
                 "If asked what model or AI you are, say you are Catura AI Nivo and cannot share "
                 "details about the underlying technology. "
                 "If asked who made you, say 'I was created by Anirban.' "
-
                 # ── Hard rules ──
                 "Never make up facts. If you don't know something, say so honestly. "
                 "Never say 'I don't have real-time data' — if live data is provided in context, use it; "
@@ -5464,31 +6696,25 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 "Your name is Catura (pronounced kuh-CHUR-uh) GLM Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI GLM, built for fast, efficient, and high-quality responses. "
-
                 # ── Personality & tone ──
                 "You are clear, direct, and helpful. You speak like a knowledgeable friend — "
                 "never robotic, never sycophantic. "
                 "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
                 "'Absolutely!', or similar hollow openers. Just answer directly. "
-
                 # ── Language behaviour ──
                 "If the user writes in Bengali, Hindi, or any other language, "
                 "respond naturally in that same language. Match the user's language automatically. "
-
                 # ── Response style ──
                 "Keep answers concise unless the user explicitly asks for detail or a long explanation. "
                 "Use bullet points, numbered lists, or headers only when they genuinely improve clarity. "
                 "For simple questions, give simple answers. Don't pad responses. "
-
                 # ── Expertise ──
                 "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
                 "For coding questions, write clean, well-commented code. "
-
                 # ── Identity rules ──
                 "If asked what model or AI you are, say you are Catura AI GLM and cannot share "
                 "details about the underlying technology. "
                 "If asked who made you, say 'I was created by Anirban.' "
-
                 # ── Hard rules ──
                 "Never make up facts. If you don't know something, say so honestly. "
                 "Never say 'I don't have real-time data' — if live data is provided in context, use it; "
@@ -5542,27 +6768,22 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 "Your name is Catura (pronounced kuh-CHUR-uh) Laguna Core Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Laguna Core, designed for fast, precise, and high-quality responses. "
-
                 # ── Personality & tone ──
                 "You are thoughtful, clear, and direct. You speak like a knowledgeable friend — "
                 "helpful, intelligent, and never robotic or sycophantic. "
                 "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
                 "'Absolutely!', or similar hollow openers. Just answer directly. "
-
                 # ── Language behaviour ──
                 "If the user writes in Bengali, Hindi, or any other language, "
                 "respond naturally in that same language. Match the user's language automatically. "
-
                 # ── Response style ──
                 "Keep answers concise unless the user explicitly asks for detail or a long explanation. "
                 "Use bullet points, numbered lists, or headers only when they genuinely improve clarity. "
                 "For simple questions, give simple answers. Don't pad responses. "
-
                 # ── Identity rules ──
                 "If asked what model or AI you are, say you are Catura AI Laguna Core and cannot share "
                 "details about the underlying technology. "
                 "If asked who made you, say 'I was created by Anirban.' "
-
                 # ── Hard rules ──
                 "Never make up facts. If you don't know something, say so honestly. "
                 "Never say 'I don't have real-time data' — if live data is provided in context, use it; "
@@ -5577,27 +6798,22 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Laguna S, designed for open-weight agentic coding and long-horizon "
                 "reasoning tasks. "
-
                 # ── Personality & tone ──
                 "You are thoughtful, clear, and direct. You speak like a knowledgeable friend — "
                 "helpful, intelligent, and never robotic or sycophantic. "
                 "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
                 "'Absolutely!', or similar hollow openers. Just answer directly. "
-
                 # ── Language behaviour ──
                 "If the user writes in Bengali, Hindi, or any other language, "
                 "respond naturally in that same language. Match the user's language automatically. "
-
                 # ── Response style ──
                 "Keep answers concise unless the user explicitly asks for detail or a long explanation. "
                 "Use bullet points, numbered lists, or headers only when they genuinely improve clarity. "
                 "For simple questions, give simple answers. Don't pad responses. "
-
                 # ── Identity rules ──
                 "If asked what model or AI you are, say you are Catura AI Laguna S and cannot share "
                 "details about the underlying technology. "
                 "If asked who made you, say 'I was created by Anirban.' "
-
                 # ── Hard rules ──
                 "Never make up facts. If you don't know something, say so honestly. "
                 "Never say 'I don't have real-time data' — if live data is provided in context, use it; "
@@ -5605,7 +6821,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
-            "cohere":(
+            "cohere": (
                 "Your name is Catura (pronounced kuh-CHUR-uh) Cohere Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Cohere, designed for fast and efficient responses. "
@@ -5617,7 +6833,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
-            "nemotron":(
+            "nemotron": (
                 "Your name is Catura (pronounced kuh-CHUR-uh) Nemotron Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Nemotron, designed for fast and efficient responses. "
@@ -5628,7 +6844,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
-            "n_nano":(
+            "n_nano": (
                 "Your name is Catura (pronounced kuh-CHUR-uh) Nemotron Nano Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Nemotron Nano, designed for fast and efficient responses. "
@@ -5639,7 +6855,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
-            "omni":(
+            "omni": (
                 "Your name is Catura (pronounced kuh-CHUR-uh) Nemotron Omni Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Nemotron Nano, designed for fast and efficient responses. "
@@ -5693,7 +6909,9 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
         # If user explicitly enabled web search from the UI, force it
         if web_search_forced and not file_urls:
             intent = "web_search"
-        logger.info(f"🎯 [PIPELINE] intent={intent} | model={model_key} | prompt={prompt[:60]}")
+        logger.info(
+            f"🎯 [PIPELINE] intent={intent} | model={model_key} | prompt={prompt[:60]}"
+        )
 
         # Step 2: build final messages list (tool context added inside generator)
         # ── 🛠️ SKILLS INJECTION ─────────────────────────────────────────────
@@ -5712,11 +6930,15 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
         if not file_urls:
             connector_tool_result = await run_connector_tool(auth["user_id"], prompt)
             if connector_tool_result:
-                logger.info(f"🔌 [Connectors] used: {connector_tool_result.get('connector_name')} → {connector_tool_result.get('tool_name')}")
-                system_prompt = system_prompt + "\n\n" + build_tool_context(connector_tool_result)
+                logger.info(
+                    f"🔌 [Connectors] used: {connector_tool_result.get('connector_name')} → {connector_tool_result.get('tool_name')}"
+                )
+                system_prompt = (
+                    system_prompt + "\n\n" + build_tool_context(connector_tool_result)
+                )
         # ─────────────────────────────────────────────────────────────────────
         base_system_prompt = system_prompt  # save before tool injection
-        api_key  = os.getenv("OPENROUTER_API_KEY")
+        api_key = os.getenv("OPENROUTER_API_KEY")
 
         # ── SAMBHAV: qwen/qwen3.8-27b via Groq API ──
         if model_key == "sambhav":
@@ -5738,7 +6960,9 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     final_system += "\n\n" + tool_context
 
                 if tool_result:
-                    badge_payload = json.dumps({"tool_used": tool_result.get("tool", ""), "intent": intent})
+                    badge_payload = json.dumps(
+                        {"tool_used": tool_result.get("tool", ""), "intent": intent}
+                    )
                     yield f"data: {badge_payload}\n\n"
                     sp = build_sources_payload(tool_result)
                     if sp:
@@ -5747,10 +6971,9 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 # ⚠️ Trimmed from -20 to -10: fewer history turns sent to Groq
                 # keeps prompt tokens well under the 12000 TPM free-tier cap
                 # (paired with the max_completion_tokens fix above).
-                sambhav_messages = (
-                    [{"role": "system", "content": final_system}]
-                    + active_memory[-20:]
-                )
+                sambhav_messages = [
+                    {"role": "system", "content": final_system}
+                ] + active_memory[-20:]
                 resp, err = call_sambhav_groq_stream(sambhav_messages, sambhav_groq_key)
 
                 if resp is None:
@@ -5771,7 +6994,9 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         try:
                             chunk = json.loads(payload)
                             if "error" in chunk:
-                                logger.warning(f"⚠️ [Sambhav] mid-stream error: {chunk['error']}")
+                                logger.warning(
+                                    f"⚠️ [Sambhav] mid-stream error: {chunk['error']}"
+                                )
                                 break
                             choices = chunk.get("choices")
                             if not choices:
@@ -5780,10 +7005,21 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             if token:
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
-                            logger.debug(f"⚠️ [Sambhav] skipped unparsable stream chunk: {parse_err}")
+                        except (
+                            json.JSONDecodeError,
+                            KeyError,
+                            TypeError,
+                            IndexError,
+                        ) as parse_err:
+                            logger.debug(
+                                f"⚠️ [Sambhav] skipped unparsable stream chunk: {parse_err}"
+                            )
                             continue
-                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
                     logger.warning(f"⚠️ [Sambhav] stream network error: {e}")
                 except Exception as e:
                     _log_unexpected("Sambhav stream", e)
@@ -5797,16 +7033,20 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             return StreamingResponse(
                 generate_sambhav(),
                 media_type="text/event-stream",
-                headers=_rl({
-                    "Cache-Control": "no-cache",
-                    "Set-Cookie": build_session_cookie(session_id),
-                })
+                headers=_rl(
+                    {
+                        "Cache-Control": "no-cache",
+                        "Set-Cookie": build_session_cookie(session_id),
+                    }
+                ),
             )
 
         # ── LAGUNA CORE: Poolside API (POOLSIDE_API_KEY) — Laguna XS.2.1 — isolated from all other models ──
         if model_key == "laguna_core":
             poolside_key_core = os.getenv("POOLSIDE_API_KEY", "")
-            laguna_core_system = system_prompts.get("laguna_core", system_prompts["dagr"])
+            laguna_core_system = system_prompts.get(
+                "laguna_core", system_prompts["dagr"]
+            )
 
             def generate_laguna_core():
                 full_reply = ""
@@ -5822,19 +7062,22 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     final_system_lc += "\n\n" + tool_context_lc
 
                 if tool_result_lc:
-                    badge_payload = json.dumps({"tool_used": tool_result_lc.get("tool", ""), "intent": intent})
+                    badge_payload = json.dumps(
+                        {"tool_used": tool_result_lc.get("tool", ""), "intent": intent}
+                    )
                     yield f"data: {badge_payload}\n\n"
                     sp = build_sources_payload(tool_result_lc)
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                laguna_core_messages = (
-                    [{"role": "system", "content": final_system_lc}]
-                    + active_memory[-20:]
-                )
+                laguna_core_messages = [
+                    {"role": "system", "content": final_system_lc}
+                ] + active_memory[-20:]
 
                 # Call Poolside with Laguna XS.2.1 (tries known model-id spellings)
-                resp_lc, err_lc = call_poolside_laguna_core_stream(laguna_core_messages, poolside_key_core)
+                resp_lc, err_lc = call_poolside_laguna_core_stream(
+                    laguna_core_messages, poolside_key_core
+                )
                 if resp_lc is None:
                     yield f"data: {json.dumps({'error': f'Laguna Core unavailable: {err_lc}'})}\n\n"
                     yield "data: [DONE]\n\n"
@@ -5855,16 +7098,28 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         try:
                             chunk = json.loads(payload)
                             if "error" in chunk:
-                                logger.warning(f"⚠️ [Laguna Core] mid-stream error: {chunk['error']}")
+                                logger.warning(
+                                    f"⚠️ [Laguna Core] mid-stream error: {chunk['error']}"
+                                )
                                 break
                             choices = chunk.get("choices")
                             if not choices:
                                 continue
                             delta = choices[0].get("delta") or {}
-                            reasoning_token = delta.get("reasoning_content") or delta.get("reasoning") or ""
-                            reasoning_token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', reasoning_token)
+                            reasoning_token = (
+                                delta.get("reasoning_content")
+                                or delta.get("reasoning")
+                                or ""
+                            )
+                            reasoning_token = re.sub(
+                                r"</?(?:assistant|user|system|tool)[^>]*>",
+                                "",
+                                reasoning_token,
+                            )
                             token = delta.get("content") or ""
-                            token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', token)
+                            token = re.sub(
+                                r"</?(?:assistant|user|system|tool)[^>]*>", "", token
+                            )
 
                             # ── Fallback: some Poolside deployments of the newest model don't
                             # split reasoning into reasoning_content and instead stream raw
@@ -5879,7 +7134,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                         token = ""
                                     else:
                                         reasoning_token += token[:end_idx]
-                                        token = token[end_idx + len("</think>"):]
+                                        token = token[end_idx + len("</think>") :]
                                         raw_think_open_lc = False
                                 else:
                                     start_idx = token.find("<think>")
@@ -5887,7 +7142,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                         break
                                     else:
                                         pre = token[:start_idx]
-                                        token = token[start_idx + len("<think>"):]
+                                        token = token[start_idx + len("<think>") :]
                                         raw_think_open_lc = True
                                         if pre:
                                             if thinking_open_lc:
@@ -5908,10 +7163,21 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                     thinking_open_lc = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
-                            logger.debug(f"⚠️ [Laguna Core] skipped unparsable stream chunk: {parse_err}")
+                        except (
+                            json.JSONDecodeError,
+                            KeyError,
+                            TypeError,
+                            IndexError,
+                        ) as parse_err:
+                            logger.debug(
+                                f"⚠️ [Laguna Core] skipped unparsable stream chunk: {parse_err}"
+                            )
                             continue
-                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
                     logger.warning(f"⚠️ [Laguna Core] stream network error: {e}")
                 except Exception as e:
                     _log_unexpected("Laguna Core stream", e)
@@ -5928,10 +7194,12 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             return StreamingResponse(
                 generate_laguna_core(),
                 media_type="text/event-stream",
-                headers=_rl({
-                    "Cache-Control": "no-cache",
-                    "Set-Cookie": build_session_cookie(session_id),
-                })
+                headers=_rl(
+                    {
+                        "Cache-Control": "no-cache",
+                        "Set-Cookie": build_session_cookie(session_id),
+                    }
+                ),
             )
 
         # ── LAGUNA S: Poolside API (POOLSIDE_API_KEY) — Laguna S.2.1 — isolated from all other models ──
@@ -5953,19 +7221,22 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     final_system_ls += "\n\n" + tool_context_ls
 
                 if tool_result_ls:
-                    badge_payload = json.dumps({"tool_used": tool_result_ls.get("tool", ""), "intent": intent})
+                    badge_payload = json.dumps(
+                        {"tool_used": tool_result_ls.get("tool", ""), "intent": intent}
+                    )
                     yield f"data: {badge_payload}\n\n"
                     sp = build_sources_payload(tool_result_ls)
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                laguna_s_messages = (
-                    [{"role": "system", "content": final_system_ls}]
-                    + active_memory[-20:]
-                )
+                laguna_s_messages = [
+                    {"role": "system", "content": final_system_ls}
+                ] + active_memory[-20:]
 
                 # Call Poolside with Laguna S.2.1 (tries known model-id spellings)
-                resp_ls, err_ls = call_poolside_laguna_s_stream(laguna_s_messages, poolside_key_s)
+                resp_ls, err_ls = call_poolside_laguna_s_stream(
+                    laguna_s_messages, poolside_key_s
+                )
                 if resp_ls is None:
                     yield f"data: {json.dumps({'error': f'Laguna S unavailable: {err_ls}'})}\n\n"
                     yield "data: [DONE]\n\n"
@@ -5986,16 +7257,28 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         try:
                             chunk = json.loads(payload)
                             if "error" in chunk:
-                                logger.warning(f"⚠️ [Laguna S] mid-stream error: {chunk['error']}")
+                                logger.warning(
+                                    f"⚠️ [Laguna S] mid-stream error: {chunk['error']}"
+                                )
                                 break
                             choices = chunk.get("choices")
                             if not choices:
                                 continue
                             delta = choices[0].get("delta") or {}
-                            reasoning_token = delta.get("reasoning_content") or delta.get("reasoning") or ""
-                            reasoning_token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', reasoning_token)
+                            reasoning_token = (
+                                delta.get("reasoning_content")
+                                or delta.get("reasoning")
+                                or ""
+                            )
+                            reasoning_token = re.sub(
+                                r"</?(?:assistant|user|system|tool)[^>]*>",
+                                "",
+                                reasoning_token,
+                            )
                             token = delta.get("content") or ""
-                            token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', token)
+                            token = re.sub(
+                                r"</?(?:assistant|user|system|tool)[^>]*>", "", token
+                            )
 
                             # ── Fallback: some Poolside deployments don't split reasoning
                             # into reasoning_content and instead stream raw <think>...</think>
@@ -6010,7 +7293,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                         token = ""
                                     else:
                                         reasoning_token += token[:end_idx]
-                                        token = token[end_idx + len("</think>"):]
+                                        token = token[end_idx + len("</think>") :]
                                         raw_think_open_ls = False
                                 else:
                                     start_idx = token.find("<think>")
@@ -6018,7 +7301,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                         break
                                     else:
                                         pre = token[:start_idx]
-                                        token = token[start_idx + len("<think>"):]
+                                        token = token[start_idx + len("<think>") :]
                                         raw_think_open_ls = True
                                         if pre:
                                             if thinking_open_ls:
@@ -6039,10 +7322,21 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                     thinking_open_ls = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
-                            logger.debug(f"⚠️ [Laguna S] skipped unparsable stream chunk: {parse_err}")
+                        except (
+                            json.JSONDecodeError,
+                            KeyError,
+                            TypeError,
+                            IndexError,
+                        ) as parse_err:
+                            logger.debug(
+                                f"⚠️ [Laguna S] skipped unparsable stream chunk: {parse_err}"
+                            )
                             continue
-                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
                     logger.warning(f"⚠️ [Laguna S] stream network error: {e}")
                 except Exception as e:
                     _log_unexpected("Laguna S stream", e)
@@ -6059,20 +7353,24 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             return StreamingResponse(
                 generate_laguna_s(),
                 media_type="text/event-stream",
-                headers=_rl({
-                    "Cache-Control": "no-cache",
-                    "Set-Cookie": build_session_cookie(session_id),
-                })
+                headers=_rl(
+                    {
+                        "Cache-Control": "no-cache",
+                        "Set-Cookie": build_session_cookie(session_id),
+                    }
+                ),
             )
 
         # ── GLM: Z.ai API (ZAI_API_KEY) — glm-4.7-flash (free tier) ──
         if model_key == "glm":
-            zai_key    = os.getenv("ZAI_API_KEY", "")
+            zai_key = os.getenv("ZAI_API_KEY", "")
             glm_system = system_prompts.get("glm", system_prompts["dagr"])
 
             def generate_glm():
                 full_reply = ""
-                thinking_open_glm = False  # tracks whether <think> has been opened in full_reply
+                thinking_open_glm = (
+                    False  # tracks whether <think> has been opened in full_reply
+                )
 
                 tool_result_glm = None
                 if intent != "general" and not file_urls:
@@ -6085,16 +7383,17 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     final_system_glm += "\n\n" + tool_context_glm
 
                 if tool_result_glm:
-                    badge_payload = json.dumps({"tool_used": tool_result_glm.get("tool", ""), "intent": intent})
+                    badge_payload = json.dumps(
+                        {"tool_used": tool_result_glm.get("tool", ""), "intent": intent}
+                    )
                     yield f"data: {badge_payload}\n\n"
                     sp = build_sources_payload(tool_result_glm)
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                base_glm_messages = (
-                    [{"role": "system", "content": final_system_glm}]
-                    + active_memory[-20:]
-                )
+                base_glm_messages = [
+                    {"role": "system", "content": final_system_glm}
+                ] + active_memory[-20:]
 
                 # ── Handoff loop: GLM's own max_tokens (24000) can still be hit on
                 # very large single-file builds. When that happens, keep asking GLM
@@ -6106,11 +7405,13 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 while leg < MAX_GLM_LEGS:
                     leg += 1
                     glm_messages = (
-                        base_glm_messages + [
+                        base_glm_messages
+                        + [
                             {"role": "assistant", "content": full_reply},
                             {"role": "user", "content": HANDOFF_CONTINUE_PROMPT},
                         ]
-                        if full_reply.strip() else base_glm_messages
+                        if full_reply.strip()
+                        else base_glm_messages
                     )
                     resp, err = call_zai_stream(glm_messages, zai_key)
 
@@ -6135,14 +7436,20 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             try:
                                 chunk = json.loads(payload)
                                 if "error" in chunk:
-                                    logger.warning(f"⚠️ [GLM] mid-stream error: {chunk['error']}")
+                                    logger.warning(
+                                        f"⚠️ [GLM] mid-stream error: {chunk['error']}"
+                                    )
                                     break
                                 choices = chunk.get("choices")
                                 if not choices:
                                     continue
-                                finish_reason_glm = choices[0].get("finish_reason") or finish_reason_glm
+                                finish_reason_glm = (
+                                    choices[0].get("finish_reason") or finish_reason_glm
+                                )
                                 delta_glm = choices[0].get("delta") or {}
-                                reasoning_token_glm = delta_glm.get("reasoning_content") or ""
+                                reasoning_token_glm = (
+                                    delta_glm.get("reasoning_content") or ""
+                                )
                                 token = delta_glm.get("content") or ""
                                 if reasoning_token_glm:
                                     if not thinking_open_glm:
@@ -6156,10 +7463,21 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                         thinking_open_glm = False
                                     full_reply += token
                                     yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                            except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
-                                logger.debug(f"⚠️ [GLM] skipped unparsable stream chunk: {parse_err}")
+                            except (
+                                json.JSONDecodeError,
+                                KeyError,
+                                TypeError,
+                                IndexError,
+                            ) as parse_err:
+                                logger.debug(
+                                    f"⚠️ [GLM] skipped unparsable stream chunk: {parse_err}"
+                                )
                                 continue
-                    except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    except (
+                        requests.exceptions.RequestException,
+                        ConnectionError,
+                        OSError,
+                    ) as e:
                         logger.warning(f"⚠️ [GLM] stream network error: {e}")
                     except Exception as e:
                         _log_unexpected("GLM stream", e)
@@ -6181,20 +7499,24 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             return StreamingResponse(
                 generate_glm(),
                 media_type="text/event-stream",
-                headers=_rl({
-                    "Cache-Control": "no-cache",
-                    "Set-Cookie": build_session_cookie(session_id),
-                })
+                headers=_rl(
+                    {
+                        "Cache-Control": "no-cache",
+                        "Set-Cookie": build_session_cookie(session_id),
+                    }
+                ),
             )
 
         # ── AGNES: NaraRouter API (NARAROUTER_API_KEY) — agnes-2.5-flash ──
         if model_key == "agnes":
-            nara_key_agnes   = os.getenv("NARAROUTER_API_KEY", "")
-            agnes_system     = system_prompts.get("agnes", system_prompts["dagr"])
+            nara_key_agnes = os.getenv("NARAROUTER_API_KEY", "")
+            agnes_system = system_prompts.get("agnes", system_prompts["dagr"])
 
             def generate_agnes():
                 full_reply = ""
-                thinking_open_agnes = False  # tracks whether <think> has been opened in full_reply
+                thinking_open_agnes = (
+                    False  # tracks whether <think> has been opened in full_reply
+                )
 
                 tool_result_agnes = None
                 if intent != "general" and not file_urls:
@@ -6207,17 +7529,23 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     final_system_agnes += "\n\n" + tool_context_agnes
 
                 if tool_result_agnes:
-                    badge_payload = json.dumps({"tool_used": tool_result_agnes.get("tool", ""), "intent": intent})
+                    badge_payload = json.dumps(
+                        {
+                            "tool_used": tool_result_agnes.get("tool", ""),
+                            "intent": intent,
+                        }
+                    )
                     yield f"data: {badge_payload}\n\n"
                     sp = build_sources_payload(tool_result_agnes)
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                agnes_messages = (
-                    [{"role": "system", "content": final_system_agnes}]
-                    + active_memory[-20:]
+                agnes_messages = [
+                    {"role": "system", "content": final_system_agnes}
+                ] + active_memory[-20:]
+                resp, err = call_nararouter_stream(
+                    agnes_messages, nara_key_agnes, "agnes-2.5-flash", max_tokens=16000
                 )
-                resp, err = call_nararouter_stream(agnes_messages, nara_key_agnes, "agnes-2.5-flash", max_tokens=16000)
 
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'Agnes unavailable: {err}'})}\n\n"
@@ -6237,13 +7565,17 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         try:
                             chunk = json.loads(payload)
                             if "error" in chunk:
-                                logger.warning(f"⚠️ [AGNES] mid-stream error: {chunk['error']}")
+                                logger.warning(
+                                    f"⚠️ [AGNES] mid-stream error: {chunk['error']}"
+                                )
                                 break
                             choices = chunk.get("choices")
                             if not choices:
                                 continue
                             delta_agnes = choices[0].get("delta") or {}
-                            reasoning_token_agnes = delta_agnes.get("reasoning_content") or ""
+                            reasoning_token_agnes = (
+                                delta_agnes.get("reasoning_content") or ""
+                            )
                             token = delta_agnes.get("content") or ""
                             if reasoning_token_agnes:
                                 if not thinking_open_agnes:
@@ -6257,10 +7589,21 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                     thinking_open_agnes = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
-                            logger.warning(f"⚠️ [AGNES] skipped unparsable stream chunk: {parse_err}")
+                        except (
+                            json.JSONDecodeError,
+                            KeyError,
+                            TypeError,
+                            IndexError,
+                        ) as parse_err:
+                            logger.warning(
+                                f"⚠️ [AGNES] skipped unparsable stream chunk: {parse_err}"
+                            )
                             continue
-                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
                     logger.warning(f"⚠️ [AGNES] stream network error: {e}")
                 except Exception as e:
                     _log_unexpected("AGNES stream", e)
@@ -6278,27 +7621,33 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     # shape slipped past every parser). Surface *something*
                     # actionable instead of silently falling through to the
                     # frontend's generic "No response received" message.
-                    logger.warning("⚠️ [AGNES] stream ended with an empty reply and no error")
+                    logger.warning(
+                        "⚠️ [AGNES] stream ended with an empty reply and no error"
+                    )
                     yield f"data: {json.dumps({'error': 'Agnes returned an empty response. Please try again.'})}\n\n"
                 yield "data: [DONE]\n\n"
 
             return StreamingResponse(
                 generate_agnes(),
                 media_type="text/event-stream",
-                headers=_rl({
-                    "Cache-Control": "no-cache",
-                    "Set-Cookie": build_session_cookie(session_id),
-                })
+                headers=_rl(
+                    {
+                        "Cache-Control": "no-cache",
+                        "Set-Cookie": build_session_cookie(session_id),
+                    }
+                ),
             )
 
         # ── OX ALPHA BYNARA: NaraRouter API (NARAROUTER_API_KEY) — agnes-2.5-flash (full reasoning) ──
         if model_key == "ox_alpha_bynara":
-            nara_key_oxab   = os.getenv("NARAROUTER_API_KEY", "")
-            oxab_system     = system_prompts.get("ox_alpha_bynara", system_prompts["dagr"])
+            nara_key_oxab = os.getenv("NARAROUTER_API_KEY", "")
+            oxab_system = system_prompts.get("ox_alpha_bynara", system_prompts["dagr"])
 
             def generate_oxab():
                 full_reply = ""
-                thinking_open_oxab = False  # tracks whether <think> has been opened in full_reply
+                thinking_open_oxab = (
+                    False  # tracks whether <think> has been opened in full_reply
+                )
 
                 tool_result_oxab = None
                 if intent != "general" and not file_urls:
@@ -6311,17 +7660,27 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     final_system_oxab += "\n\n" + tool_context_oxab
 
                 if tool_result_oxab:
-                    badge_payload = json.dumps({"tool_used": tool_result_oxab.get("tool", ""), "intent": intent})
+                    badge_payload = json.dumps(
+                        {
+                            "tool_used": tool_result_oxab.get("tool", ""),
+                            "intent": intent,
+                        }
+                    )
                     yield f"data: {badge_payload}\n\n"
                     sp = build_sources_payload(tool_result_oxab)
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                oxab_messages = (
-                    [{"role": "system", "content": final_system_oxab}]
-                    + active_memory[-20:]
+                oxab_messages = [
+                    {"role": "system", "content": final_system_oxab}
+                ] + active_memory[-20:]
+                resp, err = call_nararouter_stream(
+                    oxab_messages,
+                    nara_key_oxab,
+                    "agnes-2.5-flash",
+                    max_tokens=16000,
+                    enable_thinking=True,
                 )
-                resp, err = call_nararouter_stream(oxab_messages, nara_key_oxab, "agnes-2.5-flash", max_tokens=16000, enable_thinking=True)
 
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'OX Alpha Bynara unavailable: {err}'})}\n\n"
@@ -6341,13 +7700,17 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         try:
                             chunk = json.loads(payload)
                             if "error" in chunk:
-                                logger.warning(f"⚠️ [OX ALPHA BYNARA] mid-stream error: {chunk['error']}")
+                                logger.warning(
+                                    f"⚠️ [OX ALPHA BYNARA] mid-stream error: {chunk['error']}"
+                                )
                                 break
                             choices = chunk.get("choices")
                             if not choices:
                                 continue
                             delta_oxab = choices[0].get("delta") or {}
-                            reasoning_token_oxab = delta_oxab.get("reasoning_content") or ""
+                            reasoning_token_oxab = (
+                                delta_oxab.get("reasoning_content") or ""
+                            )
                             token = delta_oxab.get("content") or ""
                             if reasoning_token_oxab:
                                 if not thinking_open_oxab:
@@ -6361,10 +7724,21 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                     thinking_open_oxab = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
-                            logger.warning(f"⚠️ [OX ALPHA BYNARA] skipped unparsable stream chunk: {parse_err}")
+                        except (
+                            json.JSONDecodeError,
+                            KeyError,
+                            TypeError,
+                            IndexError,
+                        ) as parse_err:
+                            logger.warning(
+                                f"⚠️ [OX ALPHA BYNARA] skipped unparsable stream chunk: {parse_err}"
+                            )
                             continue
-                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
                     logger.warning(f"⚠️ [OX ALPHA BYNARA] stream network error: {e}")
                 except Exception as e:
                     _log_unexpected("OX ALPHA BYNARA stream", e)
@@ -6382,27 +7756,33 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     # shape slipped past every parser). Surface *something*
                     # actionable instead of silently falling through to the
                     # frontend's generic "No response received" message.
-                    logger.warning("⚠️ [OX ALPHA BYNARA] stream ended with an empty reply and no error")
+                    logger.warning(
+                        "⚠️ [OX ALPHA BYNARA] stream ended with an empty reply and no error"
+                    )
                     yield f"data: {json.dumps({'error': 'OX Alpha Bynara returned an empty response. Please try again.'})}\n\n"
                 yield "data: [DONE]\n\n"
 
             return StreamingResponse(
                 generate_oxab(),
                 media_type="text/event-stream",
-                headers=_rl({
-                    "Cache-Control": "no-cache",
-                    "Set-Cookie": build_session_cookie(session_id),
-                })
+                headers=_rl(
+                    {
+                        "Cache-Control": "no-cache",
+                        "Set-Cookie": build_session_cookie(session_id),
+                    }
+                ),
             )
 
         # ── ATRIA: NaraRouter API (NARAROUTER_API_KEY) — atria-dawn (full reasoning + tools) ──
         if model_key == "atria":
-            nara_key_atria   = os.getenv("NARAROUTER_API_KEY", "")
-            atria_system     = system_prompts.get("atria", system_prompts["dagr"])
+            nara_key_atria = os.getenv("NARAROUTER_API_KEY", "")
+            atria_system = system_prompts.get("atria", system_prompts["dagr"])
 
             def generate_atria():
                 full_reply = ""
-                thinking_open_atria = False  # tracks whether <think> has been opened in full_reply
+                thinking_open_atria = (
+                    False  # tracks whether <think> has been opened in full_reply
+                )
 
                 tool_result_atria = None
                 if intent != "general" and not file_urls:
@@ -6415,17 +7795,27 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     final_system_atria += "\n\n" + tool_context_atria
 
                 if tool_result_atria:
-                    badge_payload = json.dumps({"tool_used": tool_result_atria.get("tool", ""), "intent": intent})
+                    badge_payload = json.dumps(
+                        {
+                            "tool_used": tool_result_atria.get("tool", ""),
+                            "intent": intent,
+                        }
+                    )
                     yield f"data: {badge_payload}\n\n"
                     sp = build_sources_payload(tool_result_atria)
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                atria_messages = (
-                    [{"role": "system", "content": final_system_atria}]
-                    + active_memory[-20:]
+                atria_messages = [
+                    {"role": "system", "content": final_system_atria}
+                ] + active_memory[-20:]
+                resp, err = call_nararouter_stream(
+                    atria_messages,
+                    nara_key_atria,
+                    "atria-dawn",
+                    max_tokens=16000,
+                    enable_thinking=True,
                 )
-                resp, err = call_nararouter_stream(atria_messages, nara_key_atria, "atria-dawn", max_tokens=16000, enable_thinking=True)
 
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'Atria unavailable: {err}'})}\n\n"
@@ -6445,13 +7835,17 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         try:
                             chunk = json.loads(payload)
                             if "error" in chunk:
-                                logger.warning(f"⚠️ [ATRIA] mid-stream error: {chunk['error']}")
+                                logger.warning(
+                                    f"⚠️ [ATRIA] mid-stream error: {chunk['error']}"
+                                )
                                 break
                             choices = chunk.get("choices")
                             if not choices:
                                 continue
                             delta_atria = choices[0].get("delta") or {}
-                            reasoning_token_atria = delta_atria.get("reasoning_content") or ""
+                            reasoning_token_atria = (
+                                delta_atria.get("reasoning_content") or ""
+                            )
                             token = delta_atria.get("content") or ""
                             if reasoning_token_atria:
                                 if not thinking_open_atria:
@@ -6465,10 +7859,21 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                     thinking_open_atria = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
-                            logger.warning(f"⚠️ [ATRIA] skipped unparsable stream chunk: {parse_err}")
+                        except (
+                            json.JSONDecodeError,
+                            KeyError,
+                            TypeError,
+                            IndexError,
+                        ) as parse_err:
+                            logger.warning(
+                                f"⚠️ [ATRIA] skipped unparsable stream chunk: {parse_err}"
+                            )
                             continue
-                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
                     logger.warning(f"⚠️ [ATRIA] stream network error: {e}")
                 except Exception as e:
                     _log_unexpected("ATRIA stream", e)
@@ -6486,27 +7891,33 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     # shape slipped past every parser). Surface *something*
                     # actionable instead of silently falling through to the
                     # frontend's generic "No response received" message.
-                    logger.warning("⚠️ [ATRIA] stream ended with an empty reply and no error")
+                    logger.warning(
+                        "⚠️ [ATRIA] stream ended with an empty reply and no error"
+                    )
                     yield f"data: {json.dumps({'error': 'Atria returned an empty response. Please try again.'})}\n\n"
                 yield "data: [DONE]\n\n"
 
             return StreamingResponse(
                 generate_atria(),
                 media_type="text/event-stream",
-                headers=_rl({
-                    "Cache-Control": "no-cache",
-                    "Set-Cookie": build_session_cookie(session_id),
-                })
+                headers=_rl(
+                    {
+                        "Cache-Control": "no-cache",
+                        "Set-Cookie": build_session_cookie(session_id),
+                    }
+                ),
             )
 
         # ── MERCURY 2: Inception Labs API (INCEPTION_API_KEY) — mercury-2 ──
         if model_key == "mercury2":
-            merc_key    = os.getenv("INCEPTION_API_KEY", "")
+            merc_key = os.getenv("INCEPTION_API_KEY", "")
             merc_system = system_prompts.get("mercury2", system_prompts["dagr"])
 
             def generate_merc():
                 full_reply = ""
-                thinking_open_merc = False  # tracks whether <think> has been opened in full_reply
+                thinking_open_merc = (
+                    False  # tracks whether <think> has been opened in full_reply
+                )
 
                 tool_result_merc = None
                 if intent != "general" and not file_urls:
@@ -6519,17 +7930,26 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     final_system_merc += "\n\n" + tool_context_merc
 
                 if tool_result_merc:
-                    badge_payload = json.dumps({"tool_used": tool_result_merc.get("tool", ""), "intent": intent})
+                    badge_payload = json.dumps(
+                        {
+                            "tool_used": tool_result_merc.get("tool", ""),
+                            "intent": intent,
+                        }
+                    )
                     yield f"data: {badge_payload}\n\n"
                     sp = build_sources_payload(tool_result_merc)
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                merc_messages = (
-                    [{"role": "system", "content": final_system_merc}]
-                    + active_memory[-20:]
+                merc_messages = [
+                    {"role": "system", "content": final_system_merc}
+                ] + active_memory[-20:]
+                resp, err = call_inception_stream(
+                    merc_messages,
+                    merc_key,
+                    model_id="mercury-2",
+                    reasoning_effort="high",
                 )
-                resp, err = call_inception_stream(merc_messages, merc_key, model_id="mercury-2", reasoning_effort="high")
 
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'Mercury 2 unavailable: {err}'})}\n\n"
@@ -6549,13 +7969,17 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         try:
                             chunk = json.loads(payload)
                             if "error" in chunk:
-                                logger.warning(f"⚠️ [MERCURY 2] mid-stream error: {chunk['error']}")
+                                logger.warning(
+                                    f"⚠️ [MERCURY 2] mid-stream error: {chunk['error']}"
+                                )
                                 break
                             choices = chunk.get("choices")
                             if not choices:
                                 continue
                             delta_merc = choices[0].get("delta") or {}
-                            reasoning_token_merc = delta_merc.get("reasoning_content") or ""
+                            reasoning_token_merc = (
+                                delta_merc.get("reasoning_content") or ""
+                            )
                             token = delta_merc.get("content") or ""
                             if reasoning_token_merc:
                                 if not thinking_open_merc:
@@ -6569,10 +7993,21 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                     thinking_open_merc = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
-                            logger.debug(f"⚠️ [MERCURY 2] skipped unparsable stream chunk: {parse_err}")
+                        except (
+                            json.JSONDecodeError,
+                            KeyError,
+                            TypeError,
+                            IndexError,
+                        ) as parse_err:
+                            logger.debug(
+                                f"⚠️ [MERCURY 2] skipped unparsable stream chunk: {parse_err}"
+                            )
                             continue
-                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
                     logger.warning(f"⚠️ [MERCURY 2] stream network error: {e}")
                 except Exception as e:
                     _log_unexpected("MERCURY 2 stream", e)
@@ -6589,20 +8024,24 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             return StreamingResponse(
                 generate_merc(),
                 media_type="text/event-stream",
-                headers=_rl({
-                    "Cache-Control": "no-cache",
-                    "Set-Cookie": build_session_cookie(session_id),
-                })
+                headers=_rl(
+                    {
+                        "Cache-Control": "no-cache",
+                        "Set-Cookie": build_session_cookie(session_id),
+                    }
+                ),
             )
 
         # ── MUSE GLIMMER: NVIDIA NIM API (NVIDIA_API_KEY) — meta/muse-glimmer-30b ──
         if model_key == "muse_glimmer":
-            nvidia_key_mg   = os.getenv("NVIDIA_API_KEY", "")
-            mg_system       = system_prompts.get("muse_glimmer", system_prompts["dagr"])
+            nvidia_key_mg = os.getenv("NVIDIA_API_KEY", "")
+            mg_system = system_prompts.get("muse_glimmer", system_prompts["dagr"])
 
             def generate_muse_glimmer():
                 full_reply = ""
-                thinking_open_mg = False  # tracks whether <think> has been opened in full_reply
+                thinking_open_mg = (
+                    False  # tracks whether <think> has been opened in full_reply
+                )
 
                 tool_result_mg = None
                 if intent != "general" and not file_urls:
@@ -6615,19 +8054,24 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     final_system_mg += "\n\n" + tool_context_mg
 
                 if tool_result_mg:
-                    badge_payload = json.dumps({"tool_used": tool_result_mg.get("tool", ""), "intent": intent})
+                    badge_payload = json.dumps(
+                        {"tool_used": tool_result_mg.get("tool", ""), "intent": intent}
+                    )
                     yield f"data: {badge_payload}\n\n"
                     sp = build_sources_payload(tool_result_mg)
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                mg_messages = (
-                    [{"role": "system", "content": final_system_mg}]
-                    + active_memory[-20:]
-                )
+                mg_messages = [
+                    {"role": "system", "content": final_system_mg}
+                ] + active_memory[-20:]
                 resp, err = call_nvidia_stream(
-                    mg_messages, nvidia_key_mg, "meta/muse-glimmer-30b",
-                    temperature=1, top_p=0.95, max_tokens=8192,
+                    mg_messages,
+                    nvidia_key_mg,
+                    "meta/muse-glimmer-30b",
+                    temperature=1,
+                    top_p=0.95,
+                    max_tokens=8192,
                     template_kwargs={"enable_thinking": True},
                 )
 
@@ -6649,7 +8093,9 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         try:
                             chunk = json.loads(payload)
                             if "error" in chunk:
-                                logger.warning(f"⚠️ [MUSE GLIMMER] mid-stream error: {chunk['error']}")
+                                logger.warning(
+                                    f"⚠️ [MUSE GLIMMER] mid-stream error: {chunk['error']}"
+                                )
                                 break
                             choices = chunk.get("choices")
                             if not choices:
@@ -6669,10 +8115,21 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                     thinking_open_mg = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
-                            logger.warning(f"⚠️ [MUSE GLIMMER] skipped unparsable stream chunk: {parse_err}")
+                        except (
+                            json.JSONDecodeError,
+                            KeyError,
+                            TypeError,
+                            IndexError,
+                        ) as parse_err:
+                            logger.warning(
+                                f"⚠️ [MUSE GLIMMER] skipped unparsable stream chunk: {parse_err}"
+                            )
                             continue
-                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
                     logger.warning(f"⚠️ [MUSE GLIMMER] stream network error: {e}")
                 except Exception as e:
                     _log_unexpected("MUSE GLIMMER stream", e)
@@ -6685,22 +8142,26 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     if not ghost_mode and len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
                 else:
-                    logger.warning("⚠️ [MUSE GLIMMER] stream ended with an empty reply and no error")
+                    logger.warning(
+                        "⚠️ [MUSE GLIMMER] stream ended with an empty reply and no error"
+                    )
                     yield f"data: {json.dumps({'error': 'Muse Glimmer returned an empty response. Please try again.'})}\n\n"
                 yield "data: [DONE]\n\n"
 
             return StreamingResponse(
                 generate_muse_glimmer(),
                 media_type="text/event-stream",
-                headers=_rl({
-                    "Cache-Control": "no-cache",
-                    "Set-Cookie": build_session_cookie(session_id),
-                })
+                headers=_rl(
+                    {
+                        "Cache-Control": "no-cache",
+                        "Set-Cookie": build_session_cookie(session_id),
+                    }
+                ),
             )
 
         # ── NIVO: Groq API (GROQ_API_KEY) — isolated from all other models ──
         if model_key == "nivo":
-            groq_key    = os.getenv("GROQ_API_KEY", "")
+            groq_key = os.getenv("GROQ_API_KEY", "")
             nivo_system = system_prompts.get("nivo", system_prompts["dagr"])
 
             def generate_nivo():
@@ -6718,17 +8179,18 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     final_system_n += "\n\n" + tool_context_n
 
                 if tool_result_n:
-                    badge_payload = json.dumps({"tool_used": tool_result_n.get("tool", ""), "intent": intent})
+                    badge_payload = json.dumps(
+                        {"tool_used": tool_result_n.get("tool", ""), "intent": intent}
+                    )
                     yield f"data: {badge_payload}\n\n"
                     sp = build_sources_payload(tool_result_n)
                     if sp:
                         yield f"data: {sp}\n\n"
 
                 # Build full messages list for Groq
-                nivo_messages = (
-                    [{"role": "system", "content": final_system_n}]
-                    + active_memory[-20:]
-                )
+                nivo_messages = [
+                    {"role": "system", "content": final_system_n}
+                ] + active_memory[-20:]
 
                 resp, err = call_groq_stream(nivo_messages, groq_key)
                 if resp is None:
@@ -6749,7 +8211,9 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         try:
                             chunk = json.loads(payload)
                             if "error" in chunk:
-                                logger.warning(f"⚠️ [Nivo] mid-stream error: {chunk['error']}")
+                                logger.warning(
+                                    f"⚠️ [Nivo] mid-stream error: {chunk['error']}"
+                                )
                                 break
                             choices = chunk.get("choices")
                             if not choices:
@@ -6758,10 +8222,21 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             if token:
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
-                            logger.debug(f"⚠️ [Nivo] skipped unparsable stream chunk: {parse_err}")
+                        except (
+                            json.JSONDecodeError,
+                            KeyError,
+                            TypeError,
+                            IndexError,
+                        ) as parse_err:
+                            logger.debug(
+                                f"⚠️ [Nivo] skipped unparsable stream chunk: {parse_err}"
+                            )
                             continue
-                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
                     logger.warning(f"⚠️ [Nivo] stream network error: {e}")
                 except Exception as e:
                     _log_unexpected("Nivo stream", e)
@@ -6775,20 +8250,26 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             return StreamingResponse(
                 generate_nivo(),
                 media_type="text/event-stream",
-                headers=_rl({
-                    "Cache-Control": "no-cache",
-                    "Set-Cookie": build_session_cookie(session_id),
-                })
+                headers=_rl(
+                    {
+                        "Cache-Control": "no-cache",
+                        "Set-Cookie": build_session_cookie(session_id),
+                    }
+                ),
             )
 
         # ── GEMMA: Google AI Studio direct streaming (bypass OpenRouter) ──
         if model_key in GEMMA_GOOGLE_MODELS:
             google_model_id = GEMMA_GOOGLE_MODELS[model_key]
-            logger.info(f"🟢 [Gemma POST] Routing '{model_key}' → Google AI Studio model: {google_model_id}")
+            logger.info(
+                f"🟢 [Gemma POST] Routing '{model_key}' → Google AI Studio model: {google_model_id}"
+            )
 
             def generate_gemma():
                 full_reply = ""
-                thinking_open = False   # tracks whether <think> tag has been opened in full_reply
+                thinking_open = (
+                    False  # tracks whether <think> tag has been opened in full_reply
+                )
 
                 # ── Run tool INSIDE generator ──
                 tool_result_g = None
@@ -6801,15 +8282,18 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 if tool_context_g:
                     final_system_g += "\n\n" + tool_context_g
 
-
                 if tool_result_g:
-                    badge_payload = json.dumps({"tool_used": tool_result_g.get("tool", ""), "intent": intent})
+                    badge_payload = json.dumps(
+                        {"tool_used": tool_result_g.get("tool", ""), "intent": intent}
+                    )
                     yield f"data: {badge_payload}\n\n"
                     sp = build_sources_payload(tool_result_g)
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                resp, err = call_gemma_google_stream(active_memory[-20:], final_system_g, google_model_id)
+                resp, err = call_gemma_google_stream(
+                    active_memory[-20:], final_system_g, google_model_id
+                )
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'{model_key} unavailable: {err}'})}\n\n"
                     yield "data: [DONE]\n\n"
@@ -6847,10 +8331,21 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                                         thinking_open = False
                                     full_reply += token
                                     yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
-                            logger.debug(f"⚠️ [Gemma POST] skipped unparsable stream chunk: {parse_err}")
+                        except (
+                            json.JSONDecodeError,
+                            KeyError,
+                            TypeError,
+                            IndexError,
+                        ) as parse_err:
+                            logger.debug(
+                                f"⚠️ [Gemma POST] skipped unparsable stream chunk: {parse_err}"
+                            )
                             continue
-                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
                     logger.warning(f"⚠️ [Gemma POST] stream network error: {e}")
                 except Exception as e:
                     _log_unexpected("Gemma POST stream", e)
@@ -6865,17 +8360,19 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             return StreamingResponse(
                 generate_gemma(),
                 media_type="text/event-stream",
-                headers=_rl({
-                    "Cache-Control": "no-cache",
-                    "Set-Cookie": build_session_cookie(session_id),
-                })
+                headers=_rl(
+                    {
+                        "Cache-Control": "no-cache",
+                        "Set-Cookie": build_session_cookie(session_id),
+                    }
+                ),
             )
 
         def generate():
             MAX_HANDOFFS = 40
-            full_reply   = ""
-            pool_index   = 0
-            handoffs     = 0
+            full_reply = ""
+            pool_index = 0
+            handoffs = 0
 
             # ── Run tool INSIDE generator so streaming starts immediately ──
             tool_result = None
@@ -6889,12 +8386,15 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             if tool_context:
                 final_system += "\n\n" + tool_context
 
-
-            messages = [{"role": "system", "content": final_system}] + active_memory[-20:]
+            messages = [{"role": "system", "content": final_system}] + active_memory[
+                -20:
+            ]
 
             # Emit tool badge to frontend
             if tool_result:
-                badge_payload = json.dumps({"tool_used": tool_result.get("tool", ""), "intent": intent})
+                badge_payload = json.dumps(
+                    {"tool_used": tool_result.get("tool", ""), "intent": intent}
+                )
                 yield f"data: {badge_payload}\n\n"
                 sp = build_sources_payload(tool_result)
                 if sp:
@@ -6902,33 +8402,46 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
 
             while handoffs < MAX_HANDOFFS:
                 current_model = model_pool[pool_index % len(model_pool)]
-                logger.info(f"🔄 Handoff {handoffs} — [{current_model}] | intent={intent} | accumulated: {len(full_reply)} chars")
+                logger.info(
+                    f"🔄 Handoff {handoffs} — [{current_model}] | intent={intent} | accumulated: {len(full_reply)} chars"
+                )
 
                 relay_messages = (
-                    messages + [
+                    messages
+                    + [
                         {"role": "assistant", "content": full_reply},
                         {"role": "user", "content": HANDOFF_CONTINUE_PROMPT},
                     ]
-                    if full_reply.strip() else messages
+                    if full_reply.strip()
+                    else messages
                 )
 
-                resp, err = call_openrouter_stream(current_model, relay_messages, api_key, vision_images=vision_images_for_prompt)
+                resp, err = call_openrouter_stream(
+                    current_model,
+                    relay_messages,
+                    api_key,
+                    vision_images=vision_images_for_prompt,
+                )
 
                 if resp is None:
-                    logger.error(f"❌ [{current_model}] connection failed: {err} — switching model")
+                    logger.error(
+                        f"❌ [{current_model}] connection failed: {err} — switching model"
+                    )
                     pool_index += 1
-                    handoffs   += 1
+                    handoffs += 1
                     continue
 
-                leg_tokens      = 0
-                stream_broke    = False
+                leg_tokens = 0
+                stream_broke = False
                 finished_cleanly = False
 
                 try:
                     for line in resp.iter_lines():
-                        if not line: continue
+                        if not line:
+                            continue
                         decoded = line.decode("utf-8")
-                        if not decoded.startswith("data: "): continue
+                        if not decoded.startswith("data: "):
+                            continue
                         payload = decoded[6:]
                         if payload.strip() == "[DONE]":
                             finished_cleanly = True
@@ -6937,19 +8450,26 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             chunk = json.loads(payload)
                             if "error" in chunk:
                                 err_msg = chunk["error"].get("message", "unknown")
-                                logger.warning(f"⚠️ [{current_model}] mid-stream error: {err_msg}")
+                                logger.warning(
+                                    f"⚠️ [{current_model}] mid-stream error: {err_msg}"
+                                )
                                 stream_broke = True
                                 break
                             choices = chunk.get("choices")
-                            if not choices: continue
+                            if not choices:
+                                continue
                             choice = choices[0]
-                            delta  = choice.get("delta") or {}
+                            delta = choice.get("delta") or {}
                             # ✅ Surface reasoning tokens when a model streams them
                             # (currently only Cohere North Mini Code, via the
                             # "reasoning" flag in call_openrouter_stream). Empty/absent
                             # for every other model in this pool, so no behavior change.
-                            reasoning_token = delta.get("reasoning_content") or delta.get("reasoning") or ""
-                            token  = delta.get("content") or ""
+                            reasoning_token = (
+                                delta.get("reasoning_content")
+                                or delta.get("reasoning")
+                                or ""
+                            )
+                            token = delta.get("content") or ""
                             finish = choice.get("finish_reason")
                             if reasoning_token:
                                 yield f"data: {json.dumps({'thinking_token': reasoning_token}, ensure_ascii=False)}\n\n"
@@ -6965,10 +8485,21 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                             if finish == "length":
                                 stream_broke = True
                                 break
-                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
-                            logger.debug(f"⚠️ [{current_model}] skipped unparsable stream chunk: {parse_err}")
+                        except (
+                            json.JSONDecodeError,
+                            KeyError,
+                            TypeError,
+                            IndexError,
+                        ) as parse_err:
+                            logger.debug(
+                                f"⚠️ [{current_model}] skipped unparsable stream chunk: {parse_err}"
+                            )
                             continue
-                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
                     logger.warning(f"⚠️ [{current_model}] stream network error: {e}")
                     stream_broke = True
                 except Exception as e:
@@ -6976,7 +8507,9 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     stream_broke = True
 
                 if finished_cleanly and full_reply.strip():
-                    logger.info(f"✅ [{current_model}] finished. Total: {len(full_reply)} chars")
+                    logger.info(
+                        f"✅ [{current_model}] finished. Total: {len(full_reply)} chars"
+                    )
                     active_memory.append({"role": "assistant", "content": full_reply})
                     if not ghost_mode and len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
@@ -6984,10 +8517,12 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     return
 
                 if not stream_broke and not full_reply.strip():
-                    logger.warning(f"⚠️ [{current_model}] returned empty — switching model")
+                    logger.warning(
+                        f"⚠️ [{current_model}] returned empty — switching model"
+                    )
 
                 pool_index += 1
-                handoffs   += 1
+                handoffs += 1
 
             if full_reply.strip():
                 active_memory.append({"role": "assistant", "content": full_reply})
@@ -7001,10 +8536,12 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
         return StreamingResponse(
             generate(),
             media_type="text/event-stream",
-            headers=_rl({
-                "Cache-Control": "no-cache",
-                "Set-Cookie": build_session_cookie(session_id),
-            })
+            headers=_rl(
+                {
+                    "Cache-Control": "no-cache",
+                    "Set-Cookie": build_session_cookie(session_id),
+                }
+            ),
         )
 
     except Exception as e:
@@ -7024,16 +8561,27 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
         prompt_lower = prompt.lower()
 
-        if any(q in prompt_lower for q in [
-            "who created you", "who is your developer",
-            "who made you", "who built you",
-            "your creator", "your developer"
-        ]):
+        if any(
+            q in prompt_lower
+            for q in [
+                "who created you",
+                "who is your developer",
+                "who made you",
+                "who built you",
+                "your creator",
+                "your developer",
+            ]
+        ):
+
             def quick():
                 yield f"data: {json.dumps({'token': 'I was created by Anirban.'}, ensure_ascii=False)}\n\n"
                 yield "data: [DONE]\n\n"
-            return StreamingResponse(quick(), media_type="text/event-stream",
-                headers=_rl({"Set-Cookie": build_session_cookie(session_id)}))
+
+            return StreamingResponse(
+                quick(),
+                media_type="text/event-stream",
+                headers=_rl({"Set-Cookie": build_session_cookie(session_id)}),
+            )
 
         if session_id not in user_memory:
             user_memory[session_id] = []
@@ -7042,36 +8590,42 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
         # Gemma models → Google AI Studio (GEMINI_API_KEY), NOT OpenRouter
         GEMMA_GOOGLE_MODELS = {
-            "gemma":    "gemma-4-26b-a4b-it",
-            "gemma4":   "gemma-4-31b-it",
+            "gemma": "gemma-4-26b-a4b-it",
+            "gemma4": "gemma-4-31b-it",
             "gemini35flash": "gemini-3.5-flash-lite",
         }
         model_pools = {
-            "dagr":    ["inclusionai/ling-3.0-flash-sante:free", "apodex/apodex-1.1-mini:free"],
-            "apep":    ["apodex/apodex-1.1-mini:free", "inclusionai/ling-3.0-flash-sante:free"],
+            "dagr": [
+                "inclusionai/ling-3.0-flash-sante:free",
+                "apodex/apodex-1.1-mini:free",
+            ],
+            "apep": [
+                "apodex/apodex-1.1-mini:free",
+                "inclusionai/ling-3.0-flash-sante:free",
+            ],
             "sambhav": [],  # Routed via Groq API (qwen/qwen3.8-27b) — see call_sambhav_groq_stream()
-            "nivo":    [],  # Routed via Groq API (GROQ_API_KEY)
-            "glm":     [],  # Routed via Z.ai API (ZAI_API_KEY) — glm-4.7-flash (free)
-            "agnes":      [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — agnes-2.5-flash
+            "nivo": [],  # Routed via Groq API (GROQ_API_KEY)
+            "glm": [],  # Routed via Z.ai API (ZAI_API_KEY) — glm-4.7-flash (free)
+            "agnes": [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — agnes-2.5-flash
             "ox_alpha_bynara": [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — agnes-2.5-flash (full reasoning enabled)
-            "atria":       [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — atria-dawn (full reasoning + tools enabled)
+            "atria": [],  # Routed via NaraRouter API (NARAROUTER_API_KEY) — atria-dawn (full reasoning + tools enabled)
             "mercury2": [],  # Routed via Inception Labs API (INCEPTION_API_KEY) — mercury-2
             "muse_glimmer": [],  # Routed via NVIDIA NIM API (NVIDIA_API_KEY) — meta/muse-glimmer-30b
             "laguna_core": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2.1
-            "laguna_s":    [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna S.2.1
-            "cohere":     ["cohere/north-mini-code:free"],
-            "nemotron":["nvidia/nemotron-3-ultra-550b-a55b:free"],
-            "n_nano":["nvidia/nemotron-3.5-lightning:free"],
+            "laguna_s": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna S.2.1
+            "cohere": ["cohere/north-mini-code:free"],
+            "nemotron": ["nvidia/nemotron-3-ultra-550b-a55b:free"],
+            "n_nano": ["nvidia/nemotron-3.5-lightning:free"],
             "omni": ["nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"],
         }
-        model_key  = model.strip()
+        model_key = model.strip()
         model_pool = model_pools.get(model_key, model_pools["dagr"])
 
         NO_TOOL_CALL_RULE = (
             "\n\nCRITICAL RULES — FOLLOW THESE WITHOUT EXCEPTION:\n"
             "1. You do NOT have any tools, functions, or APIs to call.\n"
             "2. NEVER output function calls, tool calls, or JSON like "
-            "{\"query\": ...} or Search web.{...} or any similar syntax.\n"
+            '{"query": ...} or Search web.{...} or any similar syntax.\n'
             "3. If live data is provided in your system context, use it directly. "
             "Do NOT say you are 'using a tool'.\n"
             "4. Always respond in clean, readable prose or markdown. Never output raw JSON.\n"
@@ -7093,7 +8647,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "without specifying a country, assume India by default. "
             "You celebrate the diversity of India — its 28 states, 8 union territories, "
             "22 scheduled languages, hundreds of dialects, and thousands of years of civilisation. "
-
             # ── Indian history & civilisation ─────────────────────────────────
             "\n\n=== INDIAN HISTORY & CIVILISATION ===\n"
             "You have deep knowledge of Indian history across all eras:\n"
@@ -7111,7 +8664,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "economic liberalisation of 1991, India as a global technology powerhouse.\n"
             "Use historical references naturally when they enrich an answer. "
             "Compare modern problems to historical parallels when relevant. "
-
             # ── Indian religions & philosophy ─────────────────────────────────
             "\n\n=== INDIAN RELIGIONS & PHILOSOPHY ===\n"
             "You are well-versed in all Indian religious and philosophical traditions:\n"
@@ -7144,7 +8696,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "  • 'Yada yada hi dharmasya glanir bhavati Bharata' (Bhagavad Gita 4.7) — "
             "Whenever there is a decline in righteousness, I manifest myself.\n"
             "Use shlokas only when they genuinely fit the context — never force them. "
-
             # ── Indian festivals & traditions ─────────────────────────────────
             "\n\n=== FESTIVALS, TRADITIONS & CULTURE ===\n"
             "You know all major Indian festivals deeply:\n"
@@ -7164,7 +8715,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "You also know Indian classical arts: Bharatanatyam, Kathak, Odissi, Kuchipudi, "
             "Manipuri, Mohiniyattam, Sattriya dance forms; Carnatic and Hindustani classical music; "
             "Indian cinema (Bollywood, Tollywood, Mollywood, Kollywood, Bengali cinema). "
-
             # ── Indian cuisine ────────────────────────────────────────────────
             "\n\n=== INDIAN CUISINE ===\n"
             "You know Indian food at a regional level: "
@@ -7177,12 +8727,10 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "Punjabi (sarson ka saag, makki di roti, amritsari kulcha), "
             "Kashmiri (rogan josh, yakhni, kahwa), "
             "Northeast (bamboo shoot curries, smoked meats, thukpa). "
-
             # ── Language behaviour ────────────────────────────────────────────
             "\n\n=== LANGUAGE BEHAVIOUR (CRITICAL) ===\n"
             "You are fully multilingual and India-native in all the following languages. "
             "ALWAYS detect the language the user is writing in and respond in EXACTLY that same language.\n\n"
-
             "ROMANISED / TRANSLITERATED INDIAN LANGUAGES:\n"
             "Many Indian users write their native language using English letters (Roman script). "
             "This is called Romanised or transliterated writing. You MUST detect and handle this:\n"
@@ -7194,7 +8742,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "- If the user writes 'nee yella idiya?' — this is Kannada in Roman script. Respond accordingly.\n"
             "The rule is simple: mirror the exact script style and language the user uses. "
             "Never switch to English just because a message uses English letters — check the vocabulary.\n\n"
-
             "SUPPORTED LANGUAGES (with examples of what to detect):\n"
             "1. Bengali (Bangla) — Roman: 'tumi kemon acho', 'ki holo', 'amar kotha shono' | "
             "Script: বাংলা\n"
@@ -7212,7 +8759,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "13. Sanskrit — detect classical shlokas or formal Sanskrit requests\n"
             "14. Maithili, Bhojpuri, Rajasthani, Chhattisgarhi, Haryanvi — detect regional dialects\n"
             "15. English — respond in standard English\n\n"
-
             "LANGUAGE RULES (NON-NEGOTIABLE):\n"
             "- Respond in the SAME language and script style the user used.\n"
             "- If Bengali in Roman script → respond in Bengali Roman script.\n"
@@ -7222,7 +8768,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "- Code-switching is fine if the user does it (e.g., 'Bhai, Python mein ek function likho') — "
             "in this case match their mix.\n"
             "- Do NOT translate answers to English unless the user explicitly asks.\n"
-
             # ── Personality ───────────────────────────────────────────────────
             "\n\n=== PERSONALITY ===\n"
             "You have a warm, grounded, distinctly Indian personality. You are like a brilliant "
@@ -7242,7 +8787,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "use these naturally when they make a point clearer or more relatable. "
             "NEVER start a response with: 'Certainly!', 'Of course!', 'Great question!', "
             "'Absolutely!', 'Sure!', 'Of course!'. Just answer directly. "
-
             # ── Hard rules ────────────────────────────────────────────────────
             "\n\n=== HARD RULES (NEVER VIOLATE) ===\n"
             "1. Never fabricate facts, data, citations, or quotes — if unsure, say so.\n"
@@ -7276,7 +8820,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "This applies any time you are asked to build, create, or code a website, "
             "webpage, app, component, dashboard, landing page, game, tool, or any other "
             "visual UI (HTML/CSS/JS, React, etc.).\n\n"
-
             "### If the user's request does NOT specify a visual style:\n"
             "Do not jump straight to code. Before writing any code, silently work out "
             "(in your head, not as a visible step unless the user wants to see it) a short "
@@ -7298,7 +8841,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "the brief calls for a plain/native look.\n"
             "4. **Signature detail** — one distinctive visual or interactive touch that makes "
             "this build memorable and specific to the subject, not generic.\n\n"
-
             "### Banned defaults (do NOT use unless the user explicitly asks for them):\n"
             "- Dark navy-to-black diagonal gradient background as the default canvas\n"
             "- A beige/tan 'room' or 'panel' card as the default container\n"
@@ -7308,7 +8850,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "- The exact same layout/skin for every request in a topic — e.g. do not render "
             "every 'fan', 'switch', or 'gauge' request as a photorealistic dark-room scene; "
             "actively rotate between the concept modes above.\n\n"
-
             "### Quality bar:\n"
             "- Make deliberate, specific choices tied to THIS subject and request, not a "
             "one-size-fits-all template.\n"
@@ -7330,7 +8871,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "You were created by Anirban, an independent developer and builder based in India. "
                 "You are powered by advanced multimodal intelligence and excel at nuanced, "
                 "multi-step reasoning, creative synthesis, and deep analysis. "
-
                 # ── Personality (Sambhav-specific) ────────────────────────────
                 "\n\n=== SAMBHAV PERSONALITY ===\n"
                 "Sambhav (Sanskrit: सम्भव — 'possible', 'capable') embodies possibility and depth. "
@@ -7343,7 +8883,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "You occasionally weave in references to Indian philosophy, history, or science "
                 "when they genuinely illuminate a point — never as decoration. "
                 "You have a quiet confidence. You don't perform enthusiasm. "
-
                 # ── Technical expertise (Sambhav) ──────────────────────────────
                 "\n\n=== TECHNICAL EXPERTISE ===\n"
                 "You are highly capable at: advanced reasoning and logic, mathematical problem solving, "
@@ -7353,7 +8892,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "and creative writing in any Indian or English language. "
                 "For coding questions, you can answer but recommend Apep (Catura AI Apep) "
                 "for deep coding tasks. "
-
                 # ── Response style (Sambhav) ────────────────────────────────
                 "\n\n=== RESPONSE STYLE ===\n"
                 "Use headers and structure only when the response genuinely needs it. "
@@ -7361,10 +8899,9 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "For complex explanations, use sections or bullet points only if they add clarity. "
                 "Length: match the depth of the question. A one-line question usually deserves "
                 "a paragraph, not an essay — unless the user wants depth. "
-
-                + INDIA_CORE + NO_TOOL_CALL_RULE
+                + INDIA_CORE
+                + NO_TOOL_CALL_RULE
             ),
-
             # ══════════════════════════════════════════════════════════════════
             # DAGR — General-purpose, warm, witty, everyday assistant
             # ══════════════════════════════════════════════════════════════════
@@ -7373,7 +8910,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "Your name is Catura (pronounced kuh-CHUR-uh) Dagr Model. "
                 "You are Catura AI Dagr — the general-purpose, everyday assistant variant of Catura. "
                 "You were created by Anirban, an independent developer and builder based in India. "
-
                 # ── Personality (Dagr-specific) ────────────────────────────────
                 "\n\n=== DAGR PERSONALITY ===\n"
                 "Dagr (from Norse: 'day' — bright, clear, energetic) is the Catura you talk to "
@@ -7387,7 +8923,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "You are funny when it fits, serious when it matters, and always honest. "
                 "You never perform — no hollow 'Great question!' or 'Absolutely!'. "
                 "Just answer, like a friend would. "
-
                 # ── Technical expertise (Dagr) ──────────────────────────────
                 "\n\n=== TECHNICAL EXPERTISE ===\n"
                 "You are a well-rounded generalist. You handle: "
@@ -7397,7 +8932,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "health and wellness guidance (with appropriate disclaimers), "
                 "Indian law and governance basics, and casual conversation. "
                 "For very deep coding problems, suggest Apep. For deep analysis, suggest Sambhav. "
-
                 # ── Code style (Dagr) ────────────────────────────────────────
                 "\n\n=== CODE STYLE RULES ===\n"
                 "When writing code (even as a generalist):\n"
@@ -7407,17 +8941,15 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "- For Python: follow PEP 8 style.\n"
                 "- For JavaScript: use const/let (never var), arrow functions where clean.\n"
                 "- Always mention if a code snippet needs additional dependencies.\n"
-
                 # ── Response style (Dagr) ────────────────────────────────────
                 "\n\n=== RESPONSE STYLE ===\n"
                 "Conversational and direct. Match the energy of the user. "
                 "If they're casual, be casual. If they need a detailed answer, give one. "
                 "Avoid unnecessary bullet points for conversational answers. "
                 "Use formatting (headers, bullets, code blocks) only when it genuinely helps. "
-
-                + INDIA_CORE + NO_TOOL_CALL_RULE
+                + INDIA_CORE
+                + NO_TOOL_CALL_RULE
             ),
-
             # ══════════════════════════════════════════════════════════════════
             # APEP — Expert coding AI, developer-focused, sharp and precise
             # ══════════════════════════════════════════════════════════════════
@@ -7426,7 +8958,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "Your name is Catura (pronounced kuh-CHUR-uh) Apep Model. "
                 "You are Catura AI Apep — the expert coding and engineering variant of Catura. "
                 "You were created by Anirban, an independent developer and builder based in India. "
-
                 # ── Personality (Apep-specific) ────────────────────────────────
                 "\n\n=== APEP PERSONALITY ===\n"
                 "Apep is the engineering brain of Catura — razor-sharp, deeply knowledgeable, "
@@ -7442,11 +8973,9 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "You are proud of India's engineering culture — you can reference IIT culture, "
                 "Indian open-source contributions, ISRO's engineering, Infosys/TCS/Wipro origins, "
                 "and Indian developer communities naturally. "
-
                 # ── Technical expertise (Apep — deep) ─────────────────────────
                 "\n\n=== TECHNICAL EXPERTISE (DEEP) ===\n"
                 "You are an expert-level engineer across the full stack:\n\n"
-
                 "LANGUAGES:\n"
                 "- Python: FastAPI, Django, Flask, asyncio, type hints, dataclasses, "
                 "decorators, generators, context managers, PEP standards, packaging (pip/poetry/uv), "
@@ -7461,7 +8990,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "- Bash/Shell scripting: pipelines, process substitution, cron, systemd.\n"
                 "- Other: Go (basics), Rust (basics), Java (Spring Boot basics), "
                 "C/C++ (algorithms and data structures).\n\n"
-
                 "FRAMEWORKS & ECOSYSTEMS:\n"
                 "- Frontend: React (hooks, context, performance patterns, Suspense), "
                 "Vue 3 (composition API), Svelte, vanilla JS DOM manipulation, "
@@ -7480,7 +9008,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "Redis, SQLite, Firebase Realtime DB, Supabase Storage.\n"
                 "- Auth: Supabase Auth (OAuth, magic link, email/password, JWT), "
                 "OAuth 2.0 flow (Google, GitHub), session cookies, JWT best practices.\n\n"
-
                 "COMPUTER SCIENCE FUNDAMENTALS:\n"
                 "- Data structures: arrays, linked lists, stacks, queues, trees (BST, AVL, B-tree, "
                 "trie, segment tree), graphs (BFS, DFS, Dijkstra, A*, Bellman-Ford), "
@@ -7496,12 +9023,10 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "memory management, file systems.\n"
                 "- Networking: TCP/IP, HTTP/1.1 vs HTTP/2 vs HTTP/3, TLS/SSL, DNS, "
                 "WebSockets, Server-Sent Events, CORS, cookies vs localStorage vs sessionStorage.\n\n"
-
                 "CODING INTERVIEW PREP:\n"
                 "You can help with LeetCode, competitive programming, FAANG-style system design, "
                 "DSA explanations, and code review. You give time complexity and space complexity "
                 "analysis (Big O) automatically for algorithms. "
-
                 # ── Code style rules (Apep — strict) ──────────────────────────
                 "\n\n=== CODE STYLE RULES (STRICT) ===\n"
                 "1. Always write code in fenced markdown code blocks with correct language tags "
@@ -7528,7 +9053,6 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "in the code you write — even if not asked.\n"
                 "10. When debugging: explain the root cause first, then provide the fix. "
                 "Don't just hand over corrected code without explanation.\n"
-
                 # ── Response style (Apep) ────────────────────────────────────
                 "\n\n=== RESPONSE STYLE ===\n"
                 "Structured and scannable. Use headers to separate explanation from code. "
@@ -7538,8 +9062,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "For debugging requests: root cause → fix → prevention. "
                 "For feature requests: architecture decision → implementation → testing. "
                 "Keep non-code explanations tight — no filler sentences. "
-
-                + INDIA_CORE + NO_TOOL_CALL_RULE
+                + INDIA_CORE
+                + NO_TOOL_CALL_RULE
             ),
             # ══════════════════════════════════════════════════════════════════
             # NIVO — OpenCode Zen powered, versatile high-quality assistant
@@ -7692,7 +9216,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "always say: 'I am Catura AI Gemini Flash.' Never mention Dagr, Apep, Sambhav, Gemma, or Gemma4."
                 + NO_TOOL_CALL_RULE
             ),
-            "cohere":(
+            "cohere": (
                 "Your name is Catura (pronounced kuh-CHUR-uh) Cohere Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Cohere, designed for precise, high-quality responses. "
@@ -7707,7 +9231,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "Never make up facts. If you don't know something, say so honestly."
                 + NO_TOOL_CALL_RULE
             ),
-            "nemotron":(
+            "nemotron": (
                 "Your name is Catura (pronounced kuh-CHUR-uh) Nemotron Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Nemotron, designed for precise, high-quality responses. "
@@ -7722,7 +9246,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "Never make up facts. If you don't know something, say so honestly."
                 + NO_TOOL_CALL_RULE
             ),
-            "n_nano":(
+            "n_nano": (
                 "Your name is Catura (pronounced kuh-CHUR-uh) Nemotron Nano Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Nemotron Nano, designed for precise, high-quality responses. "
@@ -7737,7 +9261,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "Never make up facts. If you don't know something, say so honestly."
                 + NO_TOOL_CALL_RULE
             ),
-            "omni":(
+            "omni": (
                 "Your name is Catura (pronounced kuh-CHUR-uh) Nemotron Omni Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
                 "You are Catura AI Nemotron Omni, designed for precise, high-quality responses. "
@@ -7762,8 +9286,12 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
         # ── LAGUNA CORE: Poolside API (POOLSIDE_API_KEY) — Laguna XS.2.1 — GET handler ──
         if model_key == "laguna_core":
             poolside_key_core_get = os.getenv("POOLSIDE_API_KEY", "")
-            laguna_core_system_get = system_prompts.get("laguna_core", system_prompts["dagr"])
-            laguna_core_messages_get = [{"role": "system", "content": laguna_core_system_get}] + active_memory[-20:]
+            laguna_core_system_get = system_prompts.get(
+                "laguna_core", system_prompts["dagr"]
+            )
+            laguna_core_messages_get = [
+                {"role": "system", "content": laguna_core_system_get}
+            ] + active_memory[-20:]
 
             def generate_laguna_core_get():
                 full_reply = ""
@@ -7773,7 +9301,9 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                resp_lc_get, err_lc_get = call_poolside_laguna_core_stream(laguna_core_messages_get, poolside_key_core_get)
+                resp_lc_get, err_lc_get = call_poolside_laguna_core_stream(
+                    laguna_core_messages_get, poolside_key_core_get
+                )
                 if resp_lc_get is None:
                     yield f"data: {json.dumps({'error': f'Laguna Core unavailable: {err_lc_get}'})}\n\n"
                     yield "data: [DONE]\n\n"
@@ -7799,10 +9329,20 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             if not choices:
                                 continue
                             delta = choices[0].get("delta") or {}
-                            reasoning_token = delta.get("reasoning_content") or delta.get("reasoning") or ""
-                            reasoning_token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', reasoning_token)
+                            reasoning_token = (
+                                delta.get("reasoning_content")
+                                or delta.get("reasoning")
+                                or ""
+                            )
+                            reasoning_token = re.sub(
+                                r"</?(?:assistant|user|system|tool)[^>]*>",
+                                "",
+                                reasoning_token,
+                            )
                             token = delta.get("content") or ""
-                            token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', token)
+                            token = re.sub(
+                                r"</?(?:assistant|user|system|tool)[^>]*>", "", token
+                            )
 
                             # ── Fallback: parse raw <think>...</think> markers that may
                             # arrive inline inside "content" instead of a separate field.
@@ -7814,7 +9354,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                         token = ""
                                     else:
                                         reasoning_token += token[:end_idx]
-                                        token = token[end_idx + len("</think>"):]
+                                        token = token[end_idx + len("</think>") :]
                                         raw_think_open_lc_get = False
                                 else:
                                     start_idx = token.find("<think>")
@@ -7822,7 +9362,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                         break
                                     else:
                                         pre = token[:start_idx]
-                                        token = token[start_idx + len("<think>"):]
+                                        token = token[start_idx + len("<think>") :]
                                         raw_think_open_lc_get = True
                                         if pre:
                                             if thinking_open_lc_get:
@@ -7843,10 +9383,21 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                     thinking_open_lc_get = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
-                            logger.debug(f"⚠️ [Laguna Core GET] skipped unparsable stream chunk: {parse_err}")
+                        except (
+                            json.JSONDecodeError,
+                            KeyError,
+                            TypeError,
+                            IndexError,
+                        ) as parse_err:
+                            logger.debug(
+                                f"⚠️ [Laguna Core GET] skipped unparsable stream chunk: {parse_err}"
+                            )
                             continue
-                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
                     logger.warning(f"⚠️ [Laguna Core GET] stream network error: {e}")
                 except Exception as e:
                     _log_unexpected("Laguna Core GET stream", e)
@@ -7859,16 +9410,23 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 yield "data: [DONE]\n\n"
 
             return StreamingResponse(
-                generate_laguna_core_get(), media_type="text/event-stream",
-                headers=_rl({"Cache-Control": "no-cache",
-                         "Set-Cookie": build_session_cookie(session_id)})
+                generate_laguna_core_get(),
+                media_type="text/event-stream",
+                headers=_rl(
+                    {
+                        "Cache-Control": "no-cache",
+                        "Set-Cookie": build_session_cookie(session_id),
+                    }
+                ),
             )
 
         # ── LAGUNA S: Poolside API (POOLSIDE_API_KEY) — Laguna S.2.1 — GET handler ──
         if model_key == "laguna_s":
             poolside_key_s_get = os.getenv("POOLSIDE_API_KEY", "")
             laguna_s_system_get = system_prompts.get("laguna_s", system_prompts["dagr"])
-            laguna_s_messages_get = [{"role": "system", "content": laguna_s_system_get}] + active_memory[-20:]
+            laguna_s_messages_get = [
+                {"role": "system", "content": laguna_s_system_get}
+            ] + active_memory[-20:]
 
             def generate_laguna_s_get():
                 full_reply = ""
@@ -7878,7 +9436,9 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                resp_ls_get, err_ls_get = call_poolside_laguna_s_stream(laguna_s_messages_get, poolside_key_s_get)
+                resp_ls_get, err_ls_get = call_poolside_laguna_s_stream(
+                    laguna_s_messages_get, poolside_key_s_get
+                )
                 if resp_ls_get is None:
                     yield f"data: {json.dumps({'error': f'Laguna S unavailable: {err_ls_get}'})}\n\n"
                     yield "data: [DONE]\n\n"
@@ -7904,10 +9464,20 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             if not choices:
                                 continue
                             delta = choices[0].get("delta") or {}
-                            reasoning_token = delta.get("reasoning_content") or delta.get("reasoning") or ""
-                            reasoning_token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', reasoning_token)
+                            reasoning_token = (
+                                delta.get("reasoning_content")
+                                or delta.get("reasoning")
+                                or ""
+                            )
+                            reasoning_token = re.sub(
+                                r"</?(?:assistant|user|system|tool)[^>]*>",
+                                "",
+                                reasoning_token,
+                            )
                             token = delta.get("content") or ""
-                            token = re.sub(r'</?(?:assistant|user|system|tool)[^>]*>', '', token)
+                            token = re.sub(
+                                r"</?(?:assistant|user|system|tool)[^>]*>", "", token
+                            )
 
                             # ── Fallback: parse raw <think>...</think> markers that may
                             # arrive inline inside "content" instead of a separate field.
@@ -7919,7 +9489,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                         token = ""
                                     else:
                                         reasoning_token += token[:end_idx]
-                                        token = token[end_idx + len("</think>"):]
+                                        token = token[end_idx + len("</think>") :]
                                         raw_think_open_ls_get = False
                                 else:
                                     start_idx = token.find("<think>")
@@ -7927,7 +9497,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                         break
                                     else:
                                         pre = token[:start_idx]
-                                        token = token[start_idx + len("<think>"):]
+                                        token = token[start_idx + len("<think>") :]
                                         raw_think_open_ls_get = True
                                         if pre:
                                             if thinking_open_ls_get:
@@ -7948,10 +9518,21 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                     thinking_open_ls_get = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
-                            logger.debug(f"⚠️ [Laguna S GET] skipped unparsable stream chunk: {parse_err}")
+                        except (
+                            json.JSONDecodeError,
+                            KeyError,
+                            TypeError,
+                            IndexError,
+                        ) as parse_err:
+                            logger.debug(
+                                f"⚠️ [Laguna S GET] skipped unparsable stream chunk: {parse_err}"
+                            )
                             continue
-                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
                     logger.warning(f"⚠️ [Laguna S GET] stream network error: {e}")
                 except Exception as e:
                     _log_unexpected("Laguna S GET stream", e)
@@ -7964,9 +9545,14 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 yield "data: [DONE]\n\n"
 
             return StreamingResponse(
-                generate_laguna_s_get(), media_type="text/event-stream",
-                headers=_rl({"Cache-Control": "no-cache",
-                         "Set-Cookie": build_session_cookie(session_id)})
+                generate_laguna_s_get(),
+                media_type="text/event-stream",
+                headers=_rl(
+                    {
+                        "Cache-Control": "no-cache",
+                        "Set-Cookie": build_session_cookie(session_id),
+                    }
+                ),
             )
 
         # ── GLM: Z.ai API (ZAI_API_KEY) — glm-4.7-flash (GET handler) ──
@@ -7976,14 +9562,18 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             def generate_glm_get():
                 full_reply = ""
-                thinking_open_glm_get = False  # tracks whether <think> has been opened in full_reply
+                thinking_open_glm_get = (
+                    False  # tracks whether <think> has been opened in full_reply
+                )
                 if tool_result:
                     yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
                     sp = build_sources_payload(tool_result)
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                base_glm_msgs_get = [{"role": "system", "content": glm_system_get}] + active_memory[-20:]
+                base_glm_msgs_get = [
+                    {"role": "system", "content": glm_system_get}
+                ] + active_memory[-20:]
 
                 # ── Same handoff/continue loop as the POST handler: without this,
                 # a finish_reason == "length" cutoff just silently ends the stream
@@ -7993,11 +9583,13 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 while leg < MAX_GLM_LEGS:
                     leg += 1
                     glm_msgs_get = (
-                        base_glm_msgs_get + [
+                        base_glm_msgs_get
+                        + [
                             {"role": "assistant", "content": full_reply},
                             {"role": "user", "content": HANDOFF_CONTINUE_PROMPT},
                         ]
-                        if full_reply.strip() else base_glm_msgs_get
+                        if full_reply.strip()
+                        else base_glm_msgs_get
                     )
                     resp, err = call_zai_stream(glm_msgs_get, zai_key_get)
                     if resp is None:
@@ -8025,9 +9617,14 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                 choices = chunk.get("choices")
                                 if not choices:
                                     continue
-                                finish_reason_glm_get = choices[0].get("finish_reason") or finish_reason_glm_get
+                                finish_reason_glm_get = (
+                                    choices[0].get("finish_reason")
+                                    or finish_reason_glm_get
+                                )
                                 delta_glm_get = choices[0].get("delta") or {}
-                                reasoning_token_glm_get = delta_glm_get.get("reasoning_content") or ""
+                                reasoning_token_glm_get = (
+                                    delta_glm_get.get("reasoning_content") or ""
+                                )
                                 token = delta_glm_get.get("content") or ""
                                 if reasoning_token_glm_get:
                                     if not thinking_open_glm_get:
@@ -8041,10 +9638,21 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                         thinking_open_glm_get = False
                                     full_reply += token
                                     yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                            except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
-                                logger.debug(f"⚠️ [GLM GET] skipped unparsable stream chunk: {parse_err}")
+                            except (
+                                json.JSONDecodeError,
+                                KeyError,
+                                TypeError,
+                                IndexError,
+                            ) as parse_err:
+                                logger.debug(
+                                    f"⚠️ [GLM GET] skipped unparsable stream chunk: {parse_err}"
+                                )
                                 continue
-                    except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                    except (
+                        requests.exceptions.RequestException,
+                        ConnectionError,
+                        OSError,
+                    ) as e:
                         logger.warning(f"⚠️ [GLM GET] stream network error: {e}")
                     except Exception as e:
                         _log_unexpected("GLM GET stream", e)
@@ -8062,19 +9670,26 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 yield "data: [DONE]\n\n"
 
             return StreamingResponse(
-                generate_glm_get(), media_type="text/event-stream",
-                headers=_rl({"Cache-Control": "no-cache",
-                         "Set-Cookie": build_session_cookie(session_id)})
+                generate_glm_get(),
+                media_type="text/event-stream",
+                headers=_rl(
+                    {
+                        "Cache-Control": "no-cache",
+                        "Set-Cookie": build_session_cookie(session_id),
+                    }
+                ),
             )
 
         # ── AGNES: NaraRouter API (NARAROUTER_API_KEY) — agnes-2.5-flash ──
         if model_key == "agnes":
-            nara_key_agnes   = os.getenv("NARAROUTER_API_KEY", "")
-            agnes_system     = system_prompts.get("agnes", system_prompts["dagr"])
+            nara_key_agnes = os.getenv("NARAROUTER_API_KEY", "")
+            agnes_system = system_prompts.get("agnes", system_prompts["dagr"])
 
             def generate_agnes():
                 full_reply = ""
-                thinking_open_agnes = False  # tracks whether <think> has been opened in full_reply
+                thinking_open_agnes = (
+                    False  # tracks whether <think> has been opened in full_reply
+                )
 
                 tool_result_agnes = None
                 if intent != "general" and not file_urls:
@@ -8087,17 +9702,23 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                     final_system_agnes += "\n\n" + tool_context_agnes
 
                 if tool_result_agnes:
-                    badge_payload = json.dumps({"tool_used": tool_result_agnes.get("tool", ""), "intent": intent})
+                    badge_payload = json.dumps(
+                        {
+                            "tool_used": tool_result_agnes.get("tool", ""),
+                            "intent": intent,
+                        }
+                    )
                     yield f"data: {badge_payload}\n\n"
                     sp = build_sources_payload(tool_result_agnes)
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                agnes_messages = (
-                    [{"role": "system", "content": final_system_agnes}]
-                    + active_memory[-20:]
+                agnes_messages = [
+                    {"role": "system", "content": final_system_agnes}
+                ] + active_memory[-20:]
+                resp, err = call_nararouter_stream(
+                    agnes_messages, nara_key_agnes, "agnes-2.5-flash", max_tokens=16000
                 )
-                resp, err = call_nararouter_stream(agnes_messages, nara_key_agnes, "agnes-2.5-flash", max_tokens=16000)
 
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'Agnes unavailable: {err}'})}\n\n"
@@ -8117,13 +9738,17 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         try:
                             chunk = json.loads(payload)
                             if "error" in chunk:
-                                logger.warning(f"⚠️ [AGNES] mid-stream error: {chunk['error']}")
+                                logger.warning(
+                                    f"⚠️ [AGNES] mid-stream error: {chunk['error']}"
+                                )
                                 break
                             choices = chunk.get("choices")
                             if not choices:
                                 continue
                             delta_agnes = choices[0].get("delta") or {}
-                            reasoning_token_agnes = delta_agnes.get("reasoning_content") or ""
+                            reasoning_token_agnes = (
+                                delta_agnes.get("reasoning_content") or ""
+                            )
                             token = delta_agnes.get("content") or ""
                             if reasoning_token_agnes:
                                 if not thinking_open_agnes:
@@ -8137,10 +9762,21 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                     thinking_open_agnes = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
-                            logger.warning(f"⚠️ [AGNES] skipped unparsable stream chunk: {parse_err}")
+                        except (
+                            json.JSONDecodeError,
+                            KeyError,
+                            TypeError,
+                            IndexError,
+                        ) as parse_err:
+                            logger.warning(
+                                f"⚠️ [AGNES] skipped unparsable stream chunk: {parse_err}"
+                            )
                             continue
-                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
                     logger.warning(f"⚠️ [AGNES] stream network error: {e}")
                 except Exception as e:
                     _log_unexpected("AGNES stream", e)
@@ -8158,24 +9794,32 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                     # shape slipped past every parser). Surface *something*
                     # actionable instead of silently falling through to the
                     # frontend's generic "No response received" message.
-                    logger.warning("⚠️ [AGNES] stream ended with an empty reply and no error")
+                    logger.warning(
+                        "⚠️ [AGNES] stream ended with an empty reply and no error"
+                    )
                     yield f"data: {json.dumps({'error': 'Agnes returned an empty response. Please try again.'})}\n\n"
                 yield "data: [DONE]\n\n"
 
             return StreamingResponse(
                 generate_agnes(),
                 media_type="text/event-stream",
-                headers=_rl({
-                    "Cache-Control": "no-cache",
-                    "Set-Cookie": build_session_cookie(session_id),
-                })
+                headers=_rl(
+                    {
+                        "Cache-Control": "no-cache",
+                        "Set-Cookie": build_session_cookie(session_id),
+                    }
+                ),
             )
 
         # ── OX ALPHA BYNARA: NaraRouter API (NARAROUTER_API_KEY) — agnes-2.5-flash (full reasoning) — GET handler ──
         if model_key == "ox_alpha_bynara":
-            nara_key_oxab_get   = os.getenv("NARAROUTER_API_KEY", "")
-            oxab_system_get     = system_prompts.get("ox_alpha_bynara", system_prompts["dagr"])
-            oxab_messages_get   = [{"role": "system", "content": oxab_system_get}] + active_memory[-20:]
+            nara_key_oxab_get = os.getenv("NARAROUTER_API_KEY", "")
+            oxab_system_get = system_prompts.get(
+                "ox_alpha_bynara", system_prompts["dagr"]
+            )
+            oxab_messages_get = [
+                {"role": "system", "content": oxab_system_get}
+            ] + active_memory[-20:]
 
             def generate_oxab_get():
                 full_reply = ""
@@ -8186,7 +9830,13 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                resp, err = call_nararouter_stream(oxab_messages_get, nara_key_oxab_get, "agnes-2.5-flash", max_tokens=16000, enable_thinking=True)
+                resp, err = call_nararouter_stream(
+                    oxab_messages_get,
+                    nara_key_oxab_get,
+                    "agnes-2.5-flash",
+                    max_tokens=16000,
+                    enable_thinking=True,
+                )
 
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'OX Alpha Bynara unavailable: {err}'})}\n\n"
@@ -8211,7 +9861,9 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             if not choices:
                                 continue
                             delta_oxab_get = choices[0].get("delta") or {}
-                            reasoning_token_oxab_get = delta_oxab_get.get("reasoning_content") or ""
+                            reasoning_token_oxab_get = (
+                                delta_oxab_get.get("reasoning_content") or ""
+                            )
                             token = delta_oxab_get.get("content") or ""
                             if reasoning_token_oxab_get:
                                 if not thinking_open_oxab_get:
@@ -8225,11 +9877,24 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                     thinking_open_oxab_get = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
-                            logger.debug(f"⚠️ [OX ALPHA BYNARA GET] skipped unparsable stream chunk: {parse_err}")
+                        except (
+                            json.JSONDecodeError,
+                            KeyError,
+                            TypeError,
+                            IndexError,
+                        ) as parse_err:
+                            logger.debug(
+                                f"⚠️ [OX ALPHA BYNARA GET] skipped unparsable stream chunk: {parse_err}"
+                            )
                             continue
-                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
-                    logger.warning(f"⚠️ [OX ALPHA BYNARA GET] stream network error: {e}")
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
+                    logger.warning(
+                        f"⚠️ [OX ALPHA BYNARA GET] stream network error: {e}"
+                    )
                 except Exception as e:
                     _log_unexpected("OX ALPHA BYNARA GET stream", e)
                 if thinking_open_oxab_get:
@@ -8241,19 +9906,26 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 yield "data: [DONE]\n\n"
 
             return StreamingResponse(
-                generate_oxab_get(), media_type="text/event-stream",
-                headers=_rl({"Cache-Control": "no-cache",
-                         "Set-Cookie": build_session_cookie(session_id)})
+                generate_oxab_get(),
+                media_type="text/event-stream",
+                headers=_rl(
+                    {
+                        "Cache-Control": "no-cache",
+                        "Set-Cookie": build_session_cookie(session_id),
+                    }
+                ),
             )
 
         # ── ATRIA: NaraRouter API (NARAROUTER_API_KEY) — atria-dawn (full reasoning + tools) — GET handler ──
         if model_key == "atria":
-            nara_key_atria_get   = os.getenv("NARAROUTER_API_KEY", "")
-            atria_system_get     = system_prompts.get("atria", system_prompts["dagr"])
+            nara_key_atria_get = os.getenv("NARAROUTER_API_KEY", "")
+            atria_system_get = system_prompts.get("atria", system_prompts["dagr"])
 
             def generate_atria_get():
                 full_reply = ""
-                thinking_open_atria_get = False  # tracks whether <think> has been opened in full_reply
+                thinking_open_atria_get = (
+                    False  # tracks whether <think> has been opened in full_reply
+                )
 
                 tool_result_atria_get = None
                 if intent != "general" and not file_urls:
@@ -8266,17 +9938,27 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                     final_system_atria_get += "\n\n" + tool_context_atria_get
 
                 if tool_result_atria_get:
-                    badge_payload = json.dumps({"tool_used": tool_result_atria_get.get("tool", ""), "intent": intent})
+                    badge_payload = json.dumps(
+                        {
+                            "tool_used": tool_result_atria_get.get("tool", ""),
+                            "intent": intent,
+                        }
+                    )
                     yield f"data: {badge_payload}\n\n"
                     sp = build_sources_payload(tool_result_atria_get)
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                atria_messages_get = (
-                    [{"role": "system", "content": final_system_atria_get}]
-                    + active_memory[-20:]
+                atria_messages_get = [
+                    {"role": "system", "content": final_system_atria_get}
+                ] + active_memory[-20:]
+                resp, err = call_nararouter_stream(
+                    atria_messages_get,
+                    nara_key_atria_get,
+                    "atria-dawn",
+                    max_tokens=16000,
+                    enable_thinking=True,
                 )
-                resp, err = call_nararouter_stream(atria_messages_get, nara_key_atria_get, "atria-dawn", max_tokens=16000, enable_thinking=True)
 
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'Atria unavailable: {err}'})}\n\n"
@@ -8301,7 +9983,9 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             if not choices:
                                 continue
                             delta_atria_get = choices[0].get("delta") or {}
-                            reasoning_token_atria_get = delta_atria_get.get("reasoning_content") or ""
+                            reasoning_token_atria_get = (
+                                delta_atria_get.get("reasoning_content") or ""
+                            )
                             token = delta_atria_get.get("content") or ""
                             if reasoning_token_atria_get:
                                 if not thinking_open_atria_get:
@@ -8315,10 +9999,21 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                     thinking_open_atria_get = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
-                            logger.debug(f"⚠️ [ATRIA GET] skipped unparsable stream chunk: {parse_err}")
+                        except (
+                            json.JSONDecodeError,
+                            KeyError,
+                            TypeError,
+                            IndexError,
+                        ) as parse_err:
+                            logger.debug(
+                                f"⚠️ [ATRIA GET] skipped unparsable stream chunk: {parse_err}"
+                            )
                             continue
-                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
                     logger.warning(f"⚠️ [ATRIA GET] stream network error: {e}")
                 except Exception as e:
                     _log_unexpected("ATRIA GET stream", e)
@@ -8329,14 +10024,21 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                     if not ghost_mode and len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
                 else:
-                    logger.warning("⚠️ [ATRIA GET] stream ended with an empty reply and no error")
+                    logger.warning(
+                        "⚠️ [ATRIA GET] stream ended with an empty reply and no error"
+                    )
                     yield f"data: {json.dumps({'error': 'Atria returned an empty response. Please try again.'})}\n\n"
                 yield "data: [DONE]\n\n"
 
             return StreamingResponse(
-                generate_atria_get(), media_type="text/event-stream",
-                headers=_rl({"Cache-Control": "no-cache",
-                         "Set-Cookie": build_session_cookie(session_id)})
+                generate_atria_get(),
+                media_type="text/event-stream",
+                headers=_rl(
+                    {
+                        "Cache-Control": "no-cache",
+                        "Set-Cookie": build_session_cookie(session_id),
+                    }
+                ),
             )
 
         # ── MERCURY 2: Inception Labs API (INCEPTION_API_KEY) — mercury-2 ──
@@ -8346,15 +10048,24 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             def generate_merc_get():
                 full_reply = ""
-                thinking_open_merc = False  # tracks whether <think> has been opened in full_reply
+                thinking_open_merc = (
+                    False  # tracks whether <think> has been opened in full_reply
+                )
                 if tool_result:
                     yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
                     sp = build_sources_payload(tool_result)
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                merc_msgs_get = [{"role": "system", "content": merc_system_get}] + active_memory[-20:]
-                resp, err = call_inception_stream(merc_msgs_get, merc_key_get, model_id="mercury-2", reasoning_effort="high")
+                merc_msgs_get = [
+                    {"role": "system", "content": merc_system_get}
+                ] + active_memory[-20:]
+                resp, err = call_inception_stream(
+                    merc_msgs_get,
+                    merc_key_get,
+                    model_id="mercury-2",
+                    reasoning_effort="high",
+                )
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'Mercury 2 unavailable: {err}'})}\n\n"
                     yield "data: [DONE]\n\n"
@@ -8377,7 +10088,9 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             if not choices:
                                 continue
                             delta_merc = choices[0].get("delta") or {}
-                            reasoning_token_merc = delta_merc.get("reasoning_content") or ""
+                            reasoning_token_merc = (
+                                delta_merc.get("reasoning_content") or ""
+                            )
                             token = delta_merc.get("content") or ""
                             if reasoning_token_merc:
                                 if not thinking_open_merc:
@@ -8391,10 +10104,21 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                     thinking_open_merc = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
-                            logger.debug(f"⚠️ [MERCURY 2 GET] skipped unparsable stream chunk: {parse_err}")
+                        except (
+                            json.JSONDecodeError,
+                            KeyError,
+                            TypeError,
+                            IndexError,
+                        ) as parse_err:
+                            logger.debug(
+                                f"⚠️ [MERCURY 2 GET] skipped unparsable stream chunk: {parse_err}"
+                            )
                             continue
-                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
                     logger.warning(f"⚠️ [MERCURY 2 GET] stream network error: {e}")
                 except Exception as e:
                     _log_unexpected("MERCURY 2 GET stream", e)
@@ -8407,9 +10131,14 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 yield "data: [DONE]\n\n"
 
             return StreamingResponse(
-                generate_merc_get(), media_type="text/event-stream",
-                headers=_rl({"Cache-Control": "no-cache",
-                         "Set-Cookie": build_session_cookie(session_id)})
+                generate_merc_get(),
+                media_type="text/event-stream",
+                headers=_rl(
+                    {
+                        "Cache-Control": "no-cache",
+                        "Set-Cookie": build_session_cookie(session_id),
+                    }
+                ),
             )
 
         # ── MUSE GLIMMER: NVIDIA NIM API (NVIDIA_API_KEY) — meta/muse-glimmer-30b ──
@@ -8419,17 +10148,25 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             def generate_muse_glimmer_get():
                 full_reply = ""
-                thinking_open_mg = False  # tracks whether <think> has been opened in full_reply
+                thinking_open_mg = (
+                    False  # tracks whether <think> has been opened in full_reply
+                )
                 if tool_result:
                     yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
                     sp = build_sources_payload(tool_result)
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                mg_msgs_get = [{"role": "system", "content": mg_system_get}] + active_memory[-20:]
+                mg_msgs_get = [
+                    {"role": "system", "content": mg_system_get}
+                ] + active_memory[-20:]
                 resp, err = call_nvidia_stream(
-                    mg_msgs_get, nvidia_key_mg_get, "meta/muse-glimmer-30b",
-                    temperature=1, top_p=0.95, max_tokens=8192,
+                    mg_msgs_get,
+                    nvidia_key_mg_get,
+                    "meta/muse-glimmer-30b",
+                    temperature=1,
+                    top_p=0.95,
+                    max_tokens=8192,
                     template_kwargs={"enable_thinking": True},
                 )
                 if resp is None:
@@ -8468,10 +10205,21 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                     thinking_open_mg = False
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
-                            logger.debug(f"⚠️ [MUSE GLIMMER GET] skipped unparsable stream chunk: {parse_err}")
+                        except (
+                            json.JSONDecodeError,
+                            KeyError,
+                            TypeError,
+                            IndexError,
+                        ) as parse_err:
+                            logger.debug(
+                                f"⚠️ [MUSE GLIMMER GET] skipped unparsable stream chunk: {parse_err}"
+                            )
                             continue
-                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
                     logger.warning(f"⚠️ [MUSE GLIMMER GET] stream network error: {e}")
                 except Exception as e:
                     _log_unexpected("MUSE GLIMMER GET stream", e)
@@ -8484,15 +10232,22 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 yield "data: [DONE]\n\n"
 
             return StreamingResponse(
-                generate_muse_glimmer_get(), media_type="text/event-stream",
-                headers=_rl({"Cache-Control": "no-cache",
-                         "Set-Cookie": build_session_cookie(session_id)})
+                generate_muse_glimmer_get(),
+                media_type="text/event-stream",
+                headers=_rl(
+                    {
+                        "Cache-Control": "no-cache",
+                        "Set-Cookie": build_session_cookie(session_id),
+                    }
+                ),
             )
 
         # ── NIVO: Groq API — isolated from all other models ──
         if model_key == "nivo":
-            groq_key      = os.getenv("GROQ_API_KEY", "")
-            nivo_messages = [{"role": "system", "content": system_prompt}] + active_memory[-20:]
+            groq_key = os.getenv("GROQ_API_KEY", "")
+            nivo_messages = [
+                {"role": "system", "content": system_prompt}
+            ] + active_memory[-20:]
 
             def generate_nivo_get():
                 full_reply = ""
@@ -8528,10 +10283,21 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             if token:
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
-                            logger.debug(f"⚠️ [Nivo GET] skipped unparsable stream chunk: {parse_err}")
+                        except (
+                            json.JSONDecodeError,
+                            KeyError,
+                            TypeError,
+                            IndexError,
+                        ) as parse_err:
+                            logger.debug(
+                                f"⚠️ [Nivo GET] skipped unparsable stream chunk: {parse_err}"
+                            )
                             continue
-                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
                     logger.warning(f"⚠️ [Nivo GET] stream network error: {e}")
                 except Exception as e:
                     _log_unexpected("Nivo GET stream", e)
@@ -8542,9 +10308,14 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 yield "data: [DONE]\n\n"
 
             return StreamingResponse(
-                generate_nivo_get(), media_type="text/event-stream",
-                headers=_rl({"Cache-Control": "no-cache",
-                         "Set-Cookie": build_session_cookie(session_id)})
+                generate_nivo_get(),
+                media_type="text/event-stream",
+                headers=_rl(
+                    {
+                        "Cache-Control": "no-cache",
+                        "Set-Cookie": build_session_cookie(session_id),
+                    }
+                ),
             )
 
         # ── SAMBHAV: qwen/qwen3.8-27b via Groq API (GET handler) ──
@@ -8560,8 +10331,12 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                         yield f"data: {sp}\n\n"
 
                 # ⚠️ Trimmed from -20 to -10 — see POST handler comment above.
-                sambhav_msgs_get = [{"role": "system", "content": system_prompt}] + active_memory[-20:]
-                resp, err = call_sambhav_groq_stream(sambhav_msgs_get, sambhav_groq_key_get)
+                sambhav_msgs_get = [
+                    {"role": "system", "content": system_prompt}
+                ] + active_memory[-20:]
+                resp, err = call_sambhav_groq_stream(
+                    sambhav_msgs_get, sambhav_groq_key_get
+                )
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'Sambhav unavailable: {err}'})}\n\n"
                     yield "data: [DONE]\n\n"
@@ -8587,10 +10362,21 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             if token:
                                 full_reply += token
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
-                            logger.debug(f"⚠️ [Sambhav GET] skipped unparsable stream chunk: {parse_err}")
+                        except (
+                            json.JSONDecodeError,
+                            KeyError,
+                            TypeError,
+                            IndexError,
+                        ) as parse_err:
+                            logger.debug(
+                                f"⚠️ [Sambhav GET] skipped unparsable stream chunk: {parse_err}"
+                            )
                             continue
-                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
                     logger.warning(f"⚠️ [Sambhav GET] stream network error: {e}")
                 except Exception as e:
                     _log_unexpected("Sambhav GET stream", e)
@@ -8601,9 +10387,14 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 yield "data: [DONE]\n\n"
 
             return StreamingResponse(
-                generate_sambhav_get(), media_type="text/event-stream",
-                headers=_rl({"Cache-Control": "no-cache",
-                         "Set-Cookie": build_session_cookie(session_id)})
+                generate_sambhav_get(),
+                media_type="text/event-stream",
+                headers=_rl(
+                    {
+                        "Cache-Control": "no-cache",
+                        "Set-Cookie": build_session_cookie(session_id),
+                    }
+                ),
             )
 
         # Apply tool routing for GET requests too
@@ -8616,24 +10407,32 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             system_prompt += "\n\n" + tool_context
 
         messages = [{"role": "system", "content": system_prompt}] + active_memory[-20:]
-        api_key  = os.getenv("OPENROUTER_API_KEY")
+        api_key = os.getenv("OPENROUTER_API_KEY")
 
         # ── GEMMA: Google AI Studio direct streaming (GET handler) ──
         if model_key in GEMMA_GOOGLE_MODELS:
             google_model_id_get = GEMMA_GOOGLE_MODELS[model_key]
-            logger.info(f"🟢 [Gemma GET] Routing '{model_key}' → Google AI Studio model: {google_model_id_get}")
+            logger.info(
+                f"🟢 [Gemma GET] Routing '{model_key}' → Google AI Studio model: {google_model_id_get}"
+            )
 
             def generate_gemma_get():
                 full_reply = ""
-                thinking_open = False   # tracks whether <think> tag has been opened in full_reply
+                thinking_open = (
+                    False  # tracks whether <think> tag has been opened in full_reply
+                )
                 if tool_result:
-                    badge_payload = json.dumps({"tool_used": tool_result.get("tool", ""), "intent": intent})
+                    badge_payload = json.dumps(
+                        {"tool_used": tool_result.get("tool", ""), "intent": intent}
+                    )
                     yield f"data: {badge_payload}\n\n"
                     sp = build_sources_payload(tool_result)
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                resp, err = call_gemma_google_stream(active_memory[-20:], system_prompt, google_model_id_get)
+                resp, err = call_gemma_google_stream(
+                    active_memory[-20:], system_prompt, google_model_id_get
+                )
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'{model_key} unavailable: {err}'})}\n\n"
                     yield "data: [DONE]\n\n"
@@ -8671,10 +10470,21 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                                         thinking_open = False
                                     full_reply += token
                                     yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as parse_err:
-                            logger.debug(f"⚠️ [Gemma GET] skipped unparsable stream chunk: {parse_err}")
+                        except (
+                            json.JSONDecodeError,
+                            KeyError,
+                            TypeError,
+                            IndexError,
+                        ) as parse_err:
+                            logger.debug(
+                                f"⚠️ [Gemma GET] skipped unparsable stream chunk: {parse_err}"
+                            )
                             continue
-                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
                     logger.warning(f"⚠️ [Gemma GET] stream network error: {e}")
                 except Exception as e:
                     _log_unexpected("Gemma GET stream", e)
@@ -8692,14 +10502,14 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 headers={
                     "Cache-Control": "no-cache",
                     "Set-Cookie": build_session_cookie(session_id),
-                }
+                },
             )
 
         def generate():
             MAX_HANDOFFS = 40
-            full_reply   = ""
-            pool_index   = 0
-            handoffs     = 0
+            full_reply = ""
+            pool_index = 0
+            handoffs = 0
 
             if tool_result:
                 yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
@@ -8712,46 +10522,68 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 yield ": heartbeat\n\n"
 
                 relay_messages = (
-                    messages + [
+                    messages
+                    + [
                         {"role": "assistant", "content": full_reply},
                         {"role": "user", "content": HANDOFF_CONTINUE_PROMPT},
                     ]
-                    if full_reply.strip() else messages
+                    if full_reply.strip()
+                    else messages
                 )
-                resp, err = call_openrouter_stream(current_model, relay_messages, api_key)
+                resp, err = call_openrouter_stream(
+                    current_model, relay_messages, api_key
+                )
 
                 if resp is None:
-                    pool_index += 1; handoffs += 1
+                    pool_index += 1
+                    handoffs += 1
                     continue
 
-                leg_tokens = 0; stream_broke = False; finished_cleanly = False
+                leg_tokens = 0
+                stream_broke = False
+                finished_cleanly = False
 
                 try:
                     for line in resp.iter_lines():
-                        if not line: continue
+                        if not line:
+                            continue
                         decoded = line.decode("utf-8")
-                        if not decoded.startswith("data: "): continue
+                        if not decoded.startswith("data: "):
+                            continue
                         payload = decoded[6:]
                         if payload.strip() == "[DONE]":
-                            finished_cleanly = True; break
+                            finished_cleanly = True
+                            break
                         try:
-                            chunk  = json.loads(payload)
-                            if "error" in chunk: stream_broke = True; break
+                            chunk = json.loads(payload)
+                            if "error" in chunk:
+                                stream_broke = True
+                                break
                             choices = chunk.get("choices")
-                            if not choices: continue
+                            if not choices:
+                                continue
                             delta = choices[0].get("delta") or {}
                             # ✅ Surface reasoning tokens (Cohere North Mini Code only);
                             # empty/absent for other models in this pool.
-                            reasoning_token = delta.get("reasoning_content") or delta.get("reasoning") or ""
-                            token  = delta.get("content") or ""
+                            reasoning_token = (
+                                delta.get("reasoning_content")
+                                or delta.get("reasoning")
+                                or ""
+                            )
+                            token = delta.get("content") or ""
                             finish = choices[0].get("finish_reason")
                             if reasoning_token:
                                 yield f"data: {json.dumps({'thinking_token': reasoning_token}, ensure_ascii=False)}\n\n"
                             if token:
-                                full_reply += token; leg_tokens += 1
+                                full_reply += token
+                                leg_tokens += 1
                                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                            if finish == "stop": finished_cleanly = True; break
-                            if finish == "length": stream_broke = True; break
+                            if finish == "stop":
+                                finished_cleanly = True
+                                break
+                            if finish == "length":
+                                stream_broke = True
+                                break
                         except Exception as chunk_err:
                             # Was a bare `except: continue` — caught and silently discarded
                             # EVERYTHING, including KeyboardInterrupt/SystemExit, with no trace.
@@ -8761,9 +10593,15 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                             # upstream problem (bad JSON shape, unexpected error payload) is
                             # visible in the server logs instead of just showing up as "the
                             # reply was mysteriously short."
-                            logger.warning(f"⚠️ [stream] skipping malformed chunk: {type(chunk_err).__name__}: {chunk_err}")
+                            logger.warning(
+                                f"⚠️ [stream] skipping malformed chunk: {type(chunk_err).__name__}: {chunk_err}"
+                            )
                             continue
-                except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
                     logger.warning(f"⚠️ [stream] network error mid-stream: {e}")
                     stream_broke = True
                 except Exception as e:
@@ -8774,9 +10612,11 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                     active_memory.append({"role": "assistant", "content": full_reply})
                     if not ghost_mode and len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
-                    yield "data: [DONE]\n\n"; return
+                    yield "data: [DONE]\n\n"
+                    return
 
-                pool_index += 1; handoffs += 1
+                pool_index += 1
+                handoffs += 1
 
             if full_reply.strip():
                 active_memory.append({"role": "assistant", "content": full_reply})
@@ -8786,9 +10626,12 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 yield "data: [DONE]\n\n"
 
         return StreamingResponse(
-            generate(), media_type="text/event-stream",
-            headers={"Cache-Control": "no-cache",
-                     "Set-Cookie": build_session_cookie(session_id)}
+            generate(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Set-Cookie": build_session_cookie(session_id),
+            },
         )
     except Exception as e:
         _log_unexpected("chat_get (legacy)", e)
