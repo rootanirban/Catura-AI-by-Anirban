@@ -1014,7 +1014,7 @@ def ping():
     return {
         "status": "ok",
         "timestamp": datetime.utcnow().isoformat(),
-        "version": "0.0.497",
+        "version": "0.0.498",
     }
 
 
@@ -1030,7 +1030,7 @@ def google_verify():
 def health_check():
     return {
         "status": "healthy",
-        "version": "0.0.497",
+        "version": "0.0.498",
         "timestamp": datetime.utcnow().isoformat(),
     }
 
@@ -1259,7 +1259,7 @@ async def mcp_handshake_and_list_tools(url: str, headers: dict | None = None):
         {
             "protocolVersion": _MCP_PROTOCOL_VERSION,
             "capabilities": {},
-            "clientInfo": {"name": "Catura AI", "version": "0.0.497"},
+            "clientInfo": {"name": "Catura AI", "version": "0.0.498"},
         },
         headers,
     )
@@ -2312,6 +2312,7 @@ async def extract_and_save_memory(
         # Model fallback chain — try in order until one succeeds
         # Primary: a reliable small model; fallbacks in case of rate limit or empty response
         EXTRACTION_MODELS = [
+            "particle-ai/particle-1:free",
             "meta-llama/llama-3.1-8b-instruct:free",
             "mistralai/mistral-7b-instruct:free",
             "inclusionai/ling-3.0-flash-fin:free",
@@ -6403,12 +6404,12 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
         }
         model_pools = {
             "dagr": [
-                "inclusionai/ling-3.0-flash-sante:free",
+                "particle-ai/particle-1:free",
                 "apodex/apodex-1.1-mini:free",
             ],
             "apep": [
                 "apodex/apodex-1.1-mini:free",
-                "inclusionai/ling-3.0-flash-sante:free",
+                "particle-ai/particle-1:free",
             ],
             "sambhav": [],  # Routed via Groq API (qwen/qwen3.8-27b) — see call_sambhav_groq_stream()
             "nivo": [],  # Routed via Groq API (GROQ_API_KEY) — see generate_nivo()
@@ -8614,12 +8615,12 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
         }
         model_pools = {
             "dagr": [
-                "inclusionai/ling-3.0-flash-sante:free",
+                "particle-ai/particle-1:free",
                 "apodex/apodex-1.1-mini:free",
             ],
             "apep": [
                 "apodex/apodex-1.1-mini:free",
-                "inclusionai/ling-3.0-flash-sante:free",
+                "particle-ai/particle-1:free",
             ],
             "sambhav": [],  # Routed via Groq API (qwen/qwen3.8-27b) — see call_sambhav_groq_stream()
             "nivo": [],  # Routed via Groq API (GROQ_API_KEY)
