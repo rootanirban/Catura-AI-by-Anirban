@@ -143,7 +143,7 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
     />
-    <link rel="stylesheet" href="static/style.css?v=0.0.499" />
+    <link rel="stylesheet" href="static/style.css?v=0.0.500" />
     <!-- this is CSS linking section -->
 
     <link rel="manifest" href="/manifest.json" />
@@ -1146,20 +1146,6 @@
 
               <div
                 class="model-option"
-                data-model="agnes"
-                data-name="Agnes"
-                onclick="selectModel('agnes', 'Agnes', event)"
-              >
-                <div class="model-option-info">
-                  <div class="model-option-name">Agnes</div>
-                  <div class="model-option-desc">
-                    Fast & capable · Agnes 2.5 Flash via NaraRouter
-                  </div>
-                </div>
-                <div class="model-option-check">✓</div>
-              </div>
-              <div
-                class="model-option"
                 data-model="apep"
                 data-name="Apep"
                 onclick="selectModel('apep', 'Apep', event)"
@@ -1168,20 +1154,6 @@
                   <div class="model-option-name">Apep</div>
                   <div class="model-option-desc">
                     Powerful reasoning & agentic tasks · MiniMax M2.7
-                  </div>
-                </div>
-                <div class="model-option-check">✓</div>
-              </div>
-              <div
-                class="model-option"
-                data-model="atria"
-                data-name="Atria Dawn"
-                onclick="selectModel('atria', 'Atria Dawn', event)"
-              >
-                <div class="model-option-info">
-                  <div class="model-option-name">Atria Dawn</div>
-                  <div class="model-option-desc">
-                    Full reasoning &amp; tool use · Atria Dawn via NaraRouter
                   </div>
                 </div>
                 <div class="model-option-check">✓</div>
@@ -1238,34 +1210,6 @@
                   <div class="model-option-name">GLM</div>
                   <div class="model-option-desc">
                     Fast &amp; capable · Z.ai GLM 4.7 Flash
-                  </div>
-                </div>
-                <div class="model-option-check">✓</div>
-              </div>
-              <div
-                class="model-option"
-                data-model="laguna_core"
-                data-name="Laguna Core"
-                onclick="selectModel('laguna_core', 'Laguna Core', event)"
-              >
-                <div class="model-option-info">
-                  <div class="model-option-name">Laguna Core</div>
-                  <div class="model-option-desc">
-                    Latest agentic coding · Poolside Laguna XS.2.1
-                  </div>
-                </div>
-                <div class="model-option-check">✓</div>
-              </div>
-              <div
-                class="model-option"
-                data-model="laguna_s"
-                data-name="Laguna S"
-                onclick="selectModel('laguna_s', 'Laguna S', event)"
-              >
-                <div class="model-option-info">
-                  <div class="model-option-name">Laguna S</div>
-                  <div class="model-option-desc">
-                    Open-weight agentic coding · Poolside Laguna S.2.1
                   </div>
                 </div>
                 <div class="model-option-check">✓</div>
@@ -1351,20 +1295,6 @@
                   <div class="model-option-name">Omni</div>
                   <div class="model-option-desc">
                     Fast and efficient responses · Nemotron Omni 30B
-                  </div>
-                </div>
-                <div class="model-option-check">✓</div>
-              </div>
-              <div
-                class="model-option"
-                data-model="ox_alpha_bynara"
-                data-name="OX Alpha"
-                onclick="selectModel('ox_alpha_bynara', 'OX Alpha', event)"
-              >
-                <div class="model-option-info">
-                  <div class="model-option-name">OX Alpha</div>
-                  <div class="model-option-desc">
-                    Full coding agent &amp; tool use · by NaraRouter
                   </div>
                 </div>
                 <div class="model-option-check">✓</div>
@@ -1779,11 +1709,11 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
 
     <!-- ✅ CACHE BUSTING - VERSION PARAMETER -->
-    <script src="static/firebase-config.js?v=0.0.499"></script>
-    <script src="static/live-sync.js?v=0.0.499"></script>
-    <script src="static/logic.js?v=0.0.499"></script>
-    <script src="static/feedback.js?v=0.0.499"></script>
-    <script src="static/file-upload.js?v=0.0.499"></script>
+    <script src="static/firebase-config.js?v=0.0.500"></script>
+    <script src="static/live-sync.js?v=0.0.500"></script>
+    <script src="static/logic.js?v=0.0.500"></script>
+    <script src="static/feedback.js?v=0.0.500"></script>
+    <script src="static/file-upload.js?v=0.0.500"></script>
 
     <script>
       console.log("🚀 Catura AI v27.0.5 loaded");
@@ -1791,7 +1721,7 @@
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {
           navigator.serviceWorker
-            .register("/service-worker.js?v=0.0.499")
+            .register("/service-worker.js?v=0.0.500")
             .then(() => console.log("✅ Catura AI PWA Ready - v27.0.5"))
             .catch((err) => console.log("❌ SW Error:", err));
         });

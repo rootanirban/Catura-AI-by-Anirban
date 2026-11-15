@@ -501,16 +501,14 @@ async function _authHeaders(extra = {}) {
 async function saveMemoryEnabled(enabled) {
   if (!currentUser) return;
   try {
-    await supabaseClient
-      .from("user_settings")
-      .upsert(
-        {
-          user_id: currentUser.id,
-          memory_enabled: enabled,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id" },
-      );
+    await supabaseClient.from("user_settings").upsert(
+      {
+        user_id: currentUser.id,
+        memory_enabled: enabled,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" },
+    );
   } catch (e) {
     console.warn("[Memory] saveMemoryEnabled error:", e);
   }
@@ -7158,23 +7156,18 @@ function initWebSearchUI() {
 // ============================
 // 🤖 MODEL SELECTOR
 // ============================
-let selectedModel = "dagr"; // Default model — options: dagr, apep, sambhav, Gemma4, nivo, Laguna
+let selectedModel = "dagr"; // Default model — options: dagr, apep, sambhav, Gemma4, nivo
 
 // ── MODEL ICONS (dropdown list only — the selector button stays plain text) ──
 const MODEL_ICONS = {
   dagr: "catura.png",
   sambhav: "meta.png",
   gemini35flash: "gemini.png",
-  agnes: "agnes-.jpg",
-  ox_alpha_bynara: "ox-alpha.png",
   apep: "catura.png",
-  atria: "ox-alpha.png",
   cohere: "Cohere.png",
   gemma: "google.png",
   gemma4: "google.png",
   glm: "GLM.png",
-  laguna_core: "poolside.ico",
-  laguna_s: "poolside.ico",
   mercury2: "Mercury.png",
   muse_glimmer: "meta.png",
   nemotron: "nvidia.png",
@@ -7250,19 +7243,13 @@ window.toggleModelSelector = function (e) {
 
       const moreModels = [
         "apep",
-        "atria",
         "gemma",
         "gemma4",
         "nivo",
-        "laguna_core",
-        "laguna_s",
-        "laguna_lite",
         "nemotron",
         "omni",
         "glm",
         "cohere",
-        "agnes",
-        "ox_alpha_bynara",
         "muse_glimmer",
       ];
       const puterModelsList = ["claude_puter", "gpt5_puter", "gemini_puter"];
@@ -7319,19 +7306,13 @@ window.toggleModelSelector = function (e) {
 
       const moreModels = [
         "apep",
-        "atria",
         "gemma",
         "gemma4",
         "nivo",
-        "laguna_core",
-        "laguna_s",
-        "laguna_lite",
         "nemotron",
         "omni",
         "cohere",
         "glm",
-        "agnes",
-        "ox_alpha_bynara",
         "muse_glimmer",
       ];
       const puterModelsList = ["claude_puter", "gpt5_puter", "gemini_puter"];
@@ -7383,7 +7364,19 @@ function renderRecentModels() {
   const label = document.getElementById("recentModelsLabel");
   if (!section || !label) return;
 
-  const list = getRecentModels();
+  // Drop recents whose model is no longer offered (e.g. removed models still
+  // saved in this browser's localStorage) and prune them from storage too.
+  const stored = getRecentModels();
+  const list = stored.filter((m) =>
+    document.querySelector(`.model-option[data-model="${m.id}"]`),
+  );
+  if (list.length !== stored.length) {
+    try {
+      localStorage.setItem(RECENT_MODELS_KEY, JSON.stringify(list));
+    } catch {
+      /* ignore */
+    }
+  }
   // Don't show a "recent" entry for the model that's already the default/current pick
   section.innerHTML = "";
   if (!list.length) {
@@ -9608,7 +9601,7 @@ window.openPlansModal = function () {
   ];
   const maxFeatures = [
     "Everything in Pro",
-    "Access to Nivo & Laguna models",
+    "Access to Nivo models",
     "Fastest response speed",
     "Unlimited file uploads",
     "Maximum context window",
