@@ -1014,7 +1014,7 @@ def ping():
     return {
         "status": "ok",
         "timestamp": datetime.utcnow().isoformat(),
-        "version": "0.0.498",
+        "version": "0.0.499",
     }
 
 
@@ -1030,7 +1030,7 @@ def google_verify():
 def health_check():
     return {
         "status": "healthy",
-        "version": "0.0.498",
+        "version": "0.0.499",
         "timestamp": datetime.utcnow().isoformat(),
     }
 
@@ -1259,7 +1259,7 @@ async def mcp_handshake_and_list_tools(url: str, headers: dict | None = None):
         {
             "protocolVersion": _MCP_PROTOCOL_VERSION,
             "capabilities": {},
-            "clientInfo": {"name": "Catura AI", "version": "0.0.498"},
+            "clientInfo": {"name": "Catura AI", "version": "0.0.499"},
         },
         headers,
     )
@@ -6405,10 +6405,10 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
         model_pools = {
             "dagr": [
                 "particle-ai/particle-1:free",
-                "apodex/apodex-1.1-mini:free",
+                "baidu/ernie-5.5-flash-preview:free",
             ],
             "apep": [
-                "apodex/apodex-1.1-mini:free",
+                "baidu/ernie-5.5-flash-preview:free",
                 "particle-ai/particle-1:free",
             ],
             "sambhav": [],  # Routed via Groq API (qwen/qwen3.8-27b) — see call_sambhav_groq_stream()
