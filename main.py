@@ -1014,7 +1014,7 @@ def ping():
     return {
         "status": "ok",
         "timestamp": datetime.utcnow().isoformat(),
-        "version": "0.0.496",
+        "version": "0.0.497",
     }
 
 
@@ -1030,7 +1030,7 @@ def google_verify():
 def health_check():
     return {
         "status": "healthy",
-        "version": "0.0.496",
+        "version": "0.0.497",
         "timestamp": datetime.utcnow().isoformat(),
     }
 
@@ -1259,7 +1259,7 @@ async def mcp_handshake_and_list_tools(url: str, headers: dict | None = None):
         {
             "protocolVersion": _MCP_PROTOCOL_VERSION,
             "capabilities": {},
-            "clientInfo": {"name": "Catura AI", "version": "0.0.496"},
+            "clientInfo": {"name": "Catura AI", "version": "0.0.497"},
         },
         headers,
     )
@@ -5314,7 +5314,11 @@ def call_openrouter_stream(
                 # Scoped to these models only; no other model gets this field.
                 **(
                     {"reasoning": {"enabled": True}}
-                    if ("north-mini-code" in model_id or "ling-3.0-flash" in model_id)
+                    if (
+                        "north-mini-code" in model_id
+                        or "ling-3.0-flash" in model_id
+                        or "nemotron-3-ultra" in model_id
+                    )
                     else {}
                 ),
             },
@@ -6417,6 +6421,13 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             "laguna_core": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2.1
             "laguna_s": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna S.2.1
             "cohere": ["cohere/north-mini-code:free"],
+            # Nemotron 3 Ultra (free) — was missing here, so POST /chat silently
+            # fell back to the "dagr" pool. Second slug is the dated alias of the
+            # same model, used as a retry route if the first endpoint errors/429s.
+            "nemotron": [
+                "nvidia/nemotron-3-ultra-550b-a55b:free",
+                "nvidia/nemotron-3-ultra-550b-a55b-20260604:free",
+            ],
             "n_nano": ["nvidia/nemotron-3.5-lightning:free"],
             "omni": ["nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"],
         }
@@ -8400,6 +8411,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 if sp:
                     yield f"data: {sp}\n\n"
 
+            consecutive_fail = 0
             while handoffs < MAX_HANDOFFS:
                 current_model = model_pool[pool_index % len(model_pool)]
                 logger.info(
@@ -8429,7 +8441,13 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     )
                     pool_index += 1
                     handoffs += 1
+                    consecutive_fail += 1
+                    if consecutive_fail >= 4:
+                        break  # give up instead of hammering a rate-limited endpoint
+                    time.sleep(min(1.5 * consecutive_fail, 5))
+                    yield ": heartbeat\n\n"
                     continue
+                consecutive_fail = 0
 
                 leg_tokens = 0
                 stream_broke = False
@@ -8614,7 +8632,10 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "laguna_core": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna XS.2.1
             "laguna_s": [],  # Routed via Poolside API (POOLSIDE_API_KEY) — Laguna S.2.1
             "cohere": ["cohere/north-mini-code:free"],
-            "nemotron": ["nvidia/nemotron-3-ultra-550b-a55b:free"],
+            "nemotron": [
+                "nvidia/nemotron-3-ultra-550b-a55b:free",
+                "nvidia/nemotron-3-ultra-550b-a55b-20260604:free",
+            ],
             "n_nano": ["nvidia/nemotron-3.5-lightning:free"],
             "omni": ["nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"],
         }
