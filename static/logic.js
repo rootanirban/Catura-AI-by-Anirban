@@ -7156,13 +7156,14 @@ function initWebSearchUI() {
 // ============================
 // 🤖 MODEL SELECTOR
 // ============================
-let selectedModel = "dagr"; // Default model — options: dagr, apep, sambhav, Gemma4, nivo
+let selectedModel = "dagr"; // Default model — options: dagr, apep, sambhav, Gemma4, nivo, gemini4hydrogen
 
 // ── MODEL ICONS (dropdown list only — the selector button stays plain text) ──
 const MODEL_ICONS = {
   dagr: "catura.png",
   sambhav: "meta.png",
   gemini35flash: "gemini.png",
+  gemini4hydrogen: "gemini.png",
   apep: "catura.png",
   cohere: "Cohere.png",
   gemma: "google.png",

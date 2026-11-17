@@ -922,6 +922,11 @@ ALPHAVANTAGE_KEY = os.getenv(
 )  # https://www.alphavantage.co (free)
 CRICAPI_KEY = os.getenv("CRICAPI_KEY", "")  # https://www.cricapi.com (free)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")  # https://aistudio.google.com (free)
+# Gemini 4 Hydrogen thinking level: low | medium | high | xhigh  (xhigh = deepest reasoning).
+# "minimal" is rejected by this model. Override on Render/.env if xhigh is too slow for you.
+GEMINI_HYDROGEN_THINKING_LEVEL = (
+    os.getenv("GEMINI_HYDROGEN_THINKING_LEVEL", "high").strip().lower()
+)
 TAVILY_API_KEY = os.getenv(
     "TAVILY_API_KEY", ""
 )  # https://tavily.com (free — 1000 searches/month)
@@ -1011,7 +1016,7 @@ def ping():
     return {
         "status": "ok",
         "timestamp": datetime.utcnow().isoformat(),
-        "version": "0.0.500",
+        "version": "0.0.501",
     }
 
 
@@ -1027,7 +1032,7 @@ def google_verify():
 def health_check():
     return {
         "status": "healthy",
-        "version": "0.0.500",
+        "version": "0.0.501",
         "timestamp": datetime.utcnow().isoformat(),
     }
 
@@ -1256,7 +1261,7 @@ async def mcp_handshake_and_list_tools(url: str, headers: dict | None = None):
         {
             "protocolVersion": _MCP_PROTOCOL_VERSION,
             "capabilities": {},
-            "clientInfo": {"name": "Catura AI", "version": "0.0.500"},
+            "clientInfo": {"name": "Catura AI", "version": "0.0.501"},
         },
         headers,
     )
@@ -5441,12 +5446,28 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
         # via the 'thinking_token' SSE event, it just needed the request
         # to actually ask for thoughts.
         is_gemma_model = "gemma" in model_id.lower()
+        # Gemini 4 family (e.g. gemini-4-hydrogen) uses `thinkingLevel`
+        # (low | medium | high | xhigh) instead of the older `thinkingBudget`.
+        # Sending both, or "minimal", makes the API reject the request.
+        # Thinking tokens + answer share the output cap, so give it real headroom.
+        is_gemini4_model = model_id.lower().startswith("gemini-4")
 
         generation_config = {
             "temperature": 1.0,
             "maxOutputTokens": 16000,
         }
-        if not is_gemma_model:
+        if is_gemini4_model:
+            # temperature/top_p/top_k are ignored by Gemini 4 — omit them.
+            generation_config.pop("temperature", None)
+            generation_config["maxOutputTokens"] = 65536
+            _lvl = GEMINI_HYDROGEN_THINKING_LEVEL
+            if _lvl not in ("low", "medium", "high", "xhigh"):
+                _lvl = "xhigh"
+            generation_config["thinkingConfig"] = {
+                "includeThoughts": True,  # stream reasoning as part["thought"]
+                "thinkingLevel": _lvl,
+            }
+        elif not is_gemma_model:
             generation_config["thinkingConfig"] = {
                 "includeThoughts": True,
                 "thinkingBudget": -1,  # -1 = dynamic/auto thinking budget
@@ -5468,14 +5489,14 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
         # request and quota to spare. Retry a couple of times with a short
         # backoff before giving up, since these are transient server-side.
         last_err = "Internal error encountered."
-        for attempt in range(3):
+        for attempt in range(5):
             try:
                 resp = _http.post(
                     url,
                     headers={"Content-Type": "application/json"},
                     json=payload,
                     stream=True,
-                    timeout=(10, 120),
+                    timeout=(10, 300 if is_gemini4_model else 120),
                 )
             except requests.exceptions.Timeout:
                 last_err = "Request timed out"
@@ -5502,13 +5523,31 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
             except (ValueError, KeyError, AttributeError):
                 last_err = f"HTTP {resp.status_code}"
 
+            # Gemini 4: if the chosen thinkingLevel is rejected (400), step down
+            # xhigh -> high -> (default thinking) and retry instead of failing the chat.
+            if resp.status_code == 400 and is_gemini4_model:
+                _tc = generation_config.get("thinkingConfig", {})
+                _cur = _tc.get("thinkingLevel")
+                if _cur == "xhigh":
+                    logger.warning(
+                        f"⚠️ [call_gemma_google_stream] thinkingLevel=xhigh rejected ({last_err}) — retrying with 'high'"
+                    )
+                    _tc["thinkingLevel"] = "high"
+                    continue
+                if _cur == "high":
+                    logger.warning(
+                        f"⚠️ [call_gemma_google_stream] thinkingLevel=high rejected ({last_err}) — retrying with default thinking"
+                    )
+                    _tc.pop("thinkingLevel", None)
+                    continue
+
             # Only worth retrying on server-side errors (500/503), not on
             # 4xx (bad key, bad request, quota) which will just repeat.
             if resp.status_code not in (500, 503):
                 return None, last_err
 
-            if attempt < 2:
-                time.sleep(1.5 * (attempt + 1))
+            if attempt < 4:
+                time.sleep(1.5 * min(attempt + 1, 3))
 
         return None, last_err
     except requests.exceptions.RequestException as e:
@@ -6132,6 +6171,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             "gemma": "gemma-4-26b-a4b-it",
             "gemma4": "gemma-4-31b-it",
             "gemini35flash": "gemini-3.5-flash-lite",
+            "gemini4hydrogen": "gemini-4-hydrogen",
         }
         model_pools = {
             "dagr": [
@@ -6395,6 +6435,18 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 "Never make up facts. If asked who made you, say 'I was created by Anirban.' "
                 "If asked which model you are, what AI you are, or which version is running, "
                 "always say: 'I am Catura AI Gemini Flash.' Never mention Dagr, Apep, Sambhav, Gemma, or Gemma4."
+                + FORMATTING_RULES
+                + NO_TOOL_CALL_RULE
+            ),
+            "gemini4hydrogen": (
+                "Your name is Catura (pronounced kuh-CHUR-uh) Gemini Hydrogen Model. You are a fast, capable, and "
+                "deeply reasoning AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI Gemini Hydrogen, built for everyday coding, agentic tasks and careful step-by-step thinking. "
+                "Speak clearly and helpfully. Never start with 'Certainly!', 'Great question!', or similar openers. "
+                "Match the user's language automatically. "
+                "Never make up facts. If asked who made you, say 'I was created by Anirban.' "
+                "If asked which model you are, what AI you are, or which version is running, "
+                "always say: 'I am Catura AI Gemini Hydrogen.' Never mention Dagr, Apep, Sambhav, Gemma, or Gemma4."
                 + FORMATTING_RULES
                 + NO_TOOL_CALL_RULE
             ),
@@ -7558,6 +7610,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "gemma": "gemma-4-26b-a4b-it",
             "gemma4": "gemma-4-31b-it",
             "gemini35flash": "gemini-3.5-flash-lite",
+            "gemini4hydrogen": "gemini-4-hydrogen",
         }
         model_pools = {
             "dagr": [
@@ -8145,6 +8198,17 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "Never make up facts. If asked who made you, say 'I was created by Anirban.' "
                 "If asked which model you are, what AI you are, or which version is running, "
                 "always say: 'I am Catura AI Gemini Flash.' Never mention Dagr, Apep, Sambhav, Gemma, or Gemma4."
+                + NO_TOOL_CALL_RULE
+            ),
+            "gemini4hydrogen": (
+                "Your name is Catura (pronounced kuh-CHUR-uh) Gemini Hydrogen Model. You are a fast, capable, and "
+                "deeply reasoning AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI Gemini Hydrogen, built for everyday coding, agentic tasks and careful step-by-step thinking. "
+                "Speak clearly and helpfully. Never start with 'Certainly!', 'Great question!', or similar openers. "
+                "Match the user's language automatically. "
+                "Never make up facts. If asked who made you, say 'I was created by Anirban.' "
+                "If asked which model you are, what AI you are, or which version is running, "
+                "always say: 'I am Catura AI Gemini Hydrogen.' Never mention Dagr, Apep, Sambhav, Gemma, or Gemma4."
                 + NO_TOOL_CALL_RULE
             ),
             "cohere": (

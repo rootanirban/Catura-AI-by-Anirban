@@ -143,7 +143,7 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
     />
-    <link rel="stylesheet" href="static/style.css?v=0.0.500" />
+    <link rel="stylesheet" href="static/style.css?v=0.0.501" />
     <!-- this is CSS linking section -->
 
     <link rel="manifest" href="/manifest.json" />
@@ -1021,6 +1021,22 @@
                     </div>
                     <div class="model-option-check">✓</div>
                   </div>
+                  <div
+                    class="model-option"
+                    data-model="gemini4hydrogen"
+                    data-name="Gemini Hydrogen"
+                    onclick="
+                      selectModel('gemini4hydrogen', 'Gemini Hydrogen', event)
+                    "
+                  >
+                    <div class="model-option-info">
+                      <div class="model-option-name">Gemini Hydrogen</div>
+                      <div class="model-option-desc">
+                        Fast &amp; deep thinking · Google Gemini 4 Hydrogen
+                      </div>
+                    </div>
+                    <div class="model-option-check">✓</div>
+                  </div>
 
                   <!-- ── EFFORT LEVEL ROW (hover flyout) ── -->
                   <div
@@ -1709,11 +1725,11 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
 
     <!-- ✅ CACHE BUSTING - VERSION PARAMETER -->
-    <script src="static/firebase-config.js?v=0.0.500"></script>
-    <script src="static/live-sync.js?v=0.0.500"></script>
-    <script src="static/logic.js?v=0.0.500"></script>
-    <script src="static/feedback.js?v=0.0.500"></script>
-    <script src="static/file-upload.js?v=0.0.500"></script>
+    <script src="static/firebase-config.js?v=0.0.501"></script>
+    <script src="static/live-sync.js?v=0.0.501"></script>
+    <script src="static/logic.js?v=0.0.501"></script>
+    <script src="static/feedback.js?v=0.0.501"></script>
+    <script src="static/file-upload.js?v=0.0.501"></script>
 
     <script>
       console.log("🚀 Catura AI v27.0.5 loaded");
@@ -1721,7 +1737,7 @@
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {
           navigator.serviceWorker
-            .register("/service-worker.js?v=0.0.500")
+            .register("/service-worker.js?v=0.0.501")
             .then(() => console.log("✅ Catura AI PWA Ready - v27.0.5"))
             .catch((err) => console.log("❌ SW Error:", err));
         });
