@@ -925,7 +925,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")  # https://aistudio.google.com 
 # Gemini 4 Hydrogen thinking level: low | medium | high | xhigh  (xhigh = deepest reasoning).
 # "minimal" is rejected by this model. Override on Render/.env if xhigh is too slow for you.
 GEMINI_HYDROGEN_THINKING_LEVEL = (
-    os.getenv("GEMINI_HYDROGEN_THINKING_LEVEL", "high").strip().lower()
+    os.getenv("GEMINI_HYDROGEN_THINKING_LEVEL", "xhigh").strip().lower()
 )
 TAVILY_API_KEY = os.getenv(
     "TAVILY_API_KEY", ""
@@ -1016,7 +1016,7 @@ def ping():
     return {
         "status": "ok",
         "timestamp": datetime.utcnow().isoformat(),
-        "version": "0.0.501",
+        "version": "0.0.502",
     }
 
 
@@ -1032,7 +1032,7 @@ def google_verify():
 def health_check():
     return {
         "status": "healthy",
-        "version": "0.0.501",
+        "version": "0.0.502",
         "timestamp": datetime.utcnow().isoformat(),
     }
 
@@ -1261,7 +1261,7 @@ async def mcp_handshake_and_list_tools(url: str, headers: dict | None = None):
         {
             "protocolVersion": _MCP_PROTOCOL_VERSION,
             "capabilities": {},
-            "clientInfo": {"name": "Catura AI", "version": "0.0.501"},
+            "clientInfo": {"name": "Catura AI", "version": "0.0.502"},
         },
         headers,
     )
