@@ -922,11 +922,21 @@ ALPHAVANTAGE_KEY = os.getenv(
 )  # https://www.alphavantage.co (free)
 CRICAPI_KEY = os.getenv("CRICAPI_KEY", "")  # https://www.cricapi.com (free)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")  # https://aistudio.google.com (free)
-# Gemini 4 Hydrogen thinking level: low | medium | high | xhigh  (xhigh = deepest reasoning).
-# "minimal" is rejected by this model. Override on Render/.env if xhigh is too slow for you.
+# Gemini 4 Hydrogen thinking level: auto | low | medium | high | xhigh
+#   auto   (default) = picks low/medium/high per message (greetings -> low,
+#                      code/math/files -> high). Fast for simple chat.
+#   xhigh  = Google says it is for the very hardest problems and can "overthink"
+#            simple prompts for minutes. Only set it manually if you want that.
+# "minimal" is rejected by this model.
 GEMINI_HYDROGEN_THINKING_LEVEL = (
-    os.getenv("GEMINI_HYDROGEN_THINKING_LEVEL", "xhigh").strip().lower()
+    os.getenv("GEMINI_HYDROGEN_THINKING_LEVEL", "auto").strip().lower()
 )
+try:
+    GEMINI_HYDROGEN_MAX_OUTPUT_TOKENS = int(
+        os.getenv("GEMINI_HYDROGEN_MAX_OUTPUT_TOKENS", "32768")
+    )
+except ValueError:
+    GEMINI_HYDROGEN_MAX_OUTPUT_TOKENS = 32768
 TAVILY_API_KEY = os.getenv(
     "TAVILY_API_KEY", ""
 )  # https://tavily.com (free — 1000 searches/month)
@@ -1016,7 +1026,7 @@ def ping():
     return {
         "status": "ok",
         "timestamp": datetime.utcnow().isoformat(),
-        "version": "0.0.502",
+        "version": "0.0.503",
     }
 
 
@@ -1032,7 +1042,7 @@ def google_verify():
 def health_check():
     return {
         "status": "healthy",
-        "version": "0.0.502",
+        "version": "0.0.503",
         "timestamp": datetime.utcnow().isoformat(),
     }
 
@@ -1261,7 +1271,7 @@ async def mcp_handshake_and_list_tools(url: str, headers: dict | None = None):
         {
             "protocolVersion": _MCP_PROTOCOL_VERSION,
             "capabilities": {},
-            "clientInfo": {"name": "Catura AI", "version": "0.0.502"},
+            "clientInfo": {"name": "Catura AI", "version": "0.0.503"},
         },
         headers,
     )
@@ -5414,63 +5424,134 @@ def call_gemini_stream(messages, system_prompt):
         return None, _client_safe_error(e, "call_gemini_stream")
 
 
-# ============================================================
-# ✅ HELPER: Call Google Gemma via Google AI Studio (same key as Gemini)
-# ============================================================
-def call_gemma_google_stream(messages, system_prompt, model_id):
+import queue as _g_queue
+import threading as _g_threading
+
+# ── <think> stripping ────────────────────────────────────────────────────────
+# The server stores replies as "<think>reasoning</think>answer" so the UI can
+# show the thinking panel. That is fine for display, but it must NEVER be sent
+# back to Gemini as conversation history: it bloats every follow-up request with
+# thousands of reasoning tokens (slower + costlier) and makes the model "read"
+# its own scratch-work as if it were the answer it gave.
+_G_THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.IGNORECASE | re.DOTALL)
+
+
+def _strip_think(text: str) -> str:
+    if not text:
+        return ""
+    cleaned = _G_THINK_BLOCK_RE.sub("", text)
+    idx = cleaned.lower().find("<think>")  # unclosed block (cut-off reasoning)
+    if idx != -1:
+        cleaned = cleaned[:idx]
+    return cleaned.replace("</think>", "").strip()
+
+
+def _build_gemini_contents(messages) -> list:
+    """OpenAI-style messages -> Gemini `contents`.
+
+    - drops system messages (sent via system_instruction)
+    - strips <think> blocks from assistant turns
+    - skips empty turns (Gemini rejects empty text parts with a 400)
+    - merges consecutive same-role turns and makes sure it starts with 'user'
     """
-    Calls Gemma 4 models via Google AI Studio REST API —
-    same GEMINI_API_KEY and endpoint pattern as Gemini 2.5 Flash.
+    contents = []
+    for msg in messages:
+        role = msg.get("role")
+        if role == "system":
+            continue
+        text = msg.get("content")
+        if not isinstance(text, str):
+            text = "" if text is None else str(text)
+        if role != "user":
+            text = _strip_think(text)
+        if not text.strip():
+            continue
+        g_role = "user" if role == "user" else "model"
+        if contents and contents[-1]["role"] == g_role:
+            contents[-1]["parts"][0]["text"] += "\n\n" + text
+        else:
+            contents.append({"role": g_role, "parts": [{"text": text}]})
+    while contents and contents[0]["role"] != "user":
+        contents.pop(0)
+    return contents
+
+
+# ── Adaptive thinking level for Gemini 4 Hydrogen ───────────────────────────
+# `thinkingLevel` is THE latency dial. Hydrogen's own default is "high";
+# "xhigh" is documented by Google as being for the very hardest multi-step
+# problems and can "overthink" simple prompts, burning minutes of tokens for
+# no better answer. Hard-coding xhigh for every message is what made "hi"
+# take minutes. Default is now "auto": pick the level from the message.
+_G4_LEVELS = ("low", "medium", "high", "xhigh")
+_G4_STEP_DOWN = {"xhigh": "high", "high": "medium", "medium": "low", "low": None}
+_G4_STRONG_RE = re.compile(
+    r"```|\b(debug|traceback|stack ?trace|algorithm|refactor|optimi[sz]e|"
+    r"architecture|prove|proof|derive|derivation|integral|differential|"
+    r"theorem|time complexity|race condition|step[- ]by[- ]step)\b",
+    re.IGNORECASE,
+)
+
+
+def _pick_gemini4_thinking_level(messages) -> str:
+    cfg = GEMINI_HYDROGEN_THINKING_LEVEL
+    if cfg in _G4_LEVELS:  # explicit env override always wins
+        return cfg
+    last_user = ""
+    for m in reversed(messages):
+        if m.get("role") == "user":
+            c = m.get("content")
+            last_user = c if isinstance(c, str) else ""
+            break
+    has_file = "=== ATTACHED FILE" in last_user
+    typed = last_user.split("=== ATTACHED FILE", 1)[0].strip()
+    n = len(typed)
+    if has_file or n > 800 or _G4_STRONG_RE.search(typed):
+        return "high"
+    if n <= 25:  # "hi", "thanks", "who are you", "what's 2+2" ...
+        return "low"
+    return "medium"
+
+
+# ============================================================
+# ✅ HELPER: Call Google Gemini / Gemma via Google AI Studio (same key)
+# ============================================================
+def call_gemma_google_stream(messages, system_prompt, model_id, thinking_level=None):
+    """
+    Opens a streaming generateContent call. Returns (resp, err).
+    Used for Gemma 4, Gemini 3.5 Flash Lite and Gemini 4 Hydrogen.
     """
     if not GEMINI_API_KEY:
         return None, "GEMINI_API_KEY not set in environment variables"
     try:
-        contents = []
-        for msg in messages:
-            role = msg["role"]
-            if role == "system":
-                continue
-            gemini_role = "user" if role == "user" else "model"
-            contents.append({"role": gemini_role, "parts": [{"text": msg["content"]}]})
-        # NOTE: thinkingConfig is a Gemini-only field. Gemma 4 models
-        # (gemma-4-31b-it / gemma-4-26b-a4b-it) control reasoning via a
-        # <|think|> token baked into the prompt/model, not this API param.
-        # Sending thinkingConfig to Gemma 4 is a known trigger for constant
-        # "500 Internal error encountered" responses from Google's API
-        # (see: discuss.ai.google.dev "Constant 500s with Gemma" / "Constant
-        # 500s on Gemma 4") — so it is intentionally omitted for Gemma models.
-        #
-        # Genuine Gemini models (e.g. gemini-3.5-flash-lite) DO support
-        # thinkingConfig, so we enable it there — the streaming loop below
-        # already branches on part["thought"] to surface reasoning tokens
-        # via the 'thinking_token' SSE event, it just needed the request
-        # to actually ask for thoughts.
+        contents = _build_gemini_contents(messages)
+        if not contents:
+            return None, "Empty conversation"
+
+        # NOTE: thinkingConfig is Gemini-only. Gemma 4 gets constant 500s if it
+        # is sent, so it is omitted for Gemma.
         is_gemma_model = "gemma" in model_id.lower()
-        # Gemini 4 family (e.g. gemini-4-hydrogen) uses `thinkingLevel`
-        # (low | medium | high | xhigh) instead of the older `thinkingBudget`.
-        # Sending both, or "minimal", makes the API reject the request.
-        # Thinking tokens + answer share the output cap, so give it real headroom.
         is_gemini4_model = model_id.lower().startswith("gemini-4")
 
-        generation_config = {
-            "temperature": 1.0,
-            "maxOutputTokens": 16000,
-        }
+        generation_config = {"temperature": 1.0, "maxOutputTokens": 16000}
+        level = None
         if is_gemini4_model:
             # temperature/top_p/top_k are ignored by Gemini 4 — omit them.
             generation_config.pop("temperature", None)
-            generation_config["maxOutputTokens"] = 65536
-            _lvl = GEMINI_HYDROGEN_THINKING_LEVEL
-            if _lvl not in ("low", "medium", "high", "xhigh"):
-                _lvl = "xhigh"
+            # Thinking + answer share this cap. 65536 let a runaway reasoning
+            # pass run for many minutes; 32768 is plenty for real answers.
+            generation_config["maxOutputTokens"] = GEMINI_HYDROGEN_MAX_OUTPUT_TOKENS
+            level = thinking_level or _pick_gemini4_thinking_level(messages)
+            if level not in _G4_LEVELS:
+                level = "medium"
             generation_config["thinkingConfig"] = {
-                "includeThoughts": True,  # stream reasoning as part["thought"]
-                "thinkingLevel": _lvl,
+                "includeThoughts": True,
+                "thinkingLevel": level,
             }
+            logger.info(f"🧠 [Gemini4] thinkingLevel={level} for {model_id}")
         elif not is_gemma_model:
             generation_config["thinkingConfig"] = {
                 "includeThoughts": True,
-                "thinkingBudget": -1,  # -1 = dynamic/auto thinking budget
+                "thinkingBudget": -1,
             }
 
         payload = {
@@ -5480,74 +5561,79 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
         }
         url = (
             f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{model_id}:streamGenerateContent"
-            f"?alt=sse&key={GEMINI_API_KEY}"
+            f"{model_id}:streamGenerateContent?alt=sse&key={GEMINI_API_KEY}"
         )
 
-        # Gemma 4 on Google AI Studio is known to intermittently return
-        # 500 "Internal error encountered" even with a valid, well-formed
-        # request and quota to spare. Retry a couple of times with a short
-        # backoff before giving up, since these are transient server-side.
+        # Read timeout is per socket read (time-to-first-byte / gap between
+        # chunks), not total. 90s for Gemini 4 (was 300s x 5 retries = up to
+        # 25 minutes of silent waiting before a failure was reported).
+        timeout = (10, 90 if is_gemini4_model else 120)
         last_err = "Internal error encountered."
-        for attempt in range(5):
+        attempt = 0
+        max_attempts = 4
+        while attempt < max_attempts:
+            attempt += 1
             try:
                 resp = _http.post(
                     url,
                     headers={"Content-Type": "application/json"},
                     json=payload,
                     stream=True,
-                    timeout=(10, 300 if is_gemini4_model else 120),
+                    timeout=timeout,
                 )
             except requests.exceptions.Timeout:
-                last_err = "Request timed out"
+                last_err = "The model took too long to start responding."
+                time.sleep(min(1.5 * attempt, 4))
                 continue
             except requests.exceptions.RequestException as e:
                 logger.warning(
-                    f"⚠️ [call_gemma_google_stream] network error (attempt {attempt + 1}): {e}"
+                    f"⚠️ [call_gemma_google_stream] network error (attempt {attempt}): {e}"
                 )
                 last_err = _client_safe_error(e, "call_gemma_google_stream")
-                continue
-            except Exception as e:
-                _log_unexpected(f"call_gemma_google_stream attempt {attempt + 1}", e)
-                last_err = _client_safe_error(e, "call_gemma_google_stream")
+                time.sleep(min(1.5 * attempt, 4))
                 continue
 
             if resp.status_code == 200:
                 return resp, None
 
             try:
-                err_body = resp.json()
-                last_err = err_body.get("error", {}).get(
-                    "message", f"HTTP {resp.status_code}"
+                last_err = (
+                    resp.json()
+                    .get("error", {})
+                    .get("message", f"HTTP {resp.status_code}")
                 )
             except (ValueError, KeyError, AttributeError):
                 last_err = f"HTTP {resp.status_code}"
+            try:
+                resp.close()
+            except Exception:
+                pass
 
-            # Gemini 4: if the chosen thinkingLevel is rejected (400), step down
-            # xhigh -> high -> (default thinking) and retry instead of failing the chat.
-            if resp.status_code == 400 and is_gemini4_model:
-                _tc = generation_config.get("thinkingConfig", {})
-                _cur = _tc.get("thinkingLevel")
-                if _cur == "xhigh":
-                    logger.warning(
-                        f"⚠️ [call_gemma_google_stream] thinkingLevel=xhigh rejected ({last_err}) — retrying with 'high'"
-                    )
-                    _tc["thinkingLevel"] = "high"
-                    continue
-                if _cur == "high":
-                    logger.warning(
-                        f"⚠️ [call_gemma_google_stream] thinkingLevel=high rejected ({last_err}) — retrying with default thinking"
-                    )
-                    _tc.pop("thinkingLevel", None)
-                    continue
+            # Level rejected -> step down one level and retry immediately.
+            if (
+                resp.status_code == 400
+                and is_gemini4_model
+                and "think" in last_err.lower()
+            ):
+                tc = generation_config["thinkingConfig"]
+                nxt = _G4_STEP_DOWN.get(tc.get("thinkingLevel"))
+                logger.warning(
+                    f"⚠️ [call_gemma_google_stream] thinkingLevel={tc.get('thinkingLevel')} "
+                    f"rejected ({last_err}) — retrying with {nxt or 'default'}"
+                )
+                if nxt:
+                    tc["thinkingLevel"] = nxt
+                else:
+                    tc.pop("thinkingLevel", None)
+                continue
 
-            # Only worth retrying on server-side errors (500/503), not on
-            # 4xx (bad key, bad request, quota) which will just repeat.
-            if resp.status_code not in (500, 503):
+            # 429 / 500 / 503 are transient (503 = "model overloaded" is common
+            # right after a model launch). Everything else won't fix itself.
+            if resp.status_code not in (429, 500, 503):
                 return None, last_err
-
-            if attempt < 4:
-                time.sleep(1.5 * min(attempt + 1, 3))
+            if resp.status_code == 429 and attempt >= 2:
+                return None, last_err  # real quota limit — don't hammer it
+            time.sleep(min(1.5 * attempt, 5))
 
         return None, last_err
     except requests.exceptions.RequestException as e:
@@ -5556,6 +5642,160 @@ def call_gemma_google_stream(messages, system_prompt, model_id):
     except Exception as e:
         _log_unexpected("call_gemma_google_stream", e)
         return None, _client_safe_error(e, "call_gemma_google_stream")
+
+
+def _parse_google_sse_chunk(chunk: dict) -> list:
+    """One decoded SSE JSON chunk -> list of (kind, value) events."""
+    events = []
+    err = chunk.get("error")
+    if isinstance(err, dict):  # error object delivered mid-stream
+        events.append(("stream_error", err.get("message") or "Model error"))
+        return events
+    cands = chunk.get("candidates") or []
+    if not cands:
+        block = (chunk.get("promptFeedback") or {}).get("blockReason")
+        if block:
+            events.append(("stream_error", f"Request was blocked ({block})."))
+        return events
+    cand = cands[0]
+    for part in (cand.get("content") or {}).get("parts") or []:
+        token = part.get("text") or ""
+        if token:
+            events.append(("thought" if part.get("thought") else "text", token))
+    fr = cand.get("finishReason")
+    if fr:
+        events.append(("finish", fr))
+    return events
+
+
+def _google_stream_once(messages, system_prompt, model_id, thinking_level=None):
+    """
+    Runs the whole Google call (connect + retries + SSE read) in a worker
+    thread and yields events from a queue, emitting ("hb", None) every few
+    seconds while the model is silent (long thinking pass, retries, ...).
+
+    Why: reverse proxies (Render / Cloudflare / duckdns) drop a connection
+    that carries no bytes for ~60-100s. A thinking model can easily be silent
+    that long, and the old code only yielded AFTER the first token, so the
+    browser saw a dead connection -> "sometimes fails to reply".
+    """
+    q = _g_queue.Queue()
+    cancel = _g_threading.Event()
+    holder = {"resp": None}
+
+    def worker():
+        try:
+            resp, err = call_gemma_google_stream(
+                messages, system_prompt, model_id, thinking_level
+            )
+            if resp is None:
+                q.put(("error", err or "unknown error"))
+                return
+            holder["resp"] = resp
+            for line in resp.iter_lines():
+                if cancel.is_set():
+                    return
+                if not line:
+                    continue
+                decoded = line.decode("utf-8", errors="replace")
+                if not decoded.startswith("data:"):
+                    continue
+                payload = decoded[5:].strip()
+                if payload == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(payload)
+                except json.JSONDecodeError:
+                    continue
+                for ev in _parse_google_sse_chunk(chunk):
+                    q.put(ev)
+                    if ev[0] == "stream_error":
+                        return
+        except (requests.exceptions.RequestException, ConnectionError, OSError) as e:
+            if not cancel.is_set():
+                logger.warning(f"⚠️ [Google stream] network error: {e}")
+                q.put(("stream_error", "Connection to the model was interrupted."))
+        except Exception as e:
+            _log_unexpected("Google stream worker", e)
+            q.put(("stream_error", "Unexpected error while streaming."))
+        finally:
+            q.put(("done", None))
+
+    _g_threading.Thread(target=worker, daemon=True).start()
+    try:
+        while True:
+            try:
+                kind, val = q.get(timeout=8.0)
+            except _g_queue.Empty:
+                yield ("hb", None)
+                continue
+            if kind == "done":
+                return
+            yield (kind, val)
+    finally:
+        cancel.set()  # client disconnected / stopped -> stop paying for tokens
+        r = holder["resp"]
+        if r is not None:
+            try:
+                r.close()
+            except Exception:
+                pass
+
+
+def _google_stream_events(messages, system_prompt, model_id):
+    """
+    Public event stream used by both /chat handlers. Yields:
+      ("hb", None) | ("thought", str) | ("text", str) | ("error", str)
+
+    Guarantees the user never gets a silent empty reply: if a Gemini 4 run
+    ends with thoughts but no answer (token budget burned on thinking, or
+    stream cut), it is retried ONCE at thinkingLevel="low"; if that also
+    fails a clear error is emitted.
+    """
+    is_g4 = model_id.lower().startswith("gemini-4")
+    max_runs = 2 if is_g4 else 1
+    err = None
+    finish = None
+    for run in range(max_runs):
+        got_text = False
+        connect_failed = False
+        err = None
+        finish = None
+        for kind, val in _google_stream_once(
+            messages, system_prompt, model_id, "low" if run else None
+        ):
+            if kind == "hb":
+                yield (kind, val)
+            elif kind == "error":
+                err, connect_failed = val, True
+            elif kind == "stream_error":
+                err = val
+            elif kind == "finish":
+                finish = val
+            else:
+                if kind == "text":
+                    got_text = True
+                yield (kind, val)
+        if got_text:
+            return
+        if connect_failed or (err and "blocked" in err.lower()):
+            break
+        if run + 1 < max_runs:
+            logger.warning(
+                f"⚠️ [{model_id}] no answer produced (finish={finish}, err={err}) "
+                f"— retrying once with thinkingLevel=low"
+            )
+            yield ("hb", None)
+
+    if finish == "MAX_TOKENS":
+        msg = "The model used up its token budget while thinking. Please try again."
+    elif err:
+        msg = err
+    elif finish and finish != "STOP":
+        msg = f"The model stopped without answering ({finish}). Please rephrase."
+    else:
+        msg = "The model returned an empty response. Please try again."
+    yield ("error", msg)
 
 
 # ============================================================
@@ -7276,10 +7516,8 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             )
 
             def generate_gemma():
-                full_reply = ""
-                thinking_open = (
-                    False  # tracks whether <think> tag has been opened in full_reply
-                )
+                answer_text = ""
+                yield ": connected\n\n"  # open the stream immediately (proxy keep-alive)
 
                 # ── Run tool INSIDE generator ──
                 tool_result_g = None
@@ -7301,68 +7539,26 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                resp, err = call_gemma_google_stream(
+                events = _google_stream_events(
                     active_memory[-20:], final_system_g, google_model_id
                 )
-                if resp is None:
-                    yield f"data: {json.dumps({'error': f'{model_key} unavailable: {err}'})}\n\n"
-                    yield "data: [DONE]\n\n"
-                    return
                 try:
-                    for line in resp.iter_lines():
-                        if not line:
-                            continue
-                        decoded = line.decode("utf-8")
-                        if not decoded.startswith("data: "):
-                            continue
-                        payload = decoded[6:]
-                        if payload.strip() == "[DONE]":
-                            break
-                        try:
-                            chunk = json.loads(payload)
-                            candidates = chunk.get("candidates", [])
-                            if not candidates:
-                                continue
-                            parts = candidates[0].get("content", {}).get("parts", [])
-                            for part in parts:
-                                token = part.get("text", "")
-                                if not token:
-                                    continue
-                                is_thought = bool(part.get("thought"))
-                                if is_thought:
-                                    if not thinking_open:
-                                        full_reply += "<think>"
-                                        thinking_open = True
-                                    full_reply += token
-                                    yield f"data: {json.dumps({'thinking_token': token}, ensure_ascii=False)}\n\n"
-                                else:
-                                    if thinking_open:
-                                        full_reply += "</think>"
-                                        thinking_open = False
-                                    full_reply += token
-                                    yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (
-                            json.JSONDecodeError,
-                            KeyError,
-                            TypeError,
-                            IndexError,
-                        ) as parse_err:
-                            logger.debug(
-                                f"⚠️ [Gemma POST] skipped unparsable stream chunk: {parse_err}"
-                            )
-                            continue
-                except (
-                    requests.exceptions.RequestException,
-                    ConnectionError,
-                    OSError,
-                ) as e:
-                    logger.warning(f"⚠️ [Gemma POST] stream network error: {e}")
-                except Exception as e:
-                    _log_unexpected("Gemma POST stream", e)
-                if thinking_open:
-                    full_reply += "</think>"
-                if full_reply.strip():
-                    active_memory.append({"role": "assistant", "content": full_reply})
+                    for kind, val in events:
+                        if kind == "hb":
+                            yield ": heartbeat\n\n"
+                        elif kind == "thought":
+                            yield f"data: {json.dumps({'thinking_token': val}, ensure_ascii=False)}\n\n"
+                        elif kind == "text":
+                            answer_text += val
+                            yield f"data: {json.dumps({'token': val}, ensure_ascii=False)}\n\n"
+                        elif kind == "error":
+                            yield f"data: {json.dumps({'error': f'{model_key}: {val}'}, ensure_ascii=False)}\n\n"
+                finally:
+                    events.close()  # stops the upstream request if the client left
+
+                # Server-side history stores ONLY the answer — never <think> text.
+                if answer_text.strip():
+                    active_memory.append({"role": "assistant", "content": answer_text})
                     if not ghost_mode and len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
                 yield "data: [DONE]\n\n"
@@ -8779,10 +8975,8 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             )
 
             def generate_gemma_get():
-                full_reply = ""
-                thinking_open = (
-                    False  # tracks whether <think> tag has been opened in full_reply
-                )
+                answer_text = ""
+                yield ": connected\n\n"
                 if tool_result:
                     badge_payload = json.dumps(
                         {"tool_used": tool_result.get("tool", ""), "intent": intent}
@@ -8792,68 +8986,25 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                     if sp:
                         yield f"data: {sp}\n\n"
 
-                resp, err = call_gemma_google_stream(
+                events = _google_stream_events(
                     active_memory[-20:], system_prompt, google_model_id_get
                 )
-                if resp is None:
-                    yield f"data: {json.dumps({'error': f'{model_key} unavailable: {err}'})}\n\n"
-                    yield "data: [DONE]\n\n"
-                    return
                 try:
-                    for line in resp.iter_lines():
-                        if not line:
-                            continue
-                        decoded = line.decode("utf-8")
-                        if not decoded.startswith("data: "):
-                            continue
-                        payload = decoded[6:]
-                        if payload.strip() == "[DONE]":
-                            break
-                        try:
-                            chunk = json.loads(payload)
-                            candidates = chunk.get("candidates", [])
-                            if not candidates:
-                                continue
-                            parts = candidates[0].get("content", {}).get("parts", [])
-                            for part in parts:
-                                token = part.get("text", "")
-                                if not token:
-                                    continue
-                                is_thought = bool(part.get("thought"))
-                                if is_thought:
-                                    if not thinking_open:
-                                        full_reply += "<think>"
-                                        thinking_open = True
-                                    full_reply += token
-                                    yield f"data: {json.dumps({'thinking_token': token}, ensure_ascii=False)}\n\n"
-                                else:
-                                    if thinking_open:
-                                        full_reply += "</think>"
-                                        thinking_open = False
-                                    full_reply += token
-                                    yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        except (
-                            json.JSONDecodeError,
-                            KeyError,
-                            TypeError,
-                            IndexError,
-                        ) as parse_err:
-                            logger.debug(
-                                f"⚠️ [Gemma GET] skipped unparsable stream chunk: {parse_err}"
-                            )
-                            continue
-                except (
-                    requests.exceptions.RequestException,
-                    ConnectionError,
-                    OSError,
-                ) as e:
-                    logger.warning(f"⚠️ [Gemma GET] stream network error: {e}")
-                except Exception as e:
-                    _log_unexpected("Gemma GET stream", e)
-                if thinking_open:
-                    full_reply += "</think>"
-                if full_reply.strip():
-                    active_memory.append({"role": "assistant", "content": full_reply})
+                    for kind, val in events:
+                        if kind == "hb":
+                            yield ": heartbeat\n\n"
+                        elif kind == "thought":
+                            yield f"data: {json.dumps({'thinking_token': val}, ensure_ascii=False)}\n\n"
+                        elif kind == "text":
+                            answer_text += val
+                            yield f"data: {json.dumps({'token': val}, ensure_ascii=False)}\n\n"
+                        elif kind == "error":
+                            yield f"data: {json.dumps({'error': f'{model_key}: {val}'}, ensure_ascii=False)}\n\n"
+                finally:
+                    events.close()
+
+                if answer_text.strip():
+                    active_memory.append({"role": "assistant", "content": answer_text})
                     if not ghost_mode and len(user_memory[session_id]) > 40:
                         user_memory[session_id] = user_memory[session_id][-40:]
                 yield "data: [DONE]\n\n"
