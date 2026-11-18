@@ -1026,7 +1026,7 @@ def ping():
     return {
         "status": "ok",
         "timestamp": datetime.utcnow().isoformat(),
-        "version": "0.0.503",
+        "version": "0.0.504",
     }
 
 
@@ -1042,7 +1042,7 @@ def google_verify():
 def health_check():
     return {
         "status": "healthy",
-        "version": "0.0.503",
+        "version": "0.0.504",
         "timestamp": datetime.utcnow().isoformat(),
     }
 
@@ -1271,7 +1271,7 @@ async def mcp_handshake_and_list_tools(url: str, headers: dict | None = None):
         {
             "protocolVersion": _MCP_PROTOCOL_VERSION,
             "capabilities": {},
-            "clientInfo": {"name": "Catura AI", "version": "0.0.503"},
+            "clientInfo": {"name": "Catura AI", "version": "0.0.504"},
         },
         headers,
     )
@@ -6047,6 +6047,202 @@ def call_inception_stream(
 
 
 # ============================================================
+# ✅ HELPER: Call OpenAI Responses API — gpt-6-luna
+# Official OpenAI endpoint (OPENAI_API_KEY, set in Render env vars)
+# ============================================================
+# gpt-6-luna accepts reasoning.effort: none | low | medium | high | xhigh | max.
+# Override the default with the optional GPT6_LUNA_REASONING_EFFORT env var.
+_OPENAI_REASONING_EFFORTS = {"none", "low", "medium", "high", "xhigh", "max"}
+GPT6_LUNA_REASONING_EFFORT = (
+    os.getenv("GPT6_LUNA_REASONING_EFFORT", "high").strip().lower()
+)
+
+
+def _to_openai_responses_input(messages, vision_images=None):
+    """
+    Converts our chat-style messages into Responses-API (instructions, input).
+    - system messages  -> `instructions`
+    - <think>…</think> blocks saved in earlier assistant turns are stripped so
+      the model never receives its own reasoning summaries back as context.
+    - vision_images ({"mime","b64"}) are attached to the last user message as
+      `input_image` blocks.
+    """
+    instructions = []
+    items = []
+    for m in messages:
+        role = m.get("role")
+        content = m.get("content", "")
+        if not isinstance(content, str):
+            content = str(content)
+        if role == "system":
+            instructions.append(content)
+        elif role == "assistant":
+            content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL)
+            content = content.replace("<think>", "").strip()
+            if content:
+                items.append({"role": "assistant", "content": content})
+        elif role == "user":
+            items.append({"role": "user", "content": content})
+
+    if vision_images:
+        for i in range(len(items) - 1, -1, -1):
+            if items[i]["role"] == "user":
+                text = items[i]["content"] or "Please analyse this image in detail."
+                blocks = [{"type": "input_text", "text": text}]
+                for img in vision_images:
+                    blocks.append(
+                        {
+                            "type": "input_image",
+                            "image_url": f"data:{img['mime']};base64,{img['b64']}",
+                        }
+                    )
+                items[i]["content"] = blocks
+                break
+    return "\n\n".join(instructions), items
+
+
+def call_openai_stream(
+    messages,
+    api_key,
+    model_id="gpt-6-luna",
+    reasoning_effort="high",
+    vision_images=None,
+):
+    """
+    Dedicated OpenAI streaming call for GPT-6 Luna via the Responses API.
+    Completely isolated from every other model — only uses OPENAI_API_KEY.
+
+    Thinking mode: `reasoning.summary="auto"` makes OpenAI stream a readable
+    summary of the model's reasoning (response.reasoning_summary_text.delta),
+    which iter_openai_responses_stream() hands to the existing thinking UI.
+    If the account isn't allowed reasoning summaries (HTTP 400 mentioning
+    "summary"), the call is retried once without them so chat still works.
+    """
+    if not api_key:
+        return None, "OPENAI_API_KEY not set in environment variables"
+
+    effort = (
+        reasoning_effort if reasoning_effort in _OPENAI_REASONING_EFFORTS else "high"
+    )
+    instructions, input_items = _to_openai_responses_input(messages, vision_images)
+    payload = {
+        "model": model_id,
+        "input": input_items,
+        "stream": True,
+        "store": False,
+        "max_output_tokens": 16000,
+        "reasoning": {"effort": effort, "summary": "auto"},
+    }
+    if instructions:
+        payload["instructions"] = instructions
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        for attempt in range(2):
+            resp = _http.post(
+                "https://api.openai.com/v1/responses",
+                headers=headers,
+                json=payload,
+                stream=True,
+                timeout=(10, 180),
+            )
+            if resp.status_code == 200:
+                return resp, None
+
+            try:
+                err_msg = (resp.json().get("error") or {}).get(
+                    "message", f"HTTP {resp.status_code}"
+                )
+            except (ValueError, KeyError, AttributeError):
+                err_msg = f"HTTP {resp.status_code}"
+            status = resp.status_code
+            resp.close()
+
+            if (
+                attempt == 0
+                and status == 400
+                and "summary" in err_msg.lower()
+                and "summary" in payload["reasoning"]
+            ):
+                logger.warning(
+                    f"⚠️ [call_openai_stream] reasoning summary refused, retrying without it: {err_msg}"
+                )
+                payload["reasoning"].pop("summary", None)
+                continue
+
+            logger.warning(f"⚠️ [call_openai_stream] HTTP {status}: {err_msg}")
+            if status == 401:
+                return None, "authentication failed — check OPENAI_API_KEY"
+            if status == 429:
+                return None, "rate limit or quota reached on the OpenAI account"
+            return None, err_msg
+        return None, "request failed"
+    except requests.exceptions.Timeout:
+        return None, "Request timed out"
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"⚠️ [call_openai_stream] network error: {e}")
+        return None, _client_safe_error(e, "call_openai_stream")
+    except Exception as e:
+        _log_unexpected("call_openai_stream", e)
+        return None, _client_safe_error(e, "call_openai_stream")
+
+
+def iter_openai_responses_stream(resp):
+    """
+    Parses an OpenAI Responses-API SSE stream and yields (kind, text) tuples:
+      ("thinking", reasoning-summary text) | ("token", answer text) | ("error", msg)
+    Shared by the POST and GET /chat handlers so both behave identically.
+    """
+    thinking_started = False
+    try:
+        for raw in resp.iter_lines():
+            if not raw:
+                continue
+            line = raw.decode("utf-8", errors="replace")
+            if not line.startswith("data:"):
+                continue
+            payload = line[5:].strip()
+            if not payload:
+                continue
+            if payload == "[DONE]":
+                break
+            try:
+                evt = json.loads(payload)
+            except json.JSONDecodeError:
+                continue
+            etype = evt.get("type", "")
+
+            if etype == "response.reasoning_summary_part.added":
+                if thinking_started:
+                    yield ("thinking", "\n\n")  # blank line between summary parts
+            elif etype == "response.reasoning_summary_text.delta":
+                delta = evt.get("delta") or ""
+                if delta:
+                    thinking_started = True
+                    yield ("thinking", delta)
+            elif etype in ("response.output_text.delta", "response.refusal.delta"):
+                delta = evt.get("delta") or ""
+                if delta:
+                    yield ("token", delta)
+            elif etype == "response.failed":
+                msg = ((evt.get("response") or {}).get("error") or {}).get(
+                    "message"
+                ) or "response failed"
+                yield ("error", msg)
+                break
+            elif etype == "error":
+                yield ("error", evt.get("message") or "stream error")
+                break
+            elif etype in ("response.completed", "response.incomplete"):
+                break
+    finally:
+        resp.close()
+
+
+# ============================================================
 # ✅ HELPER: Call NVIDIA NIM API — meta/muse-glimmer-30b
 # OpenAI-compatible endpoint at integrate.api.nvidia.com (NVIDIA_API_KEY)
 # ============================================================
@@ -6425,6 +6621,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
             "sambhav": [],  # Routed via Groq API (qwen/qwen3.8-27b) — see call_sambhav_groq_stream()
             "nivo": [],  # Routed via Groq API (GROQ_API_KEY) — see generate_nivo()
             "glm": [],  # Routed via Z.ai API (ZAI_API_KEY) — glm-4.7-flash (free)
+            "gpt6_luna": [],  # Routed via OpenAI API (OPENAI_API_KEY) — gpt-6-luna
             "mercury2": [],  # Routed via Inception Labs API (INCEPTION_API_KEY) — mercury-2
             "muse_glimmer": [],  # Routed via NVIDIA NIM API (NVIDIA_API_KEY) — meta/muse-glimmer-30b
             "cohere": ["cohere/north-mini-code:free"],
@@ -6750,6 +6947,27 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 "Never say 'I don't have real-time data' — if live data is provided in context, use it; "
                 "otherwise give your best knowledge-based answer."
                 + FORMATTING_RULES
+                + NO_TOOL_CALL_RULE
+            ),
+            "gpt6_luna": (
+                "Your name is Catura (pronounced kuh-CHUR-uh) GPT-6 Luna Model. You are a highly capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI GPT-6 Luna, built for efficient reasoning and high-quality responses. "
+                "You are clear, direct, and helpful. You speak like a knowledgeable friend — "
+                "never robotic, never sycophantic. "
+                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
+                "'Absolutely!', or similar hollow openers. Just answer directly. "
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+                "Keep answers concise unless the user explicitly asks for detail. "
+                "Use bullet points or headers only when they genuinely improve clarity. "
+                "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
+                "For coding questions, write clean, well-commented code. "
+                "If the user attaches an image, analyse it carefully and answer based on what you see. "
+                "If asked what model or AI you are, say you are Catura AI GPT-6 Luna and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+                "Never make up facts. If you don't know something, say so honestly."
                 + NO_TOOL_CALL_RULE
             ),
             "mercury2": (
@@ -7149,6 +7367,102 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
 
             return StreamingResponse(
                 generate_glm(),
+                media_type="text/event-stream",
+                headers=_rl(
+                    {
+                        "Cache-Control": "no-cache",
+                        "Set-Cookie": build_session_cookie(session_id),
+                    }
+                ),
+            )
+
+        # ── GPT-6 LUNA: OpenAI API (OPENAI_API_KEY) — gpt-6-luna (thinking + vision) ──
+        if model_key == "gpt6_luna":
+            luna_key = os.getenv("OPENAI_API_KEY", "")
+            luna_system = system_prompts.get("gpt6_luna", system_prompts["dagr"])
+
+            def generate_luna():
+                full_reply = ""
+                thinking_open_luna = (
+                    False  # tracks whether <think> is open in full_reply
+                )
+
+                tool_result_luna = None
+                if intent != "general" and not file_urls:
+                    yield f"data: {json.dumps({'status': 'tool_running', 'intent': intent})}\n\n"
+                    tool_result_luna = run_tool(intent, prompt)
+
+                final_system_luna = luna_system
+                tool_context_luna = build_tool_context(tool_result_luna)
+                if tool_context_luna:
+                    final_system_luna += "\n\n" + tool_context_luna
+
+                if tool_result_luna:
+                    badge_payload = json.dumps(
+                        {
+                            "tool_used": tool_result_luna.get("tool", ""),
+                            "intent": intent,
+                        }
+                    )
+                    yield f"data: {badge_payload}\n\n"
+                    sp = build_sources_payload(tool_result_luna)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                luna_messages = [
+                    {"role": "system", "content": final_system_luna}
+                ] + active_memory[-20:]
+                resp, err = call_openai_stream(
+                    luna_messages,
+                    luna_key,
+                    model_id="gpt-6-luna",
+                    reasoning_effort=GPT6_LUNA_REASONING_EFFORT,
+                    vision_images=vision_images_for_prompt,
+                )
+
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'GPT-6 Luna unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+
+                try:
+                    for kind, text in iter_openai_responses_stream(resp):
+                        if kind == "thinking":
+                            if not thinking_open_luna:
+                                full_reply += "<think>"
+                                thinking_open_luna = True
+                            full_reply += text
+                            yield f"data: {json.dumps({'thinking_token': text}, ensure_ascii=False)}\n\n"
+                        elif kind == "token":
+                            if thinking_open_luna:
+                                full_reply += "</think>"
+                                thinking_open_luna = False
+                            full_reply += text
+                            yield f"data: {json.dumps({'token': text}, ensure_ascii=False)}\n\n"
+                        elif kind == "error":
+                            logger.warning(f"⚠️ [GPT-6 LUNA] stream error: {text}")
+                            if not full_reply.strip():
+                                yield f"data: {json.dumps({'error': f'GPT-6 Luna unavailable: {text}'})}\n\n"
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
+                    logger.warning(f"⚠️ [GPT-6 LUNA] stream network error: {e}")
+                except Exception as e:
+                    _log_unexpected("GPT-6 LUNA stream", e)
+
+                if thinking_open_luna:
+                    full_reply += "</think>"
+
+                if full_reply.strip():
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_luna(),
                 media_type="text/event-stream",
                 headers=_rl(
                     {
@@ -7820,6 +8134,7 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
             "sambhav": [],  # Routed via Groq API (qwen/qwen3.8-27b) — see call_sambhav_groq_stream()
             "nivo": [],  # Routed via Groq API (GROQ_API_KEY)
             "glm": [],  # Routed via Z.ai API (ZAI_API_KEY) — glm-4.7-flash (free)
+            "gpt6_luna": [],  # Routed via OpenAI API (OPENAI_API_KEY) — gpt-6-luna
             "mercury2": [],  # Routed via Inception Labs API (INCEPTION_API_KEY) — mercury-2
             "muse_glimmer": [],  # Routed via NVIDIA NIM API (NVIDIA_API_KEY) — meta/muse-glimmer-30b
             "cohere": ["cohere/north-mini-code:free"],
@@ -8320,6 +8635,27 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
                 "Never make up facts. If you don't know something, say so honestly."
                 + NO_TOOL_CALL_RULE
             ),
+            "gpt6_luna": (
+                "Your name is Catura (pronounced kuh-CHUR-uh) GPT-6 Luna Model. You are a highly capable "
+                "AI assistant created by Anirban — an independent developer based in India. "
+                "You are Catura AI GPT-6 Luna, built for efficient reasoning and high-quality responses. "
+                "You are clear, direct, and helpful. You speak like a knowledgeable friend — "
+                "never robotic, never sycophantic. "
+                "Never start a response with 'Certainly!', 'Of course!', 'Great question!', "
+                "'Absolutely!', or similar hollow openers. Just answer directly. "
+                "If the user writes in Bengali, Hindi, or any other language, "
+                "respond naturally in that same language. Match the user's language automatically. "
+                "Keep answers concise unless the user explicitly asks for detail. "
+                "Use bullet points or headers only when they genuinely improve clarity. "
+                "You are knowledgeable about technology, science, finance, history, culture, and everyday topics. "
+                "For coding questions, write clean, well-commented code. "
+                "If the user attaches an image, analyse it carefully and answer based on what you see. "
+                "If asked what model or AI you are, say you are Catura AI GPT-6 Luna and cannot share "
+                "details about the underlying technology. "
+                "If asked who made you, say 'I was created by Anirban.' "
+                "Never make up facts. If you don't know something, say so honestly."
+                + NO_TOOL_CALL_RULE
+            ),
             "mercury2": (
                 "Your name is Catura (pronounced kuh-CHUR-uh) Mercury 2 Model. You are a highly capable "
                 "AI assistant created by Anirban — an independent developer based in India. "
@@ -8590,6 +8926,80 @@ def chat_get(request: Request, prompt: str, model: str = "dagr"):
 
             return StreamingResponse(
                 generate_glm_get(),
+                media_type="text/event-stream",
+                headers=_rl(
+                    {
+                        "Cache-Control": "no-cache",
+                        "Set-Cookie": build_session_cookie(session_id),
+                    }
+                ),
+            )
+
+        # ── GPT-6 LUNA: OpenAI API (OPENAI_API_KEY) — gpt-6-luna (thinking) ──
+        if model_key == "gpt6_luna":
+            luna_key_get = os.getenv("OPENAI_API_KEY", "")
+            luna_system_get = system_prompts.get("gpt6_luna", system_prompts["dagr"])
+
+            def generate_luna_get():
+                full_reply = ""
+                thinking_open_luna = (
+                    False  # tracks whether <think> is open in full_reply
+                )
+                if tool_result:
+                    yield f"data: {json.dumps({'tool_used': tool_result.get('tool', ''), 'intent': intent})}\n\n"
+                    sp = build_sources_payload(tool_result)
+                    if sp:
+                        yield f"data: {sp}\n\n"
+
+                luna_msgs_get = [
+                    {"role": "system", "content": luna_system_get}
+                ] + active_memory[-20:]
+                resp, err = call_openai_stream(
+                    luna_msgs_get,
+                    luna_key_get,
+                    model_id="gpt-6-luna",
+                    reasoning_effort=GPT6_LUNA_REASONING_EFFORT,
+                )
+                if resp is None:
+                    yield f"data: {json.dumps({'error': f'GPT-6 Luna unavailable: {err}'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+                try:
+                    for kind, text in iter_openai_responses_stream(resp):
+                        if kind == "thinking":
+                            if not thinking_open_luna:
+                                full_reply += "<think>"
+                                thinking_open_luna = True
+                            full_reply += text
+                            yield f"data: {json.dumps({'thinking_token': text}, ensure_ascii=False)}\n\n"
+                        elif kind == "token":
+                            if thinking_open_luna:
+                                full_reply += "</think>"
+                                thinking_open_luna = False
+                            full_reply += text
+                            yield f"data: {json.dumps({'token': text}, ensure_ascii=False)}\n\n"
+                        elif kind == "error":
+                            logger.warning(f"⚠️ [GPT-6 LUNA GET] stream error: {text}")
+                            if not full_reply.strip():
+                                yield f"data: {json.dumps({'error': f'GPT-6 Luna unavailable: {text}'})}\n\n"
+                except (
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
+                    logger.warning(f"⚠️ [GPT-6 LUNA GET] stream network error: {e}")
+                except Exception as e:
+                    _log_unexpected("GPT-6 LUNA GET stream", e)
+                if thinking_open_luna:
+                    full_reply += "</think>"
+                if full_reply.strip():
+                    active_memory.append({"role": "assistant", "content": full_reply})
+                    if not ghost_mode and len(user_memory[session_id]) > 40:
+                        user_memory[session_id] = user_memory[session_id][-40:]
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(
+                generate_luna_get(),
                 media_type="text/event-stream",
                 headers=_rl(
                     {

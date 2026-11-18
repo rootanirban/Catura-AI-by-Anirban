@@ -143,7 +143,7 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
     />
-    <link rel="stylesheet" href="static/style.css?v=0.0.503" />
+    <link rel="stylesheet" href="static/style.css?v=0.0.504" />
     <!-- this is CSS linking section -->
 
     <link rel="manifest" href="/manifest.json" />
@@ -1232,6 +1232,20 @@
               </div>
               <div
                 class="model-option"
+                data-model="gpt6_luna"
+                data-name="GPT-6 Luna"
+                onclick="selectModel('gpt6_luna', 'GPT-6 Luna', event)"
+              >
+                <div class="model-option-info">
+                  <div class="model-option-name">GPT-6 Luna</div>
+                  <div class="model-option-desc">
+                    Efficient reasoning, thinking &amp; vision · OpenAI GPT-6 Luna
+                  </div>
+                </div>
+                <div class="model-option-check">✓</div>
+              </div>
+              <div
+                class="model-option"
                 data-model="mercury2"
                 data-name="Mercury 2"
                 onclick="selectModel('mercury2', 'Mercury 2', event)"
@@ -1725,11 +1739,11 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
 
     <!-- ✅ CACHE BUSTING - VERSION PARAMETER -->
-    <script src="static/firebase-config.js?v=0.0.503"></script>
-    <script src="static/live-sync.js?v=0.0.503"></script>
-    <script src="static/logic.js?v=0.0.503"></script>
-    <script src="static/feedback.js?v=0.0.503"></script>
-    <script src="static/file-upload.js?v=0.0.503"></script>
+    <script src="static/firebase-config.js?v=0.0.504"></script>
+    <script src="static/live-sync.js?v=0.0.504"></script>
+    <script src="static/logic.js?v=0.0.504"></script>
+    <script src="static/feedback.js?v=0.0.504"></script>
+    <script src="static/file-upload.js?v=0.0.504"></script>
 
     <script>
       console.log("🚀 Catura AI v27.0.5 loaded");
@@ -1737,7 +1751,7 @@
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {
           navigator.serviceWorker
-            .register("/service-worker.js?v=0.0.503")
+            .register("/service-worker.js?v=0.0.504")
             .then(() => console.log("✅ Catura AI PWA Ready - v27.0.5"))
             .catch((err) => console.log("❌ SW Error:", err));
         });

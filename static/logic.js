@@ -7169,6 +7169,7 @@ const MODEL_ICONS = {
   gemma: "google.png",
   gemma4: "google.png",
   glm: "GLM.png",
+  gpt6_luna: "openai.png",
   mercury2: "Mercury.png",
   muse_glimmer: "meta.png",
   nemotron: "nvidia.png",
@@ -7252,6 +7253,7 @@ window.toggleModelSelector = function (e) {
         "glm",
         "cohere",
         "muse_glimmer",
+        "gpt6_luna",
       ];
       const puterModelsList = ["claude_puter", "gpt5_puter", "gemini_puter"];
       if (moreModels.includes(selectedModel)) {
@@ -7315,6 +7317,7 @@ window.toggleModelSelector = function (e) {
         "cohere",
         "glm",
         "muse_glimmer",
+        "gpt6_luna",
       ];
       const puterModelsList = ["claude_puter", "gpt5_puter", "gemini_puter"];
       if (moreModels.includes(selectedModel)) {
