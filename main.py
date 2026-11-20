@@ -1026,7 +1026,7 @@ def ping():
     return {
         "status": "ok",
         "timestamp": datetime.utcnow().isoformat(),
-        "version": "0.0.504",
+        "version": "0.0.505",
     }
 
 
@@ -1042,7 +1042,7 @@ def google_verify():
 def health_check():
     return {
         "status": "healthy",
-        "version": "0.0.504",
+        "version": "0.0.505",
         "timestamp": datetime.utcnow().isoformat(),
     }
 
@@ -1271,7 +1271,7 @@ async def mcp_handshake_and_list_tools(url: str, headers: dict | None = None):
         {
             "protocolVersion": _MCP_PROTOCOL_VERSION,
             "capabilities": {},
-            "clientInfo": {"name": "Catura AI", "version": "0.0.504"},
+            "clientInfo": {"name": "Catura AI", "version": "0.0.505"},
         },
         headers,
     )
