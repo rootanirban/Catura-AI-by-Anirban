@@ -5893,6 +5893,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         body: JSON.stringify({
           prompt: promptText,
           model: model,
+          effort: getSelectedEffort(),
           file_urls: ghostChatEnabled ? [] : fileUrls,
           web_results: webResults,
           web_search_enabled: ghostChatEnabled ? false : webSearchEnabled,
@@ -7506,6 +7507,7 @@ window.selectModel = function (modelId, modelName, e) {
 
   const modelNameEl = document.getElementById("modelName");
   if (modelNameEl) modelNameEl.textContent = modelName;
+  if (typeof renderEffortPanel === "function") renderEffortPanel();
 
   document
     .querySelectorAll(".model-option")
@@ -7604,6 +7606,169 @@ function closeAllModelMenus() {
     if (isDesktop()) return;
     if (!row.contains(e.target)) row.classList.remove(OPEN_CLASS);
   });
+})();
+
+// ============================================================
+// 🎚️ EFFORT LEVEL — per-model capabilities, persistence, UI
+// ============================================================
+// Five generic levels: off | low | medium | high | max.
+// Every model lists ONLY the levels it really supports, mapped to the
+// provider's native name (used for the hint next to the label, e.g. Max
+// shows "xhigh" on Gemini 4 Hydrogen). Any level not listed is greyed out.
+// Models without an entry (OpenRouter free models, Gemma, Puter-routed
+// Claude/GPT/Gemini/Grok) have no effort control — the whole list is
+// disabled for them and nothing is sent to the backend.
+//
+// ⚠️ Keep this table in sync with EFFORT_CAPS in main.py (the backend
+// re-validates every request against its own copy).
+const EFFORT_LEVELS = ["off", "low", "medium", "high", "max"];
+const EFFORT_STORE_KEY = "catura_effort_by_model";
+const EFFORT_CAPS = {
+  gpt6_luna: {
+    default: "high",
+    levels: {
+      off: "none",
+      low: "low",
+      medium: "medium",
+      high: "high",
+      max: "max",
+    },
+  },
+  gemini4hydrogen: {
+    default: "medium",
+    levels: { low: "low", medium: "medium", high: "high", max: "xhigh" },
+  },
+  gemini35flash: {
+    default: "medium",
+    levels: { off: "minimal", low: "low", medium: "medium", high: "high" },
+  },
+  mercury2: {
+    default: "high",
+    levels: { off: "instant", low: "low", medium: "medium", high: "high" },
+  },
+  sambhav: {
+    default: "off",
+    levels: { off: "none", low: "low", medium: "medium", high: "high" },
+  },
+  nivo: {
+    default: "medium",
+    levels: { low: "low", medium: "medium", high: "high" },
+  },
+  glm: {
+    default: "high",
+    levels: { off: "disabled", high: "enabled" },
+  },
+  muse_glimmer: {
+    default: "high",
+    levels: { off: false, high: true },
+  },
+};
+
+function getEffortCaps(modelId) {
+  return EFFORT_CAPS[(modelId || "").toLowerCase()] || null;
+}
+
+function readEffortStore() {
+  try {
+    return JSON.parse(localStorage.getItem(EFFORT_STORE_KEY)) || {};
+  } catch (e) {
+    return {};
+  }
+}
+
+// Current level for a model: the saved choice if it is still supported,
+// otherwise the model's default. null when the model has no effort control.
+function getEffortLevel(modelId) {
+  const caps = getEffortCaps(modelId);
+  if (!caps) return null;
+  const saved = readEffortStore()[(modelId || "").toLowerCase()];
+  return saved && saved in caps.levels ? saved : caps.default;
+}
+
+function setEffortLevel(modelId, level) {
+  const caps = getEffortCaps(modelId);
+  if (!caps || !(level in caps.levels)) return false;
+  const store = readEffortStore();
+  store[(modelId || "").toLowerCase()] = level;
+  try {
+    localStorage.setItem(EFFORT_STORE_KEY, JSON.stringify(store));
+  } catch (e) {
+    /* storage blocked — the choice just won't persist */
+  }
+  renderEffortPanel();
+  return true;
+}
+
+// Sent with every /chat request. null → model has no effort control.
+window.getSelectedEffort = function () {
+  return getEffortLevel(selectedModel);
+};
+
+function renderEffortPanel() {
+  const panel = document.getElementById("effortLevelPanel");
+  if (!panel) return;
+  const caps = getEffortCaps(selectedModel);
+  const current = getEffortLevel(selectedModel);
+  const nameEl = document.getElementById("modelName");
+  const modelLabel = (nameEl && nameEl.textContent.trim()) || "this model";
+
+  panel.querySelectorAll(".effort-level-option").forEach((opt) => {
+    const level = opt.getAttribute("data-effort");
+    const supported = !!(caps && level in caps.levels);
+    const active = supported && level === current;
+    opt.classList.toggle("is-disabled", !supported);
+    opt.classList.toggle("is-active", active);
+    opt.setAttribute("aria-disabled", supported ? "false" : "true");
+    opt.setAttribute("aria-checked", active ? "true" : "false");
+    opt.title = supported ? "" : `Not supported by ${modelLabel}`;
+
+    const hint = opt.querySelector(".effort-native-hint");
+    if (hint) {
+      const native = supported ? caps.levels[level] : null;
+      // Show the provider's own name only when it adds information.
+      const show =
+        typeof native === "string" &&
+        native !== level &&
+        native !== "none" &&
+        native !== "enabled" &&
+        native !== "disabled";
+      hint.textContent = show ? native : "";
+    }
+  });
+
+  const note = document.getElementById("effortLevelNote");
+  if (note) {
+    note.textContent = caps
+      ? `Applies to ${modelLabel}. Greyed-out levels aren't supported by this model.`
+      : `${modelLabel} doesn't offer adjustable effort.`;
+  }
+
+  const tag = document.getElementById("modelEffortTag");
+  if (tag) {
+    tag.textContent = caps
+      ? current.charAt(0).toUpperCase() + current.slice(1)
+      : "";
+  }
+}
+window.renderEffortPanel = renderEffortPanel;
+
+(function initEffortLevelSelection() {
+  const panel = document.getElementById("effortLevelPanel");
+  if (panel) {
+    panel.addEventListener("click", function (e) {
+      const opt = e.target.closest(".effort-level-option");
+      if (!opt) return;
+      e.stopPropagation(); // don't let the row's mobile toggle collapse the panel
+      if (opt.classList.contains("is-disabled")) return;
+      setEffortLevel(selectedModel, opt.getAttribute("data-effort"));
+    });
+  }
+  const init = () => renderEffortPanel();
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
 })();
 
 window.openMoreModels = function () {

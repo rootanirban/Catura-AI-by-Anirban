@@ -143,7 +143,7 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
     />
-    <link rel="stylesheet" href="static/style.css?v=0.0.505" />
+    <link rel="stylesheet" href="static/style.css?v=0.0.506" />
     <!-- this is CSS linking section -->
 
     <link rel="manifest" href="/manifest.json" />
@@ -899,6 +899,7 @@
                 title="Choose AI Model"
               >
                 <span class="model-name" id="modelName">Dagr</span>
+                <span class="model-effort-tag" id="modelEffortTag"></span>
                 <svg
                   width="14"
                   height="14"
@@ -1059,24 +1060,128 @@
                     </svg>
 
                     <!-- Flyout panel -->
-                    <div class="effort-level-panel" id="effortLevelPanel">
+                    <div
+                      class="effort-level-panel"
+                      id="effortLevelPanel"
+                      role="menu"
+                    >
                       <div class="effort-level-panel-title">Effort Level</div>
-                      <div class="effort-level-option" data-effort="off">
+                      <div
+                        class="effort-level-option is-disabled"
+                        data-effort="off"
+                        role="menuitemradio"
+                        aria-checked="false"
+                        aria-disabled="true"
+                      >
                         <span class="effort-level-name">Off</span>
-                        <span class="effort-soon-badge">Coming soon</span>
+                        <span class="effort-native-hint"></span>
+                        <svg
+                          class="effort-level-check"
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="3"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
                       </div>
-                      <div class="effort-level-option" data-effort="low">
+                      <div
+                        class="effort-level-option is-disabled"
+                        data-effort="low"
+                        role="menuitemradio"
+                        aria-checked="false"
+                        aria-disabled="true"
+                      >
                         <span class="effort-level-name">Low</span>
-                        <span class="effort-soon-badge">Coming soon</span>
+                        <span class="effort-native-hint"></span>
+                        <svg
+                          class="effort-level-check"
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="3"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
                       </div>
-                      <div class="effort-level-option" data-effort="medium">
+                      <div
+                        class="effort-level-option is-disabled"
+                        data-effort="medium"
+                        role="menuitemradio"
+                        aria-checked="false"
+                        aria-disabled="true"
+                      >
                         <span class="effort-level-name">Medium</span>
-                        <span class="effort-soon-badge">Coming soon</span>
+                        <span class="effort-native-hint"></span>
+                        <svg
+                          class="effort-level-check"
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="3"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
                       </div>
-                      <div class="effort-level-option" data-effort="high">
+                      <div
+                        class="effort-level-option is-disabled"
+                        data-effort="high"
+                        role="menuitemradio"
+                        aria-checked="false"
+                        aria-disabled="true"
+                      >
                         <span class="effort-level-name">High</span>
-                        <span class="effort-soon-badge">Coming soon</span>
+                        <span class="effort-native-hint"></span>
+                        <svg
+                          class="effort-level-check"
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="3"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
                       </div>
+                      <div
+                        class="effort-level-option is-disabled"
+                        data-effort="max"
+                        role="menuitemradio"
+                        aria-checked="false"
+                        aria-disabled="true"
+                      >
+                        <span class="effort-level-name">Max</span>
+                        <span class="effort-native-hint"></span>
+                        <svg
+                          class="effort-level-check"
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="3"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </div>
+                      <div class="effort-level-note" id="effortLevelNote"></div>
                     </div>
                   </div>
 
@@ -1239,7 +1344,8 @@
                 <div class="model-option-info">
                   <div class="model-option-name">GPT-6 Luna</div>
                   <div class="model-option-desc">
-                    Efficient reasoning, thinking &amp; vision · OpenAI GPT-6 Luna
+                    Efficient reasoning, thinking &amp; vision · OpenAI GPT-6
+                    Luna
                   </div>
                 </div>
                 <div class="model-option-check">✓</div>
@@ -1739,11 +1845,11 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
 
     <!-- ✅ CACHE BUSTING - VERSION PARAMETER -->
-    <script src="static/firebase-config.js?v=0.0.505"></script>
-    <script src="static/live-sync.js?v=0.0.505"></script>
-    <script src="static/logic.js?v=0.0.505"></script>
-    <script src="static/feedback.js?v=0.0.505"></script>
-    <script src="static/file-upload.js?v=0.0.505"></script>
+    <script src="static/firebase-config.js?v=0.0.506"></script>
+    <script src="static/live-sync.js?v=0.0.506"></script>
+    <script src="static/logic.js?v=0.0.506"></script>
+    <script src="static/feedback.js?v=0.0.506"></script>
+    <script src="static/file-upload.js?v=0.0.506"></script>
 
     <script>
       console.log("🚀 Catura AI v27.0.5 loaded");
@@ -1751,7 +1857,7 @@
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {
           navigator.serviceWorker
-            .register("/service-worker.js?v=0.0.505")
+            .register("/service-worker.js?v=0.0.506")
             .then(() => console.log("✅ Catura AI PWA Ready - v27.0.5"))
             .catch((err) => console.log("❌ SW Error:", err));
         });

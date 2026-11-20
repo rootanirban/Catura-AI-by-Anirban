@@ -1026,7 +1026,7 @@ def ping():
     return {
         "status": "ok",
         "timestamp": datetime.utcnow().isoformat(),
-        "version": "0.0.505",
+        "version": "0.0.506",
     }
 
 
@@ -1042,7 +1042,7 @@ def google_verify():
 def health_check():
     return {
         "status": "healthy",
-        "version": "0.0.505",
+        "version": "0.0.506",
         "timestamp": datetime.utcnow().isoformat(),
     }
 
@@ -1271,7 +1271,7 @@ async def mcp_handshake_and_list_tools(url: str, headers: dict | None = None):
         {
             "protocolVersion": _MCP_PROTOCOL_VERSION,
             "capabilities": {},
-            "clientInfo": {"name": "Catura AI", "version": "0.0.505"},
+            "clientInfo": {"name": "Catura AI", "version": "0.0.506"},
         },
         headers,
     )
@@ -5262,6 +5262,73 @@ HANDOFF_CONTINUE_PROMPT = (
 )
 
 
+# ============================================================
+# 🎚️ EFFORT LEVEL — per-model capability table
+# ============================================================
+# The UI exposes 5 generic levels: off | low | medium | high | max.
+# Each model declares ONLY the levels it really supports, mapped to the
+# provider's native value. A level that is not listed is unsupported and
+# is rejected here (the frontend greys it out using the same table — keep
+# EFFORT_CAPS in logic.js in sync with this one).
+#
+# "max" is the model's top tier whatever the provider calls it
+# (GPT-6 Luna: "max", Gemini 4 Hydrogen: "xhigh").
+# "off" maps to the provider's way of disabling/minimising thinking
+# (OpenAI "none", Inception "instant", Gemini 3.5 "minimal", Groq-Qwen "none").
+#
+# Models NOT listed (OpenRouter free models, Gemma, Puter-routed models)
+# expose no effort control; for them resolve_effort() returns None and the
+# request behaves exactly as before.
+EFFORT_CAPS = {
+    # OpenAI Responses API: reasoning.effort none|low|medium|high|xhigh|max
+    "gpt6_luna": {
+        "off": "none",
+        "low": "low",
+        "medium": "medium",
+        "high": "high",
+        "max": "max",
+    },
+    # Gemini 4 Hydrogen: thinkingLevel low|medium|high|xhigh (no off; minimal is rejected)
+    "gemini4hydrogen": {
+        "low": "low",
+        "medium": "medium",
+        "high": "high",
+        "max": "xhigh",
+    },
+    # Gemini 3.5 Flash-Lite: thinkingLevel minimal|low|medium|high
+    "gemini35flash": {
+        "off": "minimal",
+        "low": "low",
+        "medium": "medium",
+        "high": "high",
+    },
+    # Mercury 2: reasoning_effort instant|low|medium|high
+    "mercury2": {"off": "instant", "low": "low", "medium": "medium", "high": "high"},
+    # Groq Qwen 3.8 27B: reasoning_effort none|low|medium|high
+    "sambhav": {"off": "none", "low": "low", "medium": "medium", "high": "high"},
+    # Groq GPT-OSS 120B: reasoning_effort low|medium|high (cannot be turned off)
+    "nivo": {"low": "low", "medium": "medium", "high": "high"},
+    # Z.ai GLM-4.7-Flash: thinking {type: enabled|disabled} (on/off only)
+    "glm": {"off": "disabled", "high": "enabled"},
+    # NVIDIA Muse Glimmer: chat_template_kwargs.enable_thinking (on/off only)
+    "muse_glimmer": {"off": False, "high": True},
+}
+_G35_LEVELS = ("minimal", "low", "medium", "high")
+
+
+def resolve_effort(model_key, requested):
+    """Return the provider-native value for `requested`, or None when the
+    model has no effort control / the level is unsupported / nothing was
+    requested (callers then keep their legacy default behaviour)."""
+    caps = EFFORT_CAPS.get(model_key)
+    if not caps or not isinstance(requested, str):
+        return None
+    level = requested.strip().lower()
+    if level not in caps:
+        return None
+    return caps[level]
+
+
 def call_openrouter_stream(
     model_id, messages, api_key, file_urls=None, vision_images=None
 ):
@@ -5549,10 +5616,17 @@ def call_gemma_google_stream(messages, system_prompt, model_id, thinking_level=N
             }
             logger.info(f"🧠 [Gemini4] thinkingLevel={level} for {model_id}")
         elif not is_gemma_model:
-            generation_config["thinkingConfig"] = {
-                "includeThoughts": True,
-                "thinkingBudget": -1,
-            }
+            if thinking_level in _G35_LEVELS:
+                # Gemini 3.5 uses thinkingLevel (thinkingBudget is deprecated)
+                generation_config["thinkingConfig"] = {
+                    "includeThoughts": True,
+                    "thinkingLevel": thinking_level,
+                }
+            else:
+                generation_config["thinkingConfig"] = {
+                    "includeThoughts": True,
+                    "thinkingBudget": -1,
+                }
 
         payload = {
             "system_instruction": {"parts": [{"text": system_prompt}]},
@@ -5742,7 +5816,7 @@ def _google_stream_once(messages, system_prompt, model_id, thinking_level=None):
                 pass
 
 
-def _google_stream_events(messages, system_prompt, model_id):
+def _google_stream_events(messages, system_prompt, model_id, thinking_level=None):
     """
     Public event stream used by both /chat handlers. Yields:
       ("hb", None) | ("thought", str) | ("text", str) | ("error", str)
@@ -5762,7 +5836,7 @@ def _google_stream_events(messages, system_prompt, model_id):
         err = None
         finish = None
         for kind, val in _google_stream_once(
-            messages, system_prompt, model_id, "low" if run else None
+            messages, system_prompt, model_id, "low" if run else thinking_level
         ):
             if kind == "hb":
                 yield (kind, val)
@@ -5801,7 +5875,7 @@ def _google_stream_events(messages, system_prompt, model_id):
 # ============================================================
 # ✅ HELPER: Call Groq with streaming — OpenAI-compatible
 # ============================================================
-def call_groq_stream(messages, api_key):
+def call_groq_stream(messages, api_key, reasoning_effort=None):
     """
     Calls Groq API with streaming using qwen/qwen3.8-27b model.
     Uses GROQ_API_KEY set on Render. Completely isolated from all
@@ -5823,6 +5897,8 @@ def call_groq_stream(messages, api_key):
                 "stream": True,
                 "temperature": 0.3,
                 "max_completion_tokens": 8000,
+                # GPT-OSS accepts low|medium|high only
+                **({"reasoning_effort": reasoning_effort} if reasoning_effort else {}),
             },
             stream=True,
             timeout=(10, 120),
@@ -5851,7 +5927,9 @@ def call_groq_stream(messages, api_key):
 # ✅ HELPER: Call Groq for Sambhav — completely independent of Nivo
 # Uses qwen/qwen3.8-27b via Groq API (GROQ_API_KEY)
 # ============================================================
-def call_sambhav_groq_stream(messages, api_key, max_completion_tokens=12000):
+def call_sambhav_groq_stream(
+    messages, api_key, max_completion_tokens=12000, reasoning_effort=None
+):
     """
     Dedicated Groq streaming function for Sambhav.
     Completely separate from call_groq_stream — does NOT share state or signature.
@@ -5889,6 +5967,14 @@ def call_sambhav_groq_stream(messages, api_key, max_completion_tokens=12000):
                 "stream": True,
                 "temperature": 0.4,
                 "max_completion_tokens": budget,
+                # Qwen 3.8: none|low|medium|high. "hidden" keeps <think> text
+                # out of the reply (this handler only reads delta.content).
+                **({"reasoning_effort": reasoning_effort} if reasoning_effort else {}),
+                **(
+                    {"reasoning_format": "hidden"}
+                    if reasoning_effort and reasoning_effort != "none"
+                    else {}
+                ),
             },
             stream=True,
             timeout=(10, 120),
@@ -5943,7 +6029,7 @@ def call_sambhav_groq_stream(messages, api_key, max_completion_tokens=12000):
 # ✅ HELPER: Call Z.ai for GLM — glm-4.7-flash (free tier)
 # Uses OpenAI-compatible endpoint at api.z.ai
 # ============================================================
-def call_zai_stream(messages, api_key):
+def call_zai_stream(messages, api_key, thinking=None):
     """
     Dedicated Z.ai streaming function for GLM model.
     Uses glm-4.7-flash via Z.ai's OpenAI-compatible endpoint (free tier).
@@ -5963,6 +6049,8 @@ def call_zai_stream(messages, api_key):
                 "stream": True,
                 "temperature": 0.7,
                 "max_tokens": 65536,
+                # "enabled" | "disabled" (GLM-4.7 thinking switch)
+                **({"thinking": {"type": thinking}} if thinking else {}),
             },
             stream=True,
             timeout=(10, 120),
@@ -6486,6 +6574,7 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
         body = await request.json()
         prompt = body.get("prompt", "")
         model = body.get("model", "dagr")
+        requested_effort = body.get("effort")  # off|low|medium|high|max|None
         file_urls = body.get("file_urls", [])
         web_search_forced = body.get("web_search_enabled", False)
         ghost_mode = body.get("ghost_mode", False)
@@ -7163,7 +7252,11 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                 sambhav_messages = [
                     {"role": "system", "content": final_system}
                 ] + active_memory[-20:]
-                resp, err = call_sambhav_groq_stream(sambhav_messages, sambhav_groq_key)
+                resp, err = call_sambhav_groq_stream(
+                    sambhav_messages,
+                    sambhav_groq_key,
+                    reasoning_effort=resolve_effort("sambhav", requested_effort),
+                )
 
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'Sambhav unavailable: {err}'})}\n\n"
@@ -7282,7 +7375,11 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         if full_reply.strip()
                         else base_glm_messages
                     )
-                    resp, err = call_zai_stream(glm_messages, zai_key)
+                    resp, err = call_zai_stream(
+                        glm_messages,
+                        zai_key,
+                        thinking=resolve_effort("glm", requested_effort),
+                    )
 
                     if resp is None:
                         if full_reply.strip():
@@ -7416,7 +7513,10 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     luna_messages,
                     luna_key,
                     model_id="gpt-6-luna",
-                    reasoning_effort=GPT6_LUNA_REASONING_EFFORT,
+                    reasoning_effort=(
+                        resolve_effort("gpt6_luna", requested_effort)
+                        or GPT6_LUNA_REASONING_EFFORT
+                    ),
                     vision_images=vision_images_for_prompt,
                 )
 
@@ -7512,7 +7612,9 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     merc_messages,
                     merc_key,
                     model_id="mercury-2",
-                    reasoning_effort="high",
+                    reasoning_effort=(
+                        resolve_effort("mercury2", requested_effort) or "high"
+                    ),
                 )
 
                 if resp is None:
@@ -7636,7 +7738,13 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     temperature=1,
                     top_p=0.95,
                     max_tokens=8192,
-                    template_kwargs={"enable_thinking": True},
+                    template_kwargs={
+                        "enable_thinking": (
+                            True
+                            if resolve_effort("muse_glimmer", requested_effort) is None
+                            else resolve_effort("muse_glimmer", requested_effort)
+                        )
+                    },
                 )
 
                 if resp is None:
@@ -7756,7 +7864,11 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                     {"role": "system", "content": final_system_n}
                 ] + active_memory[-20:]
 
-                resp, err = call_groq_stream(nivo_messages, groq_key)
+                resp, err = call_groq_stream(
+                    nivo_messages,
+                    groq_key,
+                    reasoning_effort=resolve_effort("nivo", requested_effort),
+                )
                 if resp is None:
                     yield f"data: {json.dumps({'error': f'Nivo unavailable: {err}'})}\n\n"
                     yield "data: [DONE]\n\n"
@@ -7854,7 +7966,10 @@ async def chat_post(request: Request, auth: dict = Depends(require_auth)):
                         yield f"data: {sp}\n\n"
 
                 events = _google_stream_events(
-                    active_memory[-20:], final_system_g, google_model_id
+                    active_memory[-20:],
+                    final_system_g,
+                    google_model_id,
+                    resolve_effort(model_key, requested_effort),
                 )
                 try:
                     for kind, val in events:

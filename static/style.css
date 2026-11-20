@@ -5028,7 +5028,7 @@ html {
   background: #1a1a1a;
   border: 1px solid #2e2e2e;
   border-radius: 12px;
-  width: 168px;
+  width: 196px;
   box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.75),
     0 2px 8px rgba(0, 0, 0, 0.4);
@@ -5076,32 +5076,86 @@ html {
 .effort-level-option {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   padding: 7px 12px;
-  color: #666;
+  color: #d4d4d4;
   font-size: 13px;
   font-weight: 500;
-  cursor: not-allowed;
+  cursor: pointer;
   user-select: none;
-  opacity: 0.6;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.effort-level-option:hover:not(.is-disabled) {
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .effort-level-name {
   flex: 1;
 }
 
-.effort-soon-badge {
-  font-size: 9px;
+/* Provider-native name of the tier (e.g. Max → "xhigh"), shown only when
+   it differs from the generic label. */
+.effort-native-hint {
+  font-size: 10px;
   font-weight: 600;
-  color: #888;
-  background: #262626;
-  border: 1px solid #333;
-  border-radius: 6px;
-  padding: 2px 5px;
-  white-space: nowrap;
+  color: #777;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.4px;
+}
+
+.effort-level-check {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  opacity: 0;
+}
+
+.effort-level-option.is-active {
+  color: #10a37f;
+  background: #10a37f11;
+}
+
+.effort-level-option.is-active .effort-native-hint {
+  color: #10a37f;
+}
+
+.effort-level-option.is-active .effort-level-check {
+  opacity: 1;
+}
+
+/* Level the current model does not support */
+.effort-level-option.is-disabled {
+  color: #666;
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.effort-level-note {
+  padding: 7px 12px 6px;
+  margin-top: 2px;
+  border-top: 1px solid #242424;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #777;
+}
+
+/* Small "· High" suffix next to the model name on the selector button */
+.model-effort-tag {
+  font-size: 0.85em;
+  font-weight: 500;
+  opacity: 0.65;
+  white-space: nowrap;
+}
+
+.model-effort-tag:empty {
+  display: none;
+}
+
+.model-effort-tag::before {
+  content: "· ";
 }
 
 /* On touch devices without hover, tapping the row toggles the panel via .open class (JS-assisted fallback) */
@@ -5126,13 +5180,29 @@ html {
 }
 
 [data-theme="light"] .effort-level-option {
+  color: #333;
+}
+
+[data-theme="light"] .effort-level-option:hover:not(.is-disabled) {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .effort-level-option.is-active {
+  color: #10a37f;
+  background: #10a37f11;
+}
+
+[data-theme="light"] .effort-level-option.is-disabled {
   color: #999;
 }
 
-[data-theme="light"] .effort-soon-badge {
-  color: #888;
-  background: #f0f0f0;
-  border-color: #e0e0e0;
+[data-theme="light"] .effort-native-hint {
+  color: #999;
+}
+
+[data-theme="light"] .effort-level-note {
+  color: #999;
+  border-top-color: #eee;
 }
 
 @media (max-width: 768px) {
